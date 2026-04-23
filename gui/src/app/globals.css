@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #09090b;
+  --color-foreground: #e4e4e7;
+}
+
+:root {
+  --bg-base: #09090b;
+  --bg-surface: #111113;
+  --bg-elevated: #18181b;
+  --border: #27272a;
+  --text-primary: #f4f4f5;
+  --text-muted: #71717a;
+  --font-inter: var(--font-inter-var), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+html.light {
+  /*
+   * Tailwind v4: bg-zinc-950 → var(--color-zinc-950) kullanır.
+   * Tüm zinc renkleri burada light-mode değerlerine çevrilir.
+   * Koyu → açık arka plan, açık → koyu metin olacak şekilde tersine çevrilmiş skala.
+   */
+
+  /* Arka planlar: çok koyu → çok açık */
+  --color-zinc-950: #ffffff;
+  --color-zinc-900: #f8fafc;
+  --color-zinc-800: #f1f5f9;
+  --color-zinc-700: #e2e8f0;  /* border rengi */
+
+  /* Metinler: açık → koyu (okunabilir) */
+  --color-zinc-600: #475569;  /* muted label (en az #475569 olmalı, contrast ok) */
+  --color-zinc-500: #334155;
+  --color-zinc-400: #1e293b;
+  --color-zinc-300: #1e293b;
+  --color-zinc-200: #0f172a;
+  --color-zinc-100: #0f172a;  /* birincil metin */
+  --color-zinc-50:  #020617;
+  --color-black:    #0f172a;
+
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
+
+  --bg-base:      #f1f5f9;
+  --bg-surface:   #ffffff;
+  --bg-elevated:  #f8fafc;
+  --border:       #e2e8f0;
+  --text-primary: #0f172a;
+  --text-muted:   #475569;
+  color-scheme: light;
+}
+
+/* body arka planını CSS değişkeniyle bağla, hardcoded olmasın */
+html.light body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+html,
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-inter);
+}
+
+/* Ince, koyu scrollbar */
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Animasyonlar */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes slide-out-right {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0; }
+}
+@keyframes fade-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40%           { transform: scale(1); }
+}
+
+.animate-dot-1 { animation: dot-bounce 1.4s infinite ease-in-out 0s; }
+.animate-dot-2 { animation: dot-bounce 1.4s infinite ease-in-out 0.2s; }
+.animate-dot-3 { animation: dot-bounce 1.4s infinite ease-in-out 0.4s; }
+.animate-fade-up { animation: fade-up 0.2s ease-out both; }

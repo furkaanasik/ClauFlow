@@ -1,0 +1,214 @@
+import { Router, type Request, type Response } from "express";
+import { z } from "zod";
+import {
+  createTask,
+  deleteTask,
+  getTask,
+  getProject,
+  listTasks,
+  updateTask,
+} from "../services/taskService.js";
+import {
+  broadcastTaskCreated,
+  broadcastTaskDeleted,
+  broadcastTaskUpdated,
+} from "../services/wsService.js";
+import { enqueue as enqueueExecutor } from "../agents/executor.js";
+import { mergePr } from "../services/gitService.js";
+
+const router = Router();
+
+const taskStatus = z.enum(["todo", "doing", "review", "done"]);
+const agentStatus = z.enum([
+  "idle",
+  "branching",
+  "running",
+  "pushing",
+  "pr_opening",
+  "done",
+  "error",
+]);
+
+const createTaskSchema = z.object({
+  projectId: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  analysis: z.string().optional(),
+  priority: z.string().optional(),
+  status: taskStatus.optional(),
+});
+
+const updateTaskSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  analysis: z.string().optional(),
+  priority: z.string().nullable().optional(),
+  status: taskStatus.optional(),
+  branch: z.string().nullable().optional(),
+  prUrl: z.string().nullable().optional(),
+  prNumber: z.number().nullable().optional(),
+  agent: z
+    .object({
+      status: agentStatus.optional(),
+      currentStep: z.string().optional(),
+      log: z.array(z.string()).optional(),
+      error: z.string().nullable().optional(),
+      startedAt: z.string().nullable().optional(),
+      finishedAt: z.string().nullable().optional(),
+    })
+    .optional(),
+});
+
+router.get("/", async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.query as { projectId?: string };
+    const tasks = await listTasks(projectId);
+    res.json({ tasks });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/:id", async (req: Request, res: Response) => {
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    res.json({ task });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/", async (req: Request, res: Response) => {
+  const parsed = createTaskSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
+  try {
+    const task = await createTask(parsed.data);
+    broadcastTaskCreated(task);
+    res.status(201).json({ task });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.patch("/:id", async (req: Request, res: Response) => {
+  const parsed = updateTaskSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
+  try {
+    // Reset agent state immediately so queued tasks show "Sırada" instead of stale error
+    const updateData =
+      parsed.data.status === "doing"
+        ? {
+            ...parsed.data,
+            agent: { status: "idle" as const, currentStep: undefined, log: [], error: null, startedAt: null, finishedAt: null },
+          }
+        : parsed.data;
+
+    const task = await updateTask(req.params.id!, updateData);
+    broadcastTaskUpdated(task);
+    res.json({ task });
+
+    // Fire-and-forget: trigger executor when task moves to "doing"
+    if (parsed.data.status === "doing") {
+      const project = await getProject(task.projectId);
+      if (project) {
+        enqueueExecutor(task, project);
+      }
+    }
+
+    if (parsed.data.status === "done") {
+      const project = await getProject(task.projectId);
+      if (project && task.prNumber) {
+        mergePr(project.repoPath, task.prNumber)
+          .then(async (result) => {
+            if (result.code !== 0) {
+              const errMsg = result.stderr || result.stdout || "unknown error";
+              console.error(
+                `[merger] pr merge failed for task ${task.id}:`,
+                errMsg,
+              );
+              const rolled = await updateTask(task.id, {
+                status: "review",
+                agent: {
+                  status: "error",
+                  error: `PR merge hatası: ${errMsg}`,
+                  finishedAt: new Date().toISOString(),
+                },
+              });
+              broadcastTaskUpdated(rolled);
+            } else {
+              console.log(
+                `[merger] merged PR #${task.prNumber} for task ${task.id}`,
+              );
+            }
+          })
+          .catch(async (err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error("[merge] failed for task", task.id, msg);
+            // task'ı review'a geri al, agent.status = error
+            const rolled = await updateTask(task.id, {
+              status: "review",
+              agent: {
+                status: "error",
+                error: `PR merge hatası: ${msg}`,
+                finishedAt: new Date().toISOString(),
+              },
+            });
+            broadcastTaskUpdated(rolled);
+          });
+      }
+    }
+  } catch (err) {
+    const msg = (err as Error).message;
+    const code = msg.startsWith("Task not found") ? 404 : 400;
+    res.status(code).json({ error: msg });
+  }
+});
+
+router.post("/:id/retry", async (req: Request, res: Response) => {
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    if (task.status !== "doing") {
+      return res.status(400).json({ error: "task_not_in_doing" });
+    }
+
+    const reset = await updateTask(task.id, {
+      agent: {
+        status: "idle",
+        currentStep: undefined,
+        log: [],
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+      },
+    });
+    broadcastTaskUpdated(reset);
+    res.json({ task: reset });
+
+    const project = await getProject(task.projectId);
+    if (project) enqueueExecutor(reset, project);
+  } catch (err) {
+    const msg = (err as Error).message;
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.delete("/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id!;
+    await deleteTask(id);
+    broadcastTaskDeleted(id);
+    res.status(204).end();
+  } catch (err) {
+    const msg = (err as Error).message;
+    const code = msg.startsWith("Task not found") ? 404 : 400;
+    res.status(code).json({ error: msg });
+  }
+});
+
+export default router;
