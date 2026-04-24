@@ -36,6 +36,14 @@ const PRIORITY_BORDER: Record<string, string> = {
   low:      "border-emerald-700/40",
 };
 
+/* Priority badge pill rengi */
+const PRIORITY_BADGE: Record<string, string> = {
+  critical: "bg-red-500/20 text-red-400",
+  high:     "bg-orange-500/20 text-orange-400",
+  medium:   "bg-yellow-500/20 text-yellow-400",
+  low:      "bg-zinc-700 text-zinc-400",
+};
+
 interface TaskCardProps {
   task: Task;
 }
@@ -71,6 +79,10 @@ export function TaskCard({ task }: TaskCardProps) {
   const prio       = (task.priority ?? "").toLowerCase();
   const accentBar  = PRIORITY_ACCENT[prio] ?? "";
   const borderCls  = PRIORITY_BORDER[prio] ?? "border-zinc-800";
+  const badgeCls   = PRIORITY_BADGE[prio] ?? "";
+
+  const visibleTags = (task.tags ?? []).slice(0, 3);
+  const extraTags   = (task.tags ?? []).length - visibleTags.length;
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -131,6 +143,30 @@ export function TaskCard({ task }: TaskCardProps) {
           <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-zinc-500">
             {task.description}
           </p>
+        )}
+
+        {/* Priority badge + tags */}
+        {(badgeCls || visibleTags.length > 0) && (
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {badgeCls && (
+              <span className={clsx("rounded-full px-2 py-0.5 text-[10px] font-medium", badgeCls)}>
+                {prio}
+              </span>
+            )}
+            {visibleTags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300"
+              >
+                {tag}
+              </span>
+            ))}
+            {extraTags > 0 && (
+              <span className="rounded-full bg-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400">
+                +{extraTags}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Ayirici */}
