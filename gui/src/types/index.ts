@@ -27,7 +27,8 @@ export interface Task {
   description: string;
   analysis: string;
   status: TaskStatus;
-  priority?: string | null;
+  priority?: TaskPriority | null;
+  tags?: string[] | null;
   branch?: string | null;
   prUrl?: string | null;
   prNumber?: number | null;
@@ -59,6 +60,7 @@ export type TaskPatch = Partial<
     | "analysis"
     | "status"
     | "priority"
+    | "tags"
     | "branch"
     | "prUrl"
     | "prNumber"

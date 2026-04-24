@@ -19,6 +19,7 @@ import { mergePr } from "../services/gitService.js";
 const router = Router();
 
 const taskStatus = z.enum(["todo", "doing", "review", "done"]);
+const taskPriority = z.enum(["low", "medium", "high", "critical"]);
 const agentStatus = z.enum([
   "idle",
   "branching",
@@ -34,7 +35,8 @@ const createTaskSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   analysis: z.string().optional(),
-  priority: z.string().optional(),
+  priority: taskPriority.optional(),
+  tags: z.array(z.string()).optional(),
   status: taskStatus.optional(),
 });
 
@@ -42,7 +44,8 @@ const updateTaskSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   analysis: z.string().optional(),
-  priority: z.string().nullable().optional(),
+  priority: taskPriority.nullable().optional(),
+  tags: z.array(z.string()).optional(),
   status: taskStatus.optional(),
   branch: z.string().nullable().optional(),
   prUrl: z.string().nullable().optional(),
