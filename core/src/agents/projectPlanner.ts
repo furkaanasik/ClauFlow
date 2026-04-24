@@ -11,6 +11,7 @@ import {
 interface PlannedTaskItem {
   title: string;
   description: string;
+  analysis: string;
   priority: TaskPriority;
   tags: string[];
 }
@@ -66,10 +67,13 @@ function normalizeTasks(parsed: unknown, maxTasks: number): PlannedTaskItem[] {
     const rawTitle = typeof obj.title === "string" ? obj.title.trim() : "";
     const rawDescription =
       typeof obj.description === "string" ? obj.description.trim() : "";
+    const rawAnalysis =
+      typeof obj.analysis === "string" ? obj.analysis.trim() : "";
     if (!rawTitle) continue;
     items.push({
       title: rawTitle.slice(0, 80),
       description: rawDescription,
+      analysis: rawAnalysis || rawDescription,
       priority: normalizePriority(obj.priority),
       tags: normalizeTags(obj.tags),
     });
@@ -97,8 +101,14 @@ export async function runProjectPlanner(
       `Project description:\n${aiPrompt}\n\n` +
       `Return ONLY a JSON array, no other text. Each item must be an object with these fields:\n` +
       `  - "title": string, max 80 chars, imperative ("Add login endpoint")\n` +
-      `  - "description": 2-4 sentences of context followed by 2-3 markdown bullet acceptance criteria. Example:\n` +
-      `      "Implements the login endpoint with email/password auth. Tokens are JWT and stored httpOnly.\\n\\n- [ ] POST /auth/login returns 200 with token on valid creds\\n- [ ] Returns 401 on invalid creds\\n- [ ] Rate-limited to 5 attempts/min per IP"\n` +
+      `  - "description": ONE short sentence (max ~160 chars) summarizing the task for a human skimming the board. No bullets, no acceptance criteria here. Example: "Add a JWT-backed login endpoint guarded against brute force."\n` +
+      `  - "analysis": the primary artifact. A detailed technical brief the coding agent will implement from, written in markdown. Include:\n` +
+      `      1) 2-4 sentences of context (what/why, how it fits the system)\n` +
+      `      2) Concrete implementation notes: files or modules to touch, function/endpoint signatures, request/response shapes, key libraries or patterns to follow, relevant edge cases or failure modes\n` +
+      `      3) An "Acceptance criteria" section with 3-6 testable checkboxes that map directly to unit/integration test assertions\n` +
+      `      4) If the task depends on outputs of earlier tasks, name them explicitly so the agent knows what contracts already exist\n` +
+      `      Example shape:\n` +
+      `      "Adds the email/password login endpoint using httpOnly JWT cookies.\\n\\n**Implementation**\\n- Route: POST /api/auth/login in src/routes/auth.ts\\n- Body: zod { email, password } — 400 on parse fail\\n- Compare bcrypt hash from users table; emit JWT signed with JWT_SECRET\\n- Set-Cookie: token; HttpOnly; Secure; SameSite=Strict; 1h TTL\\n- Rate limit: 5 attempts / IP / minute via existing rateLimit middleware\\n\\n**Acceptance criteria**\\n- [ ] POST /api/auth/login returns 200 + Set-Cookie on valid creds\\n- [ ] Returns 401 on unknown email or wrong password\\n- [ ] Returns 400 on malformed body\\n- [ ] 6th attempt within 60s from same IP returns 429 with Retry-After"\n` +
       `  - "priority": one of "low" | "medium" | "high" | "critical" (default "medium" if unsure)\n` +
       `  - "tags": optional array of 1-4 short lowercase strings like ["backend","api"] or ["frontend","ui"]; omit if not relevant\n\n` +
       `Order the tasks in strict execution sequence so they can be picked up one by one without rework: ` +
@@ -129,6 +139,7 @@ export async function runProjectPlanner(
         projectId,
         title: item.title,
         description: item.description,
+        analysis: item.analysis,
         status: "todo",
         priority: item.priority,
         tags: item.tags,
