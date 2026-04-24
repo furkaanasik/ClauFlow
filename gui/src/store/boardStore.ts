@@ -4,9 +4,7 @@ import type { AgentStatus, Comment, PlanningStatus, Project, Task, TaskPatch, Ta
 type Lang = "tr" | "en";
 
 function getInitialLang(): Lang {
-  if (typeof window === "undefined") return "tr";
-  const stored = localStorage.getItem("lang");
-  return stored === "en" ? "en" : "tr";
+  return "tr";
 }
 
 interface BoardState {

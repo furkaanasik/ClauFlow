@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import LangHydrator from "@/components/Layout/LangHydrator";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,6 +25,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme');if(t==='light')document.documentElement.classList.add('light');})()` }} />
       </head>
       <body className="min-h-screen text-zinc-100 antialiased">
+        <LangHydrator />
         {children}
       </body>
     </html>
