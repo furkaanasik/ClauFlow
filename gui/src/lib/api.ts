@@ -1,4 +1,4 @@
-import type { Comment, Project, Task, TaskPatch, TaskPriority } from "@/types";
+import type { Comment, Project, ProjectPatch, Task, TaskPatch, TaskPriority } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -106,6 +106,25 @@ export const api = {
     })
       .then((r) => handle<{ project: Project; githubError?: string | null }>(r))
       .then((d) => ({ project: d.project, githubError: d.githubError })),
+
+  updateProject: (id: string, patch: ProjectPatch): Promise<Project> =>
+    fetch(`${BASE}/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    })
+      .then((r) => handle<{ project: Project }>(r))
+      .then((d) => d.project),
+
+  deleteProject: (id: string): Promise<void> =>
+    fetch(`${BASE}/projects/${id}`, { method: "DELETE" }).then((r) => {
+      if (!r.ok) throw new Error(`API ${r.status}`);
+    }),
+
+  deleteProjectGithub: (id: string): Promise<Project> =>
+    fetch(`${BASE}/projects/${id}/github`, { method: "DELETE" })
+      .then((r) => handle<{ project: Project }>(r))
+      .then((d) => d.project),
 };
 
 export interface PRListItem {

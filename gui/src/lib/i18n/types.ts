@@ -67,4 +67,33 @@ export interface Translations {
     aiPromptPlaceholder: string;
     maxTasksLabel: string;
   };
+  projectDetail: {
+    title: string;
+    editProject: string;
+    projectName: string;
+    projectDescription: string;
+    projectAiPrompt: string;
+    projectRepoPath: string;
+    projectDefaultBranch: string;
+    saveChanges: string;
+    saving: string;
+    dangerZone: string;
+    deleteFromGithub: string;
+    deleteFromKanban: string;
+    confirmDeleteGithub: string;
+    confirmDeleteKanban: string;
+    openInGithub: string;
+    activeTasksBlockPath: string;
+    progress: string;
+    taskCounts: string;
+    details: string;
+    cancel: string;
+    deleting: string;
+    stats: {
+      todo: string;
+      doing: string;
+      review: string;
+      done: string;
+    };
+  };
 }

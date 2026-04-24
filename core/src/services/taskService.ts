@@ -528,7 +528,16 @@ export async function createProject(
 }
 
 export type ProjectPatch = Partial<
-  Pick<Project, "name" | "description" | "aiPrompt" | "remote" | "planningStatus">
+  Pick<
+    Project,
+    | "name"
+    | "description"
+    | "aiPrompt"
+    | "repoPath"
+    | "defaultBranch"
+    | "remote"
+    | "planningStatus"
+  >
 >;
 
 export async function updateProject(
@@ -549,6 +558,8 @@ export async function updateProject(
       name = @name,
       description = @description,
       aiPrompt = @aiPrompt,
+      repoPath = @repoPath,
+      defaultBranch = @defaultBranch,
       remote = @remote,
       planningStatus = @planningStatus
      WHERE id = @id`,
@@ -557,11 +568,37 @@ export async function updateProject(
     name: next.name,
     description: next.description ?? "",
     aiPrompt: next.aiPrompt ?? "",
+    repoPath: next.repoPath,
+    defaultBranch: next.defaultBranch,
     remote: next.remote ?? null,
     planningStatus: next.planningStatus ?? "idle",
   });
 
   return Promise.resolve(next);
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  const row = stmtGetProject.get(id) as ProjectRow | undefined;
+  if (!row) throw new Error(`Project not found: ${id}`);
+
+  const tx = db.transaction(() => {
+    db.prepare(
+      `DELETE FROM comments WHERE taskId IN (SELECT id FROM tasks WHERE projectId = ?)`,
+    ).run(id);
+    db.prepare(`DELETE FROM tasks WHERE projectId = ?`).run(id);
+    db.prepare(`DELETE FROM projects WHERE id = ?`).run(id);
+  });
+  tx();
+}
+
+export async function projectHasActiveTasks(id: string): Promise<boolean> {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) as count FROM tasks
+       WHERE projectId = ? AND status IN ('doing', 'review')`,
+    )
+    .get(id) as { count: number };
+  return row.count > 0;
 }
 
 export async function deleteTask(id: string): Promise<void> {

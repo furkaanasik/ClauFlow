@@ -4,13 +4,16 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   createProject,
+  deleteProject,
   getProject,
   listProjects,
+  projectHasActiveTasks,
   updateProject,
 } from "../services/taskService.js";
 import {
   initRepo,
   createGithubRepo,
+  deleteGithubRepo,
   getRemoteUrl,
   commitAll,
 } from "../services/gitService.js";
@@ -136,6 +139,75 @@ router.post("/", async (req: Request, res: Response) => {
     res.status(201).json({ project, githubError });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+const updateProjectSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  aiPrompt: z.string().optional(),
+  repoPath: z.string().min(1).optional(),
+  defaultBranch: z.string().min(1).optional(),
+});
+
+router.patch("/:id", async (req: Request, res: Response) => {
+  const parsed = updateProjectSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
+  try {
+    const id = req.params.id!;
+    const existing = await getProject(id);
+    if (!existing) return res.status(404).json({ error: "not_found" });
+
+    const data = parsed.data;
+
+    if (data.repoPath !== undefined && !path.isAbsolute(data.repoPath)) {
+      return res.status(400).json({ error: "repoPath mutlak bir yol olmalıdır" });
+    }
+
+    if (data.repoPath !== undefined || data.defaultBranch !== undefined) {
+      const hasActive = await projectHasActiveTasks(id);
+      if (hasActive) {
+        return res.status(409).json({ error: "active_tasks_block_path_change" });
+      }
+    }
+
+    const project = await updateProject(id, data);
+    res.json({ project });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.delete("/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id!;
+    const existing = await getProject(id);
+    if (!existing) return res.status(404).json({ error: "not_found" });
+
+    await deleteProject(id);
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.delete("/:id/github", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id!;
+    const project = await getProject(id);
+    if (!project) return res.status(404).json({ error: "not_found" });
+
+    if (!project.remote) {
+      return res.status(400).json({ error: "no_remote" });
+    }
+
+    await deleteGithubRepo(project.remote);
+    const updated = await updateProject(id, { remote: null });
+    res.json({ project: updated });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

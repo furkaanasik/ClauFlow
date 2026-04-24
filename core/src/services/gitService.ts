@@ -155,6 +155,24 @@ export async function mergePr(
   );
 }
 
+export async function deleteGithubRepo(remoteUrl: string): Promise<RunResult> {
+  const match = remoteUrl.match(
+    /(?:github\.com[/:])([^/]+)\/([^/]+?)(?:\.git)?$/,
+  );
+  if (!match || !match[1] || !match[2]) {
+    throw new Error(`invalid GitHub remote URL: ${remoteUrl}`);
+  }
+  const owner = match[1];
+  const repo = match[2];
+  const result = await run("gh", ["repo", "delete", `${owner}/${repo}`, "--yes"], process.cwd());
+  if (result.code !== 0) {
+    throw new Error(
+      `gh repo delete failed: ${result.stderr || result.stdout}`,
+    );
+  }
+  return result;
+}
+
 export async function createPr(input: CreatePrInput): Promise<PrResult> {
   const raw = await run(
     "gh",

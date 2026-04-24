@@ -44,6 +44,7 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
+  aiPrompt?: string;
   repoPath: string;
   defaultBranch: string;
   remote?: string | null;
@@ -51,6 +52,10 @@ export interface Project {
   planningStatus?: PlanningStatus;
   planningError?: string | null;
 }
+
+export type ProjectPatch = Partial<
+  Pick<Project, "name" | "description" | "aiPrompt" | "repoPath" | "defaultBranch" | "remote">
+>;
 
 export type TaskPatch = Partial<
   Pick<

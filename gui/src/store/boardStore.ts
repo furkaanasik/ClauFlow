@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, Comment, PlanningStatus, Project, Task, TaskPatch, TaskStatus } from "@/types";
+import type { AgentStatus, Comment, PlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus } from "@/types";
 
 type Lang = "tr" | "en";
 
@@ -34,6 +34,8 @@ interface BoardState {
 
   setProjects: (projects: Project[]) => void;
   addProject: (project: Project) => void;
+  updateProject: (id: string, patch: ProjectPatch) => void;
+  deleteProject: (id: string) => void;
   addTask: (task: Task) => void;
   selectProject: (id: string | null) => void;
   updateProjectPlanningStatus: (projectId: string, status: PlanningStatus, error?: string) => void;
@@ -160,6 +162,30 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   addProject: (project) =>
     set((state) => ({ projects: [...state.projects, project] })),
+
+  updateProject: (id, patch) =>
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === id ? { ...p, ...patch } : p,
+      ),
+    })),
+
+  deleteProject: (id) =>
+    set((state) => {
+      const taskIds = Object.values(state.tasks)
+        .filter((t) => t.projectId === id)
+        .map((t) => t.id);
+      const tasks = { ...state.tasks };
+      for (const tid of taskIds) delete tasks[tid];
+      const order = state.order.filter((x) => !taskIds.includes(x));
+      return {
+        projects: state.projects.filter((p) => p.id !== id),
+        tasks,
+        order,
+        selectedProjectId: state.selectedProjectId === id ? null : state.selectedProjectId,
+        selectedTaskId: taskIds.includes(state.selectedTaskId ?? "") ? null : state.selectedTaskId,
+      };
+    }),
 
   addTask: (task) =>
     set((state) => {
