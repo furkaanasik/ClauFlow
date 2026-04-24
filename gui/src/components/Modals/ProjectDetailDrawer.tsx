@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { Project, ProjectPatch } from "@/types";
+import type { Project, ProjectPatch, Task } from "@/types";
 
 interface ProjectDetailDrawerProps {
   projectId: string | null;
@@ -56,18 +56,12 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
   const pd = t.projectDetail;
 
   const project       = useBoardStore((s) => s.projects.find((p) => p.id === projectId) ?? null);
-  const tasks         = useBoardStore((s) => s.tasks);
   const updateProject = useBoardStore((s) => s.updateProject);
   const deleteProject = useBoardStore((s) => s.deleteProject); // used by handleDeleteKanban
 
   const open = Boolean(projectId && project);
 
-  // compute stats from store tasks (may be stale if another project is selected, but good enough)
-  const allTasks = useMemo(() => Object.values(tasks), [tasks]);
-  const projectTasks = useMemo(
-    () => allTasks.filter((t) => t.projectId === projectId),
-    [allTasks, projectId],
-  );
+  const [projectTasks, setProjectTasks] = useState<Task[]>([]);
 
   const stats = useMemo(() => ({
     todo:   projectTasks.filter((t) => t.status === "todo").length,
@@ -99,6 +93,24 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
     setSaving(false);
     setDeleting(false);
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch this project's tasks so stats reflect the drawer subject,
+  // not whichever project is currently selected on the board.
+  useEffect(() => {
+    if (!projectId) {
+      setProjectTasks([]);
+      return;
+    }
+    let cancelled = false;
+    api.getTasks(projectId)
+      .then((list) => {
+        if (!cancelled) setProjectTasks(list);
+      })
+      .catch(() => {
+        if (!cancelled) setProjectTasks([]);
+      });
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   // Escape key
   useEffect(() => {

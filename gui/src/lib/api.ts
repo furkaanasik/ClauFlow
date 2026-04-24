@@ -32,11 +32,13 @@ export interface CreateProjectInput {
 
 export const api = {
   getTasks: async (projectId?: string): Promise<Task[]> => {
-    const data = await fetch(`${BASE}/tasks`, { cache: "no-store" }).then(
+    const url = projectId
+      ? `${BASE}/tasks?projectId=${encodeURIComponent(projectId)}`
+      : `${BASE}/tasks`;
+    const data = await fetch(url, { cache: "no-store" }).then(
       (r) => handle<{ tasks: Task[] }>(r),
     );
-    const all = data.tasks ?? [];
-    return projectId ? all.filter((t) => t.projectId === projectId) : all;
+    return data.tasks ?? [];
   },
 
   getTask: (id: string): Promise<Task> =>
