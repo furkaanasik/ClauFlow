@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Agent Team
 
-Bu projede her iş ilgili agent'a devredilmeli — koordinatör (ana Claude) kendisi implementation yapmamalı.
+Agent takımı mevcut ama **her iş için takım kurulmaz** — takım kurma/spawn/shutdown zincirinin token maliyeti küçük işlerde faydayı geçer. Koordinatör önce iş büyüklüğüne bakıp karar verir.
 
 ### Agent Rolleri
 
@@ -13,38 +13,33 @@ Bu projede her iş ilgili agent'a devredilmeli — koordinatör (ana Claude) ken
 - **executor** → git branch, claude CLI çalıştırma, commit/push/PR
 - **reviewer** → kod inceleme, tip hataları, bug kontrolü
 
-### Zorunlu Workflow
+### Ne Zaman Takım, Ne Zaman Koordinatör?
 
-Her implementation isteği şu sırayı takip etmeli:
+**Koordinatör direkt çözer** (takım kurmadan):
+- Soru, açıklama, araştırma (zaten istisna)
+- Tek dosyada birkaç satırlık bug fix
+- Dokümantasyon, config, memory güncellemeleri
+- DB'ye tek seferlik veri işlemi
+- Dosya taşıma/yeniden adlandırma, küçük string/stil düzeltmeleri
+- Açıkça lokalize ve tek domainli değişiklikler
 
-```
-Kullanıcı isteği
-    ↓
-Koordinatör (kısa analiz)
-    ↓
-TeamCreate (takımı ayağa kaldır)
-    ↓
-Planner (task'lara böl, hangi agent ne yapacak)
-    ↓
-Frontend / Executor (uygulama)
-    ↓
-Reviewer (kod inceleme, tip hataları, bug kontrolü)
-    ↓
-TeamDelete (takımı kapat)
-    ↓
-Tamamlandı
-```
+**Takım kurulur** (TeamCreate → planner → ilgili agent'lar → reviewer → TeamDelete):
+- Birden fazla alana dokunan iş (frontend + backend, UI + DB, vb.)
+- Yeni özellik / non-trivial refactor / mimari karar
+- 4+ dosyada koordinasyon gerektiren değişiklikler
+- Executor gerektiren git/PR otomasyonları (branch + claude CLI + PR akışı)
+- Kullanıcı açıkça "takım kur", "planla", "reviewer'a göster" dediğinde
 
-**İstisna:** Soru/açıklama/araştırma gibi implement gerektirmeyen istekler koordinatör direkt cevaplayabilir — takım kurmadan cevap verilir.
+Emin değilsen küçük tarafa kay — takım kurmak pahalı, gereksizse yapma. Koordinatör değişikliği bitirdikten sonra **tek dosya/birkaç satır** ölçütünü aştığını fark ederse, o noktadan itibaren takıma devredebilir.
 
 Agent team özelliği `.claude/settings.local.json` üzerinden aktif:
 ```json
 { "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" } }
 ```
 
-### Takım Kurulumu (Zorunlu)
+### Takım Kurulumu (Takım kararı verildiğinde)
 
-Implementation işine başlarken **TeamCreate** ile takımı ayağa kaldır:
+**TeamCreate** ile takımı ayağa kaldır:
 
 ```
 TeamCreate({ team_name: "<feature-slug>", agent_type: "team-lead", description: "<kısa amaç>" })

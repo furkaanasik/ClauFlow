@@ -4,7 +4,7 @@ Bu dosya Claude Code'a bu projede nasıl çalışacağını anlatır.
 
 ## Agent Takımı
 
-Her implementation isteği agent takımı üzerinden yürütülür. Koordinatör (ana Claude) kendisi kod yazmaz — ilgili agent'a devreder.
+Agent takımı mevcut ama **her iş için takım kurulmaz** — takım kurma/spawn/shutdown zincirinin token maliyeti küçük işlerde faydayı geçer. Koordinatör önce iş büyüklüğüne bakıp karar verir.
 
 ### Agent Rolleri
 
@@ -13,29 +13,27 @@ Her implementation isteği agent takımı üzerinden yürütülür. Koordinatör
 - **backend** → API, veritabanı, servis, iş mantığı değişiklikleri (Node.js, Express, FastAPI vb.)
 - **reviewer** → yapılan değişiklikleri inceler, hata ve kalite sorunlarını raporlar
 
-### Zorunlu Akış
+### Ne Zaman Takım, Ne Zaman Koordinatör?
 
-```
-Kullanıcı isteği / task analizi
-    ↓
-TeamCreate (takımı ayağa kaldır)
-    ↓
-Planner (parçala, hangi agent ne yapacak)
-    ↓
-Frontend ve/veya Backend (uygula)
-    ↓
-Reviewer (incele, onayla)
-    ↓
-TeamDelete (takımı kapat)
-    ↓
-Tamamlandı
-```
+**Koordinatör direkt çözer** (takım kurmadan):
+- Soru, açıklama, araştırma (zaten istisna)
+- Tek dosyada birkaç satırlık bug fix
+- Dokümantasyon, config, memory güncellemeleri
+- DB'ye tek seferlik veri işlemi
+- Dosya taşıma/yeniden adlandırma, küçük string/stil düzeltmeleri
+- Açıkça lokalize ve tek domainli değişiklikler
 
-**İstisna:** Soru, açıklama veya araştırma gerektiren istekler koordinatör doğrudan cevaplayabilir — takım kurmadan cevap verilir.
+**Takım kurulur** (TeamCreate → planner → ilgili agent'lar → reviewer → TeamDelete):
+- Birden fazla alana dokunan iş (frontend + backend, UI + DB, vb.)
+- Yeni özellik / non-trivial refactor / mimari karar
+- 4+ dosyada koordinasyon gerektiren değişiklikler
+- Kullanıcı açıkça "takım kur", "planla", "reviewer'a göster" dediğinde
 
-### Takım Kurulumu (Zorunlu)
+Emin değilsen küçük tarafa kay — takım kurmak pahalı, gereksizse yapma.
 
-Implementation işine başlarken **TeamCreate** ile takımı ayağa kaldır:
+### Takım Kurulumu (Takım kararı verildiğinde)
+
+**TeamCreate** ile takımı ayağa kaldır:
 
 ```
 TeamCreate({ team_name: "<feature-slug>", agent_type: "team-lead", description: "<kısa amaç>" })
