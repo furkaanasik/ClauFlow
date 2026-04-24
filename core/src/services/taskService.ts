@@ -8,6 +8,7 @@ import {
   type Project,
   type ProjectPlanningStatus,
   type Task,
+  type TaskPriority,
   type TaskStatus,
   type TasksFile,
 } from "../types/index.js";
@@ -48,6 +49,7 @@ db.exec(`
     analysis TEXT DEFAULT '',
     status TEXT NOT NULL DEFAULT 'todo',
     priority TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
     branch TEXT,
     prUrl TEXT,
     prNumber INTEGER,
@@ -87,6 +89,17 @@ db.exec(`
   }
 }
 
+// Idempotent migration: add tags column to tasks if missing.
+{
+  const taskColumns = db
+    .prepare(`PRAGMA table_info(tasks)`)
+    .all() as { name: string }[];
+  const hasTags = taskColumns.some((c) => c.name === "tags");
+  if (!hasTags) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`);
+  }
+}
+
 // ─── Row Types & Converters ───────────────────────────────────────────────
 
 interface ProjectRow {
@@ -108,6 +121,7 @@ interface TaskRow {
   analysis: string | null;
   status: string;
   priority: string | null;
+  tags: string | null;
   branch: string | null;
   prUrl: string | null;
   prNumber: number | null;
@@ -144,6 +158,17 @@ function parseAgentLog(raw: string): string[] {
   }
 }
 
+function parseTags(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((t): t is string => typeof t === "string");
+  } catch {
+    return [];
+  }
+}
+
 function rowToTask(row: TaskRow): Task {
   const agent: AgentState = {
     status: row.agentStatus as AgentState["status"],
@@ -160,7 +185,8 @@ function rowToTask(row: TaskRow): Task {
     description: row.description ?? "",
     analysis: row.analysis ?? "",
     status: row.status as TaskStatus,
-    priority: row.priority,
+    priority: row.priority as TaskPriority | null,
+    tags: parseTags(row.tags),
     branch: row.branch,
     prUrl: row.prUrl,
     prNumber: row.prNumber,
@@ -185,11 +211,11 @@ const stmtListTasks = db.prepare(`SELECT * FROM tasks ORDER BY createdAt ASC`);
 const stmtGetTask = db.prepare(`SELECT * FROM tasks WHERE id = ?`);
 const stmtInsertTask = db.prepare(
   `INSERT INTO tasks (
-    id, projectId, title, description, analysis, status, priority,
+    id, projectId, title, description, analysis, status, priority, tags,
     branch, prUrl, prNumber, createdAt, updatedAt,
     agentStatus, agentCurrentStep, agentLog, agentError, agentStartedAt, agentFinishedAt
   ) VALUES (
-    @id, @projectId, @title, @description, @analysis, @status, @priority,
+    @id, @projectId, @title, @description, @analysis, @status, @priority, @tags,
     @branch, @prUrl, @prNumber, @createdAt, @updatedAt,
     @agentStatus, @agentCurrentStep, @agentLog, @agentError, @agentStartedAt, @agentFinishedAt
   )`,
@@ -255,6 +281,7 @@ function migrateLegacyJsonIfPresent(): void {
           analysis: t.analysis ?? "",
           status: t.status ?? "todo",
           priority: t.priority ?? null,
+          tags: JSON.stringify(t.tags ?? []),
           branch: t.branch ?? null,
           prUrl: t.prUrl ?? null,
           prNumber: t.prNumber ?? null,
@@ -320,7 +347,8 @@ export interface CreateTaskInput {
   title: string;
   description?: string;
   analysis?: string;
-  priority?: string;
+  priority?: TaskPriority | null;
+  tags?: string[];
   status?: TaskStatus;
 }
 
@@ -341,6 +369,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     analysis: input.analysis ?? "",
     status: input.status ?? "todo",
     priority: input.priority ?? null,
+    tags: input.tags ?? [],
     branch: null,
     prUrl: null,
     prNumber: null,
@@ -357,6 +386,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     analysis: task.analysis,
     status: task.status,
     priority: task.priority ?? null,
+    tags: JSON.stringify(task.tags ?? []),
     branch: task.branch ?? null,
     prUrl: task.prUrl ?? null,
     prNumber: task.prNumber ?? null,
@@ -380,6 +410,7 @@ export type TaskPatch = Partial<
     | "description"
     | "analysis"
     | "priority"
+    | "tags"
     | "status"
     | "branch"
     | "prUrl"
@@ -406,6 +437,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
       analysis = @analysis,
       status = @status,
       priority = @priority,
+      tags = @tags,
       branch = @branch,
       prUrl = @prUrl,
       prNumber = @prNumber,
@@ -424,6 +456,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     analysis: next.analysis,
     status: next.status,
     priority: next.priority ?? null,
+    tags: JSON.stringify(next.tags ?? []),
     branch: next.branch ?? null,
     prUrl: next.prUrl ?? null,
     prNumber: next.prNumber ?? null,

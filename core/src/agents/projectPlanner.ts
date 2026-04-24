@@ -1,5 +1,6 @@
 import { runClaude } from "../services/claudeService.js";
 import { createTask, updateProject } from "../services/taskService.js";
+import type { TaskPriority } from "../types/index.js";
 import {
   broadcastProjectPlanningDone,
   broadcastProjectPlanningError,
@@ -10,7 +11,16 @@ import {
 interface PlannedTaskItem {
   title: string;
   description: string;
+  priority: TaskPriority;
+  tags: string[];
 }
+
+const VALID_PRIORITIES: readonly TaskPriority[] = [
+  "low",
+  "medium",
+  "high",
+  "critical",
+];
 
 function extractJsonArray(raw: string): unknown {
   const trimmed = raw.trim();
@@ -22,6 +32,27 @@ function extractJsonArray(raw: string): unknown {
     throw new Error("claude response did not contain a JSON array");
   }
   return JSON.parse(candidate.slice(start, end + 1));
+}
+
+function normalizePriority(value: unknown): TaskPriority {
+  if (typeof value !== "string") return "medium";
+  const lower = value.trim().toLowerCase();
+  return (VALID_PRIORITIES as readonly string[]).includes(lower)
+    ? (lower as TaskPriority)
+    : "medium";
+}
+
+function normalizeTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const tags: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    tags.push(trimmed.slice(0, 32));
+    if (tags.length >= 6) break;
+  }
+  return tags;
 }
 
 function normalizeTasks(parsed: unknown, maxTasks: number): PlannedTaskItem[] {
@@ -39,6 +70,8 @@ function normalizeTasks(parsed: unknown, maxTasks: number): PlannedTaskItem[] {
     items.push({
       title: rawTitle.slice(0, 80),
       description: rawDescription,
+      priority: normalizePriority(obj.priority),
+      tags: normalizeTags(obj.tags),
     });
     if (items.length >= maxTasks) break;
   }
@@ -62,7 +95,13 @@ export async function runProjectPlanner(
     const systemPrompt =
       `You are a project planner. Break the following project description into at most ${cap} small, actionable tasks.\n\n` +
       `Project description:\n${aiPrompt}\n\n` +
-      `Return ONLY a JSON array, no other text. Each item: { "title": "short title (max 80 chars)", "description": "1-2 sentence description" }.`;
+      `Return ONLY a JSON array, no other text. Each item must be an object with these fields:\n` +
+      `  - "title": string, max 80 chars, imperative ("Add login endpoint")\n` +
+      `  - "description": 2-4 sentences of context followed by 2-3 markdown bullet acceptance criteria. Example:\n` +
+      `      "Implements the login endpoint with email/password auth. Tokens are JWT and stored httpOnly.\\n\\n- [ ] POST /auth/login returns 200 with token on valid creds\\n- [ ] Returns 401 on invalid creds\\n- [ ] Rate-limited to 5 attempts/min per IP"\n` +
+      `  - "priority": one of "low" | "medium" | "high" | "critical" (default "medium" if unsure)\n` +
+      `  - "tags": optional array of 1-4 short lowercase strings like ["backend","api"] or ["frontend","ui"]; omit if not relevant\n\n` +
+      `Output strictly valid JSON — no commentary, no code fences.`;
 
     const result = await runClaude({
       prompt: systemPrompt,
@@ -84,6 +123,8 @@ export async function runProjectPlanner(
         title: item.title,
         description: item.description,
         status: "todo",
+        priority: item.priority,
+        tags: item.tags,
       });
       broadcastTaskCreated(task);
       await new Promise((r) => setTimeout(r, 200));

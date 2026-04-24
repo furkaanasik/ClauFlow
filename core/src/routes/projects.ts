@@ -6,6 +6,7 @@ import {
   createProject,
   getProject,
   listProjects,
+  updateProject,
 } from "../services/taskService.js";
 import {
   initRepo,
@@ -110,7 +111,7 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }
 
-    const project = await createProject({
+    let project = await createProject({
       name: data.name,
       description: data.description,
       repoPath: data.repoPath,
@@ -118,10 +119,12 @@ router.post("/", async (req: Request, res: Response) => {
       remote,
     });
 
-    if (data.aiPrompt && data.aiPrompt.trim()) {
+    const trimmedPrompt = data.aiPrompt?.trim();
+    if (trimmedPrompt) {
+      project = await updateProject(project.id, { planningStatus: "planning" });
       runProjectPlanner(
         project.id,
-        data.aiPrompt.trim(),
+        trimmedPrompt,
         data.maxTasks ?? 8,
       ).catch((err) => {
         console.error("[projects] runProjectPlanner failed:", err);

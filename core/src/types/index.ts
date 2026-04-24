@@ -18,6 +18,8 @@ export interface AgentState {
   finishedAt?: string | null;
 }
 
+export type TaskPriority = "low" | "medium" | "high" | "critical";
+
 export interface Task {
   id: string;
   projectId: string;
@@ -25,7 +27,8 @@ export interface Task {
   description: string;
   analysis: string;
   status: TaskStatus;
-  priority?: string | null;
+  priority?: TaskPriority | null;
+  tags?: string[];
   branch?: string | null;
   prUrl?: string | null;
   prNumber?: number | null;
