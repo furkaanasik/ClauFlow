@@ -22,23 +22,45 @@ Kullanıcı isteği
     ↓
 Koordinatör (kısa analiz)
     ↓
+TeamCreate (takımı ayağa kaldır)
+    ↓
 Planner (task'lara böl, hangi agent ne yapacak)
     ↓
 Frontend / Executor (uygulama)
     ↓
 Reviewer (kod inceleme, tip hataları, bug kontrolü)
     ↓
+TeamDelete (takımı kapat)
+    ↓
 Tamamlandı
 ```
 
-**İstisna:** Soru/açıklama/araştırma gibi implement gerektirmeyen istekler koordinatör direkt cevaplayabilir.
+**İstisna:** Soru/açıklama/araştırma gibi implement gerektirmeyen istekler koordinatör direkt cevaplayabilir — takım kurmadan cevap verilir.
 
 Agent team özelliği `.claude/settings.local.json` üzerinden aktif:
 ```json
 { "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" } }
 ```
 
-Idle agent'a yeni spawn etme — `SendMessage` ile devam et.
+### Takım Kurulumu (Zorunlu)
+
+Implementation işine başlarken **TeamCreate** ile takımı ayağa kaldır:
+
+```
+TeamCreate({ team_name: "<feature-slug>", agent_type: "team-lead", description: "<kısa amaç>" })
+```
+
+Agent'ları spawn ederken `team_name` ve `name` parametrelerini mutlaka geç:
+
+```
+Agent({ subagent_type: "planner", name: "planner", team_name: "<feature-slug>", prompt: "..." })
+```
+
+SendMessage ile `to: "<name>"` üzerinden iletişim kur — **sadece takım üyesi agent'lara mesaj gidebilir; takımsız spawn edilen agent'a SendMessage ulaşmaz ve inbox'ta kaybolur.**
+
+İş bitince: tüm agent'lara `{ type: "shutdown_request" }` gönder, sonra `TeamDelete` ile takımı kapat.
+
+Idle agent'a yeni spawn etme — `SendMessage` ile devam et (takım ayaktaysa mesaj agent'ı uyandırır).
 
 ## Servisler
 

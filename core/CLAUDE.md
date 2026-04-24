@@ -18,16 +18,38 @@ Her implementation isteği agent takımı üzerinden yürütülür. Koordinatör
 ```
 Kullanıcı isteği / task analizi
     ↓
+TeamCreate (takımı ayağa kaldır)
+    ↓
 Planner (parçala, hangi agent ne yapacak)
     ↓
 Frontend ve/veya Backend (uygula)
     ↓
 Reviewer (incele, onayla)
     ↓
+TeamDelete (takımı kapat)
+    ↓
 Tamamlandı
 ```
 
-**İstisna:** Soru, açıklama veya araştırma gerektiren istekler koordinatör doğrudan cevaplayabilir.
+**İstisna:** Soru, açıklama veya araştırma gerektiren istekler koordinatör doğrudan cevaplayabilir — takım kurmadan cevap verilir.
+
+### Takım Kurulumu (Zorunlu)
+
+Implementation işine başlarken **TeamCreate** ile takımı ayağa kaldır:
+
+```
+TeamCreate({ team_name: "<feature-slug>", agent_type: "team-lead", description: "<kısa amaç>" })
+```
+
+Agent'ları spawn ederken `team_name` ve `name` parametrelerini mutlaka geç:
+
+```
+Agent({ subagent_type: "planner", name: "planner", team_name: "<feature-slug>", prompt: "..." })
+```
+
+SendMessage ile `to: "<name>"` üzerinden iletişim kur — **sadece takım üyesi olan agent'lara mesaj gidebilir, takımsız spawn edilen agent'a SendMessage ulaşmaz.**
+
+İş bitince: tüm agent'lara `{ type: "shutdown_request" }` gönder, sonra `TeamDelete`.
 
 ## İzinler
 
