@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, Comment, Project, Task, TaskPatch, TaskStatus } from "@/types";
+import type { AgentStatus, Comment, PlanningStatus, Project, Task, TaskPatch, TaskStatus } from "@/types";
 
 type Lang = "tr" | "en";
 
@@ -18,6 +18,8 @@ interface BoardState {
   wsConnected: boolean;
   filterText: string;
   lang: Lang;
+  /** IDs of tasks recently added via WS — used to trigger drop animation */
+  newTaskIds: Set<string>;
 
   setTasks: (tasks: Task[]) => void;
   upsertTask: (task: Task) => void;
@@ -34,7 +36,9 @@ interface BoardState {
 
   setProjects: (projects: Project[]) => void;
   addProject: (project: Project) => void;
+  addTask: (task: Task) => void;
   selectProject: (id: string | null) => void;
+  updateProjectPlanningStatus: (projectId: string, status: PlanningStatus, error?: string) => void;
 
   selectTask: (id: string | null) => void;
 
@@ -43,6 +47,7 @@ interface BoardState {
   setWsConnected: (connected: boolean) => void;
   setFilterText: (text: string) => void;
   setLang: (lang: Lang) => void;
+  clearNewTaskId: (id: string) => void;
 
   getByStatus: (status: TaskStatus) => Task[];
 }
@@ -58,6 +63,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   wsConnected: false,
   filterText: "",
   lang: getInitialLang(),
+  newTaskIds: new Set<string>(),
 
   setTasks: (tasks) =>
     set(() => ({
@@ -157,6 +163,32 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   addProject: (project) =>
     set((state) => ({ projects: [...state.projects, project] })),
 
+  addTask: (task) =>
+    set((state) => {
+      // Skip if task already exists (duplicate check)
+      if (state.tasks[task.id]) return state;
+      // Skip if task belongs to a different project
+      if (state.selectedProjectId && task.projectId !== state.selectedProjectId) {
+        return state;
+      }
+      const newTaskIds = new Set(state.newTaskIds);
+      newTaskIds.add(task.id);
+      return {
+        tasks: { ...state.tasks, [task.id]: task },
+        order: [...state.order, task.id],
+        newTaskIds,
+      };
+    }),
+
+  updateProjectPlanningStatus: (projectId, status, error) =>
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === projectId
+          ? { ...p, planningStatus: status, planningError: error ?? null }
+          : p,
+      ),
+    })),
+
   selectProject: (id) =>
     set(() => ({
       selectedProjectId: id,
@@ -166,6 +198,14 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     })),
 
   selectTask: (id) => set(() => ({ selectedTaskId: id })),
+
+  clearNewTaskId: (id) =>
+    set((state) => {
+      if (!state.newTaskIds.has(id)) return state;
+      const newTaskIds = new Set(state.newTaskIds);
+      newTaskIds.delete(id);
+      return { newTaskIds };
+    }),
 
   setWsConnected: (connected) => set(() => ({ wsConnected: connected })),
   setFilterText: (text) => set(() => ({ filterText: text })),

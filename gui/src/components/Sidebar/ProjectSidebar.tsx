@@ -71,6 +71,8 @@ export function ProjectSidebar() {
           )}
           {filtered.map((p) => {
             const isSelected = selectedProjectId === p.id;
+            const isPlanning = p.planningStatus === "planning";
+            const isPlannerError = p.planningStatus === "error";
             return (
               <button
                 key={p.id}
@@ -87,8 +89,39 @@ export function ProjectSidebar() {
                 {isSelected && (
                   <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-emerald-500" />
                 )}
-                <span className="truncate text-sm font-medium leading-tight">
-                  {p.name}
+                <span className="flex items-center gap-1.5 truncate text-sm font-medium leading-tight">
+                  <span className="truncate">{p.name}</span>
+                  {isPlanning && (
+                    <span title={t.sidebar.plannerRunning} className="shrink-0">
+                      <svg
+                        className="h-3 w-3 animate-spin text-blue-400"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
+                      </svg>
+                    </span>
+                  )}
+                  {isPlannerError && (
+                    <span
+                      title={`${t.sidebar.plannerError}${p.planningError ? `: ${p.planningError}` : ""}`}
+                      className="h-2 w-2 shrink-0 rounded-full bg-red-500"
+                    />
+                  )}
                 </span>
                 <span
                   className={clsx(

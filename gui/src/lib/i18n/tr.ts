@@ -20,6 +20,8 @@ export const tr: Translations = {
     emptySearch: "Eşleşen proje bulunamadı",
     emptyAll: "Henüz proje yok",
     newProject: "Yeni Proje",
+    plannerRunning: "Planner çalışıyor...",
+    plannerError: "Planner hatası",
   },
   addTask: {
     modalTitle: "Yeni Görev Ekle",
@@ -64,5 +66,8 @@ export const tr: Translations = {
     cancel: "İptal",
     submit: "Oluştur",
     submitting: "Oluşturuluyor...",
+    aiPromptLabel: "AI Prompt (opsiyonel)",
+    aiPromptPlaceholder: "Projeyi kısaca tanımla, planner task'lara bölsün...",
+    maxTasksLabel: "Maksimum task sayısı",
   },
 };
