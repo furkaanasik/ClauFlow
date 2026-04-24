@@ -18,6 +18,8 @@ export interface Translations {
     emptySearch: string;
     emptyAll: string;
     newProject: string;
+    plannerRunning: string;
+    plannerError: string;
   };
   addTask: {
     modalTitle: string;
@@ -61,5 +63,8 @@ export interface Translations {
     cancel: string;
     submit: string;
     submitting: string;
+    aiPromptLabel: string;
+    aiPromptPlaceholder: string;
+    maxTasksLabel: string;
   };
 }

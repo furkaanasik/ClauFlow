@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AgentBadge } from "@/components/Card/AgentBadge";
@@ -41,6 +42,25 @@ interface TaskCardProps {
 
 export function TaskCard({ task }: TaskCardProps) {
   const selectTask = useBoardStore((s) => s.selectTask);
+  const newTaskIds = useBoardStore((s) => s.newTaskIds);
+  const clearNewTaskId = useBoardStore((s) => s.clearNewTaskId);
+
+  const isNew = newTaskIds.has(task.id);
+  const [animated, setAnimated] = useState(false);
+
+  useEffect(() => {
+    if (!isNew) return;
+    // Trigger animation on mount then clear the flag after animation completes
+    const frame = requestAnimationFrame(() => setAnimated(true));
+    const timer = setTimeout(() => {
+      clearNewTaskId(task.id);
+    }, 500);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isAgentWorking =
     task.agent &&
@@ -77,6 +97,10 @@ export function TaskCard({ task }: TaskCardProps) {
         borderCls,
         isDragging     && "opacity-40 scale-95",
         isAgentWorking && "cursor-not-allowed",
+        // Drop-in animation for WS-pushed tasks
+        isNew && !animated && "opacity-0 scale-95 -translate-y-2",
+        isNew && animated && "opacity-100 scale-100 translate-y-0",
+        isNew && "duration-400 ease-out",
       )}
     >
       {/* Sırada bekleyen task — statik progress bar */}

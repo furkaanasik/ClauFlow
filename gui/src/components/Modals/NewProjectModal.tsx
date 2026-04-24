@@ -23,6 +23,8 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
   const [createGithub, setCreateGithub] = useState(false);
   const [repoName, setRepoName] = useState("");
   const [isPrivate, setIsPrivate] = useState(true);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [maxTasks, setMaxTasks] = useState(8);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [githubWarning, setGithubWarning] = useState<string | null>(null);
@@ -35,6 +37,8 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
     setCreateGithub(false);
     setRepoName("");
     setIsPrivate(true);
+    setAiPrompt("");
+    setMaxTasks(8);
     setError(null);
     setGithubWarning(null);
   };
@@ -55,6 +59,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
     setError(null);
     setGithubWarning(null);
     try {
+      const trimmedPrompt = aiPrompt.trim();
       const { project, githubError } = await api.createProject({
         name: name.trim(),
         repoPath: repoPath.trim(),
@@ -64,6 +69,10 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
           createGithubRepo: true,
           repoName: repoName.trim() || undefined,
           isPrivate,
+        }),
+        ...(trimmedPrompt && {
+          aiPrompt: trimmedPrompt,
+          maxTasks,
         }),
       });
       addProject(project);
@@ -107,6 +116,33 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
             disabled={submitting}
           />
         </Field>
+
+        {/* AI Prompt */}
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-gray-400">{t.newProject.aiPromptLabel}</span>
+          <textarea
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            rows={4}
+            className={`${inputCls} resize-none`}
+            placeholder={t.newProject.aiPromptPlaceholder}
+            disabled={submitting}
+          />
+        </label>
+
+        {/* Max tasks */}
+        <label className="flex items-center gap-3">
+          <span className="text-[11px] font-medium text-gray-400 shrink-0">{t.newProject.maxTasksLabel}</span>
+          <input
+            type="number"
+            value={maxTasks}
+            onChange={(e) => setMaxTasks(Math.min(20, Math.max(1, Number(e.target.value))))}
+            min={1}
+            max={20}
+            disabled={submitting}
+            className="w-20 rounded-md border border-gray-800 bg-gray-950 px-2 py-1.5 text-center text-xs text-gray-100 outline-none transition focus:border-gray-600"
+          />
+        </label>
 
         <Field label={t.newProject.defaultBranchLabel}>
           <input

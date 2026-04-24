@@ -37,6 +37,8 @@ export interface Task {
   comments?: Comment[];
 }
 
+export type PlanningStatus = "idle" | "planning" | "done" | "error";
+
 export interface Project {
   id: string;
   name: string;
@@ -45,6 +47,8 @@ export interface Project {
   defaultBranch: string;
   remote?: string | null;
   createdAt?: string;
+  planningStatus?: PlanningStatus;
+  planningError?: string | null;
 }
 
 export type TaskPatch = Partial<
@@ -83,4 +87,7 @@ export type WsEvent =
   | { type: "task_created"; taskId: string; payload: Task }
   | { type: "task_deleted"; taskId: string; payload: { id: string } }
   | { type: "comment_updated"; taskId: string; payload: Comment }
+  | { type: "project_planning_started"; projectId: string }
+  | { type: "project_planning_done"; projectId: string; taskCount: number }
+  | { type: "project_planning_error"; projectId: string; error: string }
   | { type: "hello"; payload: { serverVersion: string } };

@@ -19,11 +19,13 @@ export function useAgentSocket(url?: string) {
 
     const {
       upsertTask,
+      addTask,
       removeTask,
       appendLog,
       setAgentStatus,
       setWsConnected,
       upsertComment,
+      updateProjectPlanningStatus,
     } = useBoardStore.getState();
 
     const connect = () => {
@@ -37,8 +39,10 @@ export function useAgentSocket(url?: string) {
           const msg = JSON.parse(e.data) as WsEvent | { type: string };
           switch ((msg as { type: string }).type) {
             case "task_updated":
-            case "task_created":
               upsertTask((msg as Extract<WsEvent, { type: "task_updated" }>).payload);
+              break;
+            case "task_created":
+              addTask((msg as Extract<WsEvent, { type: "task_created" }>).payload);
               break;
             case "task_deleted":
               removeTask(
@@ -58,6 +62,21 @@ export function useAgentSocket(url?: string) {
             case "comment_updated": {
               const m = msg as Extract<WsEvent, { type: "comment_updated" }>;
               upsertComment(m.payload);
+              break;
+            }
+            case "project_planning_started": {
+              const m = msg as Extract<WsEvent, { type: "project_planning_started" }>;
+              updateProjectPlanningStatus(m.projectId, "planning");
+              break;
+            }
+            case "project_planning_done": {
+              const m = msg as Extract<WsEvent, { type: "project_planning_done" }>;
+              updateProjectPlanningStatus(m.projectId, "done");
+              break;
+            }
+            case "project_planning_error": {
+              const m = msg as Extract<WsEvent, { type: "project_planning_error" }>;
+              updateProjectPlanningStatus(m.projectId, "error", m.error);
               break;
             }
             case "hello":

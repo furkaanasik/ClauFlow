@@ -20,6 +20,8 @@ export const en: Translations = {
     emptySearch: "No matching projects found",
     emptyAll: "No projects yet",
     newProject: "New Project",
+    plannerRunning: "Planner is running...",
+    plannerError: "Planner error",
   },
   addTask: {
     modalTitle: "Add New Task",
@@ -64,5 +66,8 @@ export const en: Translations = {
     cancel: "Cancel",
     submit: "Create",
     submitting: "Creating...",
+    aiPromptLabel: "AI Prompt (optional)",
+    aiPromptPlaceholder: "Describe the project briefly, planner will break it into tasks...",
+    maxTasksLabel: "Max tasks",
   },
 };
