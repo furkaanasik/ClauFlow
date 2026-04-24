@@ -6,6 +6,7 @@ import {
   createEmptyAgentState,
   type AgentState,
   type Project,
+  type ProjectPlanningStatus,
   type Task,
   type TaskStatus,
   type TasksFile,
@@ -35,7 +36,8 @@ db.exec(`
     repoPath TEXT NOT NULL,
     defaultBranch TEXT NOT NULL DEFAULT 'main',
     remote TEXT,
-    createdAt TEXT NOT NULL
+    createdAt TEXT NOT NULL,
+    planningStatus TEXT NOT NULL DEFAULT 'idle'
   );
 
   CREATE TABLE IF NOT EXISTS tasks (
@@ -70,6 +72,21 @@ db.exec(`
   );
 `);
 
+// Idempotent migration: add planningStatus column to projects if missing.
+{
+  const projectColumns = db
+    .prepare(`PRAGMA table_info(projects)`)
+    .all() as { name: string }[];
+  const hasPlanningStatus = projectColumns.some(
+    (c) => c.name === "planningStatus",
+  );
+  if (!hasPlanningStatus) {
+    db.exec(
+      `ALTER TABLE projects ADD COLUMN planningStatus TEXT NOT NULL DEFAULT 'idle'`,
+    );
+  }
+}
+
 // ─── Row Types & Converters ───────────────────────────────────────────────
 
 interface ProjectRow {
@@ -80,6 +97,7 @@ interface ProjectRow {
   defaultBranch: string;
   remote: string | null;
   createdAt: string;
+  planningStatus: string | null;
 }
 
 interface TaskRow {
@@ -112,6 +130,8 @@ function rowToProject(row: ProjectRow): Project {
     defaultBranch: row.defaultBranch,
     remote: row.remote,
     createdAt: row.createdAt,
+    planningStatus:
+      (row.planningStatus as ProjectPlanningStatus | null) ?? "idle",
   };
 }
 
@@ -157,8 +177,8 @@ const stmtListProjects = db.prepare(
 );
 const stmtGetProject = db.prepare(`SELECT * FROM projects WHERE id = ?`);
 const stmtInsertProject = db.prepare(
-  `INSERT INTO projects (id, name, description, repoPath, defaultBranch, remote, createdAt)
-   VALUES (@id, @name, @description, @repoPath, @defaultBranch, @remote, @createdAt)`,
+  `INSERT INTO projects (id, name, description, repoPath, defaultBranch, remote, createdAt, planningStatus)
+   VALUES (@id, @name, @description, @repoPath, @defaultBranch, @remote, @createdAt, @planningStatus)`,
 );
 
 const stmtListTasks = db.prepare(`SELECT * FROM tasks ORDER BY createdAt ASC`);
@@ -222,6 +242,7 @@ function migrateLegacyJsonIfPresent(): void {
           defaultBranch: p.defaultBranch ?? "main",
           remote: p.remote ?? null,
           createdAt: p.createdAt ?? new Date().toISOString(),
+          planningStatus: p.planningStatus ?? "idle",
         });
       }
       for (const t of file.tasks ?? []) {
@@ -445,6 +466,7 @@ export async function createProject(
     defaultBranch: input.defaultBranch ?? "main",
     remote: input.remote ?? null,
     createdAt: new Date().toISOString(),
+    planningStatus: "idle",
   };
 
   stmtInsertProject.run({
@@ -455,9 +477,45 @@ export async function createProject(
     defaultBranch: project.defaultBranch,
     remote: project.remote ?? null,
     createdAt: project.createdAt ?? new Date().toISOString(),
+    planningStatus: project.planningStatus ?? "idle",
   });
 
   return Promise.resolve(project);
+}
+
+export type ProjectPatch = Partial<
+  Pick<Project, "name" | "description" | "remote" | "planningStatus">
+>;
+
+export async function updateProject(
+  id: string,
+  patch: ProjectPatch,
+): Promise<Project> {
+  const row = stmtGetProject.get(id) as ProjectRow | undefined;
+  if (!row) throw new Error(`Project not found: ${id}`);
+  const current = rowToProject(row);
+
+  const next: Project = {
+    ...current,
+    ...patch,
+  };
+
+  db.prepare(
+    `UPDATE projects SET
+      name = @name,
+      description = @description,
+      remote = @remote,
+      planningStatus = @planningStatus
+     WHERE id = @id`,
+  ).run({
+    id,
+    name: next.name,
+    description: next.description ?? "",
+    remote: next.remote ?? null,
+    planningStatus: next.planningStatus ?? "idle",
+  });
+
+  return Promise.resolve(next);
 }
 
 export async function deleteTask(id: string): Promise<void> {

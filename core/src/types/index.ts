@@ -34,6 +34,8 @@ export interface Task {
   agent: AgentState;
 }
 
+export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
+
 export interface Project {
   id: string;
   name: string;
@@ -42,6 +44,7 @@ export interface Project {
   defaultBranch: string;
   remote?: string | null;
   createdAt?: string;
+  planningStatus?: ProjectPlanningStatus;
 }
 
 export interface TasksFile {
@@ -73,6 +76,13 @@ export type WsMessage =
   | { type: "task_created"; taskId: string; payload: Task }
   | { type: "task_deleted"; taskId: string; payload: { id: string } }
   | { type: "comment_updated"; taskId: string; payload: Comment }
+  | { type: "project_planning_started"; projectId: string }
+  | {
+      type: "project_planning_done";
+      projectId: string;
+      taskCount: number;
+    }
+  | { type: "project_planning_error"; projectId: string; error: string }
   | { type: "hello"; payload: { serverVersion: string } };
 
 export function createEmptyAgentState(): AgentState {
