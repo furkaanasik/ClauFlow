@@ -13,6 +13,7 @@ import {
   getRemoteUrl,
   commitAll,
 } from "../services/gitService.js";
+import { runProjectPlanner } from "../agents/projectPlanner.js";
 
 const router = Router();
 
@@ -25,6 +26,8 @@ const createProjectSchema = z.object({
   createGithubRepo: z.boolean().optional(),
   repoName: z.string().optional(),
   isPrivate: z.boolean().optional(),
+  aiPrompt: z.string().optional(),
+  maxTasks: z.number().int().positive().max(20).optional(),
 });
 
 router.get("/", async (_req: Request, res: Response) => {
@@ -114,6 +117,16 @@ router.post("/", async (req: Request, res: Response) => {
       defaultBranch: data.defaultBranch,
       remote,
     });
+
+    if (data.aiPrompt && data.aiPrompt.trim()) {
+      runProjectPlanner(
+        project.id,
+        data.aiPrompt.trim(),
+        data.maxTasks ?? 8,
+      ).catch((err) => {
+        console.error("[projects] runProjectPlanner failed:", err);
+      });
+    }
 
     res.status(201).json({ project, githubError });
   } catch (err) {

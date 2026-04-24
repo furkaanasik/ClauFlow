@@ -68,6 +68,24 @@ export function broadcastCommentUpdated(comment: Comment): void {
   });
 }
 
+export function broadcastProjectPlanningStarted(projectId: string): void {
+  broadcast({ type: "project_planning_started", projectId });
+}
+
+export function broadcastProjectPlanningDone(
+  projectId: string,
+  taskCount: number,
+): void {
+  broadcast({ type: "project_planning_done", projectId, taskCount });
+}
+
+export function broadcastProjectPlanningError(
+  projectId: string,
+  error: string,
+): void {
+  broadcast({ type: "project_planning_error", projectId, error });
+}
+
 export function closeWebSocket(): Promise<void> {
   return new Promise((resolve) => {
     if (!wss) return resolve();
