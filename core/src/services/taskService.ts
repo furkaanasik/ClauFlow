@@ -34,6 +34,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT DEFAULT '',
+    aiPrompt TEXT DEFAULT '',
     repoPath TEXT NOT NULL,
     defaultBranch TEXT NOT NULL DEFAULT 'main',
     remote TEXT,
@@ -74,7 +75,7 @@ db.exec(`
   );
 `);
 
-// Idempotent migration: add planningStatus column to projects if missing.
+// Idempotent migrations for projects table.
 {
   const projectColumns = db
     .prepare(`PRAGMA table_info(projects)`)
@@ -86,6 +87,10 @@ db.exec(`
     db.exec(
       `ALTER TABLE projects ADD COLUMN planningStatus TEXT NOT NULL DEFAULT 'idle'`,
     );
+  }
+  const hasAiPrompt = projectColumns.some((c) => c.name === "aiPrompt");
+  if (!hasAiPrompt) {
+    db.exec(`ALTER TABLE projects ADD COLUMN aiPrompt TEXT DEFAULT ''`);
   }
 }
 
@@ -106,6 +111,7 @@ interface ProjectRow {
   id: string;
   name: string;
   description: string | null;
+  aiPrompt: string | null;
   repoPath: string;
   defaultBranch: string;
   remote: string | null;
@@ -140,6 +146,7 @@ function rowToProject(row: ProjectRow): Project {
     id: row.id,
     name: row.name,
     description: row.description ?? "",
+    aiPrompt: row.aiPrompt ?? "",
     repoPath: row.repoPath,
     defaultBranch: row.defaultBranch,
     remote: row.remote,
@@ -203,8 +210,8 @@ const stmtListProjects = db.prepare(
 );
 const stmtGetProject = db.prepare(`SELECT * FROM projects WHERE id = ?`);
 const stmtInsertProject = db.prepare(
-  `INSERT INTO projects (id, name, description, repoPath, defaultBranch, remote, createdAt, planningStatus)
-   VALUES (@id, @name, @description, @repoPath, @defaultBranch, @remote, @createdAt, @planningStatus)`,
+  `INSERT INTO projects (id, name, description, aiPrompt, repoPath, defaultBranch, remote, createdAt, planningStatus)
+   VALUES (@id, @name, @description, @aiPrompt, @repoPath, @defaultBranch, @remote, @createdAt, @planningStatus)`,
 );
 
 const stmtListTasks = db.prepare(`SELECT * FROM tasks ORDER BY createdAt ASC`);
@@ -264,6 +271,7 @@ function migrateLegacyJsonIfPresent(): void {
           id: p.id,
           name: p.name,
           description: p.description ?? "",
+          aiPrompt: p.aiPrompt ?? "",
           repoPath: p.repoPath,
           defaultBranch: p.defaultBranch ?? "main",
           remote: p.remote ?? null,
@@ -483,6 +491,7 @@ export async function appendAgentLog(
 export interface CreateProjectInput {
   name: string;
   description?: string;
+  aiPrompt?: string;
   repoPath: string;
   defaultBranch?: string;
   remote?: string | null;
@@ -495,6 +504,7 @@ export async function createProject(
     id: `proj_${randomUUID().slice(0, 8)}`,
     name: input.name,
     description: input.description ?? "",
+    aiPrompt: input.aiPrompt ?? "",
     repoPath: input.repoPath,
     defaultBranch: input.defaultBranch ?? "main",
     remote: input.remote ?? null,
@@ -506,6 +516,7 @@ export async function createProject(
     id: project.id,
     name: project.name,
     description: project.description ?? "",
+    aiPrompt: project.aiPrompt ?? "",
     repoPath: project.repoPath,
     defaultBranch: project.defaultBranch,
     remote: project.remote ?? null,
@@ -517,7 +528,7 @@ export async function createProject(
 }
 
 export type ProjectPatch = Partial<
-  Pick<Project, "name" | "description" | "remote" | "planningStatus">
+  Pick<Project, "name" | "description" | "aiPrompt" | "remote" | "planningStatus">
 >;
 
 export async function updateProject(
@@ -537,6 +548,7 @@ export async function updateProject(
     `UPDATE projects SET
       name = @name,
       description = @description,
+      aiPrompt = @aiPrompt,
       remote = @remote,
       planningStatus = @planningStatus
      WHERE id = @id`,
@@ -544,6 +556,7 @@ export async function updateProject(
     id,
     name: next.name,
     description: next.description ?? "",
+    aiPrompt: next.aiPrompt ?? "",
     remote: next.remote ?? null,
     planningStatus: next.planningStatus ?? "idle",
   });

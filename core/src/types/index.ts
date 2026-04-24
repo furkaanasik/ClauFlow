@@ -43,6 +43,7 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
+  aiPrompt?: string;
   repoPath: string;
   defaultBranch: string;
   remote?: string | null;

@@ -101,6 +101,13 @@ export async function runProjectPlanner(
       `      "Implements the login endpoint with email/password auth. Tokens are JWT and stored httpOnly.\\n\\n- [ ] POST /auth/login returns 200 with token on valid creds\\n- [ ] Returns 401 on invalid creds\\n- [ ] Rate-limited to 5 attempts/min per IP"\n` +
       `  - "priority": one of "low" | "medium" | "high" | "critical" (default "medium" if unsure)\n` +
       `  - "tags": optional array of 1-4 short lowercase strings like ["backend","api"] or ["frontend","ui"]; omit if not relevant\n\n` +
+      `Order the tasks in strict execution sequence so they can be picked up one by one without rework: ` +
+      `shared contracts (schemas, types, DB models) first; backend endpoints before any frontend that consumes them; ` +
+      `parent UI/layout before child components; cross-cutting concerns (auth, rate limiting, persistence of prior outputs) last. ` +
+      `If task B depends on task A, A must appear before B in the array.\n\n` +
+      `If the project looks greenfield (no existing stack mentioned), include an early task that scaffolds a minimal test runner ` +
+      `appropriate for the stack (vitest for TS/JS, pytest for Python, go test for Go). Each behavior task's acceptance criteria ` +
+      `should already read as testable assertions so the executor can turn them into real tests.\n\n` +
       `Output strictly valid JSON — no commentary, no code fences.`;
 
     const result = await runClaude({

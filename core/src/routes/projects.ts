@@ -111,15 +111,17 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }
 
+    const trimmedPrompt = data.aiPrompt?.trim();
+
     let project = await createProject({
       name: data.name,
       description: data.description,
+      aiPrompt: trimmedPrompt,
       repoPath: data.repoPath,
       defaultBranch: data.defaultBranch,
       remote,
     });
 
-    const trimmedPrompt = data.aiPrompt?.trim();
     if (trimmedPrompt) {
       project = await updateProject(project.id, { planningStatus: "planning" });
       runProjectPlanner(

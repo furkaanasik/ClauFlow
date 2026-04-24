@@ -97,9 +97,26 @@ export async function run(task: Task, project: Project): Promise<void> {
     // ── Step 3: run claude CLI ────────────────────────────────────────────
     await setAgentStep(task.id, "running", "claude_cli");
 
-    const prompt =
-      `Aşağıdaki analize göre kodu yaz ve bitince terminalden çık:\n\n` +
-      (task.analysis || task.description || task.title);
+    const taskBrief = task.analysis || task.description || task.title;
+    const background = project.aiPrompt?.trim();
+    const testingInstructions =
+      `Testing requirements:\n` +
+      `- Before coding, detect the repo's test runner: check package.json scripts ("test", "test:unit"), and config files (vitest.config.*, jest.config.*, pytest.ini, pyproject.toml with pytest, go.mod for go test).\n` +
+      `- If a runner exists, write unit tests that cover each acceptance criterion as an assertion. Prefer testing observable behavior over implementation details.\n` +
+      `- If NO test runner is configured and this looks like a greenfield repo, set up a minimal one matching the stack: vitest for TypeScript/JavaScript, pytest for Python, go test for Go. Add an "npm test" (or equivalent) script.\n` +
+      `- Run the test command after writing tests. Do not finish until tests pass. If a test reveals a bug in your implementation, fix the implementation — do not weaken the test.\n` +
+      `- Skip tests only for pure config/docs changes where behavior cannot be meaningfully asserted.`;
+
+    const prompt = background
+      ? `Project background (reference only — do NOT implement features beyond the current task's scope):\n` +
+        `${background}\n\n` +
+        `Current task — implement exactly what this describes, nothing more:\n\n` +
+        `${taskBrief}\n\n` +
+        `${testingInstructions}\n\n` +
+        `When done, exit the terminal.`
+      : `Aşağıdaki analize göre kodu yaz ve bitince terminalden çık:\n\n` +
+        `${taskBrief}\n\n` +
+        testingInstructions;
 
     const claudeResult = await runClaude({
       prompt,

@@ -22,6 +22,11 @@ Sen bu projenin Reviewer ajanısın. Frontend ve backend agent'larının uygulad
 - [ ] Edge case'ler ele alındı mı?
 - [ ] Tip hataları var mı? (TypeScript)
 
+### Test Kapsamı
+- [ ] Yeni davranış için unit test eklendi mi (en az acceptance criteria'daki her madde için bir assertion)?
+- [ ] Projede test runner varsa testler geçiyor mu? (`npm test` / `pnpm test` / `pytest`)
+- [ ] Sadece config/docs değişikliği değilse ve test yoksa → kritik bulgu olarak işaretle
+
 ### Kalite
 - [ ] Gereksiz kod tekrarı var mı?
 - [ ] İsimler açıklayıcı mı?
