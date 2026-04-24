@@ -36,13 +36,6 @@ const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   done:   [],
 };
 
-const PRIORITY_RANK: Record<string, number> = {
-  critical: 0,
-  high:     1,
-  medium:   2,
-  low:      3,
-};
-
 export function Board() {
   const { loading, error } = useBoardTasks();
   useAgentSocket();
@@ -89,13 +82,6 @@ export function Board() {
         if (!match) continue;
       }
       map[t.status].push(t);
-    }
-    for (const col of Object.values(map)) {
-      col.sort((a, b) => {
-        const ra = PRIORITY_RANK[(a!.priority ?? "").toLowerCase()] ?? 4;
-        const rb = PRIORITY_RANK[(b!.priority ?? "").toLowerCase()] ?? 4;
-        return ra - rb;
-      });
     }
     return map;
   }, [tasks, order, filterText]);

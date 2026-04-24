@@ -215,12 +215,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   getByStatus: (status) => {
     const { tasks, order, filterText } = get();
     const needle = filterText.trim().toLowerCase();
-    const PRIORITY_RANK: Record<string, number> = {
-      critical: 0,
-      high: 1,
-      medium: 2,
-      low: 3,
-    };
     return order
       .map((id) => tasks[id])
       .filter((t) => {
@@ -228,11 +222,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         if (!needle) return true;
         return t.title.toLowerCase().includes(needle) ||
           (t.description ?? "").toLowerCase().includes(needle);
-      })
-      .sort((a, b) => {
-        const ra = PRIORITY_RANK[(a!.priority ?? "").toLowerCase()] ?? 4;
-        const rb = PRIORITY_RANK[(b!.priority ?? "").toLowerCase()] ?? 4;
-        return ra - rb;
       });
   },
 }));
