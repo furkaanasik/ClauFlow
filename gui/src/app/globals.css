@@ -3,6 +3,8 @@
 @theme {
   --color-background: #09090b;
   --color-foreground: #e4e4e7;
+  --font-sans: var(--geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--geist-mono), ui-monospace, "SFMono-Regular", Menlo, Monaco, monospace;
 }
 
 :root {
@@ -12,31 +14,89 @@
   --border: #27272a;
   --text-primary: #f4f4f5;
   --text-muted: #71717a;
-  --font-inter: var(--font-inter-var), ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 html.light {
   /*
    * Tailwind v4: bg-zinc-950 → var(--color-zinc-950) kullanır.
-   * Tüm zinc renkleri burada light-mode değerlerine çevrilir.
-   * Koyu → açık arka plan, açık → koyu metin olacak şekilde tersine çevrilmiş skala.
+   * Light mode'da tüm renk skalalarını tersine çeviriyoruz:
+   * koyu (900/950) → açık tint, açık (300/400) → okunabilir koyu.
    */
 
-  /* Arka planlar: çok koyu → çok açık */
+  /* Zinc — arka planlar & metin */
   --color-zinc-950: #ffffff;
   --color-zinc-900: #f8fafc;
   --color-zinc-800: #f1f5f9;
-  --color-zinc-700: #e2e8f0;  /* border rengi */
-
-  /* Metinler: açık → koyu (okunabilir) */
-  --color-zinc-600: #475569;  /* muted label (en az #475569 olmalı, contrast ok) */
+  --color-zinc-700: #e2e8f0;
+  --color-zinc-600: #475569;
   --color-zinc-500: #334155;
   --color-zinc-400: #1e293b;
   --color-zinc-300: #1e293b;
   --color-zinc-200: #0f172a;
-  --color-zinc-100: #0f172a;  /* birincil metin */
+  --color-zinc-100: #0f172a;
   --color-zinc-50:  #020617;
   --color-black:    #0f172a;
+
+  /* Red — danger, error */
+  --color-red-950: #fef2f2;
+  --color-red-900: #fee2e2;
+  --color-red-800: #fecaca;
+  --color-red-700: #fca5a5;
+  --color-red-600: #dc2626;
+  --color-red-500: #dc2626;
+  --color-red-400: #b91c1c;
+  --color-red-300: #991b1b;
+  --color-red-200: #7f1d1d;
+
+  /* Blue — info, links */
+  --color-blue-950: #eff6ff;
+  --color-blue-900: #dbeafe;
+  --color-blue-800: #bfdbfe;
+  --color-blue-700: #93c5fd;
+  --color-blue-600: #2563eb;
+  --color-blue-500: #2563eb;
+  --color-blue-400: #1d4ed8;
+  --color-blue-300: #1e40af;
+
+  /* Yellow — planning, warning */
+  --color-yellow-950: #fefce8;
+  --color-yellow-900: #fef9c3;
+  --color-yellow-800: #fef08a;
+  --color-yellow-700: #fde047;
+  --color-yellow-600: #ca8a04;
+  --color-yellow-500: #ca8a04;
+  --color-yellow-400: #a16207;
+  --color-yellow-300: #854d0e;
+
+  /* Purple — review column */
+  --color-purple-950: #faf5ff;
+  --color-purple-900: #f3e8ff;
+  --color-purple-800: #e9d5ff;
+  --color-purple-700: #d8b4fe;
+  --color-purple-600: #9333ea;
+  --color-purple-500: #9333ea;
+  --color-purple-400: #7e22ce;
+  --color-purple-300: #6b21a8;
+
+  /* Emerald — done, success */
+  --color-emerald-950: #ecfdf5;
+  --color-emerald-900: #d1fae5;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-600: #059669;
+  --color-emerald-500: #059669;
+  --color-emerald-400: #047857;
+  --color-emerald-300: #065f46;
+
+  /* Orange — executor running, attention */
+  --color-orange-950: #fff7ed;
+  --color-orange-900: #ffedd5;
+  --color-orange-800: #fed7aa;
+  --color-orange-700: #fdba74;
+  --color-orange-600: #ea580c;
+  --color-orange-500: #ea580c;
+  --color-orange-400: #c2410c;
+  --color-orange-300: #9a3412;
 
   --color-background: #f8fafc;
   --color-foreground: #0f172a;
@@ -56,11 +116,62 @@ html.light body {
   color: #0f172a;
 }
 
+/* Light mode scrollbar — koyu thumb light ekranda kötü duruyordu */
+html.light *::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+html.light *::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Light mode: kolonlara belirginlik — body slate-100, kolon beyaz + soft shadow */
+html.light .kanban-column {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow:
+    0 1px 2px 0 rgb(15 23 42 / 0.04),
+    0 4px 12px -2px rgb(15 23 42 / 0.06);
+}
+
+/* Light mode: arama input'ları — beyaz bg üzerinde soft shadow ve daha net border */
+html.light .kanban-search {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+}
+html.light .kanban-search:focus {
+  border-color: #64748b;
+  box-shadow:
+    0 1px 2px 0 rgb(15 23 42 / 0.05),
+    0 0 0 2px rgb(100 116 139 / 0.15);
+}
+
+/* Light mode: stat pill + progress bar konteyneri */
+html.light .kanban-panel {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow:
+    0 1px 2px 0 rgb(15 23 42 / 0.04),
+    0 2px 6px -2px rgb(15 23 42 / 0.05);
+}
+
+/* Light mode: analiz/code pre bloku — slate tint, net border, okunabilir metin */
+html.light .analysis-block {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #1e293b;
+  box-shadow: inset 0 1px 2px 0 rgb(15 23 42 / 0.04);
+}
+
 html,
 body {
   background-color: var(--bg-base);
   color: var(--text-primary);
-  font-family: var(--font-inter);
+  font-family: var(--font-sans);
+}
+
+code, pre, kbd {
+  font-family: var(--font-mono);
 }
 
 /* Ince, koyu scrollbar */

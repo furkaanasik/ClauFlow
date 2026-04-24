@@ -20,14 +20,10 @@ import { useAgentSocket } from "@/hooks/useAgentSocket";
 import { useBoardStore } from "@/store/boardStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useToast } from "@/hooks/useToast";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { TaskStatus } from "@/types";
 
-const COLUMNS: { status: TaskStatus; title: string }[] = [
-  { status: "todo",   title: "To Do"  },
-  { status: "doing",  title: "Doing"  },
-  { status: "review", title: "Review" },
-  { status: "done",   title: "Done"   },
-];
+const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "review", "done"];
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   todo:   ["doing"],
@@ -39,6 +35,11 @@ const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
 export function Board() {
   const { loading, error } = useBoardTasks();
   useAgentSocket();
+  const t = useTranslation();
+  const columns = COLUMN_STATUSES.map((status) => ({
+    status,
+    title: t.board.columns[status],
+  }));
 
   const tasks             = useBoardStore((s) => s.tasks);
   const order             = useBoardStore((s) => s.order);
@@ -130,7 +131,7 @@ export function Board() {
 
     try {
       await moveTaskOptimistic(taskId, target);
-      if (target === "doing")  toast.info("Agent baslatildi");
+      if (target === "doing")  toast.info(t.board.agentStarted);
       if (target === "done")   toast.success("PR merge edildi");
     } catch (err) {
       toast.error(`Tasima basarisiz: ${err instanceof Error ? err.message : String(err)}`);
@@ -155,10 +156,10 @@ export function Board() {
   return (
     <div className="flex flex-col gap-4">
       {/* Board header — istatistik + arama */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-2.5">
+      <div className="kanban-panel flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-2.5">
         {/* Stat pills */}
         <div className="flex flex-wrap gap-2">
-          {COLUMNS.map((col) => {
+          {columns.map((col) => {
             const count = Object.values(tasks).filter(
               (t) => t?.projectId === selectedProjectId && t.status === col.status,
             ).length;
@@ -201,8 +202,8 @@ export function Board() {
             type="text"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            placeholder="Ara... (/)"
-            className="rounded-lg border border-zinc-800 bg-zinc-950 py-1.5 pl-8 pr-3 text-xs text-zinc-200 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700 w-44"
+            placeholder={t.board.searchPlaceholder}
+            className="kanban-search rounded-lg border border-zinc-800 bg-zinc-950 py-1.5 pl-8 pr-3 text-xs text-zinc-200 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700 w-44"
           />
           {filterText && (
             <button
@@ -218,11 +219,11 @@ export function Board() {
 
       {error && (
         <div className="rounded-xl border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
-          Board yuklenemedi: {error}
+          {t.board.loadError}: {error}
         </div>
       )}
       {loading && (
-        <div className="text-xs text-zinc-500">Tasklar yukleniyor...</div>
+        <div className="text-xs text-zinc-500">{t.board.loadingTasks}</div>
       )}
 
       <DndContext
@@ -231,7 +232,7 @@ export function Board() {
         onDragEnd={handleDragEnd}
       >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {COLUMNS.map((col) => (
+          {columns.map((col) => (
             <BoardColumn
               key={col.status}
               status={col.status}
@@ -261,13 +262,13 @@ export function Board() {
             className="w-80 rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-4 text-sm font-semibold text-zinc-200">Klavye Kisayollari</h3>
+            <h3 className="mb-4 text-sm font-semibold text-zinc-200">{t.board.shortcuts.title}</h3>
             <div className="flex flex-col gap-2">
               {[
-                { key: "N",   desc: "Yeni task olustur" },
-                { key: "/",   desc: "Aramaya odaklan" },
-                { key: "Esc", desc: "Ac olan paneli kapat" },
-                { key: "?",   desc: "Bu yardim penceresini goster" },
+                { key: "N",   desc: t.board.shortcuts.newTask },
+                { key: "/",   desc: t.board.shortcuts.focusSearch },
+                { key: "Esc", desc: t.board.shortcuts.close },
+                { key: "?",   desc: t.board.shortcuts.openHelp },
               ].map(({ key, desc }) => (
                 <div key={key} className="flex items-center justify-between">
                   <span className="text-xs text-zinc-400">{desc}</span>
@@ -282,7 +283,7 @@ export function Board() {
               onClick={() => setShowHelp(false)}
               className="mt-4 w-full rounded-lg border border-zinc-800 py-1.5 text-xs text-zinc-500 hover:border-zinc-600 hover:text-zinc-300 transition"
             >
-              Kapat
+              {t.board.shortcuts.close}
             </button>
           </div>
         </div>
@@ -290,10 +291,16 @@ export function Board() {
 
       <ConfirmDialog
         open={Boolean(pendingMove)}
-        title="Manuel geçiş onayı"
-        description={pendingMove ? `"${pendingMove.from}" → "${pendingMove.to}" geçişi otomatik değil. Devam edilsin mi?` : ""}
-        confirmLabel="Taşı"
-        cancelLabel="İptal"
+        title={t.board.manualMove.title}
+        description={
+          pendingMove
+            ? t.board.manualMove.descriptionTemplate
+                .replace("{from}", t.board.columns[pendingMove.from])
+                .replace("{to}", t.board.columns[pendingMove.to])
+            : ""
+        }
+        confirmLabel={t.board.manualMove.confirm}
+        cancelLabel={t.board.manualMove.cancel}
         variant="warning"
         onConfirm={async () => {
           if (!pendingMove) return;
@@ -301,7 +308,7 @@ export function Board() {
           setPendingMove(null);
           try {
             await moveTaskOptimistic(taskId, to);
-            if (to === "doing") toast.info("Agent baslatildi");
+            if (to === "doing") toast.info(t.board.agentStarted);
             if (to === "done")  toast.success("PR merge edildi");
           } catch (err) {
             toast.error(`Tasima basarisiz: ${err instanceof Error ? err.message : String(err)}`);

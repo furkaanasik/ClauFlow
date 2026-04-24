@@ -24,7 +24,6 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
   const [repoName, setRepoName] = useState("");
   const [isPrivate, setIsPrivate] = useState(true);
   const [aiPrompt, setAiPrompt] = useState("");
-  const [maxTasks, setMaxTasks] = useState(8);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [githubWarning, setGithubWarning] = useState<string | null>(null);
@@ -38,7 +37,6 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
     setRepoName("");
     setIsPrivate(true);
     setAiPrompt("");
-    setMaxTasks(8);
     setError(null);
     setGithubWarning(null);
   };
@@ -72,7 +70,6 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
         }),
         ...(trimmedPrompt && {
           aiPrompt: trimmedPrompt,
-          maxTasks,
         }),
       });
       addProject(project);
@@ -119,7 +116,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 
         {/* AI Prompt */}
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-gray-400">{t.newProject.aiPromptLabel}</span>
+          <span className="text-[11px] font-medium text-zinc-400">{t.newProject.aiPromptLabel}</span>
           <textarea
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
@@ -130,21 +127,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
           />
         </label>
 
-        {/* Max tasks */}
-        <label className="flex items-center gap-3">
-          <span className="text-[11px] font-medium text-gray-400 shrink-0">{t.newProject.maxTasksLabel}</span>
-          <input
-            type="number"
-            value={maxTasks}
-            onChange={(e) => setMaxTasks(Math.min(20, Math.max(1, Number(e.target.value))))}
-            min={1}
-            max={20}
-            disabled={submitting}
-            className="w-20 rounded-md border border-gray-800 bg-gray-950 px-2 py-1.5 text-center text-xs text-gray-100 outline-none transition focus:border-gray-600"
-          />
-        </label>
-
-        <Field label={t.newProject.defaultBranchLabel}>
+<Field label={t.newProject.defaultBranchLabel}>
           <input
             type="text"
             value={defaultBranch}
@@ -156,7 +139,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
         </Field>
 
         {/* GitHub repo creation toggle */}
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-800 px-3 py-2 transition hover:border-gray-700">
+        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 transition hover:border-zinc-700">
           <input
             type="checkbox"
             checked={createGithub}
@@ -164,7 +147,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
             disabled={submitting}
             className="h-3.5 w-3.5 accent-emerald-500"
           />
-          <span className="text-xs text-gray-300">{t.newProject.createGithubLabel}</span>
+          <span className="text-xs text-zinc-300">{t.newProject.createGithubLabel}</span>
         </label>
 
         {createGithub && (
@@ -181,7 +164,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
             </Field>
 
             <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-gray-400">{t.newProject.visibilityLabel}</span>
+              <span className="text-[11px] font-medium text-zinc-400">{t.newProject.visibilityLabel}</span>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -190,7 +173,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
                   className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
                     isPrivate
                       ? "bg-emerald-700 text-white"
-                      : "border border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-200"
+                      : "border border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
                   }`}
                 >
                   {t.newProject.visibilityPrivate}
@@ -202,7 +185,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
                   className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
                     !isPrivate
                       ? "bg-emerald-700 text-white"
-                      : "border border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-200"
+                      : "border border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
                   }`}
                 >
                   {t.newProject.visibilityPublic}
@@ -252,7 +235,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
                 type="button"
                 onClick={handleClose}
                 disabled={submitting}
-                className="rounded-md px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-100"
+                className="rounded-md px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
               >
                 {t.newProject.cancel}
               </button>
@@ -272,7 +255,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 }
 
 const inputCls =
-  "w-full rounded-md border border-gray-800 bg-gray-950 px-3 py-2 text-xs text-gray-100 outline-none ring-0 transition focus:border-gray-600";
+  "w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 outline-none ring-0 transition focus:border-zinc-600";
 
 function Field({
   label,
@@ -285,7 +268,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium text-gray-400">
+      <span className="text-[11px] font-medium text-zinc-400">
         {label}
         {required && <span className="ml-1 text-red-400">*</span>}
       </span>

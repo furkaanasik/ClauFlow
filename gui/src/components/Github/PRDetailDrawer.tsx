@@ -123,13 +123,13 @@ function parseSplitDiff(raw: string): SplitRow[] {
 type SideVariant = "removed" | "added" | "empty" | "context";
 
 function leftBg(type: SideVariant | undefined): string {
-  if (type === "removed") return "bg-[#3d1f1f]";
+  if (type === "removed") return "bg-red-950/60";
   if (type === "empty")   return "bg-zinc-900/30";
   return "";
 }
 
 function rightBg(type: SideVariant | undefined): string {
-  if (type === "added") return "bg-[#1a3d2b]";
+  if (type === "added") return "bg-emerald-950/60";
   if (type === "empty") return "bg-zinc-900/30";
   return "";
 }

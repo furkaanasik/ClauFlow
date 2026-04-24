@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CommentsTab } from "@/components/Card/CommentsTab";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Task, TaskPatch } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
@@ -53,14 +54,16 @@ function makeDraft(task: Task): DraftState {
   };
 }
 
-const PRIORITY_BUTTONS: { value: EditPriority; label: string; color: string }[] = [
-  { value: "low",      label: "Dusuk",  color: "text-emerald-400 border-emerald-700 bg-emerald-950/40" },
-  { value: "medium",   label: "Orta",   color: "text-yellow-400  border-yellow-700  bg-yellow-950/40"  },
-  { value: "high",     label: "Yuksek", color: "text-orange-400  border-orange-700  bg-orange-950/40"  },
-  { value: "critical", label: "Kritik", color: "text-red-400     border-red-700     bg-red-950/40"     },
+const PRIORITY_BUTTONS: { value: EditPriority; color: string }[] = [
+  { value: "low",      color: "text-emerald-400 border-emerald-700 bg-emerald-950/40" },
+  { value: "medium",   color: "text-yellow-400  border-yellow-700  bg-yellow-950/40"  },
+  { value: "high",     color: "text-orange-400  border-orange-700  bg-orange-950/40"  },
+  { value: "critical", color: "text-red-400     border-red-700     bg-red-950/40"     },
 ];
 
 export function TaskDetailDrawer() {
+  const tt = useTranslation();
+  const td = tt.taskDetail;
   const selectedTaskId = useBoardStore((s) => s.selectedTaskId);
   const task           = useBoardStore((s) =>
     s.selectedTaskId ? s.tasks[s.selectedTaskId] ?? null : null,
@@ -119,7 +122,7 @@ export function TaskDetailDrawer() {
 
   const saveEdit = async () => {
     if (!task || !draft) return;
-    if (!draft.title.trim()) { setError("Baslik zorunludur."); return; }
+    if (!draft.title.trim()) { setError(td.errors.titleRequired); return; }
     setSaving(true);
     setError(null);
     try {
@@ -134,7 +137,7 @@ export function TaskDetailDrawer() {
       setEditing(false);
       setDraft(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Guncelleme basarisiz.");
+      setError(err instanceof Error ? err.message : td.errors.updateFailed);
     } finally {
       setSaving(false);
     }
@@ -149,7 +152,7 @@ export function TaskDetailDrawer() {
       upsertTask(updated);
       setTab("log");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Yeniden deneme basarisiz.");
+      setError(err instanceof Error ? err.message : td.errors.retryFailed);
     } finally {
       setRetrying(false);
     }
@@ -165,7 +168,7 @@ export function TaskDetailDrawer() {
       removeTask(task.id);
       selectTask(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Silme basarisiz.");
+      setError(err instanceof Error ? err.message : td.errors.deleteFailed);
       setDeleting(false);
     }
   };
@@ -219,7 +222,7 @@ export function TaskDetailDrawer() {
                     value={draft.title}
                     onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                     className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-base font-semibold text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
-                    placeholder="Baslik"
+                    placeholder={td.titlePlaceholder}
                   />
                 ) : (
                   <h2 className="text-base font-semibold leading-tight text-zinc-100">
@@ -231,7 +234,7 @@ export function TaskDetailDrawer() {
                 type="button"
                 onClick={close}
                 className="shrink-0 rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
-                aria-label="Kapat"
+                aria-label={td.closeLabel}
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M1 1l12 12M13 1L1 13" />
@@ -251,7 +254,7 @@ export function TaskDetailDrawer() {
                     : "text-zinc-500 hover:text-zinc-300",
                 )}
               >
-                Detaylar
+                {td.tabDetails}
               </button>
               <button
                 type="button"
@@ -263,7 +266,7 @@ export function TaskDetailDrawer() {
                     : "text-zinc-500 hover:text-zinc-300",
                 )}
               >
-                {`Agent Logu${logs.length > 0 ? ` (${logs.length})` : ""}`}
+                {`${td.tabLog}${logs.length > 0 ? ` (${logs.length})` : ""}`}
               </button>
               <button
                 type="button"
@@ -275,7 +278,7 @@ export function TaskDetailDrawer() {
                     : "text-zinc-500 hover:text-zinc-300",
                 )}
               >
-                {commentCount > 0 ? `Yorumlar (${commentCount})` : "Yorumlar"}
+                {commentCount > 0 ? `${td.tabComments} (${commentCount})` : td.tabComments}
               </button>
             </div>
 
@@ -294,7 +297,7 @@ export function TaskDetailDrawer() {
                   {/* Aciklama */}
                   <section className="mb-5">
                     <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
-                      Aciklama
+                      {td.descriptionLabel}
                     </h3>
                     {editing && draft ? (
                       <textarea
@@ -302,21 +305,21 @@ export function TaskDetailDrawer() {
                         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                         rows={3}
                         className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
-                        placeholder="Aciklama..."
+                        placeholder={td.descriptionPlaceholder}
                       />
                     ) : task.description ? (
                       <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
                         {task.description}
                       </p>
                     ) : (
-                      <p className="text-xs italic text-zinc-700">Aciklama yok.</p>
+                      <p className="text-xs italic text-zinc-700">{td.descriptionEmpty}</p>
                     )}
                   </section>
 
                   {/* Analiz */}
                   <section className="mb-5">
                     <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
-                      Analiz
+                      {td.analysisLabel}
                     </h3>
                     {editing && draft ? (
                       <textarea
@@ -324,14 +327,14 @@ export function TaskDetailDrawer() {
                         onChange={(e) => setDraft({ ...draft, analysis: e.target.value })}
                         rows={8}
                         className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
-                        placeholder="Teknik analiz..."
+                        placeholder={td.analysisPlaceholder}
                       />
                     ) : task.analysis ? (
-                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-black/60 p-3 font-mono text-xs leading-relaxed text-zinc-200">
+                      <pre className="analysis-block max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 font-mono text-xs leading-relaxed text-zinc-200">
                         {task.analysis}
                       </pre>
                     ) : (
-                      <p className="text-xs italic text-zinc-700">Analiz yok.</p>
+                      <p className="text-xs italic text-zinc-700">{td.analysisEmpty}</p>
                     )}
                   </section>
 
@@ -339,10 +342,10 @@ export function TaskDetailDrawer() {
                   {editing && draft && (
                     <section className="mb-5">
                       <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
-                        Oncelik
+                        {td.priorityLabel}
                       </h3>
                       <div className="flex gap-2">
-                        {PRIORITY_BUTTONS.map(({ value, label, color }) => (
+                        {PRIORITY_BUTTONS.map(({ value, color }) => (
                           <button
                             key={value}
                             type="button"
@@ -355,7 +358,7 @@ export function TaskDetailDrawer() {
                                 : "opacity-50 hover:opacity-80",
                             )}
                           >
-                            {label}
+                            {tt.addTask.priorities[value]}
                           </button>
                         ))}
                       </div>
@@ -370,24 +373,18 @@ export function TaskDetailDrawer() {
                           {task.agent.status === "idle" ? (
                             <>
                               <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
-                              <span>Kuyrukta bekleniyor</span>
+                              <span>{td.queueWaiting}</span>
                             </>
                           ) : task.agent.status === "error" ? (
                             <>
                               <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                              <span className="text-red-400">Hata olustu</span>
+                              <span className="text-red-400">{td.errorOccurred}</span>
                             </>
                           ) : (
                             <>
                               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />
                               <span className="text-yellow-300">
-                                {{
-                                  branching:  "Branch aciliyor...",
-                                  running:    "AI yaziyor...",
-                                  pushing:    "Push ediliyor...",
-                                  pr_opening: "PR olusturuluyor...",
-                                  done:       "Tamamlandi",
-                                }[task.agent.status] ?? task.agent.status}
+                                {td.agentStatus[task.agent.status as keyof typeof td.agentStatus] ?? task.agent.status}
                               </span>
                             </>
                           )}
@@ -402,7 +399,7 @@ export function TaskDetailDrawer() {
                             <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
                             <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
                           </svg>
-                          {retrying ? "Baslatiliyor..." : "Yeniden Dene"}
+                          {retrying ? td.retryingButton : td.retryButton}
                         </button>
                       </div>
                     </section>
@@ -412,11 +409,11 @@ export function TaskDetailDrawer() {
                   {(task.branch || task.prUrl) && (
                     <section className="mb-5 flex flex-col gap-3">
                       <h3 className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
-                        Baglantilar
+                        {td.connectionsLabel}
                       </h3>
                       {task.branch && (
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-zinc-600">Branch:</span>
+                          <span className="text-[11px] text-zinc-600">{td.branchLabel}</span>
                           <code className="rounded-md bg-zinc-900 px-2 py-0.5 font-mono text-[11px] text-blue-300">
                             {task.branch}
                           </code>
@@ -431,17 +428,17 @@ export function TaskDetailDrawer() {
                               rel="noopener noreferrer"
                               className="text-sm font-medium text-purple-300 hover:text-purple-200 transition"
                             >
-                              Pull Request aç {task.prNumber ? `#${task.prNumber}` : ""} ↗
+                              {td.openPr} {task.prNumber ? `#${task.prNumber}` : ""} ↗
                             </a>
                           </div>
                           {task.status === "done" && (
                             <span className="flex items-center gap-1 rounded-full bg-purple-900/50 px-2.5 py-1 text-[11px] font-semibold text-purple-300">
-                              Merged
+                              {td.merged}
                             </span>
                           )}
                           {task.agent.status === "error" && task.status !== "done" && (
                             <span className="rounded-full bg-red-900/50 px-2.5 py-1 text-[11px] font-semibold text-red-300">
-                              Merge hatasi
+                              {td.mergeError}
                             </span>
                           )}
                         </div>
@@ -463,7 +460,7 @@ export function TaskDetailDrawer() {
                           />
                         ))}
                       </span>
-                      <span>Kuyrukta bekleniyor...</span>
+                      <span>{td.queueWaiting}</span>
                     </div>
                   ) : logs.length > 0 ? (
                     <pre
@@ -474,12 +471,12 @@ export function TaskDetailDrawer() {
                     </pre>
                   ) : (
                     <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-700">
-                      Henuz log yok
+                      {td.logsEmpty}
                     </div>
                   )}
                   {task.agent.status === "error" && task.agent.error && (
                     <div className="shrink-0 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-red-400">
-                      <span className="mr-2 font-bold">✖ Hata:</span>
+                      <span className="mr-2 font-bold">✖ {td.logsErrorPrefix}</span>
                       <span className="whitespace-pre-wrap">{task.agent.error}</span>
                     </div>
                   )}
@@ -497,7 +494,7 @@ export function TaskDetailDrawer() {
                     disabled={saving}
                     className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition"
                   >
-                    Iptal
+                    {td.cancelButton}
                   </button>
                   <button
                     type="button"
@@ -505,7 +502,7 @@ export function TaskDetailDrawer() {
                     disabled={saving}
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
                   >
-                    {saving ? "Kaydediliyor..." : "Kaydet"}
+                    {saving ? td.savingButton : td.saveButton}
                   </button>
                 </>
               ) : (
@@ -516,14 +513,14 @@ export function TaskDetailDrawer() {
                     disabled={deleting}
                     className="rounded-lg border border-red-800/60 bg-red-950/30 px-4 py-2 text-sm text-red-400 hover:bg-red-900/40 disabled:opacity-50 transition"
                   >
-                    {deleting ? "Siliniyor..." : "Sil"}
+                    {deleting ? td.deletingButton : td.deleteButton}
                   </button>
                   <button
                     type="button"
                     onClick={beginEdit}
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition"
                   >
-                    Duzenle
+                    {td.editButton}
                   </button>
                 </>
               )}
@@ -534,10 +531,10 @@ export function TaskDetailDrawer() {
 
       <ConfirmDialog
         open={confirmDelete}
-        title="Task silinsin mi?"
-        description="Bu işlem geri alınamaz. Task kalıcı olarak silinecek."
-        confirmLabel="Sil"
-        cancelLabel="İptal"
+        title={td.confirmDelete.title}
+        description={td.confirmDelete.description}
+        confirmLabel={td.confirmDelete.confirm}
+        cancelLabel={td.confirmDelete.cancel}
         variant="danger"
         onConfirm={doDelete}
         onCancel={() => setConfirmDelete(false)}

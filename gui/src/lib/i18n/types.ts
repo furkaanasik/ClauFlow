@@ -65,7 +65,89 @@ export interface Translations {
     submitting: string;
     aiPromptLabel: string;
     aiPromptPlaceholder: string;
-    maxTasksLabel: string;
+  };
+  board: {
+    loadError: string;
+    agentStarted: string;
+    columns: {
+      todo: string;
+      doing: string;
+      review: string;
+      done: string;
+    };
+    emptyStates: {
+      todo:   { title: string; hint: string };
+      doing:  { title: string; hint: string };
+      review: { title: string; hint: string };
+      done:   { title: string; hint: string };
+    };
+    searchPlaceholder: string;
+    loadingTasks: string;
+    noSelection: string;
+    shortcuts: {
+      title: string;
+      focusSearch: string;
+      newTask: string;
+      openHelp: string;
+      close: string;
+    };
+    manualMove: {
+      title: string;
+      descriptionTemplate: string;
+      confirm: string;
+      cancel: string;
+    };
+  };
+  taskDetail: {
+    titlePlaceholder: string;
+    closeLabel: string;
+    descriptionLabel: string;
+    descriptionPlaceholder: string;
+    descriptionEmpty: string;
+    analysisLabel: string;
+    analysisPlaceholder: string;
+    analysisEmpty: string;
+    priorityLabel: string;
+    tabDetails: string;
+    tabLog: string;
+    tabComments: string;
+    commentsLabel: string;
+    retryButton: string;
+    retryingButton: string;
+    queueWaiting: string;
+    errorOccurred: string;
+    agentStatus: {
+      branching: string;
+      running: string;
+      pushing: string;
+      pr_opening: string;
+      done: string;
+    };
+    connectionsLabel: string;
+    branchLabel: string;
+    openPr: string;
+    merged: string;
+    mergeError: string;
+    logsEmpty: string;
+    logsErrorPrefix: string;
+    cancelButton: string;
+    saveButton: string;
+    savingButton: string;
+    deleteButton: string;
+    deletingButton: string;
+    editButton: string;
+    confirmDelete: {
+      title: string;
+      description: string;
+      confirm: string;
+      cancel: string;
+    };
+    errors: {
+      titleRequired: string;
+      updateFailed: string;
+      retryFailed: string;
+      deleteFailed: string;
+    };
   };
   projectDetail: {
     title: string;

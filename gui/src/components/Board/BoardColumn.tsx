@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { TaskCard } from "@/components/Card/TaskCard";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Task, TaskStatus } from "@/types";
 
 interface BoardColumnProps {
@@ -37,14 +38,6 @@ const COLUMN_BADGE: Record<TaskStatus, string> = {
   done:   "bg-emerald-900/50 text-emerald-400",
 };
 
-/* Bos state mesajlari */
-const EMPTY_MSG: Record<TaskStatus, string> = {
-  todo:   "Henuz gorev yok — + Ekle butonuna bas",
-  doing:  "Surukle birak veya agent bekliyor",
-  review: "PR inceleme bekliyor",
-  done:   "Tamamlanan gorevler burada gorunur",
-};
-
 /* Kolonun ikonu */
 const COLUMN_ICON: Record<TaskStatus, string> = {
   todo:   "○",
@@ -55,6 +48,8 @@ const COLUMN_ICON: Record<TaskStatus, string> = {
 
 export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { status } });
+  const t = useTranslation();
+  const emptyState = t.board.emptyStates[status];
 
   const hasActiveAgent =
     status === "doing" &&
@@ -73,7 +68,7 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
     <section
       ref={setNodeRef}
       className={clsx(
-        "flex min-h-[60vh] w-full flex-col rounded-2xl border border-zinc-800/80 border-l-2 bg-zinc-950/60 p-3 transition-all",
+        "kanban-column flex min-h-[60vh] w-full flex-col rounded-2xl border border-zinc-800/80 border-l-2 bg-zinc-950/60 p-3 transition-all",
         COLUMN_LEFT_BORDER[status],
         isOver          && "bg-zinc-900/80 ring-1 ring-blue-500/30",
         hasActiveAgent  && "shadow-[0_0_24px_rgba(250,204,21,0.12)]",
@@ -126,14 +121,28 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
         strategy={verticalListSortingStrategy}
       >
         <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+          {tasks.length === 0 && (
+            <div className="flex flex-col items-center gap-1.5 rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-5 text-center">
+              <span
+                className={clsx(
+                  "text-lg leading-none opacity-80",
+                  COLUMN_TITLE_COLOR[status],
+                )}
+                aria-hidden
+              >
+                {COLUMN_ICON[status]}
+              </span>
+              <p className="text-[11px] font-medium text-zinc-300">
+                {emptyState.title}
+              </p>
+              <p className="text-[10px] leading-relaxed text-zinc-500">
+                {emptyState.hint}
+              </p>
+            </div>
+          )}
           {tasks.map((task) => (
             <TaskCard key={task.id} task={task} />
           ))}
-          {tasks.length === 0 && (
-            <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800/80 p-6 text-center text-[11px] leading-relaxed text-zinc-600">
-              {EMPTY_MSG[status]}
-            </div>
-          )}
         </div>
       </SortableContext>
 

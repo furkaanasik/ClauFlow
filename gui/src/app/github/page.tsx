@@ -56,7 +56,7 @@ export default function GithubPRsPage() {
       <div className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
           <Link
-            href="/"
+            href="/board"
             className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>

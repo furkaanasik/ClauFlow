@@ -62,7 +62,7 @@ export function ProjectSidebar() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t.sidebar.searchPlaceholder}
-              className="w-full rounded-md border border-zinc-800 bg-zinc-800/60 py-1.5 pl-7 pr-6 text-[11px] text-zinc-300 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700"
+              className="kanban-search w-full rounded-md border border-zinc-800 bg-zinc-800/60 py-1.5 pl-7 pr-6 text-[11px] text-zinc-300 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700"
             />
             {search && (
               <button
