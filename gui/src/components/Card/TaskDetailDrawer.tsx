@@ -219,10 +219,10 @@ export function TaskDetailDrawer() {
         {task ? (
           <>
             {/* Header */}
-            <header className="flex items-start justify-between gap-3 border-b border-zinc-800 px-5 py-4">
+            <header className="flex items-start justify-between gap-3 border-b border-zinc-800 px-4 py-3">
               <div className="min-w-0 flex-1">
                 {/* Meta bilgiler */}
-                <div className="mb-2 flex flex-wrap items-center gap-2">
+                <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                   <Badge tone={statusTone(task.status)}>{task.status}</Badge>
                   {task.priority && !editing && (
                     <Badge tone={priorityTone(task.priority)}>{task.priority}</Badge>
@@ -238,11 +238,11 @@ export function TaskDetailDrawer() {
                     type="text"
                     value={draft.title}
                     onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-base font-semibold text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm font-semibold text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
                     placeholder={td.titlePlaceholder}
                   />
                 ) : (
-                  <h2 className="text-base font-semibold leading-tight text-zinc-100">
+                  <h2 className="text-sm font-semibold leading-tight text-zinc-100">
                     {task.title}
                   </h2>
                 )}
@@ -250,7 +250,7 @@ export function TaskDetailDrawer() {
               <button
                 type="button"
                 onClick={close}
-                className="shrink-0 rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+                className="shrink-0 rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
                 aria-label={td.closeLabel}
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -265,7 +265,7 @@ export function TaskDetailDrawer() {
                 type="button"
                 onClick={() => setTab("details")}
                 className={clsx(
-                  "px-4 py-2.5 text-xs font-medium transition",
+                  "px-3 py-2 text-xs font-medium transition",
                   tab === "details"
                     ? "border-b-2 border-blue-500 text-blue-400"
                     : "text-zinc-500 hover:text-zinc-300",
@@ -277,7 +277,7 @@ export function TaskDetailDrawer() {
                 type="button"
                 onClick={() => setTab("log")}
                 className={clsx(
-                  "px-4 py-2.5 text-xs font-medium transition",
+                  "px-3 py-2 text-xs font-medium transition",
                   tab === "log"
                     ? "border-b-2 border-blue-500 text-blue-400"
                     : "text-zinc-500 hover:text-zinc-300",
@@ -289,7 +289,7 @@ export function TaskDetailDrawer() {
                 type="button"
                 onClick={() => setTab("comments")}
                 className={clsx(
-                  "px-4 py-2.5 text-xs font-medium transition",
+                  "px-3 py-2 text-xs font-medium transition",
                   tab === "comments"
                     ? "border-b-2 border-blue-500 text-blue-400"
                     : "text-zinc-500 hover:text-zinc-300",
@@ -304,9 +304,9 @@ export function TaskDetailDrawer() {
               {tab === "comments" ? (
                 <CommentsTab task={task} />
               ) : tab === "details" ? (
-                <div className="px-5 py-4">
+                <div className="px-4 py-3">
                   {error && (
-                    <div className="mb-4 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
+                    <div className="mb-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-1.5 text-xs text-red-300">
                       {error}
                     </div>
                   )}
@@ -506,7 +506,7 @@ export function TaskDetailDrawer() {
                 </div>
               ) : (
                 /* Agent Logu sekmesi */
-                <div className="flex h-full flex-col gap-2 p-3">
+                <div className="flex h-full flex-col gap-2 p-2.5">
                   {task.status === "doing" && task.agent.status === "idle" ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-500">
                       <span className="flex gap-1">
@@ -523,7 +523,7 @@ export function TaskDetailDrawer() {
                   ) : logs.length > 0 ? (
                     <pre
                       ref={logRef}
-                      className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-black p-4 font-mono text-[11px] leading-relaxed text-emerald-400"
+                      className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-black p-3 font-mono text-[11px] leading-relaxed text-emerald-400"
                     >
                       {logs.join("\n")}
                     </pre>
@@ -543,14 +543,14 @@ export function TaskDetailDrawer() {
             </div>
 
             {/* Footer */}
-            <footer className="flex items-center justify-between gap-2 border-t border-zinc-800 bg-zinc-950/80 px-5 py-3">
+            <footer className="flex items-center justify-between gap-1.5 border-t border-zinc-800 bg-zinc-950/80 px-4 py-3">
               {editing ? (
                 <>
                   <button
                     type="button"
                     onClick={cancelEdit}
                     disabled={saving}
-                    className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition"
+                    className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition"
                   >
                     {td.cancelButton}
                   </button>
@@ -558,7 +558,7 @@ export function TaskDetailDrawer() {
                     type="button"
                     onClick={saveEdit}
                     disabled={saving}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
                   >
                     {saving ? td.savingButton : td.saveButton}
                   </button>
@@ -569,14 +569,14 @@ export function TaskDetailDrawer() {
                     type="button"
                     onClick={() => setConfirmDelete(true)}
                     disabled={deleting}
-                    className="rounded-lg border border-red-800/60 bg-red-950/30 px-4 py-2 text-sm text-red-400 hover:bg-red-900/40 disabled:opacity-50 transition"
+                    className="rounded-lg border border-red-800/60 bg-red-950/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/40 disabled:opacity-50 transition"
                   >
                     {deleting ? td.deletingButton : td.deleteButton}
                   </button>
                   <button
                     type="button"
                     onClick={beginEdit}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition"
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition"
                   >
                     {td.editButton}
                   </button>

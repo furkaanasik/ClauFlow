@@ -173,7 +173,7 @@ function SplitDiffRow({ row }: { row: SplitRow }) {
       return (
         <div
           id={row.header.fileId}
-          className="flex items-center gap-2 border-b border-t border-zinc-700/50 bg-zinc-900 px-4 py-2 text-[11px] font-semibold text-zinc-300"
+          className="flex items-center gap-2 border-b border-t border-zinc-700/50 bg-zinc-900 px-3 py-1.5 text-[10px] font-semibold text-zinc-300"
         >
           <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" className="shrink-0 text-zinc-500">
             <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z" />
@@ -183,7 +183,7 @@ function SplitDiffRow({ row }: { row: SplitRow }) {
       );
     }
     return (
-      <div className="border-b border-zinc-800/60 bg-blue-950/20 px-4 py-0.5 font-mono text-[11px] text-blue-500/80">
+      <div className="border-b border-zinc-800/60 bg-blue-950/20 px-3 py-0.5 font-mono text-[10px] text-blue-500/80">
         {row.header.content}
       </div>
     );
@@ -199,11 +199,11 @@ function SplitDiffRow({ row }: { row: SplitRow }) {
       {/* Left side */}
       <div className="flex w-1/2 min-w-0 border-r border-zinc-800">
         <span
-          className={`w-12 shrink-0 select-none border-r border-zinc-800/60 px-2 py-0.5 text-right font-mono text-[11px] ${leftNumCls(leftType)}`}
+          className={`w-12 shrink-0 select-none border-r border-zinc-800/60 px-2 py-0.5 text-right font-mono text-[10px] ${leftNumCls(leftType)}`}
         >
           {left && leftType !== "empty" ? left.lineNum : ""}
         </span>
-        <div className={`flex-1 overflow-x-auto px-3 py-0.5 ${leftBg(leftType)}`}>
+        <div className={`flex-1 overflow-x-auto px-2 py-0.5 ${leftBg(leftType)}`}>
           <span className={`whitespace-pre font-mono text-xs ${leftContentCls(leftType)}`}>
             <span className={`select-none ${prefixCls(leftType)}`}>{sidePrefix(leftType)}</span>
             {left && leftType !== "empty" ? left.content : ""}
@@ -218,7 +218,7 @@ function SplitDiffRow({ row }: { row: SplitRow }) {
         >
           {right && rightType !== "empty" ? right.lineNum : ""}
         </span>
-        <div className={`flex-1 overflow-x-auto px-3 py-0.5 ${rightBg(rightType)}`}>
+        <div className={`flex-1 overflow-x-auto px-2 py-0.5 ${rightBg(rightType)}`}>
           <span className={`whitespace-pre font-mono text-xs ${rightContentCls(rightType)}`}>
             <span className={`select-none ${prefixCls(rightType)}`}>{sidePrefix(rightType)}</span>
             {right && rightType !== "empty" ? right.content : ""}
@@ -380,30 +380,30 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
           aria-modal="true"
         >
           {/* ── Header ── */}
-          <header className="shrink-0 flex items-center justify-between gap-4 border-b border-zinc-800 px-6 py-4">
+          <header className="shrink-0 flex items-center justify-between gap-3 border-b border-zinc-800 px-5 py-3">
             {/* Left: PR meta */}
-            <div className="min-w-0 flex items-center gap-3 flex-1">
-              <span className="font-mono text-sm text-zinc-500 shrink-0">#{pr.number}</span>
-              <h2 className="font-semibold text-zinc-100 leading-tight truncate">{pr.title}</h2>
+            <div className="min-w-0 flex items-center gap-2.5 flex-1">
+              <span className="font-mono text-xs text-zinc-500 shrink-0">#{pr.number}</span>
+              <h2 className="text-base font-semibold text-zinc-100 leading-tight truncate">{pr.title}</h2>
               <span
-                className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${stateStyle.cls}`}
+                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${stateStyle.cls}`}
               >
                 {stateStyle.label}
               </span>
               {pr.repository && (
-                <span className="hidden sm:inline text-[11px] text-zinc-600 shrink-0">
+                <span className="hidden sm:inline text-[10px] text-zinc-600 shrink-0">
                   {pr.repository.nameWithOwner}
                 </span>
               )}
             </div>
 
             {/* Right: actions */}
-            <div className="shrink-0 flex items-center gap-2">
+            <div className="shrink-0 flex items-center gap-1.5">
               <a
                 href={pr.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+                className="rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
               >
                 GitHub&apos;da Ac
               </a>
@@ -412,7 +412,7 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
                   type="button"
                   onClick={() => setConfirmMerge(true)}
                   disabled={merging}
-                  className="rounded-lg bg-purple-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {merging ? "Merging..." : "Merge"}
                 </button>
@@ -420,7 +420,7 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+                className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
                 aria-label="Kapat"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -477,14 +477,14 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
                     key={file.filename ?? idx}
                     type="button"
                     onClick={() => scrollToFile(file.filename)}
-                    className={`w-full text-left rounded px-2 py-1.5 transition ${
+                    className={`w-full text-left rounded px-2 py-1 transition ${
                       isActive ? "bg-zinc-800" : "hover:bg-zinc-800/60"
                     }`}
                   >
                     <code className="block font-mono text-xs text-zinc-300 truncate">
                       {file.filename}
                     </code>
-                    <span className="mt-0.5 flex gap-1.5 text-[11px]">
+                    <span className="mt-0.5 flex gap-1 text-[10px]">
                       <span className="text-emerald-400">+{file.additions}</span>
                       <span className="text-red-400">-{file.deletions}</span>
                     </span>

@@ -85,18 +85,18 @@ export function GithubConnectModal({
 
   return (
     <Modal open={open} onClose={onClose} title="GitHub'a Bağlan">
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4">
         {startLoading && !userCode && (
-          <p className="text-sm text-zinc-400">Kod alınıyor...</p>
+          <p className="text-xs text-zinc-400">Kod alınıyor...</p>
         )}
 
         {startError && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <p className="text-xs text-red-400">{startError}</p>
             <button
               type="button"
               onClick={beginFlow}
-              className="self-start rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition"
+              className="self-start rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition"
             >
               Tekrar Dene
             </button>
@@ -105,33 +105,33 @@ export function GithubConnectModal({
 
         {userCode && (
           <>
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-zinc-300">
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs text-zinc-300">
                 1. Aşağıdaki kodu kopyala:
               </p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-center font-mono text-2xl font-bold tracking-widest text-zinc-100">
+              <div className="flex items-center gap-1.5">
+                <div className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-center font-mono text-xl font-bold tracking-widest text-zinc-100">
                   {userCode}
                 </div>
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="rounded-lg border border-zinc-700 px-3 py-3 text-xs text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition"
+                  className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition"
                 >
                   {copied ? "Kopyalandı" : "Kopyala"}
                 </button>
               </div>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-zinc-300">
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs text-zinc-300">
                 2. GitHub'ı aç ve kodu gir:
               </p>
               <button
                 type="button"
                 onClick={handleOpenGithub}
                 disabled={!verificationUri}
-                className="self-start rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
+                className="self-start rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
               >
                 {verificationUri
                   ? `${stripProtocol(verificationUri)} aç →`
@@ -139,7 +139,7 @@ export function GithubConnectModal({
               </button>
             </div>
 
-            <div className="flex items-center gap-2 border-t border-zinc-800 pt-4">
+            <div className="flex items-center gap-1.5 border-t border-zinc-800 pt-3">
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-600 border-t-blue-400" />
               <span className="text-xs text-zinc-400">
                 Bağlantı bekleniyor...

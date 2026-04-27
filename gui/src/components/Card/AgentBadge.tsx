@@ -41,7 +41,7 @@ export function AgentBadge({ agent, taskTitle }: AgentBadgeProps) {
         disabled={!hasLog}
         onClick={(e) => { e.stopPropagation(); if (hasLog) setOpen(true); }}
         aria-label={`Agent: ${desc.label}`}
-        className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-medium transition ${desc.bg} ${desc.text} ${hasLog ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
+        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-medium transition ${desc.bg} ${desc.text} ${hasLog ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
       >
         {/* Nokta animasyonu veya spinner */}
         {isPulse ? (

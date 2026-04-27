@@ -42,21 +42,21 @@ function StatusIndicator({ status }: StatusIndicatorProps) {
   switch (status) {
     case "pending":
       return (
-        <span className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+        <span className="flex items-center gap-1 text-[10px] text-zinc-500">
           <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
           Bekliyor
         </span>
       );
     case "running":
       return (
-        <span className="flex items-center gap-1.5 text-[11px] text-yellow-400">
+        <span className="flex items-center gap-1 text-[10px] text-yellow-400">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />
           AI duzzeltiyor...
         </span>
       );
     case "done":
       return (
-        <span className="flex items-center gap-1.5 text-[11px] text-emerald-400">
+        <span className="flex items-center gap-1 text-[10px] text-emerald-400">
           <svg
             width="11"
             height="11"
@@ -75,7 +75,7 @@ function StatusIndicator({ status }: StatusIndicatorProps) {
       );
     case "error":
       return (
-        <span className="flex items-center gap-1.5 text-[11px] text-red-400">
+        <span className="flex items-center gap-1 text-[10px] text-red-400">
           <svg
             width="11"
             height="11"
@@ -197,9 +197,9 @@ export function CommentsTab({ task }: CommentsTabProps) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 px-5 py-4">
+    <div className="flex h-full flex-col gap-2.5 px-4 py-3">
       {/* Yorum listesi */}
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+      <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
         {comments.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 py-10 text-xs text-zinc-700">
             Henuz yorum yok
@@ -211,9 +211,9 @@ export function CommentsTab({ task }: CommentsTabProps) {
 
       {/* Yorum formu */}
       {canComment && (
-        <div className="shrink-0 flex flex-col gap-2 border-t border-zinc-800 pt-3">
+        <div className="shrink-0 flex flex-col gap-1.5 border-t border-zinc-800 pt-2.5">
           {error && (
-            <div className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
+            <div className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-1.5 text-xs text-red-300">
               {error}
             </div>
           )}
@@ -224,7 +224,7 @@ export function CommentsTab({ task }: CommentsTabProps) {
             disabled={sending}
             rows={3}
             placeholder="AI'ya duzeltme talimati yaz..."
-            className="w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            className="w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none disabled:opacity-50"
           />
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-zinc-700">Ctrl+Enter ile gonder</span>
@@ -232,7 +232,7 @@ export function CommentsTab({ task }: CommentsTabProps) {
               type="button"
               onClick={() => void handleSend()}
               disabled={sending || !body.trim()}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
             >
               {sending ? "Gonderiliyor..." : "Gonder"}
             </button>

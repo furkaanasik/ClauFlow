@@ -202,9 +202,9 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
         {project && draft ? (
           <>
             {/* Header */}
-            <header className="flex items-start justify-between gap-3 border-b border-zinc-800 px-5 py-4">
+            <header className="flex items-start justify-between gap-3 border-b border-zinc-800 px-4 py-3">
               <div className="min-w-0 flex-1">
-                <div className="mb-1 flex flex-wrap items-center gap-2">
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
                   {project.planningStatus && project.planningStatus !== "idle" && (
                     <Badge tone={planningStatusTone(project.planningStatus)}>
                       {project.planningStatus}
@@ -216,14 +216,14 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                     </span>
                   )}
                 </div>
-                <h2 className="text-base font-semibold leading-tight text-zinc-100">
+                <h2 className="text-sm font-semibold leading-tight text-zinc-100">
                   {project.name}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="shrink-0 rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+                className="shrink-0 rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
                 aria-label="Kapat"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -233,7 +233,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
             </header>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="flex-1 overflow-y-auto px-4 py-3">
               {error && (
                 <div className="mb-4 whitespace-pre-wrap break-words rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
                   {error}
@@ -305,7 +305,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
               )}
 
               {/* Form */}
-              <section className="mb-6 flex flex-col gap-4">
+              <section className="mb-6 flex flex-col gap-3">
                 <h3 className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
                   {pd.details}
                 </h3>
@@ -319,7 +319,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                     type="text"
                     value={draft.name}
                     onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
                     placeholder="Proje adı"
                   />
                 </div>
@@ -333,7 +333,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                     value={draft.description}
                     onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                     rows={2}
-                    className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+                    className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
                     placeholder="Kısa açıklama..."
                   />
                 </div>
@@ -363,7 +363,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                     onChange={(e) => setDraft({ ...draft, repoPath: e.target.value })}
                     disabled={projectHasActiveTasks}
                     className={clsx(
-                      "w-full rounded-lg border px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none",
+                      "w-full rounded-lg border px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none",
                       projectHasActiveTasks
                         ? "cursor-not-allowed border-zinc-800 bg-zinc-900/40 text-zinc-600"
                         : "border-zinc-700 bg-zinc-900",
@@ -386,7 +386,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                     onChange={(e) => setDraft({ ...draft, defaultBranch: e.target.value })}
                     disabled={projectHasActiveTasks}
                     className={clsx(
-                      "w-full rounded-lg border px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none",
+                      "w-full rounded-lg border px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none",
                       projectHasActiveTasks
                         ? "cursor-not-allowed border-zinc-800 bg-zinc-900/40 text-zinc-600"
                         : "border-zinc-700 bg-zinc-900",
@@ -445,12 +445,12 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
             </div>
 
             {/* Footer */}
-            <footer className="flex items-center justify-end gap-2 border-t border-zinc-800 bg-zinc-950/80 px-5 py-3">
+            <footer className="flex items-center justify-end gap-1.5 border-t border-zinc-800 bg-zinc-950/80 px-4 py-2.5">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={saving}
-                className="rounded-lg px-4 py-2 text-sm text-zinc-400 transition hover:text-zinc-200 disabled:opacity-50"
+                className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition hover:text-zinc-200 disabled:opacity-50"
               >
                 {pd.cancel}
               </button>
@@ -458,7 +458,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                 type="button"
                 onClick={handleSave}
                 disabled={saving || !isDirty}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-50"
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-50"
               >
                 {saving ? pd.saving : pd.saveChanges}
               </button>

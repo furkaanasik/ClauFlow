@@ -40,11 +40,11 @@ export function Header() {
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-4 border-b border-zinc-800/80 bg-zinc-950/80 px-4 backdrop-blur-md">
+      <header className="fixed inset-x-0 top-0 z-30 flex h-10 items-center gap-3 border-b border-zinc-800/80 bg-zinc-950/80 px-3 backdrop-blur-md">
         {/* Logo */}
-        <Link href="/" className="flex shrink-0 items-center gap-2 hover:opacity-80 transition-opacity">
+        <Link href="/" className="flex shrink-0 items-center gap-1.5 hover:opacity-80 transition-opacity">
           <ClauFlowIcon />
-          <span className="text-sm font-semibold tracking-tight text-zinc-100">
+          <span className="text-xs font-semibold tracking-tight text-zinc-100">
             ClauFlow
           </span>
         </Link>
@@ -67,7 +67,7 @@ export function Header() {
           {selectedProjectId && (
             <Link
               href={`/github?projectId=${selectedProjectId}`}
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+              className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
             >
               <GithubIcon className="h-3.5 w-3.5" />
               <span>PRs</span>
@@ -78,7 +78,7 @@ export function Header() {
           <button
             type="button"
             onClick={toggleLang}
-            className="flex items-center justify-center rounded-md px-2 py-1 text-[11px] font-semibold text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="flex items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
             title={lang === "tr" ? "Switch to English" : "Türkçeye geç"}
           >
             {lang === "tr" ? "EN" : "TR"}
@@ -88,7 +88,7 @@ export function Header() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex items-center justify-center rounded-md px-2 py-1 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="flex items-center justify-center rounded-md px-1.5 py-0.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
             title={isLight ? t.header.themeToDark : t.header.themeToLight}
           >
             {isLight ? (
@@ -112,13 +112,13 @@ export function Header() {
 
           <div className="h-4 w-px bg-zinc-800" />
           {/* WS status */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span
               className={`h-1.5 w-1.5 rounded-full ${
                 wsConnected ? "bg-emerald-400" : "bg-zinc-600"
               }`}
             />
-            <span className="text-[11px] text-zinc-500">
+            <span className="text-[10px] text-zinc-500">
               {wsConnected ? t.header.wsConnected : t.header.wsConnecting}
             </span>
           </div>
@@ -129,7 +129,7 @@ export function Header() {
           {/* GitHub connection */}
           {githubStatus.connected ? (
             <div
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-emerald-400"
+              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-emerald-400"
               title={githubStatus.user ?? undefined}
             >
               <GithubIcon className="h-3.5 w-3.5" />
@@ -141,7 +141,7 @@ export function Header() {
             <button
               type="button"
               onClick={() => setGithubModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1 text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-200"
+              className="flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-200"
             >
               <GithubIcon className="h-3.5 w-3.5" />
               <span>{t.header.githubConnect}</span>
