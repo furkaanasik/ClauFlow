@@ -45,6 +45,18 @@ Multica'yı incelerken çıkan ilham notları. Sırasıyla 3 küçük iş; geris
 
 ---
 
+## 4. Task silme
+
+**Maliyet:** ~birkaç saat · **Değer:** orta (eksik temel fonksiyon — kullanıcı yanlış task açtığında silebilmeli)
+
+- TaskCard / TaskDetailDrawer'a delete butonu — `ConfirmDialog` ile teyit (window.confirm değil)
+- `DELETE /api/tasks/:id` route'u (varsa kontrol, yoksa ekle), comments cascade SQLite ON DELETE
+- Active executor halt: branch checkout halinde olan bir task silinmek isteniyorsa abort sinyali (commentRunner için de aynı)
+- Optimistic UI update + WS event: `task_deleted` payload `{ taskId }`
+- Mevcut PR'ları bozma — sadece kanban DB'den siler, git branch / GitHub PR'lara dokunma. Kullanıcı isterse manuel kapatır.
+
+---
+
 ## Bilerek atlananlar
 
 - **Multi-runtime / daemon mimarisi** → tek makine + tek kullanıcı senaryonda gereksiz; mevcut `recoverOrphanedTasks` ve auto-stash zaten %90 çözüyor
@@ -56,4 +68,4 @@ Multica'yı incelerken çıkan ilham notları. Sırasıyla 3 küçük iş; geris
 
 ## Yapma kuralı
 
-Yukarıdaki 3 işten sadece **biri** o anda aktif olsun. Bitir, kullan, sevdiysen sıradakine geç. Hepsini birden başlatma.
+Yukarıdaki işlerden sadece **biri** o anda aktif olsun. Bitir, kullan, sevdiysen sıradakine geç. Hepsini birden başlatma.

@@ -86,12 +86,32 @@ export interface Comment {
   createdAt: string;
 }
 
+export type ToolCallStatus = "running" | "done" | "error";
+
+export interface ToolCall {
+  id: string;
+  taskId?: string;
+  toolName: string;
+  args?: Record<string, unknown>;
+  result?: string;
+  durationMs?: number;
+  status: ToolCallStatus;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt?: string;
+}
+
 export type WsEvent =
   | { type: "agent_log"; taskId: string; payload: { line: string } }
   | {
       type: "agent_status";
       taskId: string;
       payload: { status: AgentStatus; currentStep?: string };
+    }
+  | {
+      type: "agent_tool_call";
+      taskId: string;
+      payload: ToolCall;
     }
   | { type: "task_updated"; taskId: string; payload: Task }
   | { type: "task_created"; taskId: string; payload: Task }

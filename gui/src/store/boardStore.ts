@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, Comment, PlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus } from "@/types";
+import type { AgentStatus, Comment, PlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
 
 type Lang = "tr" | "en";
 
@@ -19,6 +19,8 @@ interface BoardState {
   lang: Lang;
   /** IDs of tasks recently added via WS — used to trigger drop animation */
   newTaskIds: Set<string>;
+  /** Tool calls per task, keyed by taskId */
+  toolCalls: Record<string, ToolCall[]>;
 
   setTasks: (tasks: Task[]) => void;
   upsertTask: (task: Task) => void;
@@ -32,6 +34,10 @@ interface BoardState {
     taskId: string,
     payload: { status: AgentStatus; currentStep?: string },
   ) => void;
+  appendToolCall: (taskId: string, toolCall: ToolCall) => void;
+  updateToolCall: (taskId: string, toolCall: ToolCall) => void;
+  setToolCalls: (taskId: string, calls: ToolCall[]) => void;
+  clearToolCalls: (taskId: string) => void;
 
   setProjects: (projects: Project[]) => void;
   addProject: (project: Project) => void;
@@ -67,6 +73,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   filterText: "",
   lang: getInitialLang(),
   newTaskIds: new Set<string>(),
+  toolCalls: {},
 
   setTasks: (tasks) =>
     set(() => ({
@@ -142,6 +149,37 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       };
       return { tasks: { ...state.tasks, [taskId]: { ...t, agent } } };
     }),
+
+  appendToolCall: (taskId, toolCall) =>
+    set((state) => {
+      const existing = state.toolCalls[taskId] ?? [];
+      // If already exists with same id, update it; otherwise append
+      const idx = existing.findIndex((tc) => tc.id === toolCall.id);
+      const next =
+        idx >= 0
+          ? [...existing.slice(0, idx), toolCall, ...existing.slice(idx + 1)]
+          : [...existing, toolCall];
+      return { toolCalls: { ...state.toolCalls, [taskId]: next } };
+    }),
+
+  updateToolCall: (taskId, toolCall) =>
+    set((state) => {
+      const existing = state.toolCalls[taskId] ?? [];
+      const idx = existing.findIndex((tc) => tc.id === toolCall.id);
+      if (idx < 0) return state;
+      const next = [...existing.slice(0, idx), toolCall, ...existing.slice(idx + 1)];
+      return { toolCalls: { ...state.toolCalls, [taskId]: next } };
+    }),
+
+  setToolCalls: (taskId, calls) =>
+    set((state) => ({
+      toolCalls: { ...state.toolCalls, [taskId]: calls },
+    })),
+
+  clearToolCalls: (taskId) =>
+    set((state) => ({
+      toolCalls: { ...state.toolCalls, [taskId]: [] },
+    })),
 
   upsertComment: (comment) =>
     set((state) => {

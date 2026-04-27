@@ -6,6 +6,7 @@ import {
   getTask,
   getProject,
   listTasks,
+  listToolCallsByTask,
   updateTask,
 } from "../services/taskService.js";
 import {
@@ -82,6 +83,17 @@ router.get("/:id", async (req: Request, res: Response) => {
     const task = await getTask(req.params.id!);
     if (!task) return res.status(404).json({ error: "not_found" });
     res.json({ task });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/:id/tool-calls", async (req: Request, res: Response) => {
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    const toolCalls = listToolCallsByTask(task.id);
+    res.json({ toolCalls });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

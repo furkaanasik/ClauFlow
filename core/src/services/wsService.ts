@@ -4,6 +4,7 @@ import type {
   AgentStatus,
   Comment,
   Task,
+  ToolCall,
   WsMessage,
 } from "../types/index.js";
 
@@ -65,6 +66,14 @@ export function broadcastCommentUpdated(comment: Comment): void {
     type: "comment_updated",
     taskId: comment.taskId,
     payload: comment,
+  });
+}
+
+export function broadcastToolCall(toolCall: ToolCall): void {
+  broadcast({
+    type: "agent_tool_call",
+    taskId: toolCall.taskId,
+    payload: toolCall,
   });
 }
 

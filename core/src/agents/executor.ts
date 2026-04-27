@@ -11,14 +11,17 @@ import {
   appendAgentLog,
   getProject,
   getTask,
+  insertToolCall,
   listTasks,
   updateTask,
+  updateToolCall,
 } from "../services/taskService.js";
 import { slugify } from "../services/slug.js";
 import {
   broadcastLog,
   broadcastStatus,
   broadcastTaskUpdated,
+  broadcastToolCall,
 } from "../services/wsService.js";
 import type { AgentStatus, Project, Task } from "../types/index.js";
 
@@ -216,17 +219,88 @@ export async function run(task: Task, project: Project): Promise<void> {
       "▸ Running claude CLI…",
     ]);
 
-    const claudeResult = await runClaude({
+    const onLogLine = async (
+      line: string,
+      stream: "stdout" | "stderr",
+    ): Promise<void> => {
+      const entry = stream === "stderr" ? `[stderr] ${line}` : line;
+      await appendAgentLog(task.id, entry);
+      broadcastLog(task.id, entry);
+    };
+
+    const onToolCallStart = (tc: {
+      id: string;
+      toolName: string;
+      args: unknown;
+      startedAt: string;
+    }): void => {
+      try {
+        const stored = insertToolCall({
+          id: tc.id,
+          taskId: task.id,
+          toolName: tc.toolName,
+          args: tc.args,
+          status: "running",
+          startedAt: tc.startedAt,
+        });
+        broadcastToolCall(stored);
+      } catch (e) {
+        console.error(`[executor] insertToolCall failed for ${tc.id}:`, e);
+      }
+    };
+
+    const onToolCallEnd = (tc: {
+      id: string;
+      result: string | null;
+      status: "running" | "done" | "error";
+      finishedAt: string | null;
+      durationMs: number | null;
+    }): void => {
+      try {
+        const updated = updateToolCall(tc.id, {
+          status: tc.status,
+          result: tc.result,
+          finishedAt: tc.finishedAt,
+          durationMs: tc.durationMs,
+        });
+        if (updated) broadcastToolCall(updated);
+      } catch (e) {
+        console.error(`[executor] updateToolCall failed for ${tc.id}:`, e);
+      }
+    };
+
+    let claudeResult = await runClaude({
       prompt,
       cwd: project.repoPath,
       allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
       signal: controller.signal,
-      onLine: async (line, stream) => {
-        const entry = stream === "stderr" ? `[stderr] ${line}` : line;
-        await appendAgentLog(task.id, entry);
-        broadcastLog(task.id, entry);
-      },
+      outputFormat: "stream-json",
+      onLine: onLogLine,
+      onToolCallStart,
+      onToolCallEnd,
     });
+
+    // Fallback safety: if stream-json mode fails (e.g. CLI version mismatch),
+    // retry once with plain text output so the executor still completes.
+    if (claudeResult.code !== 0 && !controller.signal.aborted) {
+      const errSnippet = (claudeResult.stderr || claudeResult.stdout).slice(0, 200);
+      const looksLikeFormatError = /unknown.*output[- ]format|stream-json|--verbose/i.test(
+        errSnippet,
+      );
+      if (looksLikeFormatError) {
+        await pushLog(
+          task.id,
+          "[fallback] stream-json mode failed; retrying with text output",
+        );
+        claudeResult = await runClaude({
+          prompt,
+          cwd: project.repoPath,
+          allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+          signal: controller.signal,
+          onLine: onLogLine,
+        });
+      }
+    }
 
     if (claudeResult.code !== 0) {
       throw new Error(

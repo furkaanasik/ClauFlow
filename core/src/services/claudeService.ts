@@ -1,10 +1,160 @@
 import { spawn } from "node:child_process";
 
+export interface ParsedToolCall {
+  id: string;
+  toolName: string;
+  args: unknown;
+  result: string | null;
+  status: "running" | "done" | "error";
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+}
+
+export interface StreamJsonParserHandlers {
+  onText?: (text: string) => void;
+  onToolCallStart?: (toolCall: ParsedToolCall) => void;
+  onToolCallEnd?: (toolCall: ParsedToolCall) => void;
+  onResult?: (raw: unknown) => void;
+}
+
+interface InFlightToolCall {
+  toolName: string;
+  args: unknown;
+  startedAt: string;
+}
+
+function extractToolResultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((c) => {
+        if (c && typeof c === "object" && "text" in c) {
+          const t = (c as { text?: unknown }).text;
+          if (typeof t === "string") return t;
+        }
+        return JSON.stringify(c);
+      })
+      .join("");
+  }
+  if (content == null) return "";
+  return JSON.stringify(content);
+}
+
+export function createStreamJsonParser(handlers: StreamJsonParserHandlers = {}) {
+  let buffer = "";
+  const inFlight = new Map<string, InFlightToolCall>();
+
+  function processLine(rawLine: string): void {
+    const line = rawLine.trim();
+    if (!line) return;
+    let evt: unknown;
+    try {
+      evt = JSON.parse(line);
+    } catch {
+      return;
+    }
+    if (!evt || typeof evt !== "object") return;
+    const e = evt as Record<string, unknown>;
+
+    if (e.type === "assistant") {
+      const message = e.message as { content?: unknown } | undefined;
+      const items = Array.isArray(message?.content) ? message!.content : [];
+      for (const item of items as Array<Record<string, unknown>>) {
+        if (!item || typeof item !== "object") continue;
+        if (item.type === "text" && typeof item.text === "string") {
+          handlers.onText?.(item.text);
+        } else if (item.type === "tool_use" && typeof item.id === "string") {
+          const startedAt = new Date().toISOString();
+          const toolName = typeof item.name === "string" ? item.name : "unknown";
+          inFlight.set(item.id, { startedAt, args: item.input, toolName });
+          handlers.onToolCallStart?.({
+            id: item.id,
+            toolName,
+            args: item.input,
+            result: null,
+            status: "running",
+            startedAt,
+            finishedAt: null,
+            durationMs: null,
+          });
+        }
+      }
+      return;
+    }
+
+    if (e.type === "user") {
+      const message = e.message as { content?: unknown } | undefined;
+      const items = Array.isArray(message?.content) ? message!.content : [];
+      for (const item of items as Array<Record<string, unknown>>) {
+        if (!item || typeof item !== "object") continue;
+        if (item.type === "tool_result" && typeof item.tool_use_id === "string") {
+          const start = inFlight.get(item.tool_use_id);
+          inFlight.delete(item.tool_use_id);
+          const finishedAt = new Date().toISOString();
+          const startedAt = start?.startedAt ?? finishedAt;
+          const durationMs = Math.max(
+            0,
+            Date.parse(finishedAt) - Date.parse(startedAt),
+          );
+          const isError = item.is_error === true;
+          handlers.onToolCallEnd?.({
+            id: item.tool_use_id,
+            toolName: start?.toolName ?? "unknown",
+            args: start?.args,
+            result: extractToolResultText(item.content),
+            status: isError ? "error" : "done",
+            startedAt,
+            finishedAt,
+            durationMs,
+          });
+        }
+      }
+      return;
+    }
+
+    if (e.type === "result") {
+      handlers.onResult?.(evt);
+    }
+  }
+
+  return {
+    feed(chunk: string): void {
+      buffer += chunk;
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        processLine(line);
+      }
+    },
+    flush(): void {
+      if (buffer.length > 0) {
+        processLine(buffer);
+        buffer = "";
+      }
+    },
+  };
+}
+
+export function parseStreamJson(stdout: string): ParsedToolCall[] {
+  const calls: ParsedToolCall[] = [];
+  const parser = createStreamJsonParser({
+    onToolCallEnd: (tc) => calls.push(tc),
+  });
+  parser.feed(stdout);
+  parser.flush();
+  return calls;
+}
+
 export interface ClaudeRunOptions {
   prompt: string;
   cwd: string;
   allowedTools?: string[];
   onLine?: (line: string, stream: "stdout" | "stderr") => void;
+  onText?: (text: string) => void;
+  onToolCallStart?: (toolCall: ParsedToolCall) => void;
+  onToolCallEnd?: (toolCall: ParsedToolCall) => void;
   signal?: AbortSignal;
   outputFormat?: "text" | "json" | "stream-json";
   maxOutputTokens?: number;
@@ -56,6 +206,19 @@ export async function runClaude(options: ClaudeRunOptions): Promise<ClaudeRunRes
   return lastResult!;
 }
 
+function emitText(
+  options: ClaudeRunOptions,
+  text: string,
+  stream: "stdout" | "stderr" = "stdout",
+): void {
+  options.onText?.(text);
+  if (options.onLine) {
+    for (const ln of text.split(/\r?\n/)) {
+      if (ln.length > 0) options.onLine(ln, stream);
+    }
+  }
+}
+
 function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
   // -p must be immediately followed by the prompt string.
   // Other flags come after so the CLI parser picks up the prompt correctly.
@@ -63,8 +226,11 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
   if (options.allowedTools && options.allowedTools.length > 0) {
     args.push("--allowedTools", options.allowedTools.join(","));
   }
+  const isStreamJson = options.outputFormat === "stream-json";
   if (options.outputFormat) {
     args.push("--output-format", options.outputFormat);
+    // claude CLI requires --verbose for stream-json output mode.
+    if (isStreamJson) args.push("--verbose");
   }
   const env = { ...process.env };
   if (options.maxOutputTokens && options.maxOutputTokens > 0) {
@@ -84,6 +250,14 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
     let stdoutBuf = "";
     let stderrBuf = "";
 
+    const streamParser = isStreamJson
+      ? createStreamJsonParser({
+          onText: (text) => emitText(options, text, "stdout"),
+          onToolCallStart: (tc) => options.onToolCallStart?.(tc),
+          onToolCallEnd: (tc) => options.onToolCallEnd?.(tc),
+        })
+      : null;
+
     const onAbort = () => {
       child.kill("SIGTERM");
     };
@@ -95,6 +269,10 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
     child.stdout.on("data", (chunk: Buffer) => {
       const text = chunk.toString("utf8");
       stdout += text;
+      if (streamParser) {
+        streamParser.feed(text);
+        return;
+      }
       if (!options.onLine) return;
       stdoutBuf += text;
       let nl: number;
@@ -124,8 +302,10 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
     });
     child.on("close", (code) => {
       if (options.signal) options.signal.removeEventListener("abort", onAbort);
+      if (streamParser) streamParser.flush();
       if (options.onLine) {
-        if (stdoutBuf.length > 0) options.onLine(stdoutBuf, "stdout");
+        if (stdoutBuf.length > 0 && !streamParser)
+          options.onLine(stdoutBuf, "stdout");
         if (stderrBuf.length > 0) options.onLine(stderrBuf, "stderr");
       }
       resolve({ code: code ?? -1, stdout, stderr });
