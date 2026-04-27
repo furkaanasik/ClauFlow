@@ -6,6 +6,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AgentBadge } from "@/components/Card/AgentBadge";
 import { useBoardStore } from "@/store/boardStore";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Task } from "@/types";
 
 function isQueued(task: Task): boolean {
@@ -50,8 +51,10 @@ interface TaskCardProps {
 
 export function TaskCard({ task }: TaskCardProps) {
   const selectTask = useBoardStore((s) => s.selectTask);
+  const selectPRTask = useBoardStore((s) => s.selectPRTask);
   const newTaskIds = useBoardStore((s) => s.newTaskIds);
   const clearNewTaskId = useBoardStore((s) => s.clearNewTaskId);
+  const t = useTranslation();
 
   const isNew = newTaskIds.has(task.id);
   const [animated, setAnimated] = useState(false);
@@ -187,32 +190,49 @@ export function TaskCard({ task }: TaskCardProps) {
             {showAgentBadge(task) && (
               <AgentBadge agent={task.agent} taskTitle={task.title} />
             )}
-            {task.prUrl && task.status !== "done" && (
+            {task.prNumber && task.status !== "done" && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  selectPRTask(task.id);
+                }}
+                title={t.taskCard.openDiffTitle}
+                className="inline-flex items-center gap-1 rounded-md border border-purple-800/60 bg-purple-950/30 px-1.5 py-0.5 text-[10px] font-medium text-purple-300 transition hover:border-purple-600 hover:bg-purple-900/40 hover:text-purple-200"
+              >
+                <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                  <path d="M5 3.254V3.25v.005a.75.75 0 1 1 0-.005zM4.25 1A2.25 2.25 0 0 0 3.5 5.372V10.5h-.025a.75.75 0 0 0 0 1.5H3.5v.628a2.251 2.251 0 1 0 1.5 0V12h.025a.75.75 0 0 0 0-1.5H5V5.372A2.25 2.25 0 0 0 4.25 1zM3.5 13.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0zM12 5h.025a.75.75 0 0 0 0-1.5H12V3a2.25 2.25 0 0 0-2.5 2.236V10a2.5 2.5 0 0 1-2.5 2.5H7v1.5h-.025a.75.75 0 0 0 0 1.5H7v.5h2v-.5h.025a.75.75 0 0 0 0-1.5H9v-1.563A4 4 0 0 0 12 9V5z"/>
+                </svg>
+                {t.taskCard.diffButton} #{task.prNumber}
+              </button>
+            )}
+          </div>
+        </footer>
+
+        {task.status === "done" && task.prNumber && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                selectPRTask(task.id);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full bg-purple-900/40 px-2 py-0.5 text-[10px] font-medium text-purple-300 transition hover:bg-purple-900/60"
+            >
+              PR #{task.prNumber} · Merged ✓
+            </button>
+            {task.prUrl && (
               <a
                 href={task.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                title="Pull Request ac"
+                title={t.taskCard.openOnGithubTitle}
                 className="text-[10px] text-purple-400 hover:text-purple-300 transition"
               >
-                PR↗
+                ↗
               </a>
             )}
-          </div>
-        </footer>
-
-        {task.status === "done" && task.prUrl && (
-          <div className="mt-2">
-            <a
-              href={task.prUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1.5 rounded-full bg-purple-900/40 px-2 py-0.5 text-[10px] font-medium text-purple-300 transition hover:bg-purple-900/60"
-            >
-              {task.prNumber ? `PR #${task.prNumber}` : "PR"} · Merged ✓
-            </a>
           </div>
         )}
       </div>

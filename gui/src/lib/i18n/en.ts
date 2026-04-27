@@ -23,6 +23,11 @@ export const en: Translations = {
     plannerRunning: "Planner is running...",
     plannerError: "Planner error",
   },
+  taskCard: {
+    diffButton: "Diff",
+    openDiffTitle: "Open PR diff",
+    openOnGithubTitle: "Open on GitHub",
+  },
   addTask: {
     modalTitle: "Add New Task",
     titleLabel: "Title",

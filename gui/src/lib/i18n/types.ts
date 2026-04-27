@@ -21,6 +21,11 @@ export interface Translations {
     plannerRunning: string;
     plannerError: string;
   };
+  taskCard: {
+    diffButton: string;
+    openDiffTitle: string;
+    openOnGithubTitle: string;
+  };
   addTask: {
     modalTitle: string;
     titleLabel: string;

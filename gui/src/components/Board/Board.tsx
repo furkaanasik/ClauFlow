@@ -15,6 +15,7 @@ import { TaskCard } from "@/components/Card/TaskCard";
 import { TaskDetailDrawer } from "@/components/Card/TaskDetailDrawer";
 import { AddTaskModal } from "@/components/Modals/AddTaskModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { PRDetailDrawer, type PullRequest } from "@/components/Github/PRDetailDrawer";
 import { useBoardTasks, moveTaskOptimistic } from "@/hooks/useBoard";
 import { useAgentSocket } from "@/hooks/useAgentSocket";
 import { useBoardStore } from "@/store/boardStore";
@@ -48,6 +49,9 @@ export function Board() {
   const setFilterText     = useBoardStore((s) => s.setFilterText);
   const selectTask        = useBoardStore((s) => s.selectTask);
   const selectedTaskId    = useBoardStore((s) => s.selectedTaskId);
+  const selectedPRTaskId  = useBoardStore((s) => s.selectedPRTaskId);
+  const selectPRTask      = useBoardStore((s) => s.selectPRTask);
+  const upsertTask        = useBoardStore((s) => s.upsertTask);
 
   const toast          = useToast();
   const [activeId, setActiveId]     = useState<string | null>(null);
@@ -249,6 +253,34 @@ export function Board() {
       </DndContext>
 
       <TaskDetailDrawer />
+
+      {(() => {
+        const prTask = selectedPRTaskId ? tasks[selectedPRTaskId] : null;
+        if (!prTask || !prTask.prNumber || !selectedProjectId) return null;
+        const pr: PullRequest = {
+          number: prTask.prNumber,
+          title: prTask.title,
+          state: prTask.status === "done" ? "MERGED" : "OPEN",
+          url: prTask.prUrl ?? "",
+          author: { login: "agent" },
+          createdAt: prTask.updatedAt,
+        };
+        return (
+          <PRDetailDrawer
+            pr={pr}
+            projectId={selectedProjectId}
+            onClose={() => selectPRTask(null)}
+            onMerged={() => {
+              upsertTask({
+                ...prTask,
+                status: "done",
+                updatedAt: new Date().toISOString(),
+              });
+              toast.success("PR merge edildi");
+            }}
+          />
+        );
+      })()}
 
       <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} />
 

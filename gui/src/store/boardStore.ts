@@ -13,6 +13,7 @@ interface BoardState {
   projects: Project[];
   selectedProjectId: string | null;
   selectedTaskId: string | null;
+  selectedPRTaskId: string | null;
   wsConnected: boolean;
   filterText: string;
   lang: Lang;
@@ -41,6 +42,7 @@ interface BoardState {
   updateProjectPlanningStatus: (projectId: string, status: PlanningStatus, error?: string) => void;
 
   selectTask: (id: string | null) => void;
+  selectPRTask: (id: string | null) => void;
 
   upsertComment: (comment: Comment) => void;
 
@@ -60,6 +62,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   projects: [],
   selectedProjectId: null,
   selectedTaskId: null,
+  selectedPRTaskId: null,
   wsConnected: false,
   filterText: "",
   lang: getInitialLang(),
@@ -222,6 +225,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     })),
 
   selectTask: (id) => set(() => ({ selectedTaskId: id })),
+
+  selectPRTask: (id) => set(() => ({ selectedPRTaskId: id })),
 
   clearNewTaskId: (id) =>
     set((state) => {

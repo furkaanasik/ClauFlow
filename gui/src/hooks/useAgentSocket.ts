@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import type { WsEvent } from "@/types";
 
@@ -28,11 +29,29 @@ export function useAgentSocket(url?: string) {
       updateProjectPlanningStatus,
     } = useBoardStore.getState();
 
+    const resyncTasks = async () => {
+      // After (re)connect, the in-memory store may be stale: the server may
+      // have rolled tasks back via recoverOrphanedTasks() while no client was
+      // listening, or we missed events during the disconnect window. Re-fetch
+      // the current project's tasks to converge.
+      const { selectedProjectId, setTasks } = useBoardStore.getState();
+      if (!selectedProjectId) return;
+      try {
+        const tasks = await api.getTasks(selectedProjectId);
+        setTasks(tasks);
+      } catch {
+        // best-effort; user can also F5
+      }
+    };
+
     const connect = () => {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
-      ws.onopen = () => setWsConnected(true);
+      ws.onopen = () => {
+        setWsConnected(true);
+        void resyncTasks();
+      };
 
       ws.onmessage = (e) => {
         try {

@@ -195,7 +195,7 @@ function SplitDiffRow({ row }: { row: SplitRow }) {
   const rightType = right?.type as SideVariant | undefined;
 
   return (
-    <div className="flex min-w-0 border-b border-zinc-900/50 hover:bg-white/[0.02]">
+    <div className="flex min-w-0 border-b border-zinc-900/50 hover:bg-zinc-700/30">
       {/* Left side */}
       <div className="flex w-1/2 min-w-0 border-r border-zinc-800">
         <span
@@ -494,7 +494,7 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
             </aside>
 
             {/* Right: diff panel */}
-            <div ref={diffPanelRef} className="flex-1 overflow-hidden bg-black/80 flex flex-col">
+            <div ref={diffPanelRef} className="flex-1 overflow-hidden bg-zinc-950 flex flex-col">
               {/* Skeleton */}
               {diffLoading && (
                 <div className="flex flex-col gap-3 p-6">

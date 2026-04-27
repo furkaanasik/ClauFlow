@@ -23,6 +23,11 @@ export const tr: Translations = {
     plannerRunning: "Planner çalışıyor...",
     plannerError: "Planner hatası",
   },
+  taskCard: {
+    diffButton: "Diff",
+    openDiffTitle: "PR diff'ini aç",
+    openOnGithubTitle: "GitHub'da aç",
+  },
   addTask: {
     modalTitle: "Yeni Görev Ekle",
     titleLabel: "Başlık",
