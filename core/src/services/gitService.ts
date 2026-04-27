@@ -166,8 +166,19 @@ export async function deleteGithubRepo(remoteUrl: string): Promise<RunResult> {
   const repo = match[2];
   const result = await run("gh", ["repo", "delete", `${owner}/${repo}`, "--yes"], process.cwd());
   if (result.code !== 0) {
+    const output = `${result.stderr}\n${result.stdout}`;
+    if (/delete_repo/i.test(output)) {
+      throw new Error(
+        `GitHub silme yetkisi yok. Terminalde şu komutu çalıştırıp tekrar deneyin:\n\ngh auth refresh -h github.com -s delete_repo`,
+      );
+    }
+    if (/HTTP 404|Not Found/i.test(output)) {
+      throw new Error(
+        `Repo GitHub'da bulunamadı (${owner}/${repo}). Zaten silinmiş olabilir — local kayıttan kaldırmak için "Kanban'dan Sil" kullanabilirsiniz.`,
+      );
+    }
     throw new Error(
-      `gh repo delete failed: ${result.stderr || result.stdout}`,
+      `gh repo delete failed: ${result.stderr || result.stdout}`.trim(),
     );
   }
   return result;

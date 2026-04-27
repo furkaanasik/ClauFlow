@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { runClaude } from "../services/claudeService.js";
 import { createTask, updateProject } from "../services/taskService.js";
 import type { TaskPriority } from "../types/index.js";
@@ -23,16 +24,98 @@ const VALID_PRIORITIES: readonly TaskPriority[] = [
   "critical",
 ];
 
-function extractJsonArray(raw: string): unknown {
+function unwrapEnvelope(raw: string): { text: string; envelopeError?: string } {
   const trimmed = raw.trim();
+  if (!trimmed.startsWith("{")) return { text: trimmed };
+  try {
+    const env = JSON.parse(trimmed) as {
+      result?: unknown;
+      is_error?: unknown;
+      error?: unknown;
+    };
+    if (env.is_error === true) {
+      const errText = typeof env.error === "string" ? env.error
+        : typeof env.result === "string" ? env.result
+        : JSON.stringify(env);
+      return { text: typeof env.result === "string" ? env.result : "", envelopeError: errText };
+    }
+    if (typeof env.result === "string") return { text: env.result };
+    return { text: trimmed };
+  } catch {
+    return { text: trimmed };
+  }
+}
+
+function recoverArrayObjects(text: string): unknown[] {
+  const arrStart = text.indexOf("[");
+  if (arrStart === -1) return [];
+  const objects: unknown[] = [];
+  let i = arrStart + 1;
+  while (i < text.length) {
+    while (i < text.length && text[i] !== "{") i++;
+    if (i >= text.length) break;
+    const start = i;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    let closed = false;
+    while (i < text.length) {
+      const ch = text[i]!;
+      if (escape) { escape = false; i++; continue; }
+      if (ch === "\\") { escape = true; i++; continue; }
+      if (ch === '"') { inString = !inString; i++; continue; }
+      if (!inString) {
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+          depth--;
+          if (depth === 0) {
+            try {
+              objects.push(JSON.parse(text.slice(start, i + 1)));
+            } catch {
+              // skip malformed object
+            }
+            closed = true;
+            i++;
+            break;
+          }
+        }
+      }
+      i++;
+    }
+    if (!closed) break; // truncation reached
+  }
+  return objects;
+}
+
+function extractJsonArray(raw: string): unknown {
+  const { text, envelopeError } = unwrapEnvelope(raw);
+  if (envelopeError) {
+    throw new Error(`claude returned an error envelope: ${envelopeError.slice(0, 400)}`);
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    throw new Error("claude response was empty");
+  }
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = fenced ? fenced[1]!.trim() : trimmed;
+
   const start = candidate.indexOf("[");
   const end = candidate.lastIndexOf("]");
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error("claude response did not contain a JSON array");
+  if (start !== -1 && end !== -1 && end > start) {
+    try {
+      return JSON.parse(candidate.slice(start, end + 1));
+    } catch {
+      // fall through to recovery
+    }
   }
-  return JSON.parse(candidate.slice(start, end + 1));
+
+  const recovered = recoverArrayObjects(candidate);
+  if (recovered.length > 0) return recovered;
+
+  const snippet = trimmed.slice(0, 400).replace(/\s+/g, " ");
+  throw new Error(
+    `claude response did not contain a JSON array. Response was: "${snippet}${trimmed.length > 400 ? "…" : ""}"`,
+  );
 }
 
 function normalizePriority(value: unknown): TaskPriority {
@@ -93,22 +176,45 @@ export async function runProjectPlanner(
   const cap = Math.max(1, Math.min(Math.floor(maxTasks) || 8, 20));
 
   try {
-    await updateProject(projectId, { planningStatus: "planning" });
+    const project = await updateProject(projectId, { planningStatus: "planning" });
     broadcastProjectPlanningStarted(projectId);
 
+    const repoExists =
+      Boolean(project.repoPath) && fs.existsSync(project.repoPath);
+    const cwd = repoExists ? project.repoPath : process.cwd();
+
+    const codebaseHint = repoExists
+      ? `Before planning, explore the working directory ("${cwd}") with Read/Glob/Grep ` +
+        `to learn this project's actual conventions: list top-level files; peek at package.json/README; ` +
+        `scan src/services, src/agents, src/routes, src/types if they exist. ` +
+        `Plan tasks that REUSE the discovered services and patterns instead of inventing new ones, ` +
+        `and reference real file paths from your exploration. Do not write or edit files — read-only.\n\n`
+      : `The project has no existing repo on disk. Plan as a greenfield build, but apply the defensive defaults below.\n\n`;
+
+    const defensiveDefaults =
+      `Defensive defaults — apply automatically when relevant, no need to be told:\n` +
+      `- If a task calls a Claude/LLM CLI for STRUCTURED output, mandate \`--output-format json\` ` +
+      `and parsing the envelope's "result" field — never JSON.parse the raw stdout. ` +
+      `If the codebase already exposes a runner (e.g. \`claudeService.runClaude({ outputFormat: "json" })\`), reuse it.\n` +
+      `- Defend against truncated/partial LLM responses: prefer recovery-style parsers that extract complete top-level objects rather than strict full-document parses.\n` +
+      `- For prose/idea text inputs at API boundaries, default zod max-length to ≥6000 chars unless a stricter cap is clearly justified by the domain.\n` +
+      `- Reuse existing wrappers/services discovered during the repo scan; do not duplicate spawn/CLI/db plumbing.\n\n`;
+
     const systemPrompt =
+      codebaseHint +
+      defensiveDefaults +
       `You are a project planner. Break the following project description into at most ${cap} small, actionable tasks.\n\n` +
       `Project description:\n${aiPrompt}\n\n` +
       `Return ONLY a JSON array, no other text. Each item must be an object with these fields:\n` +
       `  - "title": string, max 80 chars, imperative ("Add login endpoint")\n` +
       `  - "description": ONE short sentence (max ~160 chars) summarizing the task for a human skimming the board. No bullets, no acceptance criteria here. Example: "Add a JWT-backed login endpoint guarded against brute force."\n` +
-      `  - "analysis": the primary artifact. A detailed technical brief the coding agent will implement from, written in markdown. Include:\n` +
-      `      1) 2-4 sentences of context (what/why, how it fits the system)\n` +
-      `      2) Concrete implementation notes: files or modules to touch, function/endpoint signatures, request/response shapes, key libraries or patterns to follow, relevant edge cases or failure modes\n` +
-      `      3) An "Acceptance criteria" section with 3-6 testable checkboxes that map directly to unit/integration test assertions\n` +
-      `      4) If the task depends on outputs of earlier tasks, name them explicitly so the agent knows what contracts already exist\n` +
-      `      Example shape:\n` +
-      `      "Adds the email/password login endpoint using httpOnly JWT cookies.\\n\\n**Implementation**\\n- Route: POST /api/auth/login in src/routes/auth.ts\\n- Body: zod { email, password } — 400 on parse fail\\n- Compare bcrypt hash from users table; emit JWT signed with JWT_SECRET\\n- Set-Cookie: token; HttpOnly; Secure; SameSite=Strict; 1h TTL\\n- Rate limit: 5 attempts / IP / minute via existing rateLimit middleware\\n\\n**Acceptance criteria**\\n- [ ] POST /api/auth/login returns 200 + Set-Cookie on valid creds\\n- [ ] Returns 401 on unknown email or wrong password\\n- [ ] Returns 400 on malformed body\\n- [ ] 6th attempt within 60s from same IP returns 429 with Retry-After"\n` +
+      `  - "analysis": markdown technical brief, KEEP UNDER ~180 WORDS PER TASK to fit the response budget. Structure:\n` +
+      `      1) 1-2 sentences of context (what/why)\n` +
+      `      2) **Implementation** bullets: files/modules, key signatures, libraries, edge cases — terse, no prose paragraphs\n` +
+      `      3) **Acceptance criteria** — 3-5 testable checkbox bullets ("- [ ] ...")\n` +
+      `      4) If depending on a prior task, name it in one line\n` +
+      `      Example (note brevity):\n` +
+      `      "Adds POST /api/auth/login with httpOnly JWT cookies.\\n\\n**Implementation**\\n- src/routes/auth.ts; zod body { email, password }\\n- bcrypt compare → JWT signed with JWT_SECRET\\n- Set-Cookie: HttpOnly; Secure; SameSite=Strict; 1h\\n- Reuse rateLimit middleware (5/min/IP)\\n\\n**Acceptance criteria**\\n- [ ] 200 + Set-Cookie on valid creds\\n- [ ] 401 on unknown email or wrong password\\n- [ ] 400 on malformed body\\n- [ ] 429 after 5 attempts/min"\n` +
       `  - "priority": one of "low" | "medium" | "high" | "critical" (default "medium" if unsure)\n` +
       `  - "tags": optional array of 1-4 short lowercase strings like ["backend","api"] or ["frontend","ui"]; omit if not relevant\n\n` +
       `Order the tasks in strict execution sequence so they can be picked up one by one without rework: ` +
@@ -122,7 +228,10 @@ export async function runProjectPlanner(
 
     const result = await runClaude({
       prompt: systemPrompt,
-      cwd: process.cwd(),
+      cwd,
+      outputFormat: "json",
+      maxOutputTokens: 32000,
+      allowedTools: repoExists ? ["Read", "Glob", "Grep"] : undefined,
     });
 
     if (result.code !== 0) {

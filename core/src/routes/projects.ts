@@ -173,7 +173,21 @@ router.patch("/:id", async (req: Request, res: Response) => {
       }
     }
 
-    const project = await updateProject(id, data);
+    const trimmedPrompt = data.aiPrompt?.trim();
+    const shouldRetryPlanning =
+      existing.planningStatus === "error" &&
+      trimmedPrompt !== undefined &&
+      trimmedPrompt.length > 0;
+
+    let project = await updateProject(id, data);
+
+    if (shouldRetryPlanning) {
+      project = await updateProject(id, { planningStatus: "planning" });
+      runProjectPlanner(id, trimmedPrompt!, 8).catch((err) => {
+        console.error("[projects] runProjectPlanner retry failed:", err);
+      });
+    }
+
     res.json({ project });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
