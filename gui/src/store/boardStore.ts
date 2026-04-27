@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, Comment, PlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, Comment, PlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
 
 type Lang = "tr" | "en";
 
@@ -21,6 +21,8 @@ interface BoardState {
   newTaskIds: Set<string>;
   /** Tool calls per task, keyed by taskId */
   toolCalls: Record<string, ToolCall[]>;
+  /** Agent narrative texts per task, keyed by taskId */
+  agentTexts: Record<string, AgentText[]>;
 
   setTasks: (tasks: Task[]) => void;
   upsertTask: (task: Task) => void;
@@ -36,6 +38,8 @@ interface BoardState {
   ) => void;
   appendToolCall: (taskId: string, toolCall: ToolCall) => void;
   setToolCalls: (taskId: string, calls: ToolCall[]) => void;
+  appendAgentText: (taskId: string, agentText: AgentText) => void;
+  setAgentTexts: (taskId: string, list: AgentText[]) => void;
 
   setProjects: (projects: Project[]) => void;
   addProject: (project: Project) => void;
@@ -72,6 +76,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   lang: getInitialLang(),
   newTaskIds: new Set<string>(),
   toolCalls: {},
+  agentTexts: {},
 
   setTasks: (tasks) =>
     set(() => ({
@@ -163,6 +168,23 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setToolCalls: (taskId, calls) =>
     set((state) => ({
       toolCalls: { ...state.toolCalls, [taskId]: calls },
+    })),
+
+  appendAgentText: (taskId, agentText) =>
+    set((state) => {
+      const existing = state.agentTexts[taskId] ?? [];
+      // id-based dedupe: if already exists, update; otherwise append
+      const idx = existing.findIndex((t) => t.id === agentText.id);
+      const next =
+        idx >= 0
+          ? [...existing.slice(0, idx), agentText, ...existing.slice(idx + 1)]
+          : [...existing, agentText];
+      return { agentTexts: { ...state.agentTexts, [taskId]: next } };
+    }),
+
+  setAgentTexts: (taskId, list) =>
+    set((state) => ({
+      agentTexts: { ...state.agentTexts, [taskId]: list },
     })),
 
   upsertComment: (comment) =>

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import clsx from "clsx";
-import type { ToolCall } from "@/types";
+import type { AgentText, ToolCall } from "@/types";
 
 // ─── Icon SVGs (inline, no external deps) ────────────────────────────────────
 
@@ -186,9 +186,27 @@ function StatusBadge({ status }: { status: ToolCall["status"] }) {
   }
   // done
   return (
-    <span className="flex items-center gap-1 text-[10px] text-zinc-500">
+    <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
       <span className="text-emerald-500">✓</span>
     </span>
+  );
+}
+
+// ─── Agent text block ─────────────────────────────────────────────────────────
+
+function AgentTextBlock({ item }: { item: AgentText }) {
+  return (
+    <div
+      className="rounded-md px-2.5 py-1.5 text-[11px] italic leading-relaxed"
+      style={{
+        borderLeft: "2px solid color-mix(in oklab, var(--accent-primary) 60%, transparent)",
+        background: "color-mix(in oklab, var(--accent-primary) 6%, transparent)",
+        color: "color-mix(in oklab, var(--text-primary) 80%, var(--accent-primary))",
+        whiteSpace: "pre-wrap",
+      }}
+    >
+      {item.text}
+    </div>
   );
 }
 
@@ -204,11 +222,11 @@ function ToolCallCard({ call, compact }: { call: ToolCall; compact?: boolean }) 
 
   return (
     <div
-      className={clsx(
-        "rounded-lg border transition-colors",
-        open ? "border-zinc-700 bg-zinc-900/80" : "border-zinc-800 bg-zinc-900/40",
-        "hover:border-zinc-700",
-      )}
+      className="rounded-lg border transition-colors"
+      style={{
+        background: "var(--bg-elevated)",
+        borderColor: open ? "var(--accent-primary)" : "var(--border)",
+      }}
     >
       {/* Card header — always visible */}
       <button
@@ -226,11 +244,16 @@ function ToolCallCard({ call, compact }: { call: ToolCall; compact?: boolean }) 
         </span>
 
         {/* Tool name */}
-        <span className="shrink-0 text-[11px] font-semibold text-zinc-300">{cfg.label}</span>
+        <span className="shrink-0 text-[11px] font-semibold" style={{ color: "var(--text-primary)" }}>
+          {cfg.label}
+        </span>
 
         {/* Args summary */}
         {summary && (
-          <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-zinc-500">
+          <span
+            className="min-w-0 flex-1 truncate font-mono text-[10px]"
+            style={{ color: "var(--text-muted)" }}
+          >
             {summary}
           </span>
         )}
@@ -238,10 +261,10 @@ function ToolCallCard({ call, compact }: { call: ToolCall; compact?: boolean }) 
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <StatusBadge status={call.status} />
           {duration && (
-            <span className="text-[10px] text-zinc-600">{duration}</span>
+            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{duration}</span>
           )}
           {hasDetail && (
-            <span className="text-zinc-600">
+            <span style={{ color: "var(--text-muted)" }}>
               <IconChevron open={open} />
             </span>
           )}
@@ -250,23 +273,35 @@ function ToolCallCard({ call, compact }: { call: ToolCall; compact?: boolean }) 
 
       {/* Expanded detail */}
       {open && hasDetail && (
-        <div className="border-t border-zinc-800 px-2.5 pb-2.5 pt-2">
+        <div className="border-t px-2.5 pb-2.5 pt-2" style={{ borderColor: "var(--border)" }}>
           {call.args && (
             <div className="mb-2">
-              <p className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-zinc-600">
+              <p
+                className="mb-1 text-[9px] font-semibold uppercase tracking-widest"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Args
               </p>
-              <pre className="max-h-36 overflow-auto rounded-md bg-black/60 p-2 font-mono text-[10px] leading-relaxed text-zinc-400 whitespace-pre-wrap">
+              <pre
+                className="max-h-36 overflow-auto rounded-md p-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap"
+                style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
+              >
                 {JSON.stringify(call.args, null, 2)}
               </pre>
             </div>
           )}
           {call.result && (
             <div>
-              <p className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-zinc-600">
+              <p
+                className="mb-1 text-[9px] font-semibold uppercase tracking-widest"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Result
               </p>
-              <pre className="max-h-48 overflow-auto rounded-md bg-black/60 p-2 font-mono text-[10px] leading-relaxed text-zinc-400 whitespace-pre-wrap">
+              <pre
+                className="max-h-48 overflow-auto rounded-md p-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap"
+                style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
+              >
                 {call.result}
               </pre>
             </div>
@@ -279,14 +314,30 @@ function ToolCallCard({ call, compact }: { call: ToolCall; compact?: boolean }) 
 
 // ─── Summary pill ─────────────────────────────────────────────────────────────
 
-function SummaryPill({ calls }: { calls: ToolCall[] }) {
+function SummaryPill({
+  calls,
+  isAgentRunning,
+  thinkingMessage,
+}: {
+  calls: ToolCall[];
+  isAgentRunning?: boolean;
+  thinkingMessage?: string;
+}) {
   const total = totalDuration(calls);
   const doneCount = calls.filter((c) => c.status === "done").length;
   const runningCount = calls.filter((c) => c.status === "running").length;
+  const showThinking = !!isAgentRunning && runningCount === 0;
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="rounded-full border border-zinc-700 bg-zinc-800/60 px-2.5 py-0.5 text-[10px] font-medium text-zinc-400">
+      <span
+        className="rounded-full border px-2.5 py-0.5 text-[10px] font-medium"
+        style={{
+          background: "var(--bg-elevated)",
+          borderColor: "var(--border)",
+          color: "var(--text-muted)",
+        }}
+      >
         {calls.length} tool call{calls.length !== 1 ? "s" : ""}
         {total > 0 && ` · ${formatDuration(total)}`}
       </span>
@@ -296,7 +347,23 @@ function SummaryPill({ calls }: { calls: ToolCall[] }) {
           {runningCount} running
         </span>
       )}
-      {doneCount > 0 && runningCount === 0 && (
+      {showThinking && (
+        <span
+          className="flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-medium"
+          style={{
+            background: "color-mix(in oklab, var(--accent-primary) 15%, transparent)",
+            borderColor: "color-mix(in oklab, var(--accent-primary) 50%, transparent)",
+            color: "var(--accent-primary)",
+          }}
+        >
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full"
+            style={{ background: "var(--accent-primary)" }}
+          />
+          {thinkingMessage ?? "Agent thinking"}…
+        </span>
+      )}
+      {doneCount > 0 && runningCount === 0 && !showThinking && (
         <span className="rounded-full border border-emerald-800/40 bg-emerald-900/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-500">
           ✓ {doneCount} done
         </span>
@@ -307,24 +374,80 @@ function SummaryPill({ calls }: { calls: ToolCall[] }) {
 
 // ─── Public component ─────────────────────────────────────────────────────────
 
+type TimelineItem =
+  | { kind: "tool_call"; data: ToolCall; sortKey: string }
+  | { kind: "text"; data: AgentText; sortKey: string };
+
 interface ToolCallTimelineProps {
   toolCalls: ToolCall[];
+  agentTexts?: AgentText[];
   compact?: boolean;
   emptyMessage?: string;
+  isAgentRunning?: boolean;
+  thinkingMessage?: string;
 }
 
-export function ToolCallTimeline({ toolCalls, compact, emptyMessage }: ToolCallTimelineProps) {
-  const sorted = useMemo(
-    () => [...toolCalls].sort((a, b) => {
+export function ToolCallTimeline({
+  toolCalls,
+  agentTexts = [],
+  compact,
+  emptyMessage,
+  isAgentRunning,
+  thinkingMessage,
+}: ToolCallTimelineProps) {
+  // Build a unified, chronologically sorted list of tool_calls and agent texts
+  const items = useMemo<TimelineItem[]>(() => {
+    const tcItems: TimelineItem[] = toolCalls.map((tc) => ({
+      kind: "tool_call",
+      data: tc,
+      sortKey: tc.startedAt ?? tc.createdAt ?? "",
+    }));
+    const textItems: TimelineItem[] = agentTexts.map((at) => ({
+      kind: "text",
+      data: at,
+      sortKey: at.createdAt,
+    }));
+    return [...tcItems, ...textItems].sort((a, b) =>
+      a.sortKey.localeCompare(b.sortKey),
+    );
+  }, [toolCalls, agentTexts]);
+
+  const sortedToolCalls = useMemo(
+    () => toolCalls.slice().sort((a, b) => {
       if (a.startedAt && b.startedAt) return a.startedAt.localeCompare(b.startedAt);
       return 0;
     }),
     [toolCalls],
   );
 
-  if (sorted.length === 0) {
+  const hasRunning = sortedToolCalls.some((c) => c.status === "running");
+  const showThinkingCard = !!isAgentRunning && !hasRunning;
+  const isEmpty = items.length === 0;
+
+  if (isEmpty) {
+    if (showThinkingCard) {
+      return (
+        <div
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border py-8 text-xs"
+          style={{
+            borderColor: "color-mix(in oklab, var(--accent-primary) 50%, transparent)",
+            background: "color-mix(in oklab, var(--accent-primary) 10%, transparent)",
+            color: "var(--accent-primary)",
+          }}
+        >
+          <span
+            className="h-2 w-2 animate-pulse rounded-full"
+            style={{ background: "var(--accent-primary)" }}
+          />
+          {thinkingMessage ?? "Agent thinking"}…
+        </div>
+      );
+    }
     return (
-      <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 py-8 text-xs text-zinc-700">
+      <div
+        className="flex flex-1 items-center justify-center rounded-xl border border-dashed py-8 text-xs"
+        style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
+      >
         {emptyMessage ?? "Tool calls will appear here during execution"}
       </div>
     );
@@ -332,15 +455,37 @@ export function ToolCallTimeline({ toolCalls, compact, emptyMessage }: ToolCallT
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/* Summary pill */}
-      <SummaryPill calls={sorted} />
+      {/* Summary pill — only tool call counts */}
+      <SummaryPill calls={sortedToolCalls} isAgentRunning={isAgentRunning} thinkingMessage={thinkingMessage} />
 
-      {/* Call list */}
+      {/* Interleaved list: tool calls + agent texts, chronological */}
       <div className="flex flex-col gap-1">
-        {sorted.map((call) => (
-          <ToolCallCard key={call.id} call={call} compact={compact} />
-        ))}
+        {items.map((item) =>
+          item.kind === "tool_call" ? (
+            <ToolCallCard key={`tc-${item.data.id}`} call={item.data} compact={compact} />
+          ) : (
+            <AgentTextBlock key={`at-${item.data.id}`} item={item.data} />
+          ),
+        )}
       </div>
+
+      {/* Thinking indicator card — son tool call done ama agent hâlâ çalışıyor */}
+      {showThinkingCard && (
+        <div
+          className="flex items-center gap-2 rounded-lg border px-2.5 py-2 text-[11px]"
+          style={{
+            borderColor: "color-mix(in oklab, var(--accent-primary) 50%, transparent)",
+            background: "color-mix(in oklab, var(--accent-primary) 10%, transparent)",
+            color: "var(--accent-primary)",
+          }}
+        >
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full"
+            style={{ background: "var(--accent-primary)" }}
+          />
+          {thinkingMessage ?? "Agent thinking"}…
+        </div>
+      )}
     </div>
   );
 }

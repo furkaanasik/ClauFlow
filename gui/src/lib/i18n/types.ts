@@ -146,6 +146,8 @@ export interface Translations {
     toolTimelineTab: string;
     toolRawTab: string;
     toolTimelineEmpty: string;
+    toolThinking: string;
+    costTokens: string;
     cancelButton: string;
     saveButton: string;
     savingButton: string;

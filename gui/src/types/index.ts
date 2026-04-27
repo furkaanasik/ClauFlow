@@ -37,6 +37,7 @@ export interface Task {
   updatedAt: string;
   agent: AgentState;
   comments?: Comment[];
+  usage?: TaskUsage;
 }
 
 export type PlanningStatus = "idle" | "planning" | "done" | "error";
@@ -86,6 +87,21 @@ export interface Comment {
   createdAt: string;
 }
 
+export interface AgentText {
+  id: number;
+  taskId: string;
+  text: string;
+  sequence: number;
+  createdAt: string; // ISO — same format as tool_call.startedAt
+}
+
+export interface TaskUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
 export type ToolCallStatus = "running" | "done" | "error";
 
 export interface ToolCall {
@@ -113,6 +129,7 @@ export type WsEvent =
       taskId: string;
       payload: ToolCall;
     }
+  | { type: "agent_text"; taskId: string; payload: AgentText }
   | { type: "task_updated"; taskId: string; payload: Task }
   | { type: "task_created"; taskId: string; payload: Task }
   | { type: "task_deleted"; taskId: string; payload: { id: string } }

@@ -1,4 +1,4 @@
-import type { Comment, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
+import type { AgentText, Comment, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -99,6 +99,11 @@ export const api = {
     fetch(`${BASE}/tasks/${taskId}/tool-calls`, { cache: "no-store" })
       .then((r) => handle<{ toolCalls: ToolCall[] }>(r))
       .then((d) => d.toolCalls ?? []),
+
+  getAgentTexts: (taskId: string): Promise<AgentText[]> =>
+    fetch(`${BASE}/tasks/${taskId}/agent-texts`, { cache: "no-store" })
+      .then((r) => handle<{ agentTexts: AgentText[] }>(r))
+      .then((d) => d.agentTexts ?? []),
 
   addComment: (taskId: string, body: string): Promise<Comment> =>
     fetch(`${BASE}/tasks/${taskId}/comments`, {

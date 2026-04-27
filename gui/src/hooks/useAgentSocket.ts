@@ -28,6 +28,7 @@ export function useAgentSocket(url?: string) {
       upsertComment,
       updateProjectPlanningStatus,
       appendToolCall,
+      appendAgentText,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -82,6 +83,11 @@ export function useAgentSocket(url?: string) {
             case "agent_tool_call": {
               const m = msg as Extract<WsEvent, { type: "agent_tool_call" }>;
               appendToolCall(m.taskId, m.payload);
+              break;
+            }
+            case "agent_text": {
+              const m = msg as Extract<WsEvent, { type: "agent_text" }>;
+              appendAgentText(m.taskId, m.payload);
               break;
             }
             case "comment_updated": {

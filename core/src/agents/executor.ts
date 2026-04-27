@@ -6,18 +6,21 @@ import {
   createPr,
   run as gitRun,
 } from "../services/gitService.js";
-import { runClaude } from "../services/claudeService.js";
+import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
 import {
   appendAgentLog,
   getProject,
   getTask,
+  insertAgentText,
   insertToolCall,
   listTasks,
   updateTask,
+  updateTaskUsage,
   updateToolCall,
 } from "../services/taskService.js";
 import { slugify } from "../services/slug.js";
 import {
+  broadcastAgentText,
   broadcastLog,
   broadcastStatus,
   broadcastTaskUpdated,
@@ -269,6 +272,31 @@ export async function run(task: Task, project: Project): Promise<void> {
       }
     };
 
+    const onAgentText = (text: string): void => {
+      // Skip empty/whitespace-only chunks — narrative meaning is zero and
+      // they would just clutter the timeline.
+      if (!text || !text.trim()) return;
+      try {
+        const stored = insertAgentText({ taskId: task.id, text });
+        broadcastAgentText(stored);
+      } catch (e) {
+        console.error(`[executor] insertAgentText failed:`, e);
+      }
+    };
+
+    const onClaudeResult = (raw: unknown): void => {
+      const usage = parseUsageFromResult(raw);
+      if (!usage) return;
+      // Fire-and-forget — we don't want to block run() on a usage write.
+      updateTaskUsage(task.id, usage)
+        .then((t) => {
+          if (t) broadcastTaskUpdated(t);
+        })
+        .catch((e) => {
+          console.error(`[executor] updateTaskUsage failed:`, e);
+        });
+    };
+
     let claudeResult = await runClaude({
       prompt,
       cwd: project.repoPath,
@@ -276,8 +304,10 @@ export async function run(task: Task, project: Project): Promise<void> {
       signal: controller.signal,
       outputFormat: "stream-json",
       onLine: onLogLine,
+      onText: onAgentText,
       onToolCallStart,
       onToolCallEnd,
+      onResult: onClaudeResult,
     });
 
     // Fallback safety: if stream-json mode fails (e.g. CLI version mismatch),

@@ -5,11 +5,13 @@ import Database from "better-sqlite3";
 import {
   createEmptyAgentState,
   type AgentState,
+  type AgentText,
   type Project,
   type ProjectPlanningStatus,
   type Task,
   type TaskPriority,
   type TaskStatus,
+  type TaskUsage,
   type TasksFile,
   type ToolCall,
   type ToolCallStatus,
@@ -92,6 +94,14 @@ db.exec(`
     durationMs INTEGER,
     createdAt TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS task_agent_texts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    taskId TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    sequence INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL
+  );
 `);
 
 // Idempotent migration: ensure task_tool_calls table exists with current shape
@@ -141,6 +151,38 @@ db.exec(
      ON task_tool_calls(taskId, createdAt);`,
 );
 
+// Idempotent migration: ensure task_agent_texts has expected shape on
+// databases created before this feature landed.
+{
+  const textTableExists = db
+    .prepare(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='task_agent_texts'`,
+    )
+    .get();
+  if (textTableExists) {
+    const cols = db
+      .prepare(`PRAGMA table_info(task_agent_texts)`)
+      .all() as { name: string }[];
+    const expected = ["id", "taskId", "text", "sequence", "createdAt"];
+    const ddl: Record<string, string> = {
+      sequence: `ALTER TABLE task_agent_texts ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0`,
+      createdAt: `ALTER TABLE task_agent_texts ADD COLUMN createdAt TEXT NOT NULL DEFAULT ''`,
+      text: `ALTER TABLE task_agent_texts ADD COLUMN text TEXT NOT NULL DEFAULT ''`,
+      taskId: `ALTER TABLE task_agent_texts ADD COLUMN taskId TEXT NOT NULL DEFAULT ''`,
+    };
+    for (const name of expected) {
+      if (!cols.some((c) => c.name === name) && ddl[name]) {
+        db.exec(ddl[name]!);
+      }
+    }
+  }
+}
+
+db.exec(
+  `CREATE INDEX IF NOT EXISTS idx_agent_texts_task_created
+     ON task_agent_texts(taskId, createdAt);`,
+);
+
 // Idempotent migrations for projects table.
 {
   const projectColumns = db
@@ -170,7 +212,7 @@ db.exec(
   }
 }
 
-// Idempotent migration: add tags + displayId columns to tasks if missing.
+// Idempotent migration: add tags + displayId + usage columns to tasks if missing.
 {
   const taskColumns = db
     .prepare(`PRAGMA table_info(tasks)`)
@@ -182,6 +224,17 @@ db.exec(
   const hasDisplayId = taskColumns.some((c) => c.name === "displayId");
   if (!hasDisplayId) {
     db.exec(`ALTER TABLE tasks ADD COLUMN displayId TEXT`);
+  }
+  const usageCols = [
+    "inputTokens",
+    "outputTokens",
+    "cacheReadTokens",
+    "cacheWriteTokens",
+  ] as const;
+  for (const col of usageCols) {
+    if (!taskColumns.some((c) => c.name === col)) {
+      db.exec(`ALTER TABLE tasks ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`);
+    }
   }
 }
 
@@ -234,6 +287,10 @@ interface TaskRow {
   agentError: string | null;
   agentStartedAt: string | null;
   agentFinishedAt: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
 }
 
 function rowToProject(row: ProjectRow): Project {
@@ -282,6 +339,12 @@ function rowToTask(row: TaskRow): Task {
     startedAt: row.agentStartedAt,
     finishedAt: row.agentFinishedAt,
   };
+  const usage: TaskUsage = {
+    inputTokens: row.inputTokens ?? 0,
+    outputTokens: row.outputTokens ?? 0,
+    cacheReadTokens: row.cacheReadTokens ?? 0,
+    cacheWriteTokens: row.cacheWriteTokens ?? 0,
+  };
   return {
     id: row.id,
     projectId: row.projectId,
@@ -298,6 +361,7 @@ function rowToTask(row: TaskRow): Task {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     agent,
+    usage,
   };
 }
 
@@ -1012,4 +1076,112 @@ export function listToolCallsByTask(taskId: string): ToolCall[] {
 export function getToolCall(id: string): ToolCall | null {
   const row = stmtGetToolCall.get(id) as ToolCallRow | undefined;
   return row ? rowToToolCall(row) : null;
+}
+
+// ─── Agent Texts ──────────────────────────────────────────────────────────
+
+interface AgentTextRow {
+  id: number;
+  taskId: string;
+  text: string;
+  sequence: number;
+  createdAt: string;
+}
+
+function rowToAgentText(row: AgentTextRow): AgentText {
+  return {
+    id: row.id,
+    taskId: row.taskId,
+    text: row.text,
+    sequence: row.sequence,
+    createdAt: row.createdAt,
+  };
+}
+
+const stmtNextAgentTextSeq = db.prepare(
+  `SELECT COALESCE(MAX(sequence), 0) + 1 AS next FROM task_agent_texts WHERE taskId = ?`,
+);
+
+const stmtInsertAgentText = db.prepare(
+  `INSERT INTO task_agent_texts (taskId, text, sequence, createdAt)
+   VALUES (@taskId, @text, @sequence, @createdAt)`,
+);
+
+const stmtListAgentTextsByTask = db.prepare(
+  `SELECT * FROM task_agent_texts WHERE taskId = ? ORDER BY createdAt ASC, sequence ASC`,
+);
+
+export interface InsertAgentTextInput {
+  taskId: string;
+  text: string;
+  /** Optional explicit sequence; otherwise auto-incremented per task. */
+  sequence?: number;
+  /** Optional ISO string timestamp; otherwise `new Date().toISOString()`. */
+  createdAt?: string;
+}
+
+export function insertAgentText(input: InsertAgentTextInput): AgentText {
+  const seqRow = stmtNextAgentTextSeq.get(input.taskId) as
+    | { next: number }
+    | undefined;
+  const sequence = input.sequence ?? seqRow?.next ?? 1;
+  const createdAt = input.createdAt ?? new Date().toISOString();
+  const result = stmtInsertAgentText.run({
+    taskId: input.taskId,
+    text: input.text,
+    sequence,
+    createdAt,
+  });
+  const id = Number(result.lastInsertRowid);
+  return {
+    id,
+    taskId: input.taskId,
+    text: input.text,
+    sequence,
+    createdAt,
+  };
+}
+
+export function getAgentTexts(taskId: string): AgentText[] {
+  const rows = stmtListAgentTextsByTask.all(taskId) as AgentTextRow[];
+  return rows.map(rowToAgentText);
+}
+
+// ─── Task Usage ───────────────────────────────────────────────────────────
+
+const stmtUpdateTaskUsage = db.prepare(
+  `UPDATE tasks SET
+     inputTokens = inputTokens + @inputTokens,
+     outputTokens = outputTokens + @outputTokens,
+     cacheReadTokens = cacheReadTokens + @cacheReadTokens,
+     cacheWriteTokens = cacheWriteTokens + @cacheWriteTokens,
+     updatedAt = @updatedAt
+   WHERE id = @id`,
+);
+
+export type TaskUsageDelta = Partial<TaskUsage>;
+
+/**
+ * Increments token usage counters on a task. Each call adds to the running
+ * totals — a task may run claude CLI multiple times (executor + comments)
+ * and we want the cumulative spend visible per task.
+ *
+ * Returns the refreshed task or null if the task no longer exists.
+ */
+export async function updateTaskUsage(
+  id: string,
+  delta: TaskUsageDelta,
+): Promise<Task | null> {
+  const existing = stmtGetTask.get(id) as TaskRow | undefined;
+  if (!existing) return null;
+  stmtUpdateTaskUsage.run({
+    id,
+    inputTokens: delta.inputTokens ?? 0,
+    outputTokens: delta.outputTokens ?? 0,
+    cacheReadTokens: delta.cacheReadTokens ?? 0,
+    cacheWriteTokens: delta.cacheWriteTokens ?? 0,
+    updatedAt: new Date().toISOString(),
+  });
+  const next = stmtGetTask.get(id) as TaskRow | undefined;
+  return next ? rowToTask(next) : null;
 }

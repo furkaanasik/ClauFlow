@@ -153,6 +153,8 @@ export const tr: Translations = {
     toolTimelineTab: "Zaman Çizgisi",
     toolRawTab: "Ham",
     toolTimelineEmpty: "Çalışma sırasında tool çağrıları burada görünecek",
+    toolThinking: "Agent düşünüyor",
+    costTokens: "token",
     cancelButton: "İptal",
     saveButton: "Kaydet",
     savingButton: "Kaydediliyor...",

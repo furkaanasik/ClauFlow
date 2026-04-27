@@ -1,8 +1,10 @@
 import { run as gitRun, commitAll, pushBranch } from "../services/gitService.js";
-import { runClaude } from "../services/claudeService.js";
+import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
 import {
   getTask,
+  insertAgentText,
   insertToolCall,
+  updateTaskUsage,
   updateToolCall,
 } from "../services/taskService.js";
 import {
@@ -11,7 +13,9 @@ import {
   updateComment,
 } from "../services/commentService.js";
 import {
+  broadcastAgentText,
   broadcastCommentUpdated,
+  broadcastTaskUpdated,
   broadcastToolCall,
 } from "../services/wsService.js";
 import type { Comment } from "../services/commentService.js";
@@ -118,14 +122,41 @@ export async function runComment(
       }
     };
 
+    // Comments live "underneath" their task — narrative text and usage are
+    // attributed to the task itself so the timeline stays unified across
+    // executor + comment runs.
+    const onAgentText = (text: string): void => {
+      if (!text || !text.trim()) return;
+      try {
+        const stored = insertAgentText({ taskId: comment.taskId, text });
+        broadcastAgentText(stored);
+      } catch (e) {
+        console.error(`[commentRunner] insertAgentText failed:`, e);
+      }
+    };
+
+    const onClaudeResult = (raw: unknown): void => {
+      const usage = parseUsageFromResult(raw);
+      if (!usage) return;
+      updateTaskUsage(comment.taskId, usage)
+        .then((t) => {
+          if (t) broadcastTaskUpdated(t);
+        })
+        .catch((e) => {
+          console.error(`[commentRunner] updateTaskUsage failed:`, e);
+        });
+    };
+
     let claudeResult = await runClaude({
       prompt,
       cwd: projectRepoPath,
       allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
       outputFormat: "stream-json",
       onLine: onLogLine,
+      onText: onAgentText,
       onToolCallStart,
       onToolCallEnd,
+      onResult: onClaudeResult,
     });
 
     if (claudeResult.code !== 0) {
