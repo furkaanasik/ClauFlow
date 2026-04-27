@@ -23,9 +23,15 @@ export async function runComment(
     if (!task) {
       throw new Error(`Task not found: ${comment.taskId}`);
     }
+    const ref = task.displayId ?? task.id;
     const branch = task.branch;
     if (!branch) {
       throw new Error("Task has no branch — cannot apply comment");
+    }
+    appendCommentLog(comment.id, `▸ Feature: ${ref} (branch ${branch})`);
+    {
+      const fresh = getComment(comment.id);
+      if (fresh) broadcastCommentUpdated(fresh);
     }
 
     // ── Step 3: refresh git credentials (same as executor) ────────────────
@@ -68,10 +74,10 @@ export async function runComment(
     }
 
     // ── Step 6: commit ────────────────────────────────────────────────────
-    const commitResult = await commitAll(
-      projectRepoPath,
-      "fix: user feedback applied",
-    );
+    const commitMsg = task.displayId
+      ? `fix(${task.displayId}): user feedback applied`
+      : "fix: user feedback applied";
+    const commitResult = await commitAll(projectRepoPath, commitMsg);
     if (commitResult.code !== 0) {
       if (commitResult.stdout.includes("nothing to commit")) {
         throw new Error(

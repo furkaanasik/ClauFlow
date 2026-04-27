@@ -73,6 +73,10 @@ export const tr: Translations = {
     submitting: "Oluşturuluyor...",
     aiPromptLabel: "AI Prompt (opsiyonel)",
     aiPromptPlaceholder: "Projeyi kısaca tanımla, planner task'lara bölsün...",
+    slugLabel: "Proje Slug",
+    slugPlaceholder: "feature-requests",
+    slugHint: "Küçük harf, tire ve harf/rakam — 2-12 karakter",
+    slugError: "Geçersiz slug: 2-12 karakter, sadece küçük harf, rakam ve tire (-)",
   },
   board: {
     loadError: "Board yüklenemedi",

@@ -21,6 +21,15 @@ import { runProjectPlanner } from "../agents/projectPlanner.js";
 
 const router = Router();
 
+const slugSchema = z
+  .string()
+  .min(1)
+  .max(50)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message:
+      "slug yalnızca küçük harf, rakam ve tek tire içerebilir; başta/sonda tire olamaz",
+  });
+
 const createProjectSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -32,6 +41,7 @@ const createProjectSchema = z.object({
   isPrivate: z.boolean().optional(),
   aiPrompt: z.string().optional(),
   maxTasks: z.number().int().positive().max(20).optional(),
+  slug: slugSchema.optional(),
 });
 
 router.get("/", async (_req: Request, res: Response) => {
@@ -123,6 +133,7 @@ router.post("/", async (req: Request, res: Response) => {
       repoPath: data.repoPath,
       defaultBranch: data.defaultBranch,
       remote,
+      slug: data.slug,
     });
 
     if (trimmedPrompt) {
@@ -148,6 +159,7 @@ const updateProjectSchema = z.object({
   aiPrompt: z.string().optional(),
   repoPath: z.string().min(1).optional(),
   defaultBranch: z.string().min(1).optional(),
+  slug: slugSchema.optional(),
 });
 
 router.patch("/:id", async (req: Request, res: Response) => {
@@ -190,7 +202,14 @@ router.patch("/:id", async (req: Request, res: Response) => {
 
     res.json({ project });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    const msg = (err as Error).message;
+    if (msg.startsWith("Slug already in use")) {
+      return res.status(409).json({ error: msg });
+    }
+    if (msg.startsWith("Invalid slug")) {
+      return res.status(400).json({ error: msg });
+    }
+    res.status(500).json({ error: msg });
   }
 });
 

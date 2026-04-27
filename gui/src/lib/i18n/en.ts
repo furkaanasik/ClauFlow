@@ -73,6 +73,10 @@ export const en: Translations = {
     submitting: "Creating...",
     aiPromptLabel: "AI Prompt (optional)",
     aiPromptPlaceholder: "Describe the project briefly, planner will break it into tasks...",
+    slugLabel: "Project Slug",
+    slugPlaceholder: "feature-requests",
+    slugHint: "Lowercase, hyphens and alphanumerics — 2-12 characters",
+    slugError: "Invalid slug: 2-12 characters, lowercase letters, digits and hyphens (-) only",
   },
   board: {
     loadError: "Board failed to load",

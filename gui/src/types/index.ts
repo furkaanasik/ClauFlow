@@ -23,6 +23,7 @@ export interface AgentState {
 export interface Task {
   id: string;
   projectId: string;
+  displayId?: string;
   title: string;
   description: string;
   analysis: string;
@@ -43,6 +44,8 @@ export type PlanningStatus = "idle" | "planning" | "done" | "error";
 export interface Project {
   id: string;
   name: string;
+  slug?: string;
+  taskCounter?: number;
   description?: string;
   aiPrompt?: string;
   repoPath: string;
@@ -54,7 +57,7 @@ export interface Project {
 }
 
 export type ProjectPatch = Partial<
-  Pick<Project, "name" | "description" | "aiPrompt" | "repoPath" | "defaultBranch" | "remote">
+  Pick<Project, "name" | "slug" | "description" | "aiPrompt" | "repoPath" | "defaultBranch" | "remote">
 >;
 
 export type TaskPatch = Partial<

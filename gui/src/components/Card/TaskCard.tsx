@@ -142,8 +142,13 @@ export function TaskCard({ task }: TaskCardProps) {
 
       <div className="px-2.5 py-2.5 pl-3.5">
         {/* Baslik */}
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-zinc-100">
-          {task.title}
+        <h3 className="line-clamp-2 text-sm leading-snug text-zinc-100">
+          {task.displayId && (
+            <code className="mr-1.5 rounded bg-zinc-800 px-1 py-0.5 font-mono text-[10px] font-bold text-zinc-300">
+              {task.displayId}
+            </code>
+          )}
+          <span className="font-semibold">{task.title}</span>
         </h3>
 
         {/* Aciklama */}
@@ -183,7 +188,7 @@ export function TaskCard({ task }: TaskCardProps) {
         {/* Footer */}
         <footer className="flex items-center justify-between gap-1.5">
           <span className="font-mono text-[10px] text-zinc-600">
-            #{task.id.slice(0, 8)}
+            {task.displayId ?? `#${task.id.slice(0, 8)}`}
           </span>
           <div className="flex items-center gap-1.5">
             {isQueued(task) && (
