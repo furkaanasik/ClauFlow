@@ -160,7 +160,7 @@ export function Board() {
   return (
     <div className="flex flex-col gap-4">
       {/* Board header — istatistik + arama */}
-      <div className="kanban-panel flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-4 py-2.5">
+      <div className="kanban-panel flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-3 py-2">
         {/* Stat pills */}
         <div className="flex flex-wrap gap-2">
           {columns.map((col) => {
@@ -170,7 +170,7 @@ export function Board() {
             return (
               <span
                 key={col.status}
-                className="rounded-md bg-zinc-800/80 px-2.5 py-1 text-[11px] font-medium text-zinc-400"
+                className="rounded-md bg-zinc-800/80 px-2 py-0.5 text-[10px] font-medium text-zinc-400"
               >
                 {col.title}:{" "}
                 <span className="font-semibold text-zinc-200">{count}</span>
@@ -181,7 +181,7 @@ export function Board() {
 
         {/* Progress bar */}
         {totalCount > 0 && (
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-1.5 ml-auto">
             <span className="text-[11px] text-zinc-500">
               %{progressPct}
             </span>
@@ -207,7 +207,7 @@ export function Board() {
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder={t.board.searchPlaceholder}
-            className="kanban-search rounded-lg border border-zinc-800 bg-zinc-950 py-1.5 pl-8 pr-3 text-xs text-zinc-200 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700 w-44"
+            className="kanban-search rounded-lg border border-zinc-800 bg-zinc-950 py-1 pl-7.5 pr-2.5 text-xs text-zinc-200 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700 w-44"
           />
           {filterText && (
             <button
@@ -235,7 +235,7 @@ export function Board() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
           {columns.map((col) => (
             <BoardColumn
               key={col.status}
@@ -291,11 +291,11 @@ export function Board() {
           onClick={() => setShowHelp(false)}
         >
           <div
-            className="w-80 rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl"
+            className="w-80 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-4 text-sm font-semibold text-zinc-200">{t.board.shortcuts.title}</h3>
-            <div className="flex flex-col gap-2">
+            <h3 className="mb-3 text-sm font-semibold text-zinc-200">{t.board.shortcuts.title}</h3>
+            <div className="flex flex-col gap-1.5">
               {[
                 { key: "N",   desc: t.board.shortcuts.newTask },
                 { key: "/",   desc: t.board.shortcuts.focusSearch },
@@ -313,7 +313,7 @@ export function Board() {
             <button
               type="button"
               onClick={() => setShowHelp(false)}
-              className="mt-4 w-full rounded-lg border border-zinc-800 py-1.5 text-xs text-zinc-500 hover:border-zinc-600 hover:text-zinc-300 transition"
+              className="mt-3 w-full rounded-lg border border-zinc-800 py-1 text-xs text-zinc-500 hover:border-zinc-600 hover:text-zinc-300 transition"
             >
               {t.board.shortcuts.close}
             </button>

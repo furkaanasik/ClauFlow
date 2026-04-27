@@ -25,7 +25,7 @@ export function ToastContainer() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`animate-fade-up flex items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl backdrop-blur-sm ${TYPE_STYLES[t.type]}`}
+          className={`animate-fade-up flex items-center gap-2 rounded-xl border px-3 py-2 text-xs shadow-2xl backdrop-blur-sm ${TYPE_STYLES[t.type]}`}
           onMouseEnter={() => {/* hover'da durdurmak icin gelecekte eklenebilir */}}
         >
           <span className={`h-2 w-2 shrink-0 rounded-full ${TYPE_DOT[t.type]}`} />

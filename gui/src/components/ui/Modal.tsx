@@ -38,11 +38,11 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <header className="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
+          <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
             <h2 className="text-sm font-semibold text-zinc-200">{title}</h2>
             <button
               type="button"
-              className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+              className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
               onClick={onClose}
               aria-label="Kapat"
             >
@@ -52,7 +52,7 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
             </button>
           </header>
         )}
-        <div className="max-h-[70vh] overflow-auto p-5">{children}</div>
+        <div className="max-h-[70vh] overflow-auto p-4">{children}</div>
       </div>
     </div>
   );

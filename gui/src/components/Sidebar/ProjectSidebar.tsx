@@ -41,16 +41,16 @@ export function ProjectSidebar() {
 
   return (
     <>
-      <aside className="flex h-full w-60 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900/60">
+      <aside className="flex h-full w-56 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900/60">
         {/* Title */}
-        <div className="border-b border-zinc-800 px-4 py-3">
+        <div className="border-b border-zinc-800 px-3 py-2">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
             {t.sidebar.title}
           </span>
         </div>
 
         {/* Search */}
-        <div className="border-b border-zinc-800 px-2 py-2">
+        <div className="border-b border-zinc-800 px-1.5 py-1.5">
           <div className="relative flex items-center">
             <span className="pointer-events-none absolute left-2.5 text-zinc-600">
               <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
@@ -62,7 +62,7 @@ export function ProjectSidebar() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t.sidebar.searchPlaceholder}
-              className="kanban-search w-full rounded-md border border-zinc-800 bg-zinc-800/60 py-1.5 pl-7 pr-6 text-[11px] text-zinc-300 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700"
+              className="kanban-search w-full rounded-md border border-zinc-800 bg-zinc-800/60 py-1 pl-6.5 pr-5 text-[10px] text-zinc-300 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700"
             />
             {search && (
               <button
@@ -79,7 +79,7 @@ export function ProjectSidebar() {
         </div>
 
         {/* Project list */}
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
           {filtered.length === 0 && (
             <p className="px-3 py-6 text-center text-[11px] text-zinc-600">
               {search ? t.sidebar.emptySearch : t.sidebar.emptyAll}
@@ -96,7 +96,7 @@ export function ProjectSidebar() {
                   type="button"
                   onClick={() => selectProject(p.id)}
                   className={clsx(
-                    "group relative flex w-full flex-col gap-0.5 rounded-lg px-3 py-2.5 pr-8 text-left transition",
+                    "group relative flex w-full flex-col gap-0.5 rounded-lg px-2.5 py-2 pr-7 text-left transition",
                     isSelected
                       ? "bg-zinc-800/80 text-zinc-100"
                       : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200",
@@ -106,7 +106,7 @@ export function ProjectSidebar() {
                   {isSelected && (
                     <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-emerald-500" />
                   )}
-                  <span className="flex items-center gap-1.5 truncate text-sm font-medium leading-tight">
+                  <span className="flex items-center gap-1 truncate text-xs font-medium leading-tight">
                     <span className="truncate">{p.name}</span>
                     {isPlanning && (
                       <span title={t.sidebar.plannerRunning} className="shrink-0">
@@ -142,7 +142,7 @@ export function ProjectSidebar() {
                   </span>
                   <span
                     className={clsx(
-                      "truncate font-mono text-[10px] transition",
+                      "truncate font-mono text-[9px] transition",
                       isSelected ? "text-zinc-500" : "text-zinc-600",
                     )}
                   >
@@ -198,11 +198,11 @@ export function ProjectSidebar() {
         </nav>
 
         {/* New Project button */}
-        <div className="border-t border-zinc-800 p-2">
+        <div className="border-t border-zinc-800 p-1.5">
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-zinc-700 px-3 py-2 text-xs text-zinc-500 transition hover:border-zinc-500 hover:bg-zinc-800/40 hover:text-zinc-300"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-500 transition hover:border-zinc-500 hover:bg-zinc-800/40 hover:text-zinc-300"
           >
             <span className="text-base leading-none">+</span>
             <span>{t.sidebar.newProject}</span>

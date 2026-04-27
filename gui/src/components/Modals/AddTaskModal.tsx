@@ -83,7 +83,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
 
   return (
     <Modal open={open} onClose={handleClose} title={t.addTask.modalTitle} size="lg">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         {/* Title */}
         <Field label={t.addTask.titleLabel} required>
           <input
@@ -99,14 +99,14 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
         {/* Priority — button group */}
         <div className="flex flex-col gap-2">
           <span className="text-[11px] font-medium text-zinc-500">{t.addTask.priorityLabel}</span>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {PRIORITY_KEYS.map(({ value, style, activeStyle }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setPriority(value)}
                 className={clsx(
-                  "flex-1 rounded-lg border py-1.5 text-xs font-medium transition",
+                  "flex-1 rounded-lg border py-1 text-[10px] font-medium transition",
                   priority === value ? activeStyle : style,
                   priority !== value && "hover:border-zinc-600 hover:text-zinc-300",
                 )}
@@ -148,18 +148,18 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex justify-end gap-1.5 pt-1">
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition"
+            className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition"
           >
             {t.addTask.cancel}
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
           >
             {loading ? t.addTask.submitting : t.addTask.submit}
           </button>
@@ -170,7 +170,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
 }
 
 const inputCls =
-  "w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700";
+  "w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700";
 
 function Field({
   label,

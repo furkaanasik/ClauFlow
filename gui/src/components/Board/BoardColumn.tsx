@@ -68,14 +68,14 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
     <section
       ref={setNodeRef}
       className={clsx(
-        "kanban-column flex min-h-[60vh] w-full flex-col rounded-2xl border border-zinc-800/80 border-l-2 bg-zinc-950/60 p-3 transition-all",
+        "kanban-column flex min-h-[60vh] w-full flex-col rounded-2xl border border-zinc-800/80 border-l-2 bg-zinc-950/60 p-2.5 transition-all",
         COLUMN_LEFT_BORDER[status],
         isOver          && "bg-zinc-900/80 ring-1 ring-blue-500/30",
         hasActiveAgent  && "shadow-[0_0_24px_rgba(250,204,21,0.12)]",
       )}
     >
-      <header className="mb-3 flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
+      <header className="mb-2.5 flex items-center justify-between px-1">
+        <div className="flex items-center gap-1.5">
           <span
             className={clsx(
               "text-sm",
@@ -97,7 +97,7 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
           </h2>
           <span
             className={clsx(
-              "rounded-full px-2 py-0.5 font-mono text-[10px] font-medium",
+              "rounded-full px-1.5 py-0.5 font-mono text-[9px] font-medium",
               COLUMN_BADGE[status],
             )}
           >
@@ -108,7 +108,7 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
           <button
             type="button"
             onClick={handleAddClick}
-            className="rounded-md px-2 py-0.5 text-[11px] font-medium text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-100"
+            className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-100"
           >
             + Ekle
           </button>
@@ -120,9 +120,9 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
         items={tasks.map((t) => t.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+        <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
           {tasks.length === 0 && (
-            <div className="flex flex-col items-center gap-1.5 rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-5 text-center">
+            <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-3 py-4 text-center">
               <span
                 className={clsx(
                   "text-lg leading-none opacity-80",
@@ -132,10 +132,10 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
               >
                 {COLUMN_ICON[status]}
               </span>
-              <p className="text-[11px] font-medium text-zinc-300">
+              <p className="text-[10px] font-medium text-zinc-300">
                 {emptyState.title}
               </p>
-              <p className="text-[10px] leading-relaxed text-zinc-500">
+              <p className="text-[9px] leading-relaxed text-zinc-500">
                 {emptyState.hint}
               </p>
             </div>

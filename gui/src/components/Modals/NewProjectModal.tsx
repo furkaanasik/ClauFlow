@@ -90,7 +90,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 
   return (
     <Modal open={open} onClose={handleClose} title={t.newProject.modalTitle}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
         <Field label={t.newProject.nameLabel} required>
           <input
             type="text"
@@ -255,7 +255,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 }
 
 const inputCls =
-  "w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 outline-none ring-0 transition focus:border-zinc-600";
+  "w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-100 outline-none ring-0 transition focus:border-zinc-600";
 
 function Field({
   label,

@@ -7,7 +7,7 @@ export default function BoardPage() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-zinc-950">
       <Header />
-      <div className="flex flex-1 overflow-hidden pt-12">
+      <div className="flex flex-1 overflow-hidden pt-10">
         <ProjectSidebar />
         <main className="flex flex-1 flex-col overflow-auto p-5">
           <Board />
