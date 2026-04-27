@@ -11,6 +11,8 @@ import {
   type TaskPriority,
   type TaskStatus,
   type TasksFile,
+  type ToolCall,
+  type ToolCallStatus,
 } from "../types/index.js";
 import { ensureUniqueSlug, slugify } from "./slug.js";
 
@@ -77,7 +79,67 @@ db.exec(`
     agentLog TEXT NOT NULL DEFAULT '[]',
     createdAt TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS task_tool_calls (
+    id TEXT PRIMARY KEY,
+    taskId TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    toolName TEXT NOT NULL,
+    args TEXT NOT NULL DEFAULT '{}',
+    result TEXT,
+    status TEXT NOT NULL DEFAULT 'running',
+    startedAt TEXT NOT NULL,
+    finishedAt TEXT,
+    durationMs INTEGER,
+    createdAt TEXT NOT NULL
+  );
 `);
+
+// Idempotent migration: ensure task_tool_calls table exists with current shape
+// on databases created before this feature landed.
+{
+  const toolCallTableExists = db
+    .prepare(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='task_tool_calls'`,
+    )
+    .get();
+  if (toolCallTableExists) {
+    const cols = db
+      .prepare(`PRAGMA table_info(task_tool_calls)`)
+      .all() as { name: string }[];
+    const expected = [
+      "id",
+      "taskId",
+      "toolName",
+      "args",
+      "result",
+      "status",
+      "startedAt",
+      "finishedAt",
+      "durationMs",
+      "createdAt",
+    ];
+    for (const name of expected) {
+      if (!cols.some((c) => c.name === name)) {
+        const ddl: Record<string, string> = {
+          args: `ALTER TABLE task_tool_calls ADD COLUMN args TEXT NOT NULL DEFAULT '{}'`,
+          result: `ALTER TABLE task_tool_calls ADD COLUMN result TEXT`,
+          status: `ALTER TABLE task_tool_calls ADD COLUMN status TEXT NOT NULL DEFAULT 'running'`,
+          startedAt: `ALTER TABLE task_tool_calls ADD COLUMN startedAt TEXT NOT NULL DEFAULT ''`,
+          finishedAt: `ALTER TABLE task_tool_calls ADD COLUMN finishedAt TEXT`,
+          durationMs: `ALTER TABLE task_tool_calls ADD COLUMN durationMs INTEGER`,
+          createdAt: `ALTER TABLE task_tool_calls ADD COLUMN createdAt TEXT NOT NULL DEFAULT ''`,
+          toolName: `ALTER TABLE task_tool_calls ADD COLUMN toolName TEXT NOT NULL DEFAULT ''`,
+        };
+        if (ddl[name]) db.exec(ddl[name]!);
+      }
+    }
+  }
+}
+
+db.exec(
+  `CREATE INDEX IF NOT EXISTS idx_tool_calls_task_created
+     ON task_tool_calls(taskId, createdAt);`,
+);
 
 // Idempotent migrations for projects table.
 {
@@ -815,4 +877,139 @@ export async function deleteTask(id: string): Promise<void> {
   const result = stmtDeleteTask.run(id);
   if (result.changes === 0) throw new Error(`Task not found: ${id}`);
   return Promise.resolve();
+}
+
+// ─── Tool Calls ───────────────────────────────────────────────────────────
+
+interface ToolCallRow {
+  id: string;
+  taskId: string;
+  toolName: string;
+  args: string;
+  result: string | null;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  createdAt: string;
+}
+
+function rowToToolCall(row: ToolCallRow): ToolCall {
+  let parsedArgs: unknown = {};
+  try {
+    parsedArgs = JSON.parse(row.args);
+  } catch {
+    parsedArgs = row.args;
+  }
+  return {
+    id: row.id,
+    taskId: row.taskId,
+    toolName: row.toolName,
+    args: parsedArgs,
+    result: row.result,
+    status: row.status as ToolCallStatus,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    durationMs: row.durationMs,
+    createdAt: row.createdAt,
+  };
+}
+
+const stmtInsertToolCall = db.prepare(
+  `INSERT OR REPLACE INTO task_tool_calls (
+    id, taskId, toolName, args, result, status,
+    startedAt, finishedAt, durationMs, createdAt
+  ) VALUES (
+    @id, @taskId, @toolName, @args, @result, @status,
+    @startedAt, @finishedAt, @durationMs, @createdAt
+  )`,
+);
+
+const stmtGetToolCall = db.prepare(
+  `SELECT * FROM task_tool_calls WHERE id = ?`,
+);
+
+const stmtListToolCallsByTask = db.prepare(
+  `SELECT * FROM task_tool_calls WHERE taskId = ? ORDER BY createdAt ASC`,
+);
+
+const stmtUpdateToolCall = db.prepare(
+  `UPDATE task_tool_calls SET
+    result = @result,
+    status = @status,
+    finishedAt = @finishedAt,
+    durationMs = @durationMs
+   WHERE id = @id`,
+);
+
+export interface InsertToolCallInput {
+  id: string;
+  taskId: string;
+  toolName: string;
+  args: unknown;
+  status?: ToolCallStatus;
+  startedAt: string;
+  finishedAt?: string | null;
+  durationMs?: number | null;
+  result?: string | null;
+}
+
+export function insertToolCall(input: InsertToolCallInput): ToolCall {
+  const createdAt = new Date().toISOString();
+  const argsJson = (() => {
+    try {
+      return JSON.stringify(input.args ?? {});
+    } catch {
+      return "{}";
+    }
+  })();
+  stmtInsertToolCall.run({
+    id: input.id,
+    taskId: input.taskId,
+    toolName: input.toolName,
+    args: argsJson,
+    result: input.result ?? null,
+    status: input.status ?? "running",
+    startedAt: input.startedAt,
+    finishedAt: input.finishedAt ?? null,
+    durationMs: input.durationMs ?? null,
+    createdAt,
+  });
+  const row = stmtGetToolCall.get(input.id) as ToolCallRow | undefined;
+  if (!row) throw new Error(`Tool call insert failed: ${input.id}`);
+  return rowToToolCall(row);
+}
+
+export interface UpdateToolCallPatch {
+  status?: ToolCallStatus;
+  result?: string | null;
+  finishedAt?: string | null;
+  durationMs?: number | null;
+}
+
+export function updateToolCall(
+  id: string,
+  patch: UpdateToolCallPatch,
+): ToolCall | null {
+  const row = stmtGetToolCall.get(id) as ToolCallRow | undefined;
+  if (!row) return null;
+  stmtUpdateToolCall.run({
+    id,
+    status: patch.status ?? row.status,
+    result: patch.result ?? row.result,
+    finishedAt: patch.finishedAt ?? row.finishedAt,
+    durationMs: patch.durationMs ?? row.durationMs,
+  });
+  const next = stmtGetToolCall.get(id) as ToolCallRow | undefined;
+  return next ? rowToToolCall(next) : null;
+}
+
+export function listToolCallsByTask(taskId: string): ToolCall[] {
+  const rows = stmtListToolCallsByTask.all(taskId) as ToolCallRow[];
+  return rows.map(rowToToolCall);
+}
+
+export function getToolCall(id: string): ToolCall | null {
+  const row = stmtGetToolCall.get(id) as ToolCallRow | undefined;
+  return row ? rowToToolCall(row) : null;
 }

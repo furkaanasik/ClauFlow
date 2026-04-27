@@ -1,4 +1,4 @@
-import type { Comment, Project, ProjectPatch, Task, TaskPatch, TaskPriority } from "@/types";
+import type { Comment, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -94,6 +94,11 @@ export const api = {
     fetch(`${BASE}/tasks/${taskId}/comments`, { cache: "no-store" })
       .then((r) => handle<{ comments: Comment[] }>(r))
       .then((d) => d.comments),
+
+  getToolCalls: (taskId: string): Promise<ToolCall[]> =>
+    fetch(`${BASE}/tasks/${taskId}/tool-calls`, { cache: "no-store" })
+      .then((r) => handle<{ toolCalls: ToolCall[] }>(r))
+      .then((d) => d.toolCalls ?? []),
 
   addComment: (taskId: string, body: string): Promise<Comment> =>
     fetch(`${BASE}/tasks/${taskId}/comments`, {

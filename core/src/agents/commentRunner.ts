@@ -1,12 +1,19 @@
 import { run as gitRun, commitAll, pushBranch } from "../services/gitService.js";
 import { runClaude } from "../services/claudeService.js";
-import { getTask } from "../services/taskService.js";
+import {
+  getTask,
+  insertToolCall,
+  updateToolCall,
+} from "../services/taskService.js";
 import {
   appendCommentLog,
   getComment,
   updateComment,
 } from "../services/commentService.js";
-import { broadcastCommentUpdated } from "../services/wsService.js";
+import {
+  broadcastCommentUpdated,
+  broadcastToolCall,
+} from "../services/wsService.js";
 import type { Comment } from "../services/commentService.js";
 
 export async function runComment(
@@ -54,17 +61,93 @@ export async function runComment(
       `Kullanıcı şu geri bildirimi verdi: ${comment.body}\n\n` +
       `Gerekli düzeltmeleri yap.`;
 
-    const claudeResult = await runClaude({
+    const onLogLine = async (
+      line: string,
+      stream: "stdout" | "stderr",
+    ): Promise<void> => {
+      const entry = stream === "stderr" ? `[stderr] ${line}` : line;
+      appendCommentLog(comment.id, entry);
+      const fresh = getComment(comment.id);
+      if (fresh) broadcastCommentUpdated(fresh);
+    };
+
+    const onToolCallStart = (tc: {
+      id: string;
+      toolName: string;
+      args: unknown;
+      startedAt: string;
+    }): void => {
+      try {
+        const stored = insertToolCall({
+          id: tc.id,
+          taskId: comment.taskId,
+          toolName: tc.toolName,
+          args: tc.args,
+          status: "running",
+          startedAt: tc.startedAt,
+        });
+        broadcastToolCall(stored);
+      } catch (e) {
+        console.error(
+          `[commentRunner] insertToolCall failed for ${tc.id}:`,
+          e,
+        );
+      }
+    };
+
+    const onToolCallEnd = (tc: {
+      id: string;
+      result: string | null;
+      status: "running" | "done" | "error";
+      finishedAt: string | null;
+      durationMs: number | null;
+    }): void => {
+      try {
+        const updated = updateToolCall(tc.id, {
+          status: tc.status,
+          result: tc.result,
+          finishedAt: tc.finishedAt,
+          durationMs: tc.durationMs,
+        });
+        if (updated) broadcastToolCall(updated);
+      } catch (e) {
+        console.error(
+          `[commentRunner] updateToolCall failed for ${tc.id}:`,
+          e,
+        );
+      }
+    };
+
+    let claudeResult = await runClaude({
       prompt,
       cwd: projectRepoPath,
       allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-      onLine: async (line, stream) => {
-        const entry = stream === "stderr" ? `[stderr] ${line}` : line;
-        appendCommentLog(comment.id, entry);
+      outputFormat: "stream-json",
+      onLine: onLogLine,
+      onToolCallStart,
+      onToolCallEnd,
+    });
+
+    if (claudeResult.code !== 0) {
+      const errSnippet = (claudeResult.stderr || claudeResult.stdout).slice(0, 200);
+      const looksLikeFormatError = /unknown.*output[- ]format|stream-json|--verbose/i.test(
+        errSnippet,
+      );
+      if (looksLikeFormatError) {
+        appendCommentLog(
+          comment.id,
+          "[fallback] stream-json mode failed; retrying with text output",
+        );
         const fresh = getComment(comment.id);
         if (fresh) broadcastCommentUpdated(fresh);
-      },
-    });
+        claudeResult = await runClaude({
+          prompt,
+          cwd: projectRepoPath,
+          allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+          onLine: onLogLine,
+        });
+      }
+    }
 
     if (claudeResult.code !== 0) {
       throw new Error(

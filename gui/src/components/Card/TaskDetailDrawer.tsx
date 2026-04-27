@@ -5,13 +5,16 @@ import clsx from "clsx";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CommentsTab } from "@/components/Card/CommentsTab";
+import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { Task, TaskPatch } from "@/types";
+import type { Task, TaskPatch, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
 type DrawerTab = "details" | "log" | "comments";
+
+const EMPTY_TOOL_CALLS: ToolCall[] = [];
 
 interface DraftState {
   title: string;
@@ -73,6 +76,7 @@ export function TaskDetailDrawer() {
   const upsertTask    = useBoardStore((s) => s.upsertTask);
   const removeTask    = useBoardStore((s) => s.removeTask);
   const upsertComment = useBoardStore((s) => s.upsertComment);
+  const setToolCalls  = useBoardStore((s) => s.setToolCalls);
 
   const [editing,       setEditing]       = useState(false);
   const [draft,         setDraft]         = useState<DraftState | null>(null);
@@ -100,6 +104,9 @@ export function TaskDetailDrawer() {
     if (!selectedTaskId) return;
     api.getComments(selectedTaskId).then((comments) => {
       comments.forEach((c) => upsertComment(c));
+    }).catch(() => {});
+    api.getToolCalls(selectedTaskId).then((calls) => {
+      setToolCalls(selectedTaskId, calls);
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
@@ -193,6 +200,10 @@ export function TaskDetailDrawer() {
   const logs         = useMemo(() => task?.agent.log ?? [], [task?.agent.log]);
   const commentCount = task?.comments?.length ?? 0;
   const projectName  = task ? (projects.find((p) => p.id === task.projectId)?.name ?? "") : "";
+
+  // Tool call timeline
+  const toolCalls    = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
+  const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
 
   return (
     <>
@@ -520,31 +531,85 @@ export function TaskDetailDrawer() {
               ) : (
                 /* Agent Logu sekmesi */
                 <div className="flex h-full flex-col gap-2 p-2.5">
-                  {task.status === "doing" && task.agent.status === "idle" ? (
-                    <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-500">
-                      <span className="flex gap-1">
-                        {[0, 1, 2].map((i) => (
-                          <span
-                            key={i}
-                            className="h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse"
-                            style={{ animationDelay: `${i * 200}ms` }}
-                          />
-                        ))}
-                      </span>
-                      <span>{td.queueWaiting}</span>
-                    </div>
-                  ) : logs.length > 0 ? (
-                    <pre
-                      ref={logRef}
-                      className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-black p-3 font-mono text-[11px] leading-relaxed text-emerald-400"
+                  {/* View toggle: Timeline / Raw */}
+                  <div className="flex shrink-0 items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/60 p-0.5 self-start">
+                    <button
+                      type="button"
+                      onClick={() => setLogView("timeline")}
+                      className={clsx(
+                        "rounded-md px-2.5 py-1 text-[10px] font-medium transition",
+                        logView === "timeline"
+                          ? "bg-zinc-700 text-zinc-100"
+                          : "text-zinc-500 hover:text-zinc-300",
+                      )}
                     >
-                      {logs.join("\n")}
-                    </pre>
-                  ) : (
-                    <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-700">
-                      {td.logsEmpty}
-                    </div>
+                      {td.toolTimelineTab}{toolCalls.length > 0 && ` (${toolCalls.length})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogView("raw")}
+                      className={clsx(
+                        "rounded-md px-2.5 py-1 text-[10px] font-medium transition",
+                        logView === "raw"
+                          ? "bg-zinc-700 text-zinc-100"
+                          : "text-zinc-500 hover:text-zinc-300",
+                      )}
+                    >
+                      {td.toolRawTab}{logs.length > 0 && ` (${logs.length})`}
+                    </button>
+                  </div>
+
+                  {/* Timeline view */}
+                  {logView === "timeline" && (
+                    task.status === "doing" && task.agent.status === "idle" ? (
+                      <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-500">
+                        <span className="flex gap-1">
+                          {[0, 1, 2].map((i) => (
+                            <span
+                              key={i}
+                              className="h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse"
+                              style={{ animationDelay: `${i * 200}ms` }}
+                            />
+                          ))}
+                        </span>
+                        <span>{td.queueWaiting}</span>
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-y-auto">
+                        <ToolCallTimeline toolCalls={toolCalls} compact emptyMessage={td.toolTimelineEmpty} />
+                      </div>
+                    )
                   )}
+
+                  {/* Raw log view */}
+                  {logView === "raw" && (
+                    task.status === "doing" && task.agent.status === "idle" ? (
+                      <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-500">
+                        <span className="flex gap-1">
+                          {[0, 1, 2].map((i) => (
+                            <span
+                              key={i}
+                              className="h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse"
+                              style={{ animationDelay: `${i * 200}ms` }}
+                            />
+                          ))}
+                        </span>
+                        <span>{td.queueWaiting}</span>
+                      </div>
+                    ) : logs.length > 0 ? (
+                      <pre
+                        ref={logRef}
+                        className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-black p-3 font-mono text-[11px] leading-relaxed text-emerald-400"
+                      >
+                        {logs.join("\n")}
+                      </pre>
+                    ) : (
+                      <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-700">
+                        {td.logsEmpty}
+                      </div>
+                    )
+                  )}
+
                   {task.agent.status === "error" && task.agent.error && (
                     <div className="shrink-0 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-red-400">
                       <span className="mr-2 font-bold">✖ {td.logsErrorPrefix}</span>

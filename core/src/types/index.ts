@@ -72,6 +72,21 @@ export interface Comment {
   createdAt: string;
 }
 
+export type ToolCallStatus = "running" | "done" | "error";
+
+export interface ToolCall {
+  id: string;
+  taskId: string;
+  toolName: string;
+  args: unknown;
+  result: string | null;
+  status: ToolCallStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  createdAt: string;
+}
+
 export type WsMessage =
   | { type: "agent_log"; taskId: string; payload: { line: string } }
   | {
@@ -83,6 +98,7 @@ export type WsMessage =
   | { type: "task_created"; taskId: string; payload: Task }
   | { type: "task_deleted"; taskId: string; payload: { id: string } }
   | { type: "comment_updated"; taskId: string; payload: Comment }
+  | { type: "agent_tool_call"; taskId: string; payload: ToolCall }
   | { type: "project_planning_started"; projectId: string }
   | {
       type: "project_planning_done";

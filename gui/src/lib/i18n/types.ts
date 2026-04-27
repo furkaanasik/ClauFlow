@@ -143,6 +143,9 @@ export interface Translations {
     mergeError: string;
     logsEmpty: string;
     logsErrorPrefix: string;
+    toolTimelineTab: string;
+    toolRawTab: string;
+    toolTimelineEmpty: string;
     cancelButton: string;
     saveButton: string;
     savingButton: string;
