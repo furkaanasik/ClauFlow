@@ -6,6 +6,10 @@ export interface ClaudeRunOptions {
   allowedTools?: string[];
   onLine?: (line: string, stream: "stdout" | "stderr") => void;
   signal?: AbortSignal;
+  outputFormat?: "text" | "json" | "stream-json";
+  maxOutputTokens?: number;
+  /** Number of automatic retries on transient API errors. Defaults to 2. */
+  maxRetries?: number;
 }
 
 export interface ClaudeRunResult {
@@ -14,17 +18,63 @@ export interface ClaudeRunResult {
   stderr: string;
 }
 
-export function runClaude(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
+const TRANSIENT_PATTERNS: RegExp[] = [
+  /Stream idle timeout/i,
+  /partial response received/i,
+  /ECONNRESET/i,
+  /ETIMEDOUT/i,
+  /socket hang up/i,
+  /fetch failed/i,
+  /503 Service Unavailable/i,
+  /529 Overloaded/i,
+];
+
+function isTransientFailure(result: ClaudeRunResult): boolean {
+  if (result.code === 0) return false;
+  const haystack = `${result.stderr}\n${result.stdout}`;
+  return TRANSIENT_PATTERNS.some((p) => p.test(haystack));
+}
+
+export async function runClaude(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
+  const maxRetries = options.maxRetries ?? 2;
+  let lastResult: ClaudeRunResult | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const delayMs = Math.min(2000 * 2 ** (attempt - 1), 8000);
+      options.onLine?.(
+        `[retry] transient claude failure — attempt ${attempt + 1}/${maxRetries + 1} after ${delayMs}ms`,
+        "stderr",
+      );
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    const result = await runClaudeOnce(options);
+    lastResult = result;
+    if (result.code === 0) return result;
+    if (!isTransientFailure(result)) return result;
+    if (options.signal?.aborted) return result;
+  }
+  return lastResult!;
+}
+
+function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
   // -p must be immediately followed by the prompt string.
   // Other flags come after so the CLI parser picks up the prompt correctly.
   const args = ["-p", options.prompt, "--permission-mode", "bypassPermissions"];
   if (options.allowedTools && options.allowedTools.length > 0) {
     args.push("--allowedTools", options.allowedTools.join(","));
   }
+  if (options.outputFormat) {
+    args.push("--output-format", options.outputFormat);
+  }
+  const env = { ...process.env };
+  if (options.maxOutputTokens && options.maxOutputTokens > 0) {
+    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(options.maxOutputTokens);
+  }
+
   return new Promise((resolve, reject) => {
     const child = spawn("claude", args, {
       cwd: options.cwd,
-      env: process.env,
+      env,
       // stdin'i kapat — "no stdin data received" uyarısını önler
       stdio: ["ignore", "pipe", "pipe"],
     });

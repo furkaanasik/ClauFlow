@@ -13,7 +13,12 @@ import {
   broadcastTaskDeleted,
   broadcastTaskUpdated,
 } from "../services/wsService.js";
-import { enqueue as enqueueExecutor } from "../agents/executor.js";
+import {
+  enqueue as enqueueExecutor,
+  abort as abortExecutor,
+  isRunning as isExecutorRunning,
+  waitForIdle as waitForExecutorIdle,
+} from "../agents/executor.js";
 import { mergePr } from "../services/gitService.js";
 
 const router = Router();
@@ -180,6 +185,15 @@ router.post("/:id/retry", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "task_not_in_doing" });
     }
 
+    // If a claude run is currently in flight, kill it first and wait for the
+    // run() catch+finally to unwind so we can re-enqueue cleanly. Without this,
+    // the new enqueueExecutor call would block on acquireSlot waiting for the
+    // old run to finish, leaving the user staring at "Sırada".
+    if (isExecutorRunning(task.id)) {
+      abortExecutor(task.id);
+      await waitForExecutorIdle(task.id, 5000);
+    }
+
     const reset = await updateTask(task.id, {
       agent: {
         status: "idle",
@@ -198,6 +212,40 @@ router.post("/:id/retry", async (req: Request, res: Response) => {
   } catch (err) {
     const msg = (err as Error).message;
     res.status(500).json({ error: msg });
+  }
+});
+
+router.post("/:id/abort", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id!;
+    const task = await getTask(id);
+    if (!task) return res.status(404).json({ error: "not_found" });
+
+    if (isExecutorRunning(id)) {
+      abortExecutor(id);
+      return res.json({ aborted: true, source: "in_memory" });
+    }
+
+    // No live process for this task. If task is in "doing" state with no live
+    // executor (orphan from a crashed/restarted run, or stuck-queued task),
+    // force-rollback to todo+error so user can retry.
+    if (task.status === "doing") {
+      const rolled = await updateTask(id, {
+        status: "todo",
+        agent: {
+          status: "error",
+          currentStep: undefined,
+          error: "Kullanıcı tarafından durduruldu (orphan task)",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+      broadcastTaskUpdated(rolled);
+      return res.json({ aborted: true, source: "orphan_cleanup" });
+    }
+
+    return res.status(409).json({ error: "task_not_running" });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

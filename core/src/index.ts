@@ -7,6 +7,7 @@ import authRouter from "./routes/auth.js";
 import githubRouter from "./routes/github.js";
 import commentsRouter from "./routes/comments.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
+import { recoverOrphanedTasks } from "./services/taskService.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -31,9 +32,17 @@ app.use((req, res) => {
 const server = http.createServer(app);
 attachWebSocket(server);
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`[core] listening on http://localhost:${PORT}`);
   console.log(`[core] websocket on ws://localhost:${PORT}/ws`);
+  try {
+    const recovered = await recoverOrphanedTasks();
+    if (recovered > 0) {
+      console.log(`[core] recovered ${recovered} orphaned task(s) left in active state`);
+    }
+  } catch (err) {
+    console.error("[core] orphan recovery failed:", err);
+  }
 });
 
 async function shutdown(signal: string): Promise<void> {

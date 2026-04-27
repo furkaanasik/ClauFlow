@@ -488,6 +488,24 @@ export async function appendAgentLog(
   return Promise.resolve();
 }
 
+export async function recoverOrphanedTasks(): Promise<number> {
+  const now = new Date().toISOString();
+  // Any task left in "doing" after a server restart has no live executor
+  // (RUNNING map is in-memory). Roll all of them back to todo+error.
+  const result = db
+    .prepare(
+      `UPDATE tasks
+         SET status = 'todo',
+             agentStatus = 'error',
+             agentError = 'Sunucu yeniden başlatıldı; task otomatik kurtarıldı',
+             agentFinishedAt = @now,
+             updatedAt = @now
+       WHERE status = 'doing'`,
+    )
+    .run({ now });
+  return result.changes;
+}
+
 export interface CreateProjectInput {
   name: string;
   description?: string;
