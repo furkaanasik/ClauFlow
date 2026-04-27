@@ -124,11 +124,15 @@ db.exec(`
 }
 
 // Unique indexes (idempotent — also created above for fresh installs).
+// Per-project composite enforces team spec; global partial keeps an extra
+// defensive layer because slug uniqueness already implies global uniqueness.
 db.exec(
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug
      ON projects(slug) WHERE slug IS NOT NULL;
    CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_displayId
-     ON tasks(displayId) WHERE displayId IS NOT NULL;`,
+     ON tasks(displayId) WHERE displayId IS NOT NULL;
+   CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_project_displayId
+     ON tasks(projectId, displayId) WHERE displayId IS NOT NULL;`,
 );
 
 // ─── Row Types & Converters ───────────────────────────────────────────────
