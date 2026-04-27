@@ -231,7 +231,13 @@ export function TaskDetailDrawer() {
                   {projectName && (
                     <span className="text-[10px] text-zinc-600">{projectName}</span>
                   )}
-                  <span className="font-mono text-[10px] text-zinc-700">#{task.id.slice(0, 8)}</span>
+                  {task.displayId ? (
+                    <code className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-bold text-zinc-400">
+                      {task.displayId}
+                    </code>
+                  ) : (
+                    <span className="font-mono text-[10px] text-zinc-700">#{task.id.slice(0, 8)}</span>
+                  )}
                 </div>
                 {/* Baslik */}
                 {editing && draft ? (

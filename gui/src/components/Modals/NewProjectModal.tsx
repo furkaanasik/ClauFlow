@@ -6,6 +6,33 @@ import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 
+/**
+ * Türkçe karakter normalize + slug üretimi.
+ * "Feature Requests" → "feature-reques" (max 12 karakter)
+ */
+function slugify(value: string): string {
+  const TR_MAP: Record<string, string> = {
+    ç: "c", Ç: "c",
+    ş: "s", Ş: "s",
+    ğ: "g", Ğ: "g",
+    ü: "u", Ü: "u",
+    ö: "o", Ö: "o",
+    ı: "i", İ: "i",
+  };
+  return value
+    .split("")
+    .map((ch) => TR_MAP[ch] ?? ch)
+    .join("")
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 12);
+}
+
+const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,10}[a-z0-9]$|^[a-z0-9]{2}$/;
+
 interface NewProjectModalProps {
   open: boolean;
   onClose: () => void;
@@ -17,6 +44,9 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
   const t = useTranslation();
 
   const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [slugError, setSlugError] = useState<string | null>(null);
   const [repoPath, setRepoPath] = useState("");
   const [defaultBranch, setDefaultBranch] = useState("main");
   const [remote, setRemote] = useState("");
@@ -30,6 +60,9 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 
   const reset = () => {
     setName("");
+    setSlug("");
+    setSlugEdited(false);
+    setSlugError(null);
     setRepoPath("");
     setDefaultBranch("main");
     setRemote("");
@@ -53,6 +86,13 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
       setError(t.newProject.errorRequired);
       return;
     }
+    // Slug validation
+    const finalSlug = slug.trim() || slugify(name.trim());
+    if (!SLUG_REGEX.test(finalSlug)) {
+      setSlugError(t.newProject.slugError);
+      return;
+    }
+    setSlugError(null);
     setSubmitting(true);
     setError(null);
     setGithubWarning(null);
@@ -60,6 +100,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
       const trimmedPrompt = aiPrompt.trim();
       const { project, githubError } = await api.createProject({
         name: name.trim(),
+        slug: finalSlug,
         repoPath: repoPath.trim(),
         defaultBranch: defaultBranch.trim() || "main",
         remote: createGithub ? undefined : (remote.trim() || null),
@@ -96,12 +137,53 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            onBlur={(e) => {
+              // Auto-generate slug if user hasn't manually edited it
+              if (!slugEdited && e.target.value.trim()) {
+                setSlug(slugify(e.target.value.trim()));
+              }
+            }}
             className={inputCls}
             placeholder={t.newProject.namePlaceholder}
             autoFocus
             disabled={submitting}
           />
         </Field>
+
+        {/* Slug field */}
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>
+            {t.newProject.slugLabel}
+            <span className="ml-1.5 text-zinc-600 font-normal">{t.newProject.slugHint}</span>
+          </span>
+          <div className="relative">
+            <input
+              type="text"
+              value={slug}
+              onChange={(e) => {
+                const v = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 12);
+                setSlug(v);
+                setSlugEdited(true);
+                setSlugError(null);
+              }}
+              onBlur={() => {
+                if (slug && !SLUG_REGEX.test(slug)) {
+                  setSlugError(t.newProject.slugError);
+                }
+              }}
+              className={`${inputCls} pr-16 font-mono ${slugError ? "border-red-500 focus:border-red-500" : ""}`}
+              placeholder={t.newProject.slugPlaceholder}
+              disabled={submitting}
+              maxLength={12}
+            />
+            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600">
+              {slug.length}/12
+            </span>
+          </div>
+          {slugError && (
+            <span className="text-[10px] text-red-400">{slugError}</span>
+          )}
+        </label>
 
         <Field label={t.newProject.repoPathLabel} required>
           <input

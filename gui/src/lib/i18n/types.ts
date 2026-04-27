@@ -70,6 +70,10 @@ export interface Translations {
     submitting: string;
     aiPromptLabel: string;
     aiPromptPlaceholder: string;
+    slugLabel: string;
+    slugPlaceholder: string;
+    slugHint: string;
+    slugError: string;
   };
   board: {
     loadError: string;

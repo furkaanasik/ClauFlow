@@ -14,6 +14,7 @@ import {
   listTasks,
   updateTask,
 } from "../services/taskService.js";
+import { slugify } from "../services/slug.js";
 import {
   broadcastLog,
   broadcastStatus,
@@ -109,8 +110,22 @@ function extractAcceptanceCriteria(analysis: string | undefined | null): string 
   return m && m[1] ? m[1].trim() : null;
 }
 
+function buildBranchName(task: Task): string {
+  const titleSlug = slugify(task.title, 40);
+  if (task.displayId) {
+    const idPart = task.displayId.toLowerCase();
+    return titleSlug ? `feature/${idPart}-${titleSlug}` : `feature/${idPart}`;
+  }
+  return `feature/issue-${task.id}`;
+}
+
+function taskRef(task: Task): string {
+  return task.displayId ?? task.id;
+}
+
 export async function run(task: Task, project: Project): Promise<void> {
-  const branch = `feature/issue-${task.id}`;
+  const branch = buildBranchName(task);
+  const ref = taskRef(task);
   const controller = new AbortController();
   RUNNING.set(task.id, controller);
 
@@ -130,6 +145,8 @@ export async function run(task: Task, project: Project): Promise<void> {
   });
 
   try {
+    await pushLog(task.id, `▸ Feature: ${ref}`);
+
     // ── Step 0: refresh git credential helper ─────────────────────────────
     // Ensures gh's git credential helper is registered even if auth was
     // already completed in a previous session.
@@ -221,7 +238,9 @@ export async function run(task: Task, project: Project): Promise<void> {
     // ── Step 4: git add . && commit ───────────────────────────────────────
     await setAgentStep(task.id, "pushing", "git_commit");
     await pushBlock(task.id, ["", "▸ git add -A && git commit"]);
-    const commitMsg = `feat: ${task.title} implemented by agent`;
+    const commitMsg = task.displayId
+      ? `feat(${task.displayId}): ${task.title}`
+      : `feat: ${task.title} implemented by agent`;
     const commitResult = await commitAll(project.repoPath, commitMsg);
     await pushCmdResult(task.id, commitResult);
     const nothingToCommit =
@@ -299,9 +318,12 @@ export async function run(task: Task, project: Project): Promise<void> {
         `## Agent Logu (son 30 satır)\n\`\`\`\n${recentLog}\n\`\`\``,
       );
 
+      const prTitle = task.displayId
+        ? `${task.displayId} — ${task.title}`
+        : task.title;
       const prResult = await createPr({
         repoPath: project.repoPath,
-        title: task.title,
+        title: prTitle,
         body: prBodyParts.join("\n\n"),
         base: project.defaultBranch,
       });
@@ -339,7 +361,7 @@ export async function run(task: Task, project: Project): Promise<void> {
     const message = aborted
       ? `Kullanıcı tarafından durduruldu${baseMessage ? ` (${baseMessage})` : ""}`
       : baseMessage;
-    console.error(`[executor] task ${task.id} failed:`, message);
+    console.error(`[executor] task ${ref} (${task.id}) failed:`, message);
     if (aborted) await pushLog(task.id, "✖ Aborted by user");
 
     // Roll back task status to "todo" so user can retry

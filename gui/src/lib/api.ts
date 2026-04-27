@@ -22,6 +22,7 @@ export interface CreateTaskInput {
 
 export interface CreateProjectInput {
   name: string;
+  slug?: string;
   repoPath: string;
   defaultBranch?: string;
   remote?: string | null;

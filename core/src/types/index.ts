@@ -32,6 +32,7 @@ export interface Task {
   branch?: string | null;
   prUrl?: string | null;
   prNumber?: number | null;
+  displayId?: string | null;
   createdAt: string;
   updatedAt: string;
   agent: AgentState;
@@ -49,6 +50,8 @@ export interface Project {
   remote?: string | null;
   createdAt?: string;
   planningStatus?: ProjectPlanningStatus;
+  slug?: string | null;
+  taskCounter?: number;
 }
 
 export interface TasksFile {

@@ -12,6 +12,7 @@ import {
   type TaskStatus,
   type TasksFile,
 } from "../types/index.js";
+import { ensureUniqueSlug, slugify } from "./slug.js";
 
 // ─── DB Setup ─────────────────────────────────────────────────────────────
 
@@ -39,7 +40,9 @@ db.exec(`
     defaultBranch TEXT NOT NULL DEFAULT 'main',
     remote TEXT,
     createdAt TEXT NOT NULL,
-    planningStatus TEXT NOT NULL DEFAULT 'idle'
+    planningStatus TEXT NOT NULL DEFAULT 'idle',
+    slug TEXT,
+    taskCounter INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS tasks (
@@ -54,6 +57,7 @@ db.exec(`
     branch TEXT,
     prUrl TEXT,
     prNumber INTEGER,
+    displayId TEXT,
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL,
     agentStatus TEXT NOT NULL DEFAULT 'idle',
@@ -92,9 +96,19 @@ db.exec(`
   if (!hasAiPrompt) {
     db.exec(`ALTER TABLE projects ADD COLUMN aiPrompt TEXT DEFAULT ''`);
   }
+  const hasSlug = projectColumns.some((c) => c.name === "slug");
+  if (!hasSlug) {
+    db.exec(`ALTER TABLE projects ADD COLUMN slug TEXT`);
+  }
+  const hasTaskCounter = projectColumns.some((c) => c.name === "taskCounter");
+  if (!hasTaskCounter) {
+    db.exec(
+      `ALTER TABLE projects ADD COLUMN taskCounter INTEGER NOT NULL DEFAULT 0`,
+    );
+  }
 }
 
-// Idempotent migration: add tags column to tasks if missing.
+// Idempotent migration: add tags + displayId columns to tasks if missing.
 {
   const taskColumns = db
     .prepare(`PRAGMA table_info(tasks)`)
@@ -103,7 +117,19 @@ db.exec(`
   if (!hasTags) {
     db.exec(`ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`);
   }
+  const hasDisplayId = taskColumns.some((c) => c.name === "displayId");
+  if (!hasDisplayId) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN displayId TEXT`);
+  }
 }
+
+// Unique indexes (idempotent — also created above for fresh installs).
+db.exec(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug
+     ON projects(slug) WHERE slug IS NOT NULL;
+   CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_displayId
+     ON tasks(displayId) WHERE displayId IS NOT NULL;`,
+);
 
 // ─── Row Types & Converters ───────────────────────────────────────────────
 
@@ -117,6 +143,8 @@ interface ProjectRow {
   remote: string | null;
   createdAt: string;
   planningStatus: string | null;
+  slug: string | null;
+  taskCounter: number | null;
 }
 
 interface TaskRow {
@@ -131,6 +159,7 @@ interface TaskRow {
   branch: string | null;
   prUrl: string | null;
   prNumber: number | null;
+  displayId: string | null;
   createdAt: string;
   updatedAt: string;
   agentStatus: string;
@@ -153,6 +182,8 @@ function rowToProject(row: ProjectRow): Project {
     createdAt: row.createdAt,
     planningStatus:
       (row.planningStatus as ProjectPlanningStatus | null) ?? "idle",
+    slug: row.slug ?? null,
+    taskCounter: row.taskCounter ?? 0,
   };
 }
 
@@ -197,6 +228,7 @@ function rowToTask(row: TaskRow): Task {
     branch: row.branch,
     prUrl: row.prUrl,
     prNumber: row.prNumber,
+    displayId: row.displayId ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     agent,
@@ -210,8 +242,8 @@ const stmtListProjects = db.prepare(
 );
 const stmtGetProject = db.prepare(`SELECT * FROM projects WHERE id = ?`);
 const stmtInsertProject = db.prepare(
-  `INSERT INTO projects (id, name, description, aiPrompt, repoPath, defaultBranch, remote, createdAt, planningStatus)
-   VALUES (@id, @name, @description, @aiPrompt, @repoPath, @defaultBranch, @remote, @createdAt, @planningStatus)`,
+  `INSERT INTO projects (id, name, description, aiPrompt, repoPath, defaultBranch, remote, createdAt, planningStatus, slug, taskCounter)
+   VALUES (@id, @name, @description, @aiPrompt, @repoPath, @defaultBranch, @remote, @createdAt, @planningStatus, @slug, @taskCounter)`,
 );
 
 const stmtListTasks = db.prepare(`SELECT * FROM tasks ORDER BY createdAt ASC`);
@@ -219,13 +251,19 @@ const stmtGetTask = db.prepare(`SELECT * FROM tasks WHERE id = ?`);
 const stmtInsertTask = db.prepare(
   `INSERT INTO tasks (
     id, projectId, title, description, analysis, status, priority, tags,
-    branch, prUrl, prNumber, createdAt, updatedAt,
+    branch, prUrl, prNumber, displayId, createdAt, updatedAt,
     agentStatus, agentCurrentStep, agentLog, agentError, agentStartedAt, agentFinishedAt
   ) VALUES (
     @id, @projectId, @title, @description, @analysis, @status, @priority, @tags,
-    @branch, @prUrl, @prNumber, @createdAt, @updatedAt,
+    @branch, @prUrl, @prNumber, @displayId, @createdAt, @updatedAt,
     @agentStatus, @agentCurrentStep, @agentLog, @agentError, @agentStartedAt, @agentFinishedAt
   )`,
+);
+const stmtBumpTaskCounter = db.prepare(
+  `UPDATE projects SET taskCounter = taskCounter + 1 WHERE id = ?`,
+);
+const stmtGetTaskCounter = db.prepare(
+  `SELECT taskCounter FROM projects WHERE id = ?`,
 );
 const stmtDeleteTask = db.prepare(`DELETE FROM tasks WHERE id = ?`);
 const stmtAppendLog = db.prepare(
@@ -277,6 +315,8 @@ function migrateLegacyJsonIfPresent(): void {
           remote: p.remote ?? null,
           createdAt: p.createdAt ?? new Date().toISOString(),
           planningStatus: p.planningStatus ?? "idle",
+          slug: p.slug ?? null,
+          taskCounter: p.taskCounter ?? 0,
         });
       }
       for (const t of file.tasks ?? []) {
@@ -293,6 +333,7 @@ function migrateLegacyJsonIfPresent(): void {
           branch: t.branch ?? null,
           prUrl: t.prUrl ?? null,
           prNumber: t.prNumber ?? null,
+          displayId: t.displayId ?? null,
           createdAt: t.createdAt,
           updatedAt: t.updatedAt,
           agentStatus: agent.status,
@@ -319,6 +360,83 @@ function migrateLegacyJsonIfPresent(): void {
 }
 
 migrateLegacyJsonIfPresent();
+
+// ─── Backfill: slug + displayId for pre-existing rows ─────────────────────
+// Idempotent — only fills in NULLs. Safe to re-run on every boot.
+function backfillSlugsAndDisplayIds(): void {
+  const projectRows = db
+    .prepare(
+      `SELECT id, name, slug, taskCounter FROM projects ORDER BY createdAt ASC`,
+    )
+    .all() as {
+    id: string;
+    name: string;
+    slug: string | null;
+    taskCounter: number | null;
+  }[];
+
+  if (projectRows.length === 0) return;
+
+  const tx = db.transaction(() => {
+    const takenSlugs = new Set<string>(
+      projectRows
+        .map((p) => p.slug)
+        .filter((s): s is string => typeof s === "string" && s.length > 0),
+    );
+
+    for (const p of projectRows) {
+      let slug = p.slug ?? null;
+      if (!slug) {
+        slug = ensureUniqueSlug(p.name, takenSlugs);
+        takenSlugs.add(slug);
+        db.prepare(`UPDATE projects SET slug = ? WHERE id = ?`).run(
+          slug,
+          p.id,
+        );
+      }
+
+      const tasks = db
+        .prepare(
+          `SELECT id, displayId FROM tasks WHERE projectId = ? ORDER BY createdAt ASC, id ASC`,
+        )
+        .all(p.id) as { id: string; displayId: string | null }[];
+
+      const slugUpper = slug.toUpperCase();
+      let maxNumber = 0;
+      for (const t of tasks) {
+        if (t.displayId) {
+          const m = t.displayId.match(/-(\d+)$/);
+          if (m) {
+            const n = Number.parseInt(m[1] ?? "0", 10);
+            if (Number.isFinite(n) && n > maxNumber) maxNumber = n;
+          }
+        }
+      }
+
+      let next = maxNumber;
+      const updateStmt = db.prepare(
+        `UPDATE tasks SET displayId = ? WHERE id = ?`,
+      );
+      for (const t of tasks) {
+        if (!t.displayId) {
+          next += 1;
+          updateStmt.run(`${slugUpper}-${next}`, t.id);
+        }
+      }
+
+      const newCounter = Math.max(p.taskCounter ?? 0, next);
+      if (newCounter !== (p.taskCounter ?? 0)) {
+        db.prepare(`UPDATE projects SET taskCounter = ? WHERE id = ?`).run(
+          newCounter,
+          p.id,
+        );
+      }
+    }
+  });
+  tx();
+}
+
+backfillSlugsAndDisplayIds();
 
 // ─── Public API ───────────────────────────────────────────────────────────
 
@@ -369,8 +487,50 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   }
   const now = new Date().toISOString();
   const emptyAgent = createEmptyAgentState();
+  const taskId = `task_${randomUUID().slice(0, 8)}`;
+
+  // Atomic counter increment + insert in a single transaction. Two prepared
+  // statements (UPDATE then SELECT) instead of UPDATE...RETURNING for broader
+  // SQLite version compatibility.
+  const insertWithCounter = db.transaction(() => {
+    let displayId: string | null = null;
+    if (project.slug) {
+      stmtBumpTaskCounter.run(project.id);
+      const row = stmtGetTaskCounter.get(project.id) as
+        | { taskCounter: number }
+        | undefined;
+      const counter = row?.taskCounter ?? 0;
+      displayId = `${project.slug.toUpperCase()}-${counter}`;
+    }
+    stmtInsertTask.run({
+      id: taskId,
+      projectId: input.projectId,
+      title: input.title,
+      description: input.description ?? "",
+      analysis: input.analysis ?? "",
+      status: input.status ?? "todo",
+      priority: input.priority ?? null,
+      tags: JSON.stringify(input.tags ?? []),
+      branch: null,
+      prUrl: null,
+      prNumber: null,
+      displayId,
+      createdAt: now,
+      updatedAt: now,
+      agentStatus: emptyAgent.status,
+      agentCurrentStep: emptyAgent.currentStep ?? null,
+      agentLog: JSON.stringify(emptyAgent.log),
+      agentError: emptyAgent.error ?? null,
+      agentStartedAt: emptyAgent.startedAt ?? null,
+      agentFinishedAt: emptyAgent.finishedAt ?? null,
+    });
+    return displayId;
+  });
+
+  const displayId = insertWithCounter();
+
   const task: Task = {
-    id: `task_${randomUUID().slice(0, 8)}`,
+    id: taskId,
     projectId: input.projectId,
     title: input.title,
     description: input.description ?? "",
@@ -381,32 +541,11 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     branch: null,
     prUrl: null,
     prNumber: null,
+    displayId,
     createdAt: now,
     updatedAt: now,
     agent: emptyAgent,
   };
-
-  stmtInsertTask.run({
-    id: task.id,
-    projectId: task.projectId,
-    title: task.title,
-    description: task.description,
-    analysis: task.analysis,
-    status: task.status,
-    priority: task.priority ?? null,
-    tags: JSON.stringify(task.tags ?? []),
-    branch: task.branch ?? null,
-    prUrl: task.prUrl ?? null,
-    prNumber: task.prNumber ?? null,
-    createdAt: task.createdAt,
-    updatedAt: task.updatedAt,
-    agentStatus: emptyAgent.status,
-    agentCurrentStep: emptyAgent.currentStep ?? null,
-    agentLog: JSON.stringify(emptyAgent.log),
-    agentError: emptyAgent.error ?? null,
-    agentStartedAt: emptyAgent.startedAt ?? null,
-    agentFinishedAt: emptyAgent.finishedAt ?? null,
-  });
 
   return Promise.resolve(task);
 }
@@ -423,6 +562,7 @@ export type TaskPatch = Partial<
     | "branch"
     | "prUrl"
     | "prNumber"
+    | "displayId"
   >
 > & { agent?: Partial<AgentState> };
 
@@ -449,6 +589,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
       branch = @branch,
       prUrl = @prUrl,
       prNumber = @prNumber,
+      displayId = @displayId,
       updatedAt = @updatedAt,
       agentStatus = @agentStatus,
       agentCurrentStep = @agentCurrentStep,
@@ -468,6 +609,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     branch: next.branch ?? null,
     prUrl: next.prUrl ?? null,
     prNumber: next.prNumber ?? null,
+    displayId: next.displayId ?? null,
     updatedAt: next.updatedAt,
     agentStatus: next.agent.status,
     agentCurrentStep: next.agent.currentStep ?? null,
@@ -513,11 +655,24 @@ export interface CreateProjectInput {
   repoPath: string;
   defaultBranch?: string;
   remote?: string | null;
+  slug?: string | null;
 }
 
 export async function createProject(
   input: CreateProjectInput,
 ): Promise<Project> {
+  const existingSlugs = (
+    db.prepare(`SELECT slug FROM projects WHERE slug IS NOT NULL`).all() as {
+      slug: string | null;
+    }[]
+  )
+    .map((r) => r.slug)
+    .filter((s): s is string => typeof s === "string" && s.length > 0);
+
+  const requestedSlug = input.slug ? slugify(input.slug) : null;
+  const baseForSlug = requestedSlug || input.name;
+  const slug = ensureUniqueSlug(baseForSlug, existingSlugs);
+
   const project: Project = {
     id: `proj_${randomUUID().slice(0, 8)}`,
     name: input.name,
@@ -528,6 +683,8 @@ export async function createProject(
     remote: input.remote ?? null,
     createdAt: new Date().toISOString(),
     planningStatus: "idle",
+    slug,
+    taskCounter: 0,
   };
 
   stmtInsertProject.run({
@@ -540,6 +697,8 @@ export async function createProject(
     remote: project.remote ?? null,
     createdAt: project.createdAt ?? new Date().toISOString(),
     planningStatus: project.planningStatus ?? "idle",
+    slug: project.slug ?? null,
+    taskCounter: project.taskCounter ?? 0,
   });
 
   return Promise.resolve(project);
@@ -555,6 +714,7 @@ export type ProjectPatch = Partial<
     | "defaultBranch"
     | "remote"
     | "planningStatus"
+    | "slug"
   >
 >;
 
@@ -566,9 +726,35 @@ export async function updateProject(
   if (!row) throw new Error(`Project not found: ${id}`);
   const current = rowToProject(row);
 
+  let nextSlug = current.slug ?? null;
+  if (patch.slug !== undefined && patch.slug !== current.slug) {
+    if (patch.slug === null || patch.slug === "") {
+      nextSlug = null;
+    } else {
+      const normalized = slugify(patch.slug);
+      if (!normalized) {
+        throw new Error(`Invalid slug: ${patch.slug}`);
+      }
+      const otherSlugs = (
+        db
+          .prepare(
+            `SELECT slug FROM projects WHERE slug IS NOT NULL AND id <> ?`,
+          )
+          .all(id) as { slug: string | null }[]
+      )
+        .map((r) => r.slug)
+        .filter((s): s is string => typeof s === "string" && s.length > 0);
+      if (otherSlugs.includes(normalized)) {
+        throw new Error(`Slug already in use: ${normalized}`);
+      }
+      nextSlug = normalized;
+    }
+  }
+
   const next: Project = {
     ...current,
     ...patch,
+    slug: nextSlug,
   };
 
   db.prepare(
@@ -579,7 +765,8 @@ export async function updateProject(
       repoPath = @repoPath,
       defaultBranch = @defaultBranch,
       remote = @remote,
-      planningStatus = @planningStatus
+      planningStatus = @planningStatus,
+      slug = @slug
      WHERE id = @id`,
   ).run({
     id,
@@ -590,6 +777,7 @@ export async function updateProject(
     defaultBranch: next.defaultBranch,
     remote: next.remote ?? null,
     planningStatus: next.planningStatus ?? "idle",
+    slug: next.slug ?? null,
   });
 
   return Promise.resolve(next);
