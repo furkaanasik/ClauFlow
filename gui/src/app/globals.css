@@ -1,43 +1,103 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #09090b;
-  --color-foreground: #e4e4e7;
+  --color-background: #0c0d10;
+  --color-foreground: #e6edf3;
   --font-sans: var(--geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: var(--geist-mono), ui-monospace, "SFMono-Regular", Menlo, Monaco, monospace;
 }
 
+/* ─── Dark mode (default) ─────────────────────────────────────────────────── */
 :root {
-  --bg-base: #09090b;
-  --bg-surface: #111113;
-  --bg-elevated: #18181b;
-  --border: #27272a;
-  --text-primary: #f4f4f5;
-  --text-muted: #71717a;
+  /* Semantic surface tokens */
+  --bg-base:      #0c0d10;
+  --bg-surface:   #151921;
+  --bg-elevated:  #1c2128;
+  --border:       #2d333b;
+  --text-primary: #e6edf3;
+  --text-muted:   #7d8590;
+
+  /* Accent palette — Linear indigo-purple */
+  --accent-primary: #5e6ad2;
+  --accent-hover:   #6f7ce0;
+  --accent-muted:   rgba(94, 106, 210, 0.30);
+  --accent-success: #2da44e;
+  --accent-danger:  #da3633;
+  --accent-warning: #d29922;
+
+  /* ── Zinc scale — GitHub-dark feel ── */
+  --color-zinc-950: #0c0d10;
+  --color-zinc-900: #151921;
+  --color-zinc-800: #1c2128;
+  --color-zinc-700: #2d333b;
+  --color-zinc-600: #424a53;
+  --color-zinc-500: #7d8590;
+  --color-zinc-400: #acb6bf;
+  --color-zinc-300: #c8d0da;
+  --color-zinc-200: #dde3ec;
+  --color-zinc-100: #e6edf3;
+  --color-zinc-50:  #f0f3f6;
+
+  /* ── Blue scale → Linear indigo-purple accent ── */
+  /* bg-blue-600 / hover:bg-blue-500 → accent-primary / accent-hover */
+  --color-blue-950: #1a1e55;
+  --color-blue-900: #222870;
+  --color-blue-800: #2e3896;
+  --color-blue-700: #4a57cb;
+  --color-blue-600: #5e6ad2;   /* accent-primary */
+  --color-blue-500: #6f7ce0;   /* accent-hover */
+  --color-blue-400: #8289d8;
+  --color-blue-300: #9ba5e4;
+  --color-blue-200: #bac0ec;
+  --color-blue-100: #d9dcf5;
+  --color-blue-50:  #eceef9;
 }
 
+/* ─── Light mode overrides ────────────────────────────────────────────────── */
 html.light {
-  /*
-   * Tailwind v4: bg-zinc-950 → var(--color-zinc-950) kullanır.
-   * Light mode'da tüm renk skalalarını tersine çeviriyoruz:
-   * koyu (900/950) → açık tint, açık (300/400) → okunabilir koyu.
-   */
+  color-scheme: light;
 
-  /* Zinc — arka planlar & metin */
+  /* Semantic surface tokens */
+  --bg-base:      #ffffff;
+  --bg-surface:   #f6f8fa;
+  --bg-elevated:  #ffffff;
+  --border:       #d0d7de;
+  --text-primary: #0d1117;
+  --text-muted:   #57606a;
+
+  /* Accent palette (same primary, adjusted hover) */
+  --accent-primary: #5e6ad2;
+  --accent-hover:   #4f5bc7;
+  --accent-muted:   rgba(94, 106, 210, 0.12);
+
+  /* ── Zinc scale — flipped for light ── */
   --color-zinc-950: #ffffff;
-  --color-zinc-900: #f8fafc;
-  --color-zinc-800: #f1f5f9;
-  --color-zinc-700: #e2e8f0;
-  --color-zinc-600: #475569;
-  --color-zinc-500: #334155;
-  --color-zinc-400: #1e293b;
-  --color-zinc-300: #1e293b;
-  --color-zinc-200: #0f172a;
-  --color-zinc-100: #0f172a;
-  --color-zinc-50:  #020617;
-  --color-black:    #0f172a;
+  --color-zinc-900: #f6f8fa;
+  --color-zinc-800: #eaeef2;
+  --color-zinc-700: #d0d7de;
+  --color-zinc-600: #57606a;
+  --color-zinc-500: #424a53;
+  --color-zinc-400: #1f2328;
+  --color-zinc-300: #1f2328;
+  --color-zinc-200: #0d1117;
+  --color-zinc-100: #0d1117;
+  --color-zinc-50:  #0d1117;
+  --color-black:    #0d1117;
 
-  /* Red — danger, error */
+  /* ── Blue scale — indigo stays readable on white ── */
+  --color-blue-950: #eceef9;
+  --color-blue-900: #d9dcf5;
+  --color-blue-800: #bac0ec;
+  --color-blue-700: #9ba5e4;
+  --color-blue-600: #5e6ad2;
+  --color-blue-500: #4f5bc7;
+  --color-blue-400: #3d49b8;
+  --color-blue-300: #2e3896;
+  --color-blue-200: #222870;
+  --color-blue-100: #1a1e55;
+  --color-blue-50:  #10143a;
+
+  /* ── Red — danger / error ── */
   --color-red-950: #fef2f2;
   --color-red-900: #fee2e2;
   --color-red-800: #fecaca;
@@ -48,17 +108,7 @@ html.light {
   --color-red-300: #991b1b;
   --color-red-200: #7f1d1d;
 
-  /* Blue — info, links */
-  --color-blue-950: #eff6ff;
-  --color-blue-900: #dbeafe;
-  --color-blue-800: #bfdbfe;
-  --color-blue-700: #93c5fd;
-  --color-blue-600: #2563eb;
-  --color-blue-500: #2563eb;
-  --color-blue-400: #1d4ed8;
-  --color-blue-300: #1e40af;
-
-  /* Yellow — planning, warning */
+  /* ── Yellow — warning / planning ── */
   --color-yellow-950: #fefce8;
   --color-yellow-900: #fef9c3;
   --color-yellow-800: #fef08a;
@@ -68,7 +118,7 @@ html.light {
   --color-yellow-400: #a16207;
   --color-yellow-300: #854d0e;
 
-  /* Purple — review column */
+  /* ── Purple — review column ── */
   --color-purple-950: #faf5ff;
   --color-purple-900: #f3e8ff;
   --color-purple-800: #e9d5ff;
@@ -78,7 +128,7 @@ html.light {
   --color-purple-400: #7e22ce;
   --color-purple-300: #6b21a8;
 
-  /* Emerald — done, success */
+  /* ── Emerald — done / success ── */
   --color-emerald-950: #ecfdf5;
   --color-emerald-900: #d1fae5;
   --color-emerald-800: #a7f3d0;
@@ -88,7 +138,7 @@ html.light {
   --color-emerald-400: #047857;
   --color-emerald-300: #065f46;
 
-  /* Orange — executor running, attention */
+  /* ── Orange — executor / attention ── */
   --color-orange-950: #fff7ed;
   --color-orange-900: #ffedd5;
   --color-orange-800: #fed7aa;
@@ -97,100 +147,123 @@ html.light {
   --color-orange-500: #ea580c;
   --color-orange-400: #c2410c;
   --color-orange-300: #9a3412;
-
-  --color-background: #f8fafc;
-  --color-foreground: #0f172a;
-
-  --bg-base:      #f1f5f9;
-  --bg-surface:   #ffffff;
-  --bg-elevated:  #f8fafc;
-  --border:       #e2e8f0;
-  --text-primary: #0f172a;
-  --text-muted:   #475569;
-  color-scheme: light;
 }
 
-/* body arka planını CSS değişkeniyle bağla, hardcoded olmasın */
-html.light body {
-  background-color: #f1f5f9;
-  color: #0f172a;
-}
-
-/* Light mode scrollbar — koyu thumb light ekranda kötü duruyordu */
-html.light *::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-}
-html.light *::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Light mode: kolonlara belirginlik — body slate-100, kolon beyaz + soft shadow */
-html.light .kanban-column {
-  background-color: #ffffff;
-  border-color: #e2e8f0;
-  box-shadow:
-    0 1px 2px 0 rgb(15 23 42 / 0.04),
-    0 4px 12px -2px rgb(15 23 42 / 0.06);
-}
-
-/* Light mode: arama input'ları — beyaz bg üzerinde soft shadow ve daha net border */
-html.light .kanban-search {
-  background-color: #ffffff;
-  border-color: #cbd5e1;
-  box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.05);
-}
-html.light .kanban-search:focus {
-  border-color: #64748b;
-  box-shadow:
-    0 1px 2px 0 rgb(15 23 42 / 0.05),
-    0 0 0 2px rgb(100 116 139 / 0.15);
-}
-
-/* Light mode: stat pill + progress bar konteyneri */
-html.light .kanban-panel {
-  background-color: #ffffff;
-  border-color: #e2e8f0;
-  box-shadow:
-    0 1px 2px 0 rgb(15 23 42 / 0.04),
-    0 2px 6px -2px rgb(15 23 42 / 0.05);
-}
-
-/* Light mode: analiz/code pre bloku — slate tint, net border, okunabilir metin */
-html.light .analysis-block {
-  background-color: #f8fafc;
-  border-color: #cbd5e1;
-  color: #1e293b;
-  box-shadow: inset 0 1px 2px 0 rgb(15 23 42 / 0.04);
-}
-
+/* ─── Base styles ─────────────────────────────────────────────────────────── */
 html,
 body {
   background-color: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+html.light body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
 }
 
 code, pre, kbd {
   font-family: var(--font-mono);
 }
 
-/* Ince, koyu scrollbar */
+/* ─── Typography scale ───────────────────────────────────────────────────── */
+/* H1 — page title: 24px / bold */
+.t-h1 { font-size: 1.5rem;   font-weight: 700; line-height: 1.25; }
+/* H2 — section title: 16px / semibold */
+.t-h2 { font-size: 1rem;     font-weight: 600; line-height: 1.4;  }
+/* H3 — card title / label: 13px / semibold */
+.t-h3 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
+/* Body — default copy: 14px / regular */
+.t-body { font-size: 0.875rem; font-weight: 400; line-height: 1.5; }
+/* Caption — meta / timestamps: 12px / regular */
+.t-caption { font-size: 0.75rem; font-weight: 400; line-height: 1.4; color: var(--text-muted); }
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 *::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: #404854;
   border-radius: 9999px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: #4f5966;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* Animasyonlar */
+html.light *::-webkit-scrollbar-thumb {
+  background: #cfd7e0;
+}
+html.light *::-webkit-scrollbar-thumb:hover {
+  background: #b0bac5;
+}
+
+/* ─── Component utility classes ─────────────────────────────────────────── */
+/* Kanban column — dark mode base */
+.kanban-column {
+  background-color: var(--bg-surface);
+  border-color: var(--border);
+}
+
+/* ─── Light-mode utility overrides ──────────────────────────────────────── */
+/* Kanban column */
+html.light .kanban-column {
+  background-color: #ffffff;
+  border-color: #d0d7de;
+  box-shadow:
+    0 1px 2px 0 rgb(15 23 42 / 0.04),
+    0 4px 12px -2px rgb(15 23 42 / 0.06);
+}
+
+/* Search inputs */
+html.light .kanban-search {
+  background-color: #ffffff;
+  border-color: #d0d7de;
+  box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+}
+html.light .kanban-search:focus {
+  border-color: #5e6ad2;
+  box-shadow:
+    0 1px 2px 0 rgb(15 23 42 / 0.05),
+    0 0 0 2px rgba(94, 106, 210, 0.20);
+}
+
+/* Kanban panel — dark mode base */
+.kanban-panel {
+  background-color: var(--bg-surface);
+  border-color: var(--border);
+}
+
+/* Stat pill / progress panel */
+html.light .kanban-panel {
+  background-color: #ffffff;
+  border-color: #d0d7de;
+  box-shadow:
+    0 1px 2px 0 rgb(15 23 42 / 0.04),
+    0 2px 6px -2px rgb(15 23 42 / 0.05);
+}
+
+/* Analysis / code pre block */
+html.light .analysis-block {
+  background-color: #f6f8fa;
+  border-color: #d0d7de;
+  color: #0d1117;
+  box-shadow: inset 0 1px 2px 0 rgb(15 23 42 / 0.04);
+}
+
+/* ─── Focus ring helper ──────────────────────────────────────────────────── */
+/* Usage: className="focus-visible:outline-none focus-ring" */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
 @keyframes pulse-glow {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.5; }

@@ -209,17 +209,18 @@ export function TaskDetailDrawer() {
       {/* Drawer */}
       <aside
         className={clsx(
-          "fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl",
+          "fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l shadow-2xl",
           "transform transition-transform duration-300 ease-out",
           open ? "translate-x-0" : "translate-x-full",
         )}
         role="dialog"
         aria-modal="true"
+        style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}
       >
         {task ? (
           <>
             {/* Header */}
-            <header className="flex items-start justify-between gap-3 border-b border-zinc-800 px-4 py-3">
+            <header className="flex items-start justify-between gap-3 border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
               <div className="min-w-0 flex-1">
                 {/* Meta bilgiler */}
                 <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
@@ -238,7 +239,8 @@ export function TaskDetailDrawer() {
                     type="text"
                     value={draft.title}
                     onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm font-semibold text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border px-3 py-1.5 text-sm font-semibold placeholder-zinc-600 focus:outline-none"
+                    style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
                     placeholder={td.titlePlaceholder}
                   />
                 ) : (
@@ -250,7 +252,10 @@ export function TaskDetailDrawer() {
               <button
                 type="button"
                 onClick={close}
-                className="shrink-0 rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+                className="shrink-0 rounded-md p-1 transition"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
                 aria-label={td.closeLabel}
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -260,14 +265,14 @@ export function TaskDetailDrawer() {
             </header>
 
             {/* Sekmeler */}
-            <div className="flex border-b border-zinc-800">
+            <div className="flex border-b" style={{ borderColor: "var(--border)" }}>
               <button
                 type="button"
                 onClick={() => setTab("details")}
                 className={clsx(
                   "px-3 py-2 text-xs font-medium transition",
                   tab === "details"
-                    ? "border-b-2 border-blue-500 text-blue-400"
+                    ? "border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]"
                     : "text-zinc-500 hover:text-zinc-300",
                 )}
               >
@@ -279,7 +284,7 @@ export function TaskDetailDrawer() {
                 className={clsx(
                   "px-3 py-2 text-xs font-medium transition",
                   tab === "log"
-                    ? "border-b-2 border-blue-500 text-blue-400"
+                    ? "border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]"
                     : "text-zinc-500 hover:text-zinc-300",
                 )}
               >
@@ -291,7 +296,7 @@ export function TaskDetailDrawer() {
                 className={clsx(
                   "px-3 py-2 text-xs font-medium transition",
                   tab === "comments"
-                    ? "border-b-2 border-blue-500 text-blue-400"
+                    ? "border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]"
                     : "text-zinc-500 hover:text-zinc-300",
                 )}
               >
@@ -321,7 +326,8 @@ export function TaskDetailDrawer() {
                         value={draft.description}
                         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                         rows={3}
-                        className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+                        className="w-full resize-y rounded-lg border px-3 py-2 text-sm placeholder-zinc-600 focus:outline-none"
+                        style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
                         placeholder={td.descriptionPlaceholder}
                       />
                     ) : task.description ? (
@@ -343,7 +349,8 @@ export function TaskDetailDrawer() {
                         value={draft.analysis}
                         onChange={(e) => setDraft({ ...draft, analysis: e.target.value })}
                         rows={8}
-                        className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+                        className="w-full resize-y rounded-lg border px-3 py-2 font-mono text-xs placeholder-zinc-600 focus:outline-none"
+                        style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
                         placeholder={td.analysisPlaceholder}
                       />
                     ) : task.analysis ? (
@@ -437,7 +444,7 @@ export function TaskDetailDrawer() {
                                 disabled={retrying}
                                 className={
                                   isActive
-                                    ? "flex items-center gap-1.5 rounded-md border border-blue-700/60 bg-blue-950/40 px-2.5 py-1 text-[11px] font-medium text-blue-300 transition hover:border-blue-500 hover:bg-blue-900/40 hover:text-blue-200 disabled:opacity-50"
+                                    ? "flex items-center gap-1.5 rounded-md border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 px-2.5 py-1 text-[11px] font-medium text-[var(--accent-primary)] transition hover:border-[var(--accent-primary)]/60 hover:bg-[var(--accent-primary)]/20 disabled:opacity-50"
                                     : "flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-50"
                                 }
                                 title={
@@ -484,13 +491,13 @@ export function TaskDetailDrawer() {
                               href={task.prUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm font-medium text-purple-300 hover:text-purple-200 transition"
+                              className="text-sm font-medium transition" style={{ color: "var(--accent-primary)" }}
                             >
                               {td.openPr} {task.prNumber ? `#${task.prNumber}` : ""} ↗
                             </a>
                           </div>
                           {task.status === "done" && (
-                            <span className="flex items-center gap-1 rounded-full bg-purple-900/50 px-2.5 py-1 text-[11px] font-semibold text-purple-300">
+                            <span className="flex items-center gap-1 rounded-full bg-[var(--accent-primary)]/10 px-2.5 py-1 text-[11px] font-semibold text-[var(--accent-primary)]">
                               {td.merged}
                             </span>
                           )}
@@ -543,7 +550,7 @@ export function TaskDetailDrawer() {
             </div>
 
             {/* Footer */}
-            <footer className="flex items-center justify-between gap-1.5 border-t border-zinc-800 bg-zinc-950/80 px-4 py-3">
+            <footer className="flex items-center justify-between gap-1.5 border-t px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
               {editing ? (
                 <>
                   <button
@@ -558,7 +565,10 @@ export function TaskDetailDrawer() {
                     type="button"
                     onClick={saveEdit}
                     disabled={saving}
-                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 transition"
+                    style={{ background: "var(--accent-primary)" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-primary)"; }}
                   >
                     {saving ? td.savingButton : td.saveButton}
                   </button>
@@ -576,7 +586,10 @@ export function TaskDetailDrawer() {
                   <button
                     type="button"
                     onClick={beginEdit}
-                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition"
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition"
+                    style={{ background: "var(--accent-primary)" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-primary)"; }}
                   >
                     {td.editButton}
                   </button>

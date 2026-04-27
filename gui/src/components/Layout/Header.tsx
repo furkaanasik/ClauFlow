@@ -13,6 +13,9 @@ export function Header() {
   const projects          = useBoardStore((s) => s.projects);
   const lang              = useBoardStore((s) => s.lang);
   const setLang           = useBoardStore((s) => s.setLang);
+  const selectedTask      = useBoardStore((s) =>
+    s.selectedTaskId ? s.tasks[s.selectedTaskId] ?? null : null,
+  );
 
   const [githubModalOpen, setGithubModalOpen] = useState(false);
   const { status: githubStatus } = useGithubAuth(githubModalOpen);
@@ -40,37 +43,52 @@ export function Header() {
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-30 flex h-10 items-center gap-3 border-b border-zinc-800/80 bg-zinc-950/80 px-3 backdrop-blur-md">
+      <header
+        className="fixed inset-x-0 top-0 z-30 flex h-10 items-center gap-3 border-b bg-[var(--bg-base)] px-3 backdrop-blur-md"
+        style={{ borderColor: "var(--border)" }}
+      >
         {/* Logo */}
-        <Link href="/" className="flex shrink-0 items-center gap-1.5 hover:opacity-80 transition-opacity">
+        <Link
+          href="/"
+          className="flex shrink-0 items-center gap-1.5 hover:opacity-80 transition-opacity"
+        >
           <ClauFlowIcon />
-          <span className="text-xs font-semibold tracking-tight text-zinc-100">
+          <span className="text-xs font-semibold tracking-tight text-[var(--text-primary)]">
             ClauFlow
           </span>
         </Link>
 
         {/* Breadcrumb */}
-        <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
+        <div className="flex flex-1 items-center gap-1 overflow-hidden">
           {selectedProject && (
             <>
-              <span className="text-zinc-600">/</span>
-              <span className="truncate text-sm font-medium text-zinc-300">
+              <BreadSep />
+              <span className="truncate text-[10px] font-medium text-[var(--text-muted)]">
                 {selectedProject.name}
+              </span>
+            </>
+          )}
+          {selectedTask && (
+            <>
+              <BreadSep />
+              <span className="truncate text-[10px] text-[var(--text-muted)] opacity-75">
+                #{selectedTask.id.slice(0, 7)}
+                {selectedTask.title ? ` · ${selectedTask.title.slice(0, 28)}` : ""}
               </span>
             </>
           )}
         </div>
 
-        {/* Right section */}
-        <div className="flex shrink-0 items-center gap-3">
-          {/* GitHub PRs link — only show when a project is selected */}
+        {/* Right action zone — icons only */}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {/* GitHub PRs link */}
           {selectedProjectId && (
             <Link
               href={`/github?projectId=${selectedProjectId}`}
-              className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+              className="flex items-center rounded-md p-1.5 text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--accent-primary)]"
+              title="Pull Requests"
             >
               <GithubIcon className="h-3.5 w-3.5" />
-              <span>PRs</span>
             </Link>
           )}
 
@@ -78,7 +96,7 @@ export function Header() {
           <button
             type="button"
             onClick={toggleLang}
-            className="flex items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="flex items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
             title={lang === "tr" ? "Switch to English" : "Türkçeye geç"}
           >
             {lang === "tr" ? "EN" : "TR"}
@@ -88,15 +106,15 @@ export function Header() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex items-center justify-center rounded-md px-1.5 py-0.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="flex items-center justify-center rounded-md p-1.5 text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
             title={isLight ? t.header.themeToDark : t.header.themeToLight}
           >
             {isLight ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <circle cx="12" cy="12" r="5" />
                 <line x1="12" y1="1" x2="12" y2="3" />
                 <line x1="12" y1="21" x2="12" y2="23" />
@@ -110,38 +128,40 @@ export function Header() {
             )}
           </button>
 
-          <div className="h-4 w-px bg-zinc-800" />
-          {/* WS status */}
-          <div className="flex items-center gap-1">
+          {/* WS status — dot only, no label */}
+          <div
+            className="flex items-center p-1.5"
+            title={wsConnected ? t.header.wsConnected : t.header.wsConnecting}
+          >
             <span
               className={`h-1.5 w-1.5 rounded-full ${
-                wsConnected ? "bg-emerald-400" : "bg-zinc-600"
+                wsConnected ? "bg-emerald-400" : "bg-[var(--text-muted)] opacity-50"
               }`}
             />
-            <span className="text-[10px] text-zinc-500">
-              {wsConnected ? t.header.wsConnected : t.header.wsConnecting}
-            </span>
           </div>
 
-          {/* Separator */}
-          <div className="h-4 w-px bg-zinc-800" />
+          {/* Thin separator */}
+          <div className="mx-0.5 h-3.5 w-px" style={{ background: "var(--border)" }} />
 
           {/* GitHub connection */}
           {githubStatus.connected ? (
             <div
               className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-emerald-400"
-              title={githubStatus.user ?? undefined}
+              title={githubStatus.user ? `@${githubStatus.user}` : t.header.githubConnected}
             >
               <GithubIcon className="h-3.5 w-3.5" />
-              <span className="max-w-[120px] truncate">
-                {githubStatus.user ? `@${githubStatus.user}` : t.header.githubConnected}
-              </span>
+              {githubStatus.user && (
+                <span className="max-w-[80px] truncate hidden sm:inline">
+                  @{githubStatus.user}
+                </span>
+              )}
             </div>
           ) : (
             <button
               type="button"
               onClick={() => setGithubModalOpen(true)}
-              className="flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-200"
+              className="flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              style={{ borderColor: "var(--border)" }}
             >
               <GithubIcon className="h-3.5 w-3.5" />
               <span>{t.header.githubConnect}</span>
@@ -158,6 +178,12 @@ export function Header() {
   );
 }
 
+function BreadSep() {
+  return (
+    <span className="shrink-0 text-[10px] text-[var(--text-muted)] opacity-40">/</span>
+  );
+}
+
 function ClauFlowIcon() {
   return (
     <svg
@@ -170,8 +196,8 @@ function ClauFlowIcon() {
     >
       <defs>
         <linearGradient id="clf-grad" x1="0" y1="0" x2="18" y2="18" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#7c3aed" />
-          <stop offset="1" stopColor="#4338ca" />
+          <stop stopColor="#5e6ad2" />
+          <stop offset="1" stopColor="#4a57cb" />
         </linearGradient>
       </defs>
       <rect width="18" height="18" rx="5" fill="url(#clf-grad)" />
