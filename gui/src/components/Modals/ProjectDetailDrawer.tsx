@@ -235,7 +235,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {error && (
-                <div className="mb-4 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
+                <div className="mb-4 whitespace-pre-wrap break-words rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
                   {error}
                 </div>
               )}
@@ -286,6 +286,23 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                   ))}
                 </div>
               </section>
+
+              {/* Planner error */}
+              {project.planningStatus === "error" && project.planningError && (
+                <section className="mb-6 rounded-xl border border-red-900/60 bg-red-950/20 p-4">
+                  <h3 className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-red-400">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <circle cx="8" cy="8" r="7" />
+                      <path d="M8 4v5M8 11.5h.01" />
+                    </svg>
+                    {pd.plannerErrorTitle}
+                  </h3>
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md border border-red-900/40 bg-red-950/40 p-2 font-mono text-[11px] leading-relaxed text-red-200">
+                    {project.planningError}
+                  </pre>
+                  <p className="mt-2 text-[11px] text-zinc-500">{pd.plannerErrorHint}</p>
+                </section>
+              )}
 
               {/* Form */}
               <section className="mb-6 flex flex-col gap-4">

@@ -79,6 +79,8 @@ export function TaskDetailDrawer() {
   const [saving,        setSaving]        = useState(false);
   const [deleting,      setDeleting]      = useState(false);
   const [retrying,      setRetrying]      = useState(false);
+  const [aborting,      setAborting]      = useState(false);
+  const [confirmAbort,  setConfirmAbort]  = useState(false);
   const [error,         setError]         = useState<string | null>(null);
   const [tab,           setTab]           = useState<DrawerTab>("details");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -155,6 +157,21 @@ export function TaskDetailDrawer() {
       setError(err instanceof Error ? err.message : td.errors.retryFailed);
     } finally {
       setRetrying(false);
+    }
+  };
+
+  const doAbort = async () => {
+    if (!task) return;
+    setConfirmAbort(false);
+    setAborting(true);
+    setError(null);
+    try {
+      await api.abortTask(task.id);
+      // WS will broadcast the rolled-back task; nothing else to do here.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Abort failed");
+    } finally {
+      setAborting(false);
     }
   };
 
@@ -389,18 +406,59 @@ export function TaskDetailDrawer() {
                             </>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={doRetry}
-                          disabled={retrying}
-                          className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-50"
-                        >
-                          <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                            <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-                          </svg>
-                          {retrying ? td.retryingButton : td.retryButton}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {task.agent.status !== "error" && task.agent.status !== "done" && (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmAbort(true)}
+                              disabled={aborting}
+                              className="flex items-center gap-1.5 rounded-md border border-red-900/60 bg-red-950/30 px-2.5 py-1 text-[11px] font-medium text-red-300 transition hover:border-red-700 hover:bg-red-900/40 hover:text-red-200 disabled:opacity-50"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                                <rect x="3" y="3" width="10" height="10" rx="1.5" />
+                              </svg>
+                              {aborting ? td.abortingButton : td.abortButton}
+                            </button>
+                          )}
+                          {(() => {
+                            const isActive = (
+                              ["branching", "running", "pushing", "pr_opening"] as const
+                            ).includes(
+                              task.agent.status as
+                                | "branching"
+                                | "running"
+                                | "pushing"
+                                | "pr_opening",
+                            );
+                            return (
+                              <button
+                                type="button"
+                                onClick={doRetry}
+                                disabled={retrying}
+                                className={
+                                  isActive
+                                    ? "flex items-center gap-1.5 rounded-md border border-blue-700/60 bg-blue-950/40 px-2.5 py-1 text-[11px] font-medium text-blue-300 transition hover:border-blue-500 hover:bg-blue-900/40 hover:text-blue-200 disabled:opacity-50"
+                                    : "flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-50"
+                                }
+                                title={
+                                  isActive
+                                    ? "Çalışan claude oturumunu kapatıp yeni bir oturum açar"
+                                    : undefined
+                                }
+                              >
+                                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                                  <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                                  <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                                </svg>
+                                {retrying
+                                  ? td.retryingButton
+                                  : isActive
+                                    ? td.restartButton
+                                    : td.retryButton}
+                              </button>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </section>
                   )}
@@ -538,6 +596,17 @@ export function TaskDetailDrawer() {
         variant="danger"
         onConfirm={doDelete}
         onCancel={() => setConfirmDelete(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmAbort}
+        title={td.confirmAbort.title}
+        description={td.confirmAbort.description}
+        confirmLabel={td.confirmAbort.confirm}
+        cancelLabel={td.confirmDelete.cancel}
+        variant="danger"
+        onConfirm={doAbort}
+        onCancel={() => setConfirmAbort(false)}
       />
     </>
   );

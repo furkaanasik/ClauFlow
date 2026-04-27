@@ -74,6 +74,11 @@ export const api = {
       .then((r) => handle<{ task: Task }>(r))
       .then((d) => d.task),
 
+  abortTask: (id: string): Promise<{ aborted: boolean; source: string }> =>
+    fetch(`${BASE}/tasks/${id}/abort`, { method: "POST" }).then((r) =>
+      handle<{ aborted: boolean; source: string }>(r),
+    ),
+
   getProjects: (): Promise<Project[]> =>
     fetch(`${BASE}/projects`, { cache: "no-store" })
       .then((r) => handle<{ projects: Project[] }>(r))

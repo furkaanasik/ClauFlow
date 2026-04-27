@@ -113,7 +113,11 @@ export interface Translations {
     tabComments: string;
     commentsLabel: string;
     retryButton: string;
+    restartButton: string;
     retryingButton: string;
+    abortButton: string;
+    abortingButton: string;
+    confirmAbort: { title: string; description: string; confirm: string };
     queueWaiting: string;
     errorOccurred: string;
     agentStatus: {
@@ -171,6 +175,8 @@ export interface Translations {
     details: string;
     cancel: string;
     deleting: string;
+    plannerErrorTitle: string;
+    plannerErrorHint: string;
     stats: {
       todo: string;
       doing: string;

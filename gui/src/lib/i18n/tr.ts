@@ -116,7 +116,15 @@ export const tr: Translations = {
     tabComments: "Yorumlar",
     commentsLabel: "Yorumlar",
     retryButton: "Yeniden Dene",
+    restartButton: "Yeniden Başlat",
     retryingButton: "Başlatılıyor...",
+    abortButton: "Durdur",
+    abortingButton: "Durduruluyor...",
+    confirmAbort: {
+      title: "Çalışan agent durdurulsun mu?",
+      description: "Claude CLI sonlandırılacak ve task tekrar 'Yapılacak'a düşecek. Yapılmış kısmi değişiklikler diskte kalır ama commit edilmez.",
+      confirm: "Durdur",
+    },
     queueWaiting: "Kuyrukta bekleniyor",
     errorOccurred: "Hata oluştu",
     agentStatus: {
@@ -174,6 +182,8 @@ export const tr: Translations = {
     details: "Detaylar",
     cancel: "İptal",
     deleting: "Siliniyor...",
+    plannerErrorTitle: "Planlama hatası",
+    plannerErrorHint: "AI Prompt'u düzenleyip kaydet — planner yeniden çalışmayı deneyecektir.",
     stats: {
       todo: "Yapılacak",
       doing: "Yapılıyor",

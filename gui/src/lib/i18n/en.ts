@@ -116,7 +116,15 @@ export const en: Translations = {
     tabComments: "Comments",
     commentsLabel: "Comments",
     retryButton: "Retry",
+    restartButton: "Restart",
     retryingButton: "Starting...",
+    abortButton: "Abort",
+    abortingButton: "Aborting...",
+    confirmAbort: {
+      title: "Stop the running agent?",
+      description: "The Claude CLI process will be terminated and the task moved back to 'To Do'. Any partial changes on disk are kept but not committed.",
+      confirm: "Stop",
+    },
     queueWaiting: "Waiting in queue",
     errorOccurred: "An error occurred",
     agentStatus: {
@@ -174,6 +182,8 @@ export const en: Translations = {
     details: "Details",
     cancel: "Cancel",
     deleting: "Deleting...",
+    plannerErrorTitle: "Planning error",
+    plannerErrorHint: "Edit the AI Prompt and save — the planner will retry.",
     stats: {
       todo: "To Do",
       doing: "Doing",
