@@ -27,3 +27,9 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+.obsidian/
+
+# graphify (knowledge graph cache + Claude hook config)
+graphify-out/
+.claude/settings.json
+*.pre-graphify.bak
