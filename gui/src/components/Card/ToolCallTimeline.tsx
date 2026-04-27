@@ -199,7 +199,8 @@ function ToolCallCard({ call, compact }: { call: ToolCall; compact?: boolean }) 
   const cfg = getToolConfig(call.toolName);
   const summary = argsSummary(call.args);
   const duration = formatDuration(call.durationMs);
-  const hasDetail = call.args || call.result;
+  const hasArgs = call.args != null && typeof call.args === "object" && Object.keys(call.args).length > 0;
+  const hasDetail = hasArgs || !!call.result;
 
   return (
     <div
@@ -309,9 +310,10 @@ function SummaryPill({ calls }: { calls: ToolCall[] }) {
 interface ToolCallTimelineProps {
   toolCalls: ToolCall[];
   compact?: boolean;
+  emptyMessage?: string;
 }
 
-export function ToolCallTimeline({ toolCalls, compact }: ToolCallTimelineProps) {
+export function ToolCallTimeline({ toolCalls, compact, emptyMessage }: ToolCallTimelineProps) {
   const sorted = useMemo(
     () => [...toolCalls].sort((a, b) => {
       if (a.startedAt && b.startedAt) return a.startedAt.localeCompare(b.startedAt);
@@ -323,7 +325,7 @@ export function ToolCallTimeline({ toolCalls, compact }: ToolCallTimelineProps) 
   if (sorted.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 py-8 text-xs text-zinc-700">
-        Tool calls will appear here during execution
+        {emptyMessage ?? "Tool calls will appear here during execution"}
       </div>
     );
   }

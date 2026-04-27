@@ -35,9 +35,7 @@ interface BoardState {
     payload: { status: AgentStatus; currentStep?: string },
   ) => void;
   appendToolCall: (taskId: string, toolCall: ToolCall) => void;
-  updateToolCall: (taskId: string, toolCall: ToolCall) => void;
   setToolCalls: (taskId: string, calls: ToolCall[]) => void;
-  clearToolCalls: (taskId: string) => void;
 
   setProjects: (projects: Project[]) => void;
   addProject: (project: Project) => void;
@@ -162,23 +160,9 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       return { toolCalls: { ...state.toolCalls, [taskId]: next } };
     }),
 
-  updateToolCall: (taskId, toolCall) =>
-    set((state) => {
-      const existing = state.toolCalls[taskId] ?? [];
-      const idx = existing.findIndex((tc) => tc.id === toolCall.id);
-      if (idx < 0) return state;
-      const next = [...existing.slice(0, idx), toolCall, ...existing.slice(idx + 1)];
-      return { toolCalls: { ...state.toolCalls, [taskId]: next } };
-    }),
-
   setToolCalls: (taskId, calls) =>
     set((state) => ({
       toolCalls: { ...state.toolCalls, [taskId]: calls },
-    })),
-
-  clearToolCalls: (taskId) =>
-    set((state) => ({
-      toolCalls: { ...state.toolCalls, [taskId]: [] },
     })),
 
   upsertComment: (comment) =>

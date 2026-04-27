@@ -9,10 +9,12 @@ import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { Task, TaskPatch } from "@/types";
+import type { Task, TaskPatch, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
 type DrawerTab = "details" | "log" | "comments";
+
+const EMPTY_TOOL_CALLS: ToolCall[] = [];
 
 interface DraftState {
   title: string;
@@ -200,7 +202,7 @@ export function TaskDetailDrawer() {
   const projectName  = task ? (projects.find((p) => p.id === task.projectId)?.name ?? "") : "";
 
   // Tool call timeline
-  const toolCalls    = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? []) : []);
+  const toolCalls    = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
   const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
 
   return (
@@ -541,7 +543,7 @@ export function TaskDetailDrawer() {
                           : "text-zinc-500 hover:text-zinc-300",
                       )}
                     >
-                      Timeline {toolCalls.length > 0 && `(${toolCalls.length})`}
+                      {td.toolTimelineTab}{toolCalls.length > 0 && ` (${toolCalls.length})`}
                     </button>
                     <button
                       type="button"
@@ -553,7 +555,7 @@ export function TaskDetailDrawer() {
                           : "text-zinc-500 hover:text-zinc-300",
                       )}
                     >
-                      Raw {logs.length > 0 && `(${logs.length})`}
+                      {td.toolRawTab}{logs.length > 0 && ` (${logs.length})`}
                     </button>
                   </div>
 
@@ -574,7 +576,7 @@ export function TaskDetailDrawer() {
                       </div>
                     ) : (
                       <div className="flex-1 overflow-y-auto">
-                        <ToolCallTimeline toolCalls={toolCalls} compact />
+                        <ToolCallTimeline toolCalls={toolCalls} compact emptyMessage={td.toolTimelineEmpty} />
                       </div>
                     )
                   )}
