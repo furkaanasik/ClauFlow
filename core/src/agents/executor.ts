@@ -141,6 +141,9 @@ export async function run(task: Task, project: Project): Promise<void> {
     if (coResult.code !== 0) {
       throw new Error(`git checkout/pull failed:\n${coResult.stderr}`);
     }
+    if (/\[kanban\] working tree had dirty files/.test(coResult.stdout)) {
+      await pushCmdResult(task.id, coResult);
+    }
 
     // ── Step 2: create feature branch ────────────────────────────────────
     await setAgentStep(task.id, "branching", "create_branch");

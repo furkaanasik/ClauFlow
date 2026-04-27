@@ -57,12 +57,43 @@ export function branchName(taskId: string, title: string): string {
 }
 
 export async function checkoutBase(repoPath: string, base: string): Promise<RunResult> {
-  const co = await run("git", ["checkout", base], repoPath);
+  let co = await run("git", ["checkout", base], repoPath);
+
+  // Defensive recovery: if checkout failed because the working tree has
+  // local changes that would be overwritten (typically auto-generated SQLite
+  // WAL/SHM files left tracked, or other unignored runtime artifacts), stash
+  // them with a labeled message and retry. The stash is kept (not popped) so
+  // the user can recover real edits later with `git stash list`.
+  if (
+    co.code !== 0 &&
+    /would be overwritten by checkout/i.test(co.stderr + co.stdout)
+  ) {
+    const label = `kanban-auto-${new Date().toISOString()}`;
+    const stash = await run(
+      "git",
+      ["stash", "push", "--include-untracked", "--message", label],
+      repoPath,
+    );
+    if (stash.code === 0) {
+      const retry = await run("git", ["checkout", base], repoPath);
+      if (retry.code === 0) {
+        retry.stdout = `${retry.stdout}\n[kanban] working tree had dirty files; auto-stashed as "${label}". Recover with: git stash list`;
+        co = retry;
+      } else {
+        return retry;
+      }
+    } else {
+      return co;
+    }
+  }
+
   if (co.code !== 0) return co;
   // Pull only when a remote exists — skip silently for local-only repos
   const remotes = await run("git", ["remote"], repoPath);
-  if (remotes.stdout.trim() === "") return { code: 0, stdout: "", stderr: "" };
-  return run("git", ["pull", "origin", base], repoPath);
+  if (remotes.stdout.trim() === "") return co;
+  const pullResult = await run("git", ["pull", "origin", base], repoPath);
+  if (pullResult.code !== 0) return pullResult;
+  return { code: 0, stdout: `${co.stdout}\n${pullResult.stdout}`, stderr: pullResult.stderr };
 }
 
 export function createBranch(repoPath: string, branch: string): Promise<RunResult> {
