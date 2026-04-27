@@ -68,9 +68,9 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
     <section
       ref={setNodeRef}
       className={clsx(
-        "kanban-column flex min-h-[60vh] w-full flex-col rounded-2xl border border-zinc-800/80 border-l-2 bg-zinc-950/60 p-2.5 transition-all",
+        "kanban-column flex min-h-[60vh] w-full flex-col rounded-2xl border border-l-2 p-2.5 transition-all",
         COLUMN_LEFT_BORDER[status],
-        isOver          && "bg-zinc-900/80 ring-1 ring-blue-500/30",
+        isOver          && "ring-1 ring-[var(--accent-primary)]/30",
         hasActiveAgent  && "shadow-[0_0_24px_rgba(250,204,21,0.12)]",
       )}
     >
@@ -108,7 +108,10 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
           <button
             type="button"
             onClick={handleAddClick}
-            className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-100"
+            className="rounded-md px-1.5 py-0.5 text-[10px] font-medium transition"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-base)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
           >
             + Ekle
           </button>

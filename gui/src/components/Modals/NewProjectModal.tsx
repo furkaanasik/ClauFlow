@@ -116,7 +116,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 
         {/* AI Prompt */}
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-zinc-400">{t.newProject.aiPromptLabel}</span>
+          <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>{t.newProject.aiPromptLabel}</span>
           <textarea
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
@@ -139,7 +139,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
         </Field>
 
         {/* GitHub repo creation toggle */}
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 transition hover:border-zinc-700">
+        <label className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 transition" style={{ borderColor: "var(--border)" }}>
           <input
             type="checkbox"
             checked={createGithub}
@@ -147,7 +147,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
             disabled={submitting}
             className="h-3.5 w-3.5 accent-emerald-500"
           />
-          <span className="text-xs text-zinc-300">{t.newProject.createGithubLabel}</span>
+          <span className="text-xs" style={{ color: "var(--text-primary)" }}>{t.newProject.createGithubLabel}</span>
         </label>
 
         {createGithub && (
@@ -164,7 +164,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
             </Field>
 
             <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-zinc-400">{t.newProject.visibilityLabel}</span>
+              <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>{t.newProject.visibilityLabel}</span>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -235,7 +235,10 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
                 type="button"
                 onClick={handleClose}
                 disabled={submitting}
-                className="rounded-md px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                className="rounded-md px-3 py-1.5 text-xs transition"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
               >
                 {t.newProject.cancel}
               </button>
@@ -255,7 +258,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 }
 
 const inputCls =
-  "w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-100 outline-none ring-0 transition focus:border-zinc-600";
+  "w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-primary)] outline-none ring-0 transition focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/20";
 
 function Field({
   label,
@@ -268,7 +271,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium text-zinc-400">
+      <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>
         {label}
         {required && <span className="ml-1 text-red-400">*</span>}
       </span>

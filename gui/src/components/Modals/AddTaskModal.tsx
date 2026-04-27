@@ -98,7 +98,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
 
         {/* Priority — button group */}
         <div className="flex flex-col gap-2">
-          <span className="text-[11px] font-medium text-zinc-500">{t.addTask.priorityLabel}</span>
+          <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>{t.addTask.priorityLabel}</span>
           <div className="flex gap-1.5">
             {PRIORITY_KEYS.map(({ value, style, activeStyle }) => (
               <button
@@ -152,7 +152,10 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition"
+            className="rounded-lg px-3 py-1.5 text-xs transition"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
           >
             {t.addTask.cancel}
           </button>
@@ -170,7 +173,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
 }
 
 const inputCls =
-  "w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700";
+  "w-full rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-primary)] placeholder-zinc-600 outline-none transition focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/20";
 
 function Field({
   label,
@@ -186,11 +189,11 @@ function Field({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline gap-2">
-        <span className="text-[11px] font-medium text-zinc-500">
+        <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>
           {label}
           {required && <span className="ml-1 text-red-400">*</span>}
         </span>
-        {hint && <span className="text-[10px] text-zinc-700">{hint}</span>}
+        {hint && <span className="text-[10px]" style={{ color: "var(--text-muted)", opacity: 0.6 }}>{hint}</span>}
       </div>
       {children}
     </div>

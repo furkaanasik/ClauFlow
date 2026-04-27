@@ -102,13 +102,18 @@ export function TaskCard({ task }: TaskCardProps) {
   return (
     <article
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        background:  "var(--bg-surface)",
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; }}
       {...attributes}
       {...listeners}
       onClick={() => { if (!isDragging) selectTask(task.id); }}
       className={clsx(
-        "group relative cursor-grab overflow-hidden rounded-xl border bg-gradient-to-br from-zinc-900 to-zinc-900/60 shadow-sm transition-all",
-        "hover:bg-zinc-800/80 hover:shadow-md hover:shadow-black/20",
+        "group relative cursor-grab overflow-hidden rounded-xl border shadow-sm transition-all",
+        "hover:shadow-md hover:shadow-black/20",
         borderCls,
         isDragging     && "opacity-40 scale-95",
         isAgentWorking && "cursor-not-allowed",
@@ -198,7 +203,7 @@ export function TaskCard({ task }: TaskCardProps) {
                   selectPRTask(task.id);
                 }}
                 title={t.taskCard.openDiffTitle}
-                className="inline-flex items-center gap-1 rounded-md border border-purple-800/60 bg-purple-950/30 px-1 py-0.5 text-[9px] font-medium text-purple-300 transition hover:border-purple-600 hover:bg-purple-900/40 hover:text-purple-200"
+                className="inline-flex items-center gap-1 rounded-md border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 px-1 py-0.5 text-[9px] font-medium text-[var(--accent-primary)] transition hover:border-[var(--accent-primary)]/60 hover:bg-[var(--accent-primary)]/20"
               >
                 <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
                   <path d="M5 3.254V3.25v.005a.75.75 0 1 1 0-.005zM4.25 1A2.25 2.25 0 0 0 3.5 5.372V10.5h-.025a.75.75 0 0 0 0 1.5H3.5v.628a2.251 2.251 0 1 0 1.5 0V12h.025a.75.75 0 0 0 0-1.5H5V5.372A2.25 2.25 0 0 0 4.25 1zM3.5 13.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0zM12 5h.025a.75.75 0 0 0 0-1.5H12V3a2.25 2.25 0 0 0-2.5 2.236V10a2.5 2.5 0 0 1-2.5 2.5H7v1.5h-.025a.75.75 0 0 0 0 1.5H7v.5h2v-.5h.025a.75.75 0 0 0 0-1.5H9v-1.563A4 4 0 0 0 12 9V5z"/>
@@ -217,7 +222,7 @@ export function TaskCard({ task }: TaskCardProps) {
                 e.stopPropagation();
                 selectPRTask(task.id);
               }}
-              className="inline-flex items-center gap-1 rounded-full bg-purple-900/40 px-1.5 py-0.5 text-[9px] font-medium text-purple-300 transition hover:bg-purple-900/60"
+              className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-primary)]/10 px-1.5 py-0.5 text-[9px] font-medium text-[var(--accent-primary)] transition hover:bg-[var(--accent-primary)]/20"
             >
               PR #{task.prNumber} · Merged ✓
             </button>

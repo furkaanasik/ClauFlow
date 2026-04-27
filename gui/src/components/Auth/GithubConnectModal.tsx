@@ -110,13 +110,16 @@ export function GithubConnectModal({
                 1. Aşağıdaki kodu kopyala:
               </p>
               <div className="flex items-center gap-1.5">
-                <div className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-center font-mono text-xl font-bold tracking-widest text-zinc-100">
+                <div className="flex-1 rounded-lg border px-3 py-2 text-center font-mono text-xl font-bold tracking-widest" style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}>
                   {userCode}
                 </div>
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition"
+                  className="rounded-lg border px-3 py-2 text-xs transition"
+                  style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-primary)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
                 >
                   {copied ? "Kopyalandı" : "Kopyala"}
                 </button>
@@ -139,8 +142,8 @@ export function GithubConnectModal({
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5 border-t border-zinc-800 pt-3">
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-600 border-t-blue-400" />
+            <div className="flex items-center gap-1.5 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-600 border-t-[var(--accent-primary)]" />
               <span className="text-xs text-zinc-400">
                 Bağlantı bekleniyor...
               </span>

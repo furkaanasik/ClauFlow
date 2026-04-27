@@ -52,7 +52,7 @@ export function ConfirmDialog({
       />
 
       {/* Dialog */}
-      <div className="relative w-full max-w-sm animate-fade-up rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
+      <div className="relative w-full max-w-sm animate-fade-up rounded-2xl border p-5 shadow-2xl" style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}>
         {/* Icon */}
         {variant === "danger" && (
           <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-red-950/60 text-red-400">
@@ -74,9 +74,9 @@ export function ConfirmDialog({
           </div>
         )}
 
-        <h3 className="mb-1 text-sm font-semibold text-zinc-100">{title}</h3>
+        <h3 className="mb-1 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{title}</h3>
         {description && (
-          <p className="mb-4 text-xs leading-relaxed text-zinc-500">{description}</p>
+          <p className="mb-4 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>{description}</p>
         )}
         {!description && <div className="mb-4" />}
 
@@ -84,7 +84,10 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+            className="rounded-lg px-3 py-1.5 text-xs transition"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
           >
             {cancelLabel}
           </button>

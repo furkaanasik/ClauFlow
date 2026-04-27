@@ -109,7 +109,7 @@ function CommentCard({ comment }: CommentCardProps) {
     comment.agentLog.length > 0;
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
       <p className="mb-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-200">
         {comment.body}
       </p>
@@ -211,7 +211,7 @@ export function CommentsTab({ task }: CommentsTabProps) {
 
       {/* Yorum formu */}
       {canComment && (
-        <div className="shrink-0 flex flex-col gap-1.5 border-t border-zinc-800 pt-2.5">
+        <div className="shrink-0 flex flex-col gap-1.5 border-t pt-2.5" style={{ borderColor: "var(--border)" }}>
           {error && (
             <div className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-1.5 text-xs text-red-300">
               {error}
@@ -224,7 +224,8 @@ export function CommentsTab({ task }: CommentsTabProps) {
             disabled={sending}
             rows={3}
             placeholder="AI'ya duzeltme talimati yaz..."
-            className="w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            className="w-full resize-none rounded-lg border px-3 py-1.5 text-sm placeholder-zinc-600 focus:outline-none disabled:opacity-50"
+            style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
           />
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-zinc-700">Ctrl+Enter ile gonder</span>
@@ -232,7 +233,10 @@ export function CommentsTab({ task }: CommentsTabProps) {
               type="button"
               onClick={() => void handleSend()}
               disabled={sending || !body.trim()}
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 transition"
+              style={{ background: "var(--accent-primary)" }}
+              onMouseEnter={(e) => { if (!e.currentTarget.disabled) (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-primary)"; }}
             >
               {sending ? "Gonderiliyor..." : "Gonder"}
             </button>

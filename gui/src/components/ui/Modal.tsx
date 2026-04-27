@@ -34,15 +34,19 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
       onClick={onClose}
     >
       <div
-        className={`max-h-[85vh] w-full overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl ${SIZE_CLS[size]}`}
+        className={`max-h-[85vh] w-full overflow-hidden rounded-2xl shadow-2xl ${SIZE_CLS[size]}`}
+        style={{ background: "var(--bg-elevated)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--border)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-            <h2 className="text-sm font-semibold text-zinc-200">{title}</h2>
+          <header className="flex items-center justify-between border-b px-4 py-2" style={{ borderColor: "var(--border)" }}>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{title}</h2>
             <button
               type="button"
-              className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+              className="rounded-md p-1 transition"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
               onClick={onClose}
               aria-label="Kapat"
             >
