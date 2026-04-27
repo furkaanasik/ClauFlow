@@ -185,14 +185,6 @@ export function parseUsageFromResult(raw: unknown): ClaudeUsage | null {
       cacheReadTokens: num("cache_read_input_tokens"),
       cacheWriteTokens: num("cache_creation_input_tokens"),
     };
-    // Only return if at least one field is non-zero — guards against
-    // empty objects that happen to satisfy the shape check.
-    const total =
-      usage.inputTokens +
-      usage.outputTokens +
-      usage.cacheReadTokens +
-      usage.cacheWriteTokens;
-    if (total > 0) return usage;
     return usage;
   }
   return null;
