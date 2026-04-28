@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   createTask,
   deleteTask,
+  getAgentTexts,
   getTask,
   getProject,
   listTasks,
@@ -94,6 +95,17 @@ router.get("/:id/tool-calls", async (req: Request, res: Response) => {
     if (!task) return res.status(404).json({ error: "not_found" });
     const toolCalls = listToolCallsByTask(task.id);
     res.json({ toolCalls });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/:id/agent-texts", async (req: Request, res: Response) => {
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    const agentTexts = getAgentTexts(task.id);
+    res.json({ agentTexts });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

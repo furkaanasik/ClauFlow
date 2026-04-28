@@ -147,6 +147,49 @@ export function parseStreamJson(stdout: string): ParsedToolCall[] {
   return calls;
 }
 
+export interface ClaudeUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
+/**
+ * Best-effort extraction of token usage from a stream-json `result` event.
+ * The CLI emits a final event roughly shaped like:
+ *   { type: "result", usage: { input_tokens, output_tokens,
+ *     cache_read_input_tokens, cache_creation_input_tokens } }
+ * Some CLI versions nest the block under `result.usage` instead; we check
+ * both. Missing or non-numeric fields fall back to 0 so callers can safely
+ * accumulate.
+ */
+export function parseUsageFromResult(raw: unknown): ClaudeUsage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const candidates: unknown[] = [
+    r.usage,
+    typeof r.result === "object" && r.result !== null
+      ? (r.result as Record<string, unknown>).usage
+      : undefined,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const u = candidate as Record<string, unknown>;
+    const num = (k: string): number => {
+      const v = u[k];
+      return typeof v === "number" && Number.isFinite(v) ? v : 0;
+    };
+    const usage: ClaudeUsage = {
+      inputTokens: num("input_tokens"),
+      outputTokens: num("output_tokens"),
+      cacheReadTokens: num("cache_read_input_tokens"),
+      cacheWriteTokens: num("cache_creation_input_tokens"),
+    };
+    return usage;
+  }
+  return null;
+}
+
 export interface ClaudeRunOptions {
   prompt: string;
   cwd: string;
@@ -155,6 +198,8 @@ export interface ClaudeRunOptions {
   onText?: (text: string) => void;
   onToolCallStart?: (toolCall: ParsedToolCall) => void;
   onToolCallEnd?: (toolCall: ParsedToolCall) => void;
+  /** Fired once with the final stream-json `result` event. */
+  onResult?: (raw: unknown) => void;
   signal?: AbortSignal;
   outputFormat?: "text" | "json" | "stream-json";
   maxOutputTokens?: number;
@@ -255,6 +300,7 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
           onText: (text) => emitText(options, text, "stdout"),
           onToolCallStart: (tc) => options.onToolCallStart?.(tc),
           onToolCallEnd: (tc) => options.onToolCallEnd?.(tc),
+          onResult: (raw) => options.onResult?.(raw),
         })
       : null;
 

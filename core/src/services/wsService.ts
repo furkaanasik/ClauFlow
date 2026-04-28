@@ -2,6 +2,7 @@ import type { Server as HttpServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import type {
   AgentStatus,
+  AgentText,
   Comment,
   Task,
   ToolCall,
@@ -74,6 +75,14 @@ export function broadcastToolCall(toolCall: ToolCall): void {
     type: "agent_tool_call",
     taskId: toolCall.taskId,
     payload: toolCall,
+  });
+}
+
+export function broadcastAgentText(agentText: AgentText): void {
+  broadcast({
+    type: "agent_text",
+    taskId: agentText.taskId,
+    payload: agentText,
   });
 }
 

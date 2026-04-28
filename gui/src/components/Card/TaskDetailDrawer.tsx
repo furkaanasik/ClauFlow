@@ -7,14 +7,16 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CommentsTab } from "@/components/Card/CommentsTab";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
+import { calculateCost, formatTokens, totalTokens } from "@/lib/cost";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { Task, TaskPatch, ToolCall } from "@/types";
+import type { AgentText, Task, TaskPatch, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
 type DrawerTab = "details" | "log" | "comments";
 
 const EMPTY_TOOL_CALLS: ToolCall[] = [];
+const EMPTY_AGENT_TEXTS: AgentText[] = [];
 
 interface DraftState {
   title: string;
@@ -75,8 +77,9 @@ export function TaskDetailDrawer() {
   const selectTask    = useBoardStore((s) => s.selectTask);
   const upsertTask    = useBoardStore((s) => s.upsertTask);
   const removeTask    = useBoardStore((s) => s.removeTask);
-  const upsertComment = useBoardStore((s) => s.upsertComment);
-  const setToolCalls  = useBoardStore((s) => s.setToolCalls);
+  const upsertComment  = useBoardStore((s) => s.upsertComment);
+  const setToolCalls   = useBoardStore((s) => s.setToolCalls);
+  const setAgentTexts  = useBoardStore((s) => s.setAgentTexts);
 
   const [editing,       setEditing]       = useState(false);
   const [draft,         setDraft]         = useState<DraftState | null>(null);
@@ -107,6 +110,9 @@ export function TaskDetailDrawer() {
     }).catch(() => {});
     api.getToolCalls(selectedTaskId).then((calls) => {
       setToolCalls(selectedTaskId, calls);
+    }).catch(() => {});
+    api.getAgentTexts(selectedTaskId).then((list) => {
+      setAgentTexts(selectedTaskId, list);
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
@@ -201,9 +207,22 @@ export function TaskDetailDrawer() {
   const commentCount = task?.comments?.length ?? 0;
   const projectName  = task ? (projects.find((p) => p.id === task.projectId)?.name ?? "") : "";
 
-  // Tool call timeline
-  const toolCalls    = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
+  // Tool call timeline + agent texts
+  const toolCalls   = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
+  const agentTexts  = useBoardStore((s) => task ? (s.agentTexts[task.id] ?? EMPTY_AGENT_TEXTS) : EMPTY_AGENT_TEXTS);
   const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
+
+  // Cost pill
+  const costPill = useMemo(() => {
+    if (!task?.usage) return null;
+    const total = totalTokens(task.usage);
+    const cost = calculateCost(task.usage);
+    if (total === 0) return null;
+    return {
+      tokens: formatTokens(total),
+      cost: cost.toFixed(2),
+    };
+  }, [task?.usage]);
 
   return (
     <>
@@ -576,7 +595,14 @@ export function TaskDetailDrawer() {
                       </div>
                     ) : (
                       <div className="flex-1 overflow-y-auto">
-                        <ToolCallTimeline toolCalls={toolCalls} compact emptyMessage={td.toolTimelineEmpty} />
+                        <ToolCallTimeline
+                          toolCalls={toolCalls}
+                          agentTexts={agentTexts}
+                          compact
+                          emptyMessage={td.toolTimelineEmpty}
+                          isAgentRunning={task?.status === "doing"}
+                          thinkingMessage={td.toolThinking}
+                        />
                       </div>
                     )
                   )}
@@ -654,6 +680,22 @@ export function TaskDetailDrawer() {
                   >
                     {deleting ? td.deletingButton : td.deleteButton}
                   </button>
+
+                  {/* Cost pill */}
+                  {costPill && (
+                    <span
+                      className="rounded-full border px-2.5 py-0.5 text-[10px] font-medium"
+                      style={{
+                        background: "var(--bg-surface)",
+                        borderColor: "var(--border)",
+                        color: "var(--text-muted)",
+                      }}
+                      title="Approximate cost (Sonnet 4.5 pricing)"
+                    >
+                      {costPill.tokens} {td.costTokens} · ~${costPill.cost}
+                    </span>
+                  )}
+
                   <button
                     type="button"
                     onClick={beginEdit}

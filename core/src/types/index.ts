@@ -20,6 +20,13 @@ export interface AgentState {
 
 export type TaskPriority = "low" | "medium" | "high" | "critical";
 
+export interface TaskUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -36,6 +43,7 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   agent: AgentState;
+  usage?: TaskUsage;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -72,6 +80,14 @@ export interface Comment {
   createdAt: string;
 }
 
+export interface AgentText {
+  id: number;
+  taskId: string;
+  text: string;
+  sequence: number;
+  createdAt: string;
+}
+
 export type ToolCallStatus = "running" | "done" | "error";
 
 export interface ToolCall {
@@ -99,6 +115,7 @@ export type WsMessage =
   | { type: "task_deleted"; taskId: string; payload: { id: string } }
   | { type: "comment_updated"; taskId: string; payload: Comment }
   | { type: "agent_tool_call"; taskId: string; payload: ToolCall }
+  | { type: "agent_text"; taskId: string; payload: AgentText }
   | { type: "project_planning_started"; projectId: string }
   | {
       type: "project_planning_done";

@@ -153,6 +153,8 @@ export const en: Translations = {
     toolTimelineTab: "Timeline",
     toolRawTab: "Raw",
     toolTimelineEmpty: "Tool calls will appear here during execution",
+    toolThinking: "Agent thinking",
+    costTokens: "tokens",
     cancelButton: "Cancel",
     saveButton: "Save",
     savingButton: "Saving...",
