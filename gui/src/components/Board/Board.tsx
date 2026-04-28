@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -54,6 +54,21 @@ export function Board() {
   const upsertTask        = useBoardStore((s) => s.upsertTask);
 
   const toast          = useToast();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedProjectId == null) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("projectId") === selectedProjectId) return;
+    params.set("projectId", selectedProjectId);
+    const qs = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${qs ? `?${qs}` : ""}`,
+    );
+  }, [selectedProjectId]);
+
   const [activeId, setActiveId]     = useState<string | null>(null);
   const [addOpen, setAddOpen]       = useState(false);
   const [showHelp, setShowHelp]     = useState(false);
