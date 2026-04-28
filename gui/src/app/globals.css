@@ -155,7 +155,7 @@ body {
   background-color: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
 }
 
@@ -169,16 +169,16 @@ code, pre, kbd {
 }
 
 /* ─── Typography scale ───────────────────────────────────────────────────── */
-/* H1 — page title: 24px / bold */
-.t-h1 { font-size: 1.5rem;   font-weight: 700; line-height: 1.25; }
-/* H2 — section title: 16px / semibold */
-.t-h2 { font-size: 1rem;     font-weight: 600; line-height: 1.4;  }
-/* H3 — card title / label: 13px / semibold */
-.t-h3 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
-/* Body — default copy: 14px / regular */
-.t-body { font-size: 0.875rem; font-weight: 400; line-height: 1.5; }
-/* Caption — meta / timestamps: 12px / regular */
-.t-caption { font-size: 0.75rem; font-weight: 400; line-height: 1.4; color: var(--text-muted); }
+/* H1 — page title: 26px / bold */
+.t-h1 { font-size: 1.625rem;  font-weight: 700; line-height: 1.25; }
+/* H2 — section title: 18px / semibold */
+.t-h2 { font-size: 1.125rem;  font-weight: 600; line-height: 1.4;  }
+/* H3 — card title / label: 15px / semibold */
+.t-h3 { font-size: 0.9375rem; font-weight: 600; line-height: 1.4;  }
+/* Body — default copy: 15px / regular */
+.t-body { font-size: 0.9375rem; font-weight: 400; line-height: 1.5; }
+/* Caption — meta / timestamps: 13px / regular */
+.t-caption { font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: var(--text-muted); }
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 *::-webkit-scrollbar {

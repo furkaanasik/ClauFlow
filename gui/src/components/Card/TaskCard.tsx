@@ -140,11 +140,11 @@ export function TaskCard({ task }: TaskCardProps) {
         <div className={clsx("absolute inset-y-0 left-0 w-0.5", accentBar)} />
       )}
 
-      <div className="px-2.5 py-2.5 pl-3.5">
+      <div className="px-3 py-3 pl-4">
         {/* Baslik */}
-        <h3 className="line-clamp-2 text-sm leading-snug text-zinc-100">
+        <h3 className="line-clamp-2 text-base leading-snug text-zinc-100">
           {task.displayId && (
-            <code className="mr-1.5 rounded bg-zinc-800 px-1 py-0.5 font-mono text-[10px] font-bold text-zinc-300">
+            <code className="mr-1.5 rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] font-bold text-zinc-300">
               {task.displayId}
             </code>
           )}
@@ -153,29 +153,29 @@ export function TaskCard({ task }: TaskCardProps) {
 
         {/* Aciklama */}
         {task.description && (
-          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-zinc-500">
+          <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-zinc-500">
             {task.description}
           </p>
         )}
 
         {/* Priority badge + tags */}
         {(badgeCls || visibleTags.length > 0) && (
-          <div className="mt-2 flex flex-wrap items-center gap-0.5">
+          <div className="mt-2.5 flex flex-wrap items-center gap-1">
             {badgeCls && (
-              <span className={clsx("rounded-full px-1.5 py-0.5 text-[9px] font-medium", badgeCls)}>
+              <span className={clsx("rounded-full px-2 py-0.5 text-[10px] font-medium", badgeCls)}>
                 {prio}
               </span>
             )}
             {visibleTags.map((tag) => (
               <span
                 key={tag}
-                className="rounded-full bg-zinc-700 px-1.5 py-0.5 text-[9px] text-zinc-300"
+                className="rounded-full bg-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300"
               >
                 {tag}
               </span>
             ))}
             {extraTags > 0 && (
-              <span className="rounded-full bg-zinc-700 px-1.5 py-0.5 text-[9px] text-zinc-400">
+              <span className="rounded-full bg-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400">
                 +{extraTags}
               </span>
             )}
@@ -183,16 +183,16 @@ export function TaskCard({ task }: TaskCardProps) {
         )}
 
         {/* Ayirici */}
-        <div className="my-2 h-px bg-zinc-800/60" />
+        <div className="my-2.5 h-px bg-zinc-800/60" />
 
         {/* Footer */}
-        <footer className="flex items-center justify-between gap-1.5">
-          <span className="font-mono text-[10px] text-zinc-600">
+        <footer className="flex items-center justify-between gap-2">
+          <span className="font-mono text-[11px] text-zinc-600">
             {task.displayId ?? `#${task.id.slice(0, 8)}`}
           </span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {isQueued(task) && (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800/80 px-2 py-1 text-[10px] font-medium text-zinc-500">
                 <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
                 Sırada
               </span>
@@ -208,9 +208,9 @@ export function TaskCard({ task }: TaskCardProps) {
                   selectPRTask(task.id);
                 }}
                 title={t.taskCard.openDiffTitle}
-                className="inline-flex items-center gap-1 rounded-md border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 px-1 py-0.5 text-[9px] font-medium text-[var(--accent-primary)] transition hover:border-[var(--accent-primary)]/60 hover:bg-[var(--accent-primary)]/20"
+                className="inline-flex items-center gap-1 rounded-md border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 px-1.5 py-1 text-[10px] font-medium text-[var(--accent-primary)] transition hover:border-[var(--accent-primary)]/60 hover:bg-[var(--accent-primary)]/20"
               >
-                <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
                   <path d="M5 3.254V3.25v.005a.75.75 0 1 1 0-.005zM4.25 1A2.25 2.25 0 0 0 3.5 5.372V10.5h-.025a.75.75 0 0 0 0 1.5H3.5v.628a2.251 2.251 0 1 0 1.5 0V12h.025a.75.75 0 0 0 0-1.5H5V5.372A2.25 2.25 0 0 0 4.25 1zM3.5 13.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0zM12 5h.025a.75.75 0 0 0 0-1.5H12V3a2.25 2.25 0 0 0-2.5 2.236V10a2.5 2.5 0 0 1-2.5 2.5H7v1.5h-.025a.75.75 0 0 0 0 1.5H7v.5h2v-.5h.025a.75.75 0 0 0 0-1.5H9v-1.563A4 4 0 0 0 12 9V5z"/>
                 </svg>
                 {t.taskCard.diffButton} #{task.prNumber}
@@ -220,14 +220,14 @@ export function TaskCard({ task }: TaskCardProps) {
         </footer>
 
         {task.status === "done" && task.prNumber && (
-          <div className="mt-1.5 flex items-center gap-1">
+          <div className="mt-2 flex items-center gap-1.5">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 selectPRTask(task.id);
               }}
-              className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-primary)]/10 px-1.5 py-0.5 text-[9px] font-medium text-[var(--accent-primary)] transition hover:bg-[var(--accent-primary)]/20"
+              className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-primary)]/10 px-2 py-1 text-[10px] font-medium text-[var(--accent-primary)] transition hover:bg-[var(--accent-primary)]/20"
             >
               PR #{task.prNumber} · Merged ✓
             </button>
@@ -238,7 +238,7 @@ export function TaskCard({ task }: TaskCardProps) {
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 title={t.taskCard.openOnGithubTitle}
-                className="text-[10px] text-purple-400 hover:text-purple-300 transition"
+                className="text-xs text-purple-400 hover:text-purple-300 transition"
               >
                 ↗
               </a>

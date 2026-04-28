@@ -239,7 +239,7 @@ export function TaskDetailDrawer() {
       {/* Drawer */}
       <aside
         className={clsx(
-          "fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l shadow-2xl",
+          "fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l shadow-2xl",
           "transform transition-transform duration-300 ease-out",
           open ? "translate-x-0" : "translate-x-full",
         )}
@@ -250,23 +250,23 @@ export function TaskDetailDrawer() {
         {task ? (
           <>
             {/* Header */}
-            <header className="flex items-start justify-between gap-3 border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
+            <header className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "var(--border)" }}>
               <div className="min-w-0 flex-1">
                 {/* Meta bilgiler */}
-                <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
                   <Badge tone={statusTone(task.status)}>{task.status}</Badge>
                   {task.priority && !editing && (
                     <Badge tone={priorityTone(task.priority)}>{task.priority}</Badge>
                   )}
                   {projectName && (
-                    <span className="text-[10px] text-zinc-600">{projectName}</span>
+                    <span className="text-[11px] text-zinc-600">{projectName}</span>
                   )}
                   {task.displayId ? (
-                    <code className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-bold text-zinc-400">
+                    <code className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] font-bold text-zinc-400">
                       {task.displayId}
                     </code>
                   ) : (
-                    <span className="font-mono text-[10px] text-zinc-700">#{task.id.slice(0, 8)}</span>
+                    <span className="font-mono text-[11px] text-zinc-700">#{task.id.slice(0, 8)}</span>
                   )}
                 </div>
                 {/* Baslik */}
@@ -275,12 +275,12 @@ export function TaskDetailDrawer() {
                     type="text"
                     value={draft.title}
                     onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                    className="w-full rounded-lg border px-3 py-1.5 text-sm font-semibold placeholder-zinc-600 focus:outline-none"
+                    className="w-full rounded-lg border px-3 py-2 text-base font-semibold placeholder-zinc-600 focus:outline-none"
                     style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
                     placeholder={td.titlePlaceholder}
                   />
                 ) : (
-                  <h2 className="text-sm font-semibold leading-tight text-zinc-100">
+                  <h2 className="text-base font-semibold leading-tight text-zinc-100">
                     {task.title}
                   </h2>
                 )}
@@ -288,13 +288,13 @@ export function TaskDetailDrawer() {
               <button
                 type="button"
                 onClick={close}
-                className="shrink-0 rounded-md p-1 transition"
+                className="shrink-0 rounded-md p-1.5 transition"
                 style={{ color: "var(--text-muted)" }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
                 aria-label={td.closeLabel}
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M1 1l12 12M13 1L1 13" />
                 </svg>
               </button>
@@ -306,7 +306,7 @@ export function TaskDetailDrawer() {
                 type="button"
                 onClick={() => setTab("details")}
                 className={clsx(
-                  "px-3 py-2 text-xs font-medium transition",
+                  "px-4 py-2.5 text-sm font-medium transition",
                   tab === "details"
                     ? "border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]"
                     : "text-zinc-500 hover:text-zinc-300",
@@ -318,7 +318,7 @@ export function TaskDetailDrawer() {
                 type="button"
                 onClick={() => setTab("log")}
                 className={clsx(
-                  "px-3 py-2 text-xs font-medium transition",
+                  "px-4 py-2.5 text-sm font-medium transition",
                   tab === "log"
                     ? "border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]"
                     : "text-zinc-500 hover:text-zinc-300",
@@ -330,7 +330,7 @@ export function TaskDetailDrawer() {
                 type="button"
                 onClick={() => setTab("comments")}
                 className={clsx(
-                  "px-3 py-2 text-xs font-medium transition",
+                  "px-4 py-2.5 text-sm font-medium transition",
                   tab === "comments"
                     ? "border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]"
                     : "text-zinc-500 hover:text-zinc-300",
@@ -345,16 +345,16 @@ export function TaskDetailDrawer() {
               {tab === "comments" ? (
                 <CommentsTab task={task} />
               ) : tab === "details" ? (
-                <div className="px-4 py-3">
+                <div className="px-5 py-4">
                   {error && (
-                    <div className="mb-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-1.5 text-xs text-red-300">
+                    <div className="mb-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-300">
                       {error}
                     </div>
                   )}
 
                   {/* Aciklama */}
-                  <section className="mb-5">
-                    <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                  <section className="mb-6">
+                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
                       {td.descriptionLabel}
                     </h3>
                     {editing && draft ? (
@@ -371,13 +371,13 @@ export function TaskDetailDrawer() {
                         {task.description}
                       </p>
                     ) : (
-                      <p className="text-xs italic text-zinc-700">{td.descriptionEmpty}</p>
+                      <p className="text-sm italic text-zinc-700">{td.descriptionEmpty}</p>
                     )}
                   </section>
 
                   {/* Analiz */}
-                  <section className="mb-5">
-                    <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                  <section className="mb-6">
+                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
                       {td.analysisLabel}
                     </h3>
                     {editing && draft ? (
@@ -385,23 +385,23 @@ export function TaskDetailDrawer() {
                         value={draft.analysis}
                         onChange={(e) => setDraft({ ...draft, analysis: e.target.value })}
                         rows={8}
-                        className="w-full resize-y rounded-lg border px-3 py-2 font-mono text-xs placeholder-zinc-600 focus:outline-none"
+                        className="w-full resize-y rounded-lg border px-3 py-2.5 font-mono text-[13px] placeholder-zinc-600 focus:outline-none"
                         style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
                         placeholder={td.analysisPlaceholder}
                       />
                     ) : task.analysis ? (
-                      <pre className="analysis-block max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 font-mono text-xs leading-relaxed text-zinc-200">
+                      <pre className="analysis-block max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-900/60 p-3.5 font-mono text-[13px] leading-relaxed text-zinc-200">
                         {task.analysis}
                       </pre>
                     ) : (
-                      <p className="text-xs italic text-zinc-700">{td.analysisEmpty}</p>
+                      <p className="text-sm italic text-zinc-700">{td.analysisEmpty}</p>
                     )}
                   </section>
 
                   {/* Oncelik (edit modunda) */}
                   {editing && draft && (
-                    <section className="mb-5">
-                      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                    <section className="mb-6">
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
                         {td.priorityLabel}
                       </h3>
                       <div className="flex gap-2">
@@ -411,7 +411,7 @@ export function TaskDetailDrawer() {
                             type="button"
                             onClick={() => setDraft({ ...draft, priority: value })}
                             className={clsx(
-                              "rounded-lg border px-3 py-1.5 text-xs font-medium transition",
+                              "rounded-lg border px-3 py-2 text-sm font-medium transition",
                               color,
                               draft.priority === value
                                 ? "ring-2 ring-offset-1 ring-offset-zinc-900 ring-current"
@@ -427,9 +427,9 @@ export function TaskDetailDrawer() {
 
                   {/* Retry — doing + takili kalmis */}
                   {task.status === "doing" && (
-                    <section className="mb-5">
-                      <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
-                        <div className="flex items-center gap-2 text-xs text-zinc-400">
+                    <section className="mb-6">
+                      <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/60 px-3.5 py-3">
+                        <div className="flex items-center gap-2 text-sm text-zinc-400">
                           {task.agent.status === "idle" ? (
                             <>
                               <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
@@ -449,15 +449,15 @@ export function TaskDetailDrawer() {
                             </>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           {task.agent.status !== "error" && task.agent.status !== "done" && (
                             <button
                               type="button"
                               onClick={() => setConfirmAbort(true)}
                               disabled={aborting}
-                              className="flex items-center gap-1.5 rounded-md border border-red-900/60 bg-red-950/30 px-2.5 py-1 text-[11px] font-medium text-red-300 transition hover:border-red-700 hover:bg-red-900/40 hover:text-red-200 disabled:opacity-50"
+                              className="flex items-center gap-1.5 rounded-md border border-red-900/60 bg-red-950/30 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:border-red-700 hover:bg-red-900/40 hover:text-red-200 disabled:opacity-50"
                             >
-                              <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
                                 <rect x="3" y="3" width="10" height="10" rx="1.5" />
                               </svg>
                               {aborting ? td.abortingButton : td.abortButton}
@@ -480,8 +480,8 @@ export function TaskDetailDrawer() {
                                 disabled={retrying}
                                 className={
                                   isActive
-                                    ? "flex items-center gap-1.5 rounded-md border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 px-2.5 py-1 text-[11px] font-medium text-[var(--accent-primary)] transition hover:border-[var(--accent-primary)]/60 hover:bg-[var(--accent-primary)]/20 disabled:opacity-50"
-                                    : "flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-50"
+                                    ? "flex items-center gap-1.5 rounded-md border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 px-3 py-1.5 text-xs font-medium text-[var(--accent-primary)] transition hover:border-[var(--accent-primary)]/60 hover:bg-[var(--accent-primary)]/20 disabled:opacity-50"
+                                    : "flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-50"
                                 }
                                 title={
                                   isActive
@@ -489,7 +489,7 @@ export function TaskDetailDrawer() {
                                     : undefined
                                 }
                               >
-                                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
                                   <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
                                   <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
                                 </svg>
@@ -508,37 +508,37 @@ export function TaskDetailDrawer() {
 
                   {/* Branch / PR */}
                   {(task.branch || task.prUrl) && (
-                    <section className="mb-5 flex flex-col gap-3">
-                      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                    <section className="mb-6 flex flex-col gap-3">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
                         {td.connectionsLabel}
                       </h3>
                       {task.branch && (
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-zinc-600">{td.branchLabel}</span>
-                          <code className="rounded-md bg-zinc-900 px-2 py-0.5 font-mono text-[11px] text-blue-300">
+                          <span className="text-xs text-zinc-600">{td.branchLabel}</span>
+                          <code className="rounded-md bg-zinc-900 px-2 py-1 font-mono text-xs text-blue-300">
                             {task.branch}
                           </code>
                         </div>
                       )}
                       {task.prUrl && (
-                        <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+                        <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3.5 py-3">
                           <div className="flex flex-1 items-center gap-2">
                             <a
                               href={task.prUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm font-medium transition" style={{ color: "var(--accent-primary)" }}
+                              className="text-base font-medium transition" style={{ color: "var(--accent-primary)" }}
                             >
                               {td.openPr} {task.prNumber ? `#${task.prNumber}` : ""} ↗
                             </a>
                           </div>
                           {task.status === "done" && (
-                            <span className="flex items-center gap-1 rounded-full bg-[var(--accent-primary)]/10 px-2.5 py-1 text-[11px] font-semibold text-[var(--accent-primary)]">
+                            <span className="flex items-center gap-1 rounded-full bg-[var(--accent-primary)]/10 px-3 py-1 text-xs font-semibold text-[var(--accent-primary)]">
                               {td.merged}
                             </span>
                           )}
                           {task.agent.status === "error" && task.status !== "done" && (
-                            <span className="rounded-full bg-red-900/50 px-2.5 py-1 text-[11px] font-semibold text-red-300">
+                            <span className="rounded-full bg-red-900/50 px-3 py-1 text-xs font-semibold text-red-300">
                               {td.mergeError}
                             </span>
                           )}
@@ -549,14 +549,14 @@ export function TaskDetailDrawer() {
                 </div>
               ) : (
                 /* Agent Logu sekmesi */
-                <div className="flex h-full flex-col gap-2 p-2.5">
+                <div className="flex h-full flex-col gap-2.5 p-3.5">
                   {/* View toggle: Timeline / Raw */}
-                  <div className="flex shrink-0 items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/60 p-0.5 self-start">
+                  <div className="flex shrink-0 items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/60 p-1 self-start">
                     <button
                       type="button"
                       onClick={() => setLogView("timeline")}
                       className={clsx(
-                        "rounded-md px-2.5 py-1 text-[10px] font-medium transition",
+                        "rounded-md px-3 py-1.5 text-[11px] font-medium transition",
                         logView === "timeline"
                           ? "bg-zinc-700 text-zinc-100"
                           : "text-zinc-500 hover:text-zinc-300",
@@ -568,7 +568,7 @@ export function TaskDetailDrawer() {
                       type="button"
                       onClick={() => setLogView("raw")}
                       className={clsx(
-                        "rounded-md px-2.5 py-1 text-[10px] font-medium transition",
+                        "rounded-md px-3 py-1.5 text-[11px] font-medium transition",
                         logView === "raw"
                           ? "bg-zinc-700 text-zinc-100"
                           : "text-zinc-500 hover:text-zinc-300",
@@ -581,7 +581,7 @@ export function TaskDetailDrawer() {
                   {/* Timeline view */}
                   {logView === "timeline" && (
                     task.status === "doing" && task.agent.status === "idle" ? (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-500">
+                      <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-sm text-zinc-500">
                         <span className="flex gap-1">
                           {[0, 1, 2].map((i) => (
                             <span
@@ -610,7 +610,7 @@ export function TaskDetailDrawer() {
                   {/* Raw log view */}
                   {logView === "raw" && (
                     task.status === "doing" && task.agent.status === "idle" ? (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-500">
+                      <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-sm text-zinc-500">
                         <span className="flex gap-1">
                           {[0, 1, 2].map((i) => (
                             <span
@@ -625,19 +625,19 @@ export function TaskDetailDrawer() {
                     ) : logs.length > 0 ? (
                       <pre
                         ref={logRef}
-                        className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-black p-3 font-mono text-[11px] leading-relaxed text-emerald-400"
+                        className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-black p-3.5 font-mono text-[13px] leading-relaxed text-emerald-400"
                       >
                         {logs.join("\n")}
                       </pre>
                     ) : (
-                      <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 text-xs text-zinc-700">
+                      <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 text-sm text-zinc-700">
                         {td.logsEmpty}
                       </div>
                     )
                   )}
 
                   {task.agent.status === "error" && task.agent.error && (
-                    <div className="shrink-0 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-red-400">
+                    <div className="shrink-0 rounded-lg border border-red-800 bg-red-950/40 px-3.5 py-3 font-mono text-[13px] leading-relaxed text-red-400">
                       <span className="mr-2 font-bold">✖ {td.logsErrorPrefix}</span>
                       <span className="whitespace-pre-wrap">{task.agent.error}</span>
                     </div>
@@ -647,14 +647,14 @@ export function TaskDetailDrawer() {
             </div>
 
             {/* Footer */}
-            <footer className="flex items-center justify-between gap-1.5 border-t px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+            <footer className="flex items-center justify-between gap-2 border-t px-5 py-3.5" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
               {editing ? (
                 <>
                   <button
                     type="button"
                     onClick={cancelEdit}
                     disabled={saving}
-                    className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition"
+                    className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition"
                   >
                     {td.cancelButton}
                   </button>
@@ -662,7 +662,7 @@ export function TaskDetailDrawer() {
                     type="button"
                     onClick={saveEdit}
                     disabled={saving}
-                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 transition"
+                    className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 transition"
                     style={{ background: "var(--accent-primary)" }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-primary)"; }}
@@ -676,7 +676,7 @@ export function TaskDetailDrawer() {
                     type="button"
                     onClick={() => setConfirmDelete(true)}
                     disabled={deleting}
-                    className="rounded-lg border border-red-800/60 bg-red-950/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/40 disabled:opacity-50 transition"
+                    className="rounded-lg border border-red-800/60 bg-red-950/30 px-4 py-2 text-sm text-red-400 hover:bg-red-900/40 disabled:opacity-50 transition"
                   >
                     {deleting ? td.deletingButton : td.deleteButton}
                   </button>
@@ -684,7 +684,7 @@ export function TaskDetailDrawer() {
                   {/* Cost pill */}
                   {costPill && (
                     <span
-                      className="rounded-full border px-2.5 py-0.5 text-[10px] font-medium"
+                      className="rounded-full border px-3 py-1 text-[11px] font-medium"
                       style={{
                         background: "var(--bg-surface)",
                         borderColor: "var(--border)",
@@ -699,7 +699,7 @@ export function TaskDetailDrawer() {
                   <button
                     type="button"
                     onClick={beginEdit}
-                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition"
+                    className="rounded-lg px-4 py-2 text-sm font-medium text-white transition"
                     style={{ background: "var(--accent-primary)" }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-primary)"; }}
