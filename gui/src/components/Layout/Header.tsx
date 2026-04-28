@@ -44,26 +44,26 @@ export function Header() {
   return (
     <>
       <header
-        className="fixed inset-x-0 top-0 z-30 flex h-10 items-center gap-3 border-b bg-[var(--bg-base)] px-3 backdrop-blur-md"
+        className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-3 border-b bg-[var(--bg-base)] px-4 backdrop-blur-md"
         style={{ borderColor: "var(--border)" }}
       >
         {/* Logo */}
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-1.5 hover:opacity-80 transition-opacity"
+          className="flex shrink-0 items-center gap-2 hover:opacity-80 transition-opacity"
         >
           <ClauFlowIcon />
-          <span className="text-xs font-semibold tracking-tight text-[var(--text-primary)]">
+          <span className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
             ClauFlow
           </span>
         </Link>
 
         {/* Breadcrumb */}
-        <div className="flex flex-1 items-center gap-1 overflow-hidden">
+        <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
           {selectedProject && (
             <>
               <BreadSep />
-              <span className="truncate text-[10px] font-medium text-[var(--text-muted)]">
+              <span className="truncate text-xs font-medium text-[var(--text-muted)]">
                 {selectedProject.name}
               </span>
             </>
@@ -71,7 +71,7 @@ export function Header() {
           {selectedTask && (
             <>
               <BreadSep />
-              <span className="truncate text-[10px] text-[var(--text-muted)] opacity-75">
+              <span className="truncate text-xs text-[var(--text-muted)] opacity-75">
                 #{selectedTask.id.slice(0, 7)}
                 {selectedTask.title ? ` · ${selectedTask.title.slice(0, 28)}` : ""}
               </span>
@@ -80,15 +80,15 @@ export function Header() {
         </div>
 
         {/* Right action zone — icons only */}
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-1">
           {/* GitHub PRs link */}
           {selectedProjectId && (
             <Link
               href={`/github?projectId=${selectedProjectId}`}
-              className="flex items-center rounded-md p-1.5 text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--accent-primary)]"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--accent-primary)]"
               title="Pull Requests"
             >
-              <GithubIcon className="h-3.5 w-3.5" />
+              <GithubIcon className="h-4 w-4" />
             </Link>
           )}
 
@@ -96,7 +96,7 @@ export function Header() {
           <button
             type="button"
             onClick={toggleLang}
-            className="flex items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+            className="flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs font-semibold text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
             title={lang === "tr" ? "Switch to English" : "Türkçeye geç"}
           >
             {lang === "tr" ? "EN" : "TR"}
@@ -106,15 +106,15 @@ export function Header() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex items-center justify-center rounded-md p-1.5 text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
             title={isLight ? t.header.themeToDark : t.header.themeToLight}
           >
             {isLight ? (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <circle cx="12" cy="12" r="5" />
                 <line x1="12" y1="1" x2="12" y2="3" />
                 <line x1="12" y1="21" x2="12" y2="23" />
@@ -130,28 +130,28 @@ export function Header() {
 
           {/* WS status — dot only, no label */}
           <div
-            className="flex items-center p-1.5"
+            className="flex h-8 w-8 items-center justify-center"
             title={wsConnected ? t.header.wsConnected : t.header.wsConnecting}
           >
             <span
-              className={`h-1.5 w-1.5 rounded-full ${
+              className={`h-2 w-2 rounded-full ${
                 wsConnected ? "bg-emerald-400" : "bg-[var(--text-muted)] opacity-50"
               }`}
             />
           </div>
 
           {/* Thin separator */}
-          <div className="mx-0.5 h-3.5 w-px" style={{ background: "var(--border)" }} />
+          <div className="mx-1 h-5 w-px" style={{ background: "var(--border)" }} />
 
           {/* GitHub connection */}
           {githubStatus.connected ? (
             <div
-              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-emerald-400"
+              className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-emerald-400"
               title={githubStatus.user ? `@${githubStatus.user}` : t.header.githubConnected}
             >
-              <GithubIcon className="h-3.5 w-3.5" />
+              <GithubIcon className="h-4 w-4" />
               {githubStatus.user && (
-                <span className="max-w-[80px] truncate hidden sm:inline">
+                <span className="max-w-[100px] truncate hidden sm:inline">
                   @{githubStatus.user}
                 </span>
               )}
@@ -160,10 +160,10 @@ export function Header() {
             <button
               type="button"
               onClick={() => setGithubModalOpen(true)}
-              className="flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              className="flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
               style={{ borderColor: "var(--border)" }}
             >
-              <GithubIcon className="h-3.5 w-3.5" />
+              <GithubIcon className="h-4 w-4" />
               <span>{t.header.githubConnect}</span>
             </button>
           )}
@@ -180,15 +180,15 @@ export function Header() {
 
 function BreadSep() {
   return (
-    <span className="shrink-0 text-[10px] text-[var(--text-muted)] opacity-40">/</span>
+    <span className="shrink-0 text-xs text-[var(--text-muted)] opacity-40">/</span>
   );
 }
 
 function ClauFlowIcon() {
   return (
     <svg
-      width="18"
-      height="18"
+      width="20"
+      height="20"
       viewBox="0 0 18 18"
       fill="none"
       className="shrink-0"

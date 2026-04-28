@@ -159,9 +159,9 @@ export function Board() {
 
   if (!selectedProjectId) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-zinc-500">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl border" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-base text-zinc-500">
+        <div className="flex h-14 w-14 items-center justify-center rounded-xl border" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden>
             <rect x="1" y="1" width="5" height="11" rx="1.5" fill="currentColor" opacity="0.4" />
             <rect x="8" y="1" width="5" height="8"  rx="1.5" fill="currentColor" opacity="0.4" />
             <rect x="15" y="1" width="4" height="15" rx="1.5" fill="currentColor" opacity="0.4" />
@@ -175,7 +175,7 @@ export function Board() {
   return (
     <div className="flex flex-col gap-4">
       {/* Board header — istatistik + arama */}
-      <div className="kanban-panel flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2">
+      <div className="kanban-panel flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5">
         {/* Stat pills */}
         <div className="flex flex-wrap gap-2">
           {columns.map((col) => {
@@ -185,7 +185,7 @@ export function Board() {
             return (
               <span
                 key={col.status}
-                className="rounded-md bg-zinc-800/80 px-2 py-0.5 text-[10px] font-medium text-zinc-400"
+                className="rounded-md bg-zinc-800/80 px-2.5 py-1 text-[11px] font-medium text-zinc-400"
               >
                 {col.title}:{" "}
                 <span className="font-semibold text-zinc-200">{count}</span>
@@ -196,11 +196,11 @@ export function Board() {
 
         {/* Progress bar */}
         {totalCount > 0 && (
-          <div className="flex items-center gap-1.5 ml-auto">
-            <span className="text-[11px] text-zinc-500">
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs text-zinc-500">
               %{progressPct}
             </span>
-            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-zinc-800">
+            <div className="h-1.5 w-28 overflow-hidden rounded-full bg-zinc-800">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                 style={{ width: `${progressPct}%` }}
@@ -211,8 +211,8 @@ export function Board() {
 
         {/* Arama */}
         <div className="relative ml-auto flex-shrink-0">
-          <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-zinc-600">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-zinc-600">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
               <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" />
             </svg>
           </span>
@@ -222,13 +222,13 @@ export function Board() {
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder={t.board.searchPlaceholder}
-            className="kanban-search rounded-lg border border-[var(--border)] bg-[var(--bg-base)] py-1 pl-7.5 pr-2.5 text-xs text-[var(--text-primary)] placeholder-zinc-600 outline-none transition focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/20 w-44"
+            className="kanban-search rounded-lg border border-[var(--border)] bg-[var(--bg-base)] py-1.5 pl-8.5 pr-3 text-sm text-[var(--text-primary)] placeholder-zinc-600 outline-none transition focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/20 w-56"
           />
           {filterText && (
             <button
               type="button"
               onClick={() => setFilterText("")}
-              className="absolute inset-y-0 right-2 flex items-center text-zinc-600 hover:text-zinc-400"
+              className="absolute inset-y-0 right-2.5 flex items-center text-zinc-600 hover:text-zinc-400"
             >
               ×
             </button>
@@ -237,12 +237,12 @@ export function Board() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
+        <div className="rounded-xl border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-300">
           {t.board.loadError}: {error}
         </div>
       )}
       {loading && (
-        <div className="text-xs text-zinc-500">{t.board.loadingTasks}</div>
+        <div className="text-sm text-zinc-500">{t.board.loadingTasks}</div>
       )}
 
       <DndContext
@@ -250,7 +250,7 @@ export function Board() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {columns.map((col) => (
             <BoardColumn
               key={col.status}
@@ -306,12 +306,12 @@ export function Board() {
           onClick={() => setShowHelp(false)}
         >
           <div
-            className="w-80 rounded-2xl border p-4 shadow-2xl"
+            className="w-96 rounded-2xl border p-5 shadow-2xl"
             style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-3 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{t.board.shortcuts.title}</h3>
-            <div className="flex flex-col gap-1.5">
+            <h3 className="mb-4 text-base font-semibold" style={{ color: "var(--text-primary)" }}>{t.board.shortcuts.title}</h3>
+            <div className="flex flex-col gap-2">
               {[
                 { key: "N",   desc: t.board.shortcuts.newTask },
                 { key: "/",   desc: t.board.shortcuts.focusSearch },
@@ -319,8 +319,8 @@ export function Board() {
                 { key: "?",   desc: t.board.shortcuts.openHelp },
               ].map(({ key, desc }) => (
                 <div key={key} className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{desc}</span>
-                  <kbd className="rounded border px-2 py-0.5 font-mono text-[11px]" style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}>
+                  <span className="text-sm" style={{ color: "var(--text-muted)" }}>{desc}</span>
+                  <kbd className="rounded border px-2 py-1 font-mono text-xs" style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}>
                     {key}
                   </kbd>
                 </div>
@@ -329,7 +329,7 @@ export function Board() {
             <button
               type="button"
               onClick={() => setShowHelp(false)}
-              className="mt-3 w-full rounded-lg border py-1 text-xs transition"
+              className="mt-4 w-full rounded-lg border py-2 text-sm transition"
               style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-primary)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
