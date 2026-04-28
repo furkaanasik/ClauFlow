@@ -1,21 +1,6 @@
 # ROADMAP
 
-## 1. Frontend ölçek / yoğunluk
-
-**Maliyet:** ~yarım gün · **Değer:** yüksek (her şey 13–14px, "minik tool" hissi veriyor — tek başına ciddiyet algısını değiştiriyor)
-
-- Tailwind v4 token'larında base font 14px → 15-16px; `text-xs` çoğu yerde `text-sm`'e çıkar
-- Header / Sidebar / Board kolon genişlikleri: kolon min-width ~280px → ~320px, padding `p-3` → `p-4`
-- TaskCard: title `text-sm` → `text-base`, satır yüksekliği `leading-snug`, agent badge boyutu büyüt
-- TaskDetailDrawer: drawer genişliği ~480px → ~560px, log bloğu `text-xs` → `text-[13px]`, monospace font tek tip
-- Sidebar item yüksekliği: ~28px → ~36px, ikon 14 → 16
-- Buton hit-area minimum 32x32 (a11y) — şu an 24-26 civarı
-- Tema variable'larından bağımsız olarak; light/dark her ikisinde de aynı ölçek geçerli
-- Tek seferde değil component-component dön: önce Board, sonra Drawer, sonra Sidebar/Header
-
----
-
-## 2. Modern diff görünümü (PR detay)
+## 1. Modern diff görünümü (PR detay)
 
 **Maliyet:** ~1-2 gün · **Değer:** yüksek (PR review ana iş akışı, mevcut diff oldukça ilkel)
 
@@ -36,6 +21,16 @@ Hedef: GitHub / Graphite / Linear hissinde, file-tree + side-by-side panel.
   - Hunk gutter / satır numarası ayrı sütun, sticky
 - **Tek dosya bazında** "view file" / "view raw" link (GitHub'a yönlendir)
 - Mevcut `PRDetailDrawer` zaten tam ekran modal — diff render'ını kendi component'ine ayır (`<DiffView />`), Split/Unified iki layout aynı veriyi tüketsin
+
+---
+
+## Tamamlananlar
+
+- ✅ Issue ID konvansiyonu (`KPI-3` gibi displayId)
+- ✅ Yapılandırılmış tool call streaming (stream-json + collapsible tool log)
+- ✅ Token + cost observability
+- ✅ Task silme
+- ✅ Frontend ölçek / yoğunluk (#12)
 
 ---
 
