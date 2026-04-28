@@ -91,9 +91,35 @@ export async function checkoutBase(repoPath: string, base: string): Promise<RunR
   // Pull only when a remote exists — skip silently for local-only repos
   const remotes = await run("git", ["remote"], repoPath);
   if (remotes.stdout.trim() === "") return co;
+
+  // Defensive: `git pull` fails fast on a dirty working tree when the user's
+  // global config has `pull.rebase = true` ("cannot pull with rebase: You
+  // have unstaged changes"). Checkout itself can leave the tree dirty via
+  // smudge filters, line-ending normalization, or auto-touched runtime files
+  // (e.g. SQLite WAL/SHM). Stash anything left over with a labeled message
+  // so the user can recover real edits later via `git stash list`.
+  const dirty = await run("git", ["status", "--porcelain"], repoPath);
+  let pullStashLabel: string | null = null;
+  if (dirty.stdout.trim() !== "") {
+    pullStashLabel = `kanban-pull-auto-${new Date().toISOString()}`;
+    const stash = await run(
+      "git",
+      ["stash", "push", "--include-untracked", "--message", pullStashLabel],
+      repoPath,
+    );
+    if (stash.code !== 0) return stash;
+  }
+
   const pullResult = await run("git", ["pull", "origin", base], repoPath);
   if (pullResult.code !== 0) return pullResult;
-  return { code: 0, stdout: `${co.stdout}\n${pullResult.stdout}`, stderr: pullResult.stderr };
+  const stashNote = pullStashLabel
+    ? `\n[kanban] working tree had dirty files; auto-stashed as "${pullStashLabel}". Recover with: git stash list`
+    : "";
+  return {
+    code: 0,
+    stdout: `${co.stdout}\n${pullResult.stdout}${stashNote}`,
+    stderr: pullResult.stderr,
+  };
 }
 
 export function createBranch(repoPath: string, branch: string): Promise<RunResult> {
