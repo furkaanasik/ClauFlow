@@ -9,6 +9,29 @@ TODO  →  DOING  →  REVIEW  →  DONE
 
 ---
 
+## Overview
+
+ClauFlow turns a kanban board into an autonomous development pipeline. Instead of writing code yourself, you describe the work as a task — moving the card across columns drives a real engineering workflow behind the scenes:
+
+- **TODO → DOING** spawns the Claude Code CLI in a fresh feature branch, lets it implement the change, then commits, pushes, and opens a pull request.
+- **REVIEW** is where humans take over: read the diff in the built-in side-by-side viewer, leave comments, and Claude re-runs against the same branch to apply the requested changes.
+- **DONE** auto-merges the PR via `gh pr merge`.
+
+Every step streams over WebSocket, so the agent's logs, status transitions, and PR updates appear live in the UI. Multiple projects, GitHub authentication, TR/EN i18n, dark/light theme, and a SQLite-backed task store are included out of the box.
+
+## Features
+
+- **Drag-driven AI execution** — column transitions trigger real git/Claude/gh pipelines, no manual scripts
+- **Branch-aware comment loop** — review feedback gets applied as new commits on the same PR branch
+- **Live agent logs** — WebSocket stream of every step: checkout, prompt, commit, push, PR
+- **Built-in PR viewer** — full-screen drawer with side-by-side diff, file tree, and merge button
+- **Multi-project support** — sidebar with search; each project has its own board, repo, and tasks
+- **GitHub via `gh` device flow** — no custom OAuth app to register
+- **i18n + theming** — TR/EN toggle and dark/light mode, both persisted in `localStorage`
+- **SQLite (WAL mode)** — transaction-safe storage, automatic migration from the legacy `tasks.json`
+
+---
+
 ## Stack
 
 | Layer    | Tech |
