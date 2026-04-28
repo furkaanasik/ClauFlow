@@ -6,5 +6,6 @@ dist
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/tasks.json
 data/tasks.json.migrated
 data/tasks.json.tmp-*
