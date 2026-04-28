@@ -34,21 +34,19 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
       onClick={onClose}
     >
       <div
-        className={`max-h-[85vh] w-full overflow-hidden rounded-2xl shadow-2xl ${SIZE_CLS[size]}`}
-        style={{ background: "var(--bg-elevated)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--border)" }}
+        className={`max-h-[85vh] w-full overflow-hidden border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl ${SIZE_CLS[size]}`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <header className="flex items-center justify-between border-b px-4 py-2" style={{ borderColor: "var(--border)" }}>
-            <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{title}</h2>
+          <header className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
+            <h2 className="t-display text-xl text-[var(--text-primary)]">
+              {title}
+            </h2>
             <button
               type="button"
-              className="rounded-md p-1 transition"
-              style={{ color: "var(--text-muted)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
+              className="border border-[var(--border)] p-1.5 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
               onClick={onClose}
-              aria-label="Kapat"
+              aria-label="Close"
             >
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                 <path d="M1 1l12 12M13 1L1 13" />
@@ -56,7 +54,7 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
             </button>
           </header>
         )}
-        <div className="max-h-[70vh] overflow-auto p-4">{children}</div>
+        <div className="max-h-[70vh] overflow-auto p-5">{children}</div>
       </div>
     </div>
   );

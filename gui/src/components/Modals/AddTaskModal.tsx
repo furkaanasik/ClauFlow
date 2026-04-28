@@ -15,28 +15,14 @@ interface AddTaskModalProps {
 
 type Priority = "low" | "medium" | "high" | "critical";
 
-const PRIORITY_KEYS: { value: Priority; style: string; activeStyle: string }[] = [
-  {
-    value: "low",
-    style:       "border-zinc-700  text-zinc-400",
-    activeStyle: "border-emerald-600 bg-emerald-950/60 text-emerald-300",
-  },
-  {
-    value: "medium",
-    style:       "border-zinc-700  text-zinc-400",
-    activeStyle: "border-yellow-600  bg-yellow-950/60  text-yellow-300",
-  },
-  {
-    value: "high",
-    style:       "border-zinc-700  text-zinc-400",
-    activeStyle: "border-orange-600  bg-orange-950/60  text-orange-300",
-  },
-  {
-    value: "critical",
-    style:       "border-zinc-700  text-zinc-400",
-    activeStyle: "border-red-600    bg-red-950/60    text-red-300",
-  },
-];
+const PRIO_COLOR: Record<Priority, string> = {
+  low:      "var(--prio-low)",
+  medium:   "var(--prio-medium)",
+  high:     "var(--prio-high)",
+  critical: "var(--prio-critical)",
+};
+
+const PRIO_LIST: Priority[] = ["low", "medium", "high", "critical"];
 
 export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const selectedProjectId = useBoardStore((s) => s.selectedProjectId);
@@ -83,8 +69,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
 
   return (
     <Modal open={open} onClose={handleClose} title={t.addTask.modalTitle} size="lg">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        {/* Title */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <Field label={t.addTask.titleLabel} required>
           <input
             type="text"
@@ -96,28 +81,35 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
           />
         </Field>
 
-        {/* Priority — button group */}
-        <div className="flex flex-col gap-2">
-          <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>{t.addTask.priorityLabel}</span>
-          <div className="flex gap-1.5">
-            {PRIORITY_KEYS.map(({ value, style, activeStyle }) => (
+        <Field label={t.addTask.priorityLabel}>
+          <div className="flex gap-px border border-[var(--border)] bg-[var(--border)]">
+            {PRIO_LIST.map((value) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setPriority(value)}
                 className={clsx(
-                  "flex-1 rounded-lg border py-1 text-[10px] font-medium transition",
-                  priority === value ? activeStyle : style,
-                  priority !== value && "hover:border-zinc-600 hover:text-zinc-300",
+                  "flex flex-1 items-center justify-center gap-2 px-3 py-2.5 text-[12px] font-medium capitalize transition",
+                  priority === value
+                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                    : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
                 )}
+                style={
+                  priority === value
+                    ? { boxShadow: `inset 0 -2px 0 ${PRIO_COLOR[value]}` }
+                    : {}
+                }
               >
+                <span
+                  className="h-1.5 w-1.5"
+                  style={{ background: PRIO_COLOR[value] }}
+                />
                 {t.addTask.priorities[value]}
               </button>
             ))}
           </div>
-        </div>
+        </Field>
 
-        {/* Description */}
         <Field label={t.addTask.descriptionLabel}>
           <textarea
             value={description}
@@ -128,43 +120,37 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
           />
         </Field>
 
-        {/* Analysis */}
-        <Field
-          label={t.addTask.analysisLabel}
-          hint={t.addTask.analysisHint}
-        >
+        <Field label={t.addTask.analysisLabel} hint={t.addTask.analysisHint}>
           <textarea
             value={analysis}
             onChange={(e) => setAnalysis(e.target.value)}
             placeholder={t.addTask.analysisPlaceholder}
-            rows={8}
+            rows={9}
             className={clsx(inputCls, "resize-y font-mono text-xs")}
           />
         </Field>
 
         {error && (
-          <div className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
+          <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-xs text-[var(--status-error)]">
             {error}
           </div>
         )}
 
-        <div className="flex justify-end gap-1.5 pt-1">
+        <div className="flex justify-between gap-2 border-t border-[var(--border)] pt-4">
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg px-3 py-1.5 text-xs transition"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
+            className="btn-ghost px-4 py-2 text-[12px] font-medium"
           >
             {t.addTask.cancel}
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
+            className="btn-ink inline-flex items-center gap-2 px-5 py-2 text-[12px] font-medium disabled:opacity-50"
           >
             {loading ? t.addTask.submitting : t.addTask.submit}
+            <span aria-hidden>→</span>
           </button>
         </div>
       </form>
@@ -173,7 +159,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
 }
 
 const inputCls =
-  "w-full rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-primary)] placeholder-zinc-600 outline-none transition focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/20";
+  "w-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)]";
 
 function Field({
   label,
@@ -187,13 +173,17 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
       <div className="flex items-baseline gap-2">
-        <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>
+        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
           {label}
-          {required && <span className="ml-1 text-red-400">*</span>}
+          {required && (
+            <span className="ml-1 text-[var(--status-error)]">*</span>
+          )}
         </span>
-        {hint && <span className="text-[10px]" style={{ color: "var(--text-muted)", opacity: 0.6 }}>{hint}</span>}
+        {hint && (
+          <span className="ml-auto text-[11px] italic text-[var(--text-muted)]">{hint}</span>
+        )}
       </div>
       {children}
     </div>

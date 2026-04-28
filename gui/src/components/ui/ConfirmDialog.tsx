@@ -18,8 +18,8 @@ export function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = "Onayla",
-  cancelLabel = "İptal",
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
   variant = "default",
   onConfirm,
   onCancel,
@@ -36,68 +36,59 @@ export function ConfirmDialog({
 
   if (!open) return null;
 
-  const confirmCls = {
-    danger:  "bg-red-600 hover:bg-red-500 text-white",
-    warning: "bg-yellow-600 hover:bg-yellow-500 text-white",
-    default: "bg-blue-600 hover:bg-blue-500 text-white",
+  const variantInk = {
+    danger:  "var(--status-error)",
+    warning: "var(--status-warning)",
+    default: "var(--accent-primary)",
   }[variant];
+
+  const confirmCls = clsx(
+    "border px-4 py-2 text-[12px] font-medium transition",
+    variant === "danger"  && "border-[var(--status-error)] bg-[var(--status-error)] text-[var(--bg-base)] hover:bg-[var(--bg-base)] hover:text-[var(--status-error)]",
+    variant === "warning" && "border-[var(--status-warning)] bg-[var(--status-warning)] text-[var(--bg-base)] hover:bg-[var(--bg-base)] hover:text-[var(--status-warning)]",
+    variant === "default" && "btn-ink",
+  );
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/65 backdrop-blur-sm"
         onClick={onCancel}
         aria-hidden="true"
       />
 
-      {/* Dialog */}
-      <div className="relative w-full max-w-sm animate-fade-up rounded-2xl border p-5 shadow-2xl" style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}>
-        {/* Icon */}
-        {variant === "danger" && (
-          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-red-950/60 text-red-400">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M10 11v6M14 11v6" />
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            </svg>
-          </div>
-        )}
-        {variant === "warning" && (
-          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-yellow-950/60 text-yellow-400">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-          </div>
-        )}
+      <div className="relative w-full max-w-md animate-fade-up border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
+        <div
+          aria-hidden
+          className="h-1 w-full"
+          style={{ background: variantInk }}
+        />
+        <div className="px-5 py-5">
+          <h3 className="t-display text-2xl leading-tight text-[var(--text-primary)]">
+            {title}
+          </h3>
+          {description && (
+            <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
+              {description}
+            </p>
+          )}
 
-        <h3 className="mb-1 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{title}</h3>
-        {description && (
-          <p className="mb-4 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>{description}</p>
-        )}
-        {!description && <div className="mb-4" />}
-
-        <div className="flex justify-end gap-1.5">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg px-3 py-1.5 text-xs transition"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={clsx("rounded-lg px-3 py-1.5 text-xs font-medium transition", confirmCls)}
-          >
-            {confirmLabel}
-          </button>
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="btn-ghost px-4 py-2 text-[12px] font-medium"
+            >
+              {cancelLabel}
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className={confirmCls}
+            >
+              {confirmLabel}
+            </button>
+          </div>
         </div>
       </div>
     </div>

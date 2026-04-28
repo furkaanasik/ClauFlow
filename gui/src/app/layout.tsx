@@ -1,23 +1,32 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import LangHydrator from "@/components/Layout/LangHydrator";
 
-const geist = Geist({
+const geistSans = Geist({
   subsets: ["latin"],
-  variable: "--geist-sans",
+  variable: "--font-geist-sans",
   display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const fraunces = Fraunces({
   subsets: ["latin"],
-  variable: "--geist-mono",
+  style: ["normal", "italic"],
+  axes: ["SOFT", "WONK", "opsz"],
+  variable: "--font-fraunces",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "ClauFlow",
-  description: "Agentic Kanban board — TODO → DOING → REVIEW → DONE",
+  title: "ClauFlow — An Almanac for Agentic Engineering",
+  description:
+    "Drag a task. Claude writes the code, opens a PR, applies your review. A kanban board for autonomous development.",
 };
 
 export default function RootLayout({
@@ -26,11 +35,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="tr" className={`${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
+    <html
+      lang="tr"
+      className={`${geistSans.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme');if(t==='light')document.documentElement.classList.add('light');})()` }} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('theme');if(t==='light')document.documentElement.classList.add('light');})()`,
+          }}
+        />
       </head>
-      <body className="min-h-screen text-zinc-100 antialiased">
+      <body className="min-h-screen antialiased">
         <LangHydrator />
         {children}
       </body>

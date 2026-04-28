@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import clsx from "clsx";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { githubApi, type PRListItem, type PRFile, type PRDetails } from "@/lib/api";
+import { githubApi, type PRListItem, type PRDetails } from "@/lib/api";
 import { PR_STATE_STYLES } from "@/lib/githubConstants";
 
 export type PullRequest = PRListItem;
@@ -14,20 +15,6 @@ interface PRDetailDrawerProps {
   onClose: () => void;
   onMerged: () => void;
 }
-
-const FILE_STATUS_STYLES: Record<string, string> = {
-  added:    "bg-emerald-900/50 text-emerald-400 border border-emerald-800/50",
-  modified: "bg-yellow-900/50 text-yellow-400 border border-yellow-800/50",
-  deleted:  "bg-red-900/50 text-red-400 border border-red-800/50",
-  renamed:  "bg-blue-900/50 text-blue-400 border border-blue-800/50",
-};
-
-const FILE_STATUS_LABELS: Record<string, string> = {
-  added:    "Eklendi",
-  modified: "Degistirildi",
-  deleted:  "Silindi",
-  renamed:  "Yeniden Adlandirildi",
-};
 
 function slugify(s: string | undefined): string {
   return (s ?? "").replace(/[^a-zA-Z0-9]/g, "-");
@@ -47,8 +34,6 @@ interface SplitRow {
   header?: { content: string; type: "file-header" | "hunk-header"; fileId?: string };
 }
 
-// ─── Parser ───────────────────────────────────────────────────────────────────
-
 function parseSplitDiff(raw: string): SplitRow[] {
   const lines = raw.split("\n");
   const rows: SplitRow[] = [];
@@ -63,20 +48,16 @@ function parseSplitDiff(raw: string): SplitRow[] {
   };
 
   for (const line of lines) {
-    // File header
     if (line.startsWith("diff --git")) {
       flushRemoved();
-      // Extract filename from "diff --git a/foo.ts b/foo.ts"
       const match = line.match(/diff --git a\/.+ b\/(.+)/);
       const filename = match ? match[1] : line;
       rows.push({ header: { content: line, type: "file-header", fileId: `diff-file-${slugify(filename)}` } });
       continue;
     }
-    // Skip meta lines
     if (line.startsWith("--- ") || line.startsWith("+++ ") || line.startsWith("index ") || line.startsWith("new file") || line.startsWith("deleted file")) {
       continue;
     }
-    // Hunk header
     if (line.startsWith("@@")) {
       flushRemoved();
       const match = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
@@ -87,12 +68,10 @@ function parseSplitDiff(raw: string): SplitRow[] {
       rows.push({ header: { content: line, type: "hunk-header" } });
       continue;
     }
-    // Removed line
     if (line.startsWith("-")) {
       removedBuf.push({ lineNum: oldLine++, content: line.slice(1), type: "removed" });
       continue;
     }
-    // Added line
     if (line.startsWith("+")) {
       const addedSide: SplitSide = { lineNum: newLine++, content: line.slice(1), type: "added" };
       if (removedBuf.length > 0) {
@@ -102,7 +81,6 @@ function parseSplitDiff(raw: string): SplitRow[] {
       }
       continue;
     }
-    // Context line (starts with space or is empty)
     if (line.startsWith(" ") || line === "") {
       flushRemoved();
       const content = line.startsWith(" ") ? line.slice(1) : line;
@@ -118,46 +96,44 @@ function parseSplitDiff(raw: string): SplitRow[] {
   return rows;
 }
 
-// ─── Split diff renderer ──────────────────────────────────────────────────────
-
 type SideVariant = "removed" | "added" | "empty" | "context";
 
 function leftBg(type: SideVariant | undefined): string {
-  if (type === "removed") return "bg-red-950/60";
-  if (type === "empty")   return "bg-zinc-900/30";
+  if (type === "removed") return "bg-[var(--status-error-ink)]";
+  if (type === "empty")   return "bg-[var(--bg-sunken)]";
   return "";
 }
 
 function rightBg(type: SideVariant | undefined): string {
-  if (type === "added") return "bg-emerald-950/60";
-  if (type === "empty") return "bg-zinc-900/30";
+  if (type === "added") return "bg-[var(--accent-muted)]";
+  if (type === "empty") return "bg-[var(--bg-sunken)]";
   return "";
 }
 
 function leftNumCls(type: SideVariant | undefined): string {
-  if (type === "removed") return "bg-red-950/60 text-red-600";
-  return "bg-zinc-950 text-zinc-600";
+  if (type === "removed") return "bg-[var(--status-error-ink)] text-[var(--status-error)]";
+  return "bg-[var(--bg-base)] text-[var(--text-faint)]";
 }
 
 function rightNumCls(type: SideVariant | undefined): string {
-  if (type === "added") return "bg-emerald-950/60 text-emerald-700";
-  return "bg-zinc-950 text-zinc-600";
+  if (type === "added") return "bg-[var(--accent-muted)] text-[var(--accent-primary)]";
+  return "bg-[var(--bg-base)] text-[var(--text-faint)]";
 }
 
 function leftContentCls(type: SideVariant | undefined): string {
-  if (type === "removed") return "text-red-200";
-  return "text-zinc-300";
+  if (type === "removed") return "text-[var(--status-error)]";
+  return "text-[var(--text-secondary)]";
 }
 
 function rightContentCls(type: SideVariant | undefined): string {
-  if (type === "added") return "text-emerald-200";
-  return "text-zinc-300";
+  if (type === "added") return "text-[var(--accent-primary)]";
+  return "text-[var(--text-secondary)]";
 }
 
 function prefixCls(type: SideVariant | undefined): string {
-  if (type === "removed") return "text-red-400";
-  if (type === "added")   return "text-emerald-400";
-  return "text-zinc-600";
+  if (type === "removed") return "text-[var(--status-error)]";
+  if (type === "added")   return "text-[var(--accent-primary)]";
+  return "text-[var(--text-faint)]";
 }
 
 function sidePrefix(type: SideVariant | undefined): string {
@@ -173,17 +149,17 @@ function SplitDiffRow({ row }: { row: SplitRow }) {
       return (
         <div
           id={row.header.fileId}
-          className="flex items-center gap-2 border-b border-t border-zinc-700/50 bg-zinc-900 px-3 py-1.5 text-[10px] font-semibold text-zinc-300"
+          className="flex items-center gap-2 border-y border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--text-secondary)]"
         >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" className="shrink-0 text-zinc-500">
-            <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z" />
-          </svg>
-          <span className="font-mono">{row.header.content.replace(/^diff --git a\/.+ b\//, "")}</span>
+          <span className="text-[var(--text-faint)]">▸</span>
+          <span className="font-mono normal-case tracking-normal text-[var(--text-primary)]">
+            {row.header.content.replace(/^diff --git a\/.+ b\//, "")}
+          </span>
         </div>
       );
     }
     return (
-      <div className="border-b border-zinc-800/60 bg-blue-950/20 px-3 py-0.5 font-mono text-[10px] text-blue-500/80">
+      <div className="border-b border-[var(--border)] bg-[var(--bg-surface)] px-3 py-0.5 font-mono text-[10px] text-[var(--text-muted)]">
         {row.header.content}
       </div>
     );
@@ -195,32 +171,36 @@ function SplitDiffRow({ row }: { row: SplitRow }) {
   const rightType = right?.type as SideVariant | undefined;
 
   return (
-    <div className="flex min-w-0 border-b border-zinc-900/50 hover:bg-zinc-700/30">
-      {/* Left side */}
-      <div className="flex w-1/2 min-w-0 border-r border-zinc-800">
+    <div className="flex min-w-0 border-b border-[var(--border)]">
+      <div className="flex w-1/2 min-w-0 border-r border-[var(--border)]">
         <span
-          className={`w-12 shrink-0 select-none border-r border-zinc-800/60 px-2 py-0.5 text-right font-mono text-[10px] ${leftNumCls(leftType)}`}
+          className={clsx(
+            "w-12 shrink-0 select-none border-r border-[var(--border)] px-2 py-0.5 text-right font-mono text-[10px] tabular-nums",
+            leftNumCls(leftType),
+          )}
         >
           {left && leftType !== "empty" ? left.lineNum : ""}
         </span>
-        <div className={`flex-1 overflow-x-auto px-2 py-0.5 ${leftBg(leftType)}`}>
-          <span className={`whitespace-pre font-mono text-xs ${leftContentCls(leftType)}`}>
-            <span className={`select-none ${prefixCls(leftType)}`}>{sidePrefix(leftType)}</span>
+        <div className={clsx("flex-1 overflow-x-auto px-2 py-0.5", leftBg(leftType))}>
+          <span className={clsx("whitespace-pre font-mono text-xs", leftContentCls(leftType))}>
+            <span className={clsx("select-none", prefixCls(leftType))}>{sidePrefix(leftType)}</span>
             {left && leftType !== "empty" ? left.content : ""}
           </span>
         </div>
       </div>
 
-      {/* Right side */}
       <div className="flex w-1/2 min-w-0">
         <span
-          className={`w-12 shrink-0 select-none border-r border-zinc-800/60 px-2 py-0.5 text-right font-mono text-[11px] ${rightNumCls(rightType)}`}
+          className={clsx(
+            "w-12 shrink-0 select-none border-r border-[var(--border)] px-2 py-0.5 text-right font-mono text-[10px] tabular-nums",
+            rightNumCls(rightType),
+          )}
         >
           {right && rightType !== "empty" ? right.lineNum : ""}
         </span>
-        <div className={`flex-1 overflow-x-auto px-2 py-0.5 ${rightBg(rightType)}`}>
-          <span className={`whitespace-pre font-mono text-xs ${rightContentCls(rightType)}`}>
-            <span className={`select-none ${prefixCls(rightType)}`}>{sidePrefix(rightType)}</span>
+        <div className={clsx("flex-1 overflow-x-auto px-2 py-0.5", rightBg(rightType))}>
+          <span className={clsx("whitespace-pre font-mono text-xs", rightContentCls(rightType))}>
+            <span className={clsx("select-none", prefixCls(rightType))}>{sidePrefix(rightType)}</span>
             {right && rightType !== "empty" ? right.content : ""}
           </span>
         </div>
@@ -246,12 +226,14 @@ function SplitDiffView({ diff, scrollToFileId }: { diff: string; scrollToFileId?
     if (idx !== -1) {
       virtualizer.scrollToIndex(idx, { align: "start" });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToFileId]);
 
   if (!diff.trim()) {
     return (
-      <p className="py-8 text-center font-mono text-xs text-zinc-600">Diff bulunamadi</p>
+      <p className="t-quote py-12 text-center text-base text-[var(--text-muted)]">
+        diff is empty.
+      </p>
     );
   }
 
@@ -301,14 +283,12 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
   const stateStyle = PR_STATE_STYLES[pr.state] ?? PR_STATE_STYLES["OPEN"];
   const loading = detailsLoading || diffLoading;
 
-  // Close on Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Fetch files details
   const fetchDetails = useCallback(async () => {
     setDetailsLoading(true);
     setDetailsError(null);
@@ -316,13 +296,12 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
       const data = await githubApi.getPRDetails(pr.number, projectId);
       setDetails(data);
     } catch (err) {
-      setDetailsError(err instanceof Error ? err.message : "Bilinmeyen hata.");
+      setDetailsError(err instanceof Error ? err.message : "Unknown error.");
     } finally {
       setDetailsLoading(false);
     }
   }, [pr.number, projectId]);
 
-  // Fetch diff
   const fetchDiff = useCallback(async () => {
     setDiffLoading(true);
     setDiffError(null);
@@ -330,17 +309,16 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
       const data = await githubApi.getPRDiff(pr.number, projectId);
       setDiff(data.diff ?? "");
     } catch (err) {
-      setDiffError(err instanceof Error ? err.message : "Bilinmeyen hata.");
+      setDiffError(err instanceof Error ? err.message : "Unknown error.");
     } finally {
       setDiffLoading(false);
     }
   }, [pr.number, projectId]);
 
-  // Initial load — fetch both details and diff
   useEffect(() => {
     fetchDetails();
     fetchDiff();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleMerge = async () => {
@@ -352,7 +330,7 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
       onMerged();
       onClose();
     } catch (err) {
-      setMergeError(err instanceof Error ? err.message : "Merge sirasinda hata olustu.");
+      setMergeError(err instanceof Error ? err.message : "Merge failed.");
     } finally {
       setMerging(false);
     }
@@ -365,63 +343,65 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
 
   return (
     <>
-      {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Modal container */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="relative flex flex-col w-full max-w-[96rem] h-[90vh] rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl overflow-hidden"
+          className="relative flex h-[92vh] w-full max-w-[96rem] flex-col overflow-hidden border border-[var(--border)] bg-[var(--bg-base)] shadow-2xl"
           role="dialog"
           aria-modal="true"
         >
           {/* ── Header ── */}
-          <header className="shrink-0 flex items-center justify-between gap-3 border-b border-zinc-800 px-5 py-3">
-            {/* Left: PR meta */}
-            <div className="min-w-0 flex items-center gap-2.5 flex-1">
-              <span className="font-mono text-xs text-zinc-500 shrink-0">#{pr.number}</span>
-              <h2 className="text-base font-semibold text-zinc-100 leading-tight truncate">{pr.title}</h2>
+          <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--border)] px-6 py-4">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="font-mono text-base font-semibold tabular-nums text-[var(--text-muted)]">
+                #{pr.number}
+              </span>
+              <h2 className="t-display truncate text-2xl text-[var(--text-primary)]">
+                {pr.title}
+              </h2>
               <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${stateStyle.cls}`}
+                className="inline-flex shrink-0 items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium capitalize"
+                style={{ borderColor: stateStyle.ink, color: stateStyle.ink }}
               >
+                <span className="h-1 w-1" style={{ background: stateStyle.ink }} />
                 {stateStyle.label}
               </span>
               {pr.repository && (
-                <span className="hidden sm:inline text-[10px] text-zinc-600 shrink-0">
-                  {pr.repository.nameWithOwner}
+                <span className="hidden shrink-0 font-mono text-[11px] text-[var(--text-faint)] sm:inline">
+                  · {pr.repository.nameWithOwner}
                 </span>
               )}
             </div>
 
-            {/* Right: actions */}
-            <div className="shrink-0 flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-2">
               <a
                 href={pr.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+                className="btn-ghost px-3 py-1.5 text-[12px] font-medium"
               >
-                GitHub&apos;da Ac
+                Open ↗
               </a>
               {pr.state !== "MERGED" && (
                 <button
                   type="button"
                   onClick={() => setConfirmMerge(true)}
                   disabled={merging}
-                  className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-ink px-4 py-1.5 text-[12px] font-medium disabled:opacity-50"
                 >
-                  {merging ? "Merging..." : "Merge"}
+                  {merging ? "Merging…" : "Merge"}
                 </button>
               )}
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
-                aria-label="Kapat"
+                className="border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                aria-label="Close"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M1 1l12 12M13 1L1 13" />
@@ -430,88 +410,92 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
             </div>
           </header>
 
-          {/* ── Merge error banner ── */}
           {mergeError && (
-            <div className="shrink-0 bg-red-950/40 text-red-300 px-6 py-2 text-xs">
+            <div className="shrink-0 border-b border-[var(--status-error)] bg-[var(--status-error-ink)] px-6 py-2 text-xs text-[var(--status-error)]">
               {mergeError}
             </div>
           )}
 
-          {/* ── Body (2-column) ── */}
+          {/* ── Body ── */}
           <div className="flex flex-1 overflow-hidden">
-            {/* Left: file list panel */}
-            <aside className="w-64 shrink-0 border-r border-zinc-800 overflow-y-auto p-3 flex flex-col gap-2">
-              {/* Panel title */}
-              <div className="px-1 pb-1 border-b border-zinc-800">
-                <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">
-                  Degisen Dosyalar
+            {/* File list panel */}
+            <aside className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-[var(--border)] bg-[var(--bg-surface)]">
+              <div className="border-b border-[var(--border)] px-4 py-3">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  Changed files
                 </p>
                 {details && (
-                  <p className="mt-0.5 text-[11px] text-zinc-600">
-                    <span className="text-emerald-400">+{details.additions}</span>
-                    {" "}
-                    <span className="text-red-400">-{details.deletions}</span>
+                  <p className="mt-2 flex items-center gap-3 font-mono text-[11px] tabular-nums">
+                    <span className="text-[var(--accent-primary)]">+{details.additions}</span>
+                    <span className="text-[var(--text-faint)]">·</span>
+                    <span className="text-[var(--status-error)]">−{details.deletions}</span>
                   </p>
                 )}
               </div>
 
-              {/* Skeleton */}
-              {(loading && !details) && (
-                <div className="flex flex-col gap-2 pt-1">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="h-8 animate-pulse rounded-lg bg-zinc-800/60" />
-                  ))}
-                </div>
-              )}
+              <div className="flex-1 overflow-y-auto p-2">
+                {loading && !details && (
+                  <div className="flex flex-col gap-1.5 p-2">
+                    {[...Array(8)].map((_, i) => (
+                      <div key={i} className="h-9 animate-pulse bg-[var(--bg-sunken)]" />
+                    ))}
+                  </div>
+                )}
 
-              {/* Error */}
-              {detailsError && (
-                <p className="text-xs text-red-400 px-1">{detailsError}</p>
-              )}
+                {detailsError && (
+                  <p className="px-2 py-3 text-xs text-[var(--status-error)]">{detailsError}</p>
+                )}
 
-              {/* File list */}
-              {details && details.files.map((file, idx) => {
-                const isActive = activeFile === file.filename;
-                return (
-                  <button
-                    key={file.filename ?? idx}
-                    type="button"
-                    onClick={() => scrollToFile(file.filename)}
-                    className={`w-full text-left rounded px-2 py-1 transition ${
-                      isActive ? "bg-zinc-800" : "hover:bg-zinc-800/60"
-                    }`}
-                  >
-                    <code className="block font-mono text-xs text-zinc-300 truncate">
-                      {file.filename}
-                    </code>
-                    <span className="mt-0.5 flex gap-1 text-[10px]">
-                      <span className="text-emerald-400">+{file.additions}</span>
-                      <span className="text-red-400">-{file.deletions}</span>
-                    </span>
-                  </button>
-                );
-              })}
+                {details && details.files.map((file, idx) => {
+                  const isActive = activeFile === file.filename;
+                  return (
+                    <button
+                      key={file.filename ?? idx}
+                      type="button"
+                      onClick={() => scrollToFile(file.filename)}
+                      className={clsx(
+                        "group relative flex w-full flex-col gap-0.5 px-3 py-2 text-left transition",
+                        isActive
+                          ? "bg-[var(--bg-elevated)]"
+                          : "hover:bg-[var(--bg-elevated)]",
+                      )}
+                    >
+                      {isActive && (
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-0 left-0 w-[2px] bg-[var(--accent-primary)]"
+                        />
+                      )}
+                      <code className="block truncate font-mono text-[11px] text-[var(--text-primary)]">
+                        {file.filename}
+                      </code>
+                      <span className="flex gap-2 font-mono text-[10px] tabular-nums">
+                        <span className="text-[var(--accent-primary)]">+{file.additions}</span>
+                        <span className="text-[var(--status-error)]">−{file.deletions}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </aside>
 
-            {/* Right: diff panel */}
-            <div ref={diffPanelRef} className="flex-1 overflow-hidden bg-zinc-950 flex flex-col">
-              {/* Skeleton */}
+            {/* Diff panel */}
+            <div ref={diffPanelRef} className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-base)]">
               {diffLoading && (
-                <div className="flex flex-col gap-3 p-6">
-                  {[...Array(10)].map((_, i) => (
-                    <div key={i} className="h-4 animate-pulse rounded bg-zinc-800/60" />
+                <div className="flex flex-col gap-2 p-6">
+                  {[...Array(12)].map((_, i) => (
+                    <div key={i} className="h-3 animate-pulse bg-[var(--bg-sunken)]" />
                   ))}
                 </div>
               )}
 
-              {/* Error */}
               {diffError && (
-                <div className="m-6 rounded-xl border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-300">
-                  <span className="font-medium">Hata: </span>{diffError}
+                <div className="m-6 border border-[var(--status-error)] bg-[var(--status-error-ink)] px-4 py-3 text-sm text-[var(--status-error)]">
+                  <span className="mr-2 font-mono uppercase tracking-widest">err·</span>
+                  {diffError}
                 </div>
               )}
 
-              {/* Diff content */}
               {diff !== null && !diffLoading && (
                 <div className="flex-1 overflow-hidden">
                   <SplitDiffView diff={diff} scrollToFileId={scrollToFileId} />
@@ -524,10 +508,10 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
 
       <ConfirmDialog
         open={confirmMerge}
-        title="PR merge edilsin mi?"
-        description={`#${pr.number} numaralı PR merge edilecek.`}
-        confirmLabel="Merge Et"
-        cancelLabel="İptal"
+        title="merge this pull request?"
+        description={`PR #${pr.number} will be merged into the base branch.`}
+        confirmLabel="merge"
+        cancelLabel="cancel"
         variant="default"
         onConfirm={() => void handleMerge()}
         onCancel={() => setConfirmMerge(false)}

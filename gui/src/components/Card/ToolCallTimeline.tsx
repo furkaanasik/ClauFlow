@@ -107,23 +107,24 @@ interface ToolConfig {
 
 function getToolConfig(toolName: string): ToolConfig {
   const t = toolName.toLowerCase();
+  const baseInk = "border border-[var(--border)] text-[var(--text-secondary)]";
 
   if (t === "read")
-    return { icon: <IconRead />, color: "text-teal-400 bg-teal-900/40",  label: "Read" };
+    return { icon: <IconRead />, color: `${baseInk} text-[var(--status-review)]`, label: "Read" };
   if (t === "write")
-    return { icon: <IconWrite />, color: "text-green-400 bg-green-900/40", label: "Write" };
+    return { icon: <IconWrite />, color: `${baseInk} text-[var(--accent-primary)]`, label: "Write" };
   if (t === "edit")
-    return { icon: <IconEdit />, color: "text-blue-400 bg-blue-900/40",  label: "Edit" };
+    return { icon: <IconEdit />, color: `${baseInk} text-[var(--accent-primary)]`, label: "Edit" };
   if (t === "bash" || t === "shell" || t === "run")
-    return { icon: <IconBash />, color: "text-orange-400 bg-orange-900/40", label: "Bash" };
+    return { icon: <IconBash />, color: `${baseInk} text-[var(--status-doing)]`, label: "Bash" };
   if (t === "grep" || t === "search")
-    return { icon: <IconGrep />, color: "text-purple-400 bg-purple-900/40", label: "Grep" };
+    return { icon: <IconGrep />, color: `${baseInk} text-[var(--status-review)]`, label: "Grep" };
   if (t === "glob" || t === "find" || t === "ls")
-    return { icon: <IconGlob />, color: "text-zinc-300 bg-zinc-700/60", label: "Glob" };
+    return { icon: <IconGlob />, color: baseInk, label: "Glob" };
   if (t === "task" || t === "todowrite" || t.includes("agent"))
-    return { icon: <IconTask />, color: "text-indigo-400 bg-indigo-900/40", label: toolName };
+    return { icon: <IconTask />, color: `${baseInk} text-[var(--accent-primary)]`, label: toolName };
 
-  return { icon: <IconDefault />, color: "text-zinc-400 bg-zinc-800", label: toolName };
+  return { icon: <IconDefault />, color: baseInk, label: toolName };
 }
 
 // ─── Duration formatter ──────────────────────────────────────────────────────
@@ -170,24 +171,24 @@ function argsSummary(args?: Record<string, unknown>): string {
 function StatusBadge({ status }: { status: ToolCall["status"] }) {
   if (status === "running") {
     return (
-      <span className="flex items-center gap-1 text-[10px] text-yellow-400">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />
-        running
+      <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--status-doing)]">
+        <span className="h-1 w-1 animate-pulse bg-[var(--status-doing)]" />
+        run
       </span>
     );
   }
   if (status === "error") {
     return (
-      <span className="flex items-center gap-1 text-[10px] text-red-400">
-        <span className="text-red-400">✕</span>
-        error
+      <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--status-error)]">
+        <span className="h-1 w-1 bg-[var(--status-error)]" />
+        err
       </span>
     );
   }
-  // done
   return (
-    <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
-      <span className="text-emerald-500">✓</span>
+    <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--accent-primary)]">
+      <span className="h-1 w-1 bg-[var(--accent-primary)]" />
+      ok
     </span>
   );
 }
@@ -197,12 +198,13 @@ function StatusBadge({ status }: { status: ToolCall["status"] }) {
 function AgentTextBlock({ item }: { item: AgentText }) {
   return (
     <div
-      className="rounded-md px-2.5 py-1.5 text-[11px] italic leading-relaxed"
+      className="t-quote px-3 py-2 text-[13px] leading-relaxed"
       style={{
-        borderLeft: "2px solid color-mix(in oklab, var(--accent-primary) 60%, transparent)",
-        background: "color-mix(in oklab, var(--accent-primary) 6%, transparent)",
-        color: "color-mix(in oklab, var(--text-primary) 80%, var(--accent-primary))",
+        borderLeft: "2px solid var(--accent-primary)",
+        background: "var(--accent-muted)",
+        color: "var(--text-primary)",
         whiteSpace: "pre-wrap",
+        fontFamily: "var(--font-display)",
       }}
     >
       {item.text}
@@ -222,86 +224,68 @@ function ToolCallCard({ call, compact }: { call: ToolCall; compact?: boolean }) 
 
   return (
     <div
-      className="rounded-lg border transition-colors"
+      className="border transition-colors"
       style={{
-        background: "var(--bg-elevated)",
+        background: "var(--bg-surface)",
         borderColor: open ? "var(--accent-primary)" : "var(--border)",
       }}
     >
-      {/* Card header — always visible */}
       <button
         type="button"
         onClick={() => hasDetail && setOpen((v) => !v)}
         className={clsx(
-          "flex w-full items-center gap-2 px-2.5 text-left",
-          compact ? "py-1.5" : "py-2",
+          "flex w-full items-center gap-2.5 px-3 text-left",
+          compact ? "py-2" : "py-2.5",
           !hasDetail && "cursor-default",
         )}
       >
-        {/* Tool icon pill */}
-        <span className={clsx("flex items-center justify-center rounded p-1 shrink-0", cfg.color)}>
+        <span className={clsx("flex items-center justify-center p-1 shrink-0", cfg.color)}>
           {cfg.icon}
         </span>
 
-        {/* Tool name */}
-        <span className="shrink-0 text-[11px] font-semibold" style={{ color: "var(--text-primary)" }}>
+        <span className="shrink-0 font-mono text-[11px] uppercase tracking-widest text-[var(--text-primary)]">
           {cfg.label}
         </span>
 
-        {/* Args summary */}
         {summary && (
-          <span
-            className="min-w-0 flex-1 truncate font-mono text-[10px]"
-            style={{ color: "var(--text-muted)" }}
-          >
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[var(--text-muted)]">
             {summary}
           </span>
         )}
 
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-3">
           <StatusBadge status={call.status} />
           {duration && (
-            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{duration}</span>
+            <span className="font-mono text-[10px] tabular-nums text-[var(--text-faint)]">
+              {duration}
+            </span>
           )}
           {hasDetail && (
-            <span style={{ color: "var(--text-muted)" }}>
+            <span className="text-[var(--text-faint)]">
               <IconChevron open={open} />
             </span>
           )}
         </div>
       </button>
 
-      {/* Expanded detail */}
       {open && hasDetail && (
-        <div className="border-t px-2.5 pb-2.5 pt-2" style={{ borderColor: "var(--border)" }}>
+        <div className="border-t border-[var(--border)] px-3 pb-3 pt-2.5">
           {call.args && (
-            <div className="mb-2">
-              <p
-                className="mb-1 text-[9px] font-semibold uppercase tracking-widest"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Args
+            <div className="mb-2.5">
+              <p className="mb-1 font-mono text-[9px] uppercase tracking-widest text-[var(--text-faint)]">
+                args
               </p>
-              <pre
-                className="max-h-36 overflow-auto rounded-md p-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap"
-                style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
-              >
+              <pre className="max-h-36 overflow-auto whitespace-pre-wrap border border-[var(--border)] bg-[var(--bg-sunken)] p-2 font-mono text-[10px] leading-relaxed text-[var(--text-primary)]">
                 {JSON.stringify(call.args, null, 2)}
               </pre>
             </div>
           )}
           {call.result && (
             <div>
-              <p
-                className="mb-1 text-[9px] font-semibold uppercase tracking-widest"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Result
+              <p className="mb-1 font-mono text-[9px] uppercase tracking-widest text-[var(--text-faint)]">
+                result
               </p>
-              <pre
-                className="max-h-48 overflow-auto rounded-md p-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap"
-                style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
-              >
+              <pre className="max-h-48 overflow-auto whitespace-pre-wrap border border-[var(--border)] bg-[var(--bg-sunken)] p-2 font-mono text-[10px] leading-relaxed text-[var(--text-primary)]">
                 {call.result}
               </pre>
             </div>
@@ -329,43 +313,27 @@ function SummaryPill({
   const showThinking = !!isAgentRunning && runningCount === 0;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <span
-        className="rounded-full border px-2.5 py-0.5 text-[10px] font-medium"
-        style={{
-          background: "var(--bg-elevated)",
-          borderColor: "var(--border)",
-          color: "var(--text-muted)",
-        }}
-      >
-        {calls.length} tool call{calls.length !== 1 ? "s" : ""}
+    <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] pb-2">
+      <span className="border border-[var(--border)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
+        {String(calls.length).padStart(2, "0")} call{calls.length !== 1 ? "s" : ""}
         {total > 0 && ` · ${formatDuration(total)}`}
       </span>
       {runningCount > 0 && (
-        <span className="flex items-center gap-1 rounded-full border border-yellow-800/60 bg-yellow-900/20 px-2.5 py-0.5 text-[10px] font-medium text-yellow-400">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />
+        <span className="inline-flex items-center gap-1.5 border border-[var(--status-doing)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-[var(--status-doing)]">
+          <span className="h-1 w-1 animate-pulse bg-[var(--status-doing)]" />
           {runningCount} running
         </span>
       )}
       {showThinking && (
-        <span
-          className="flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-medium"
-          style={{
-            background: "color-mix(in oklab, var(--accent-primary) 15%, transparent)",
-            borderColor: "color-mix(in oklab, var(--accent-primary) 50%, transparent)",
-            color: "var(--accent-primary)",
-          }}
-        >
-          <span
-            className="h-1.5 w-1.5 animate-pulse rounded-full"
-            style={{ background: "var(--accent-primary)" }}
-          />
-          {thinkingMessage ?? "Agent thinking"}…
+        <span className="inline-flex items-center gap-1.5 border border-[var(--accent-primary)] bg-[var(--accent-muted)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-[var(--accent-primary)]">
+          <span className="h-1 w-1 animate-pulse bg-[var(--accent-primary)]" />
+          {thinkingMessage ?? "agent thinking"}…
         </span>
       )}
       {doneCount > 0 && runningCount === 0 && !showThinking && (
-        <span className="rounded-full border border-emerald-800/40 bg-emerald-900/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-500">
-          ✓ {doneCount} done
+        <span className="inline-flex items-center gap-1.5 border border-[var(--accent-primary)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-[var(--accent-primary)]">
+          <span className="h-1 w-1 bg-[var(--accent-primary)]" />
+          {doneCount} done
         </span>
       )}
     </div>
@@ -427,27 +395,14 @@ export function ToolCallTimeline({
   if (isEmpty) {
     if (showThinkingCard) {
       return (
-        <div
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border py-8 text-xs"
-          style={{
-            borderColor: "color-mix(in oklab, var(--accent-primary) 50%, transparent)",
-            background: "color-mix(in oklab, var(--accent-primary) 10%, transparent)",
-            color: "var(--accent-primary)",
-          }}
-        >
-          <span
-            className="h-2 w-2 animate-pulse rounded-full"
-            style={{ background: "var(--accent-primary)" }}
-          />
-          {thinkingMessage ?? "Agent thinking"}…
+        <div className="flex flex-1 items-center justify-center gap-2 border border-[var(--accent-primary)] bg-[var(--accent-muted)] py-8 font-mono text-[11px] uppercase tracking-widest text-[var(--accent-primary)]">
+          <span className="h-1.5 w-1.5 animate-pulse bg-[var(--accent-primary)]" />
+          {thinkingMessage ?? "agent thinking"}…
         </div>
       );
     }
     return (
-      <div
-        className="flex flex-1 items-center justify-center rounded-xl border border-dashed py-8 text-xs"
-        style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-      >
+      <div className="flex flex-1 items-center justify-center border border-dashed border-[var(--border)] py-8 text-xs italic text-[var(--text-muted)]">
         {emptyMessage ?? "Tool calls will appear here during execution"}
       </div>
     );
@@ -469,21 +424,10 @@ export function ToolCallTimeline({
         )}
       </div>
 
-      {/* Thinking indicator card — son tool call done ama agent hâlâ çalışıyor */}
       {showThinkingCard && (
-        <div
-          className="flex items-center gap-2 rounded-lg border px-2.5 py-2 text-[11px]"
-          style={{
-            borderColor: "color-mix(in oklab, var(--accent-primary) 50%, transparent)",
-            background: "color-mix(in oklab, var(--accent-primary) 10%, transparent)",
-            color: "var(--accent-primary)",
-          }}
-        >
-          <span
-            className="h-1.5 w-1.5 animate-pulse rounded-full"
-            style={{ background: "var(--accent-primary)" }}
-          />
-          {thinkingMessage ?? "Agent thinking"}…
+        <div className="flex items-center gap-2 border border-[var(--accent-primary)] bg-[var(--accent-muted)] px-3 py-2 font-mono text-[11px] uppercase tracking-widest text-[var(--accent-primary)]">
+          <span className="h-1 w-1 animate-pulse bg-[var(--accent-primary)]" />
+          {thinkingMessage ?? "agent thinking"}…
         </div>
       )}
     </div>

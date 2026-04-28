@@ -1,162 +1,222 @@
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════════════════════
+   ClauFlow · Technical Almanac
+   Aesthetic: editorial-engineering. Warm-black ground, hairline rules,
+   monospace metadata, serif-italic captions, single acid-lime accent.
+   ════════════════════════════════════════════════════════════════════════════ */
+
 @theme {
-  --color-background: #0c0d10;
-  --color-foreground: #e6edf3;
-  --font-sans: var(--geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: var(--geist-mono), ui-monospace, "SFMono-Regular", Menlo, Monaco, monospace;
+  --color-background: #0a0908;
+  --color-foreground: #efece3;
+
+  /* Distinct typography stack — display serif + grotesque + technical mono */
+  --font-display: var(--font-fraunces), "Iowan Old Style", Palatino, Georgia, serif;
+  --font-sans:    var(--font-geist-sans), "Söhne", "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    var(--font-jetbrains-mono), "Berkeley Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
-/* ─── Dark mode (default) ─────────────────────────────────────────────────── */
+/* ─── Dark (default · "Plate") ────────────────────────────────────────────── */
 :root {
-  /* Semantic surface tokens */
-  --bg-base:      #0c0d10;
-  --bg-surface:   #151921;
-  --bg-elevated:  #1c2128;
-  --border:       #2d333b;
-  --text-primary: #e6edf3;
-  --text-muted:   #7d8590;
+  color-scheme: dark;
 
-  /* Accent palette — Linear indigo-purple */
-  --accent-primary: #5e6ad2;
-  --accent-hover:   #6f7ce0;
-  --accent-muted:   rgba(94, 106, 210, 0.30);
-  --accent-success: #2da44e;
-  --accent-danger:  #da3633;
-  --accent-warning: #d29922;
+  /* Surface ladder — warm ink */
+  --bg-base:      #0a0908;
+  --bg-surface:   #131210;
+  --bg-elevated:  #1b1a17;
+  --bg-sunken:    #050504;
+  --border:       #25231f;
+  --border-strong:#3a372f;
+  --hairline:     rgba(239, 236, 227, 0.07);
 
-  /* ── Zinc scale — GitHub-dark feel ── */
-  --color-zinc-950: #0c0d10;
-  --color-zinc-900: #151921;
-  --color-zinc-800: #1c2128;
-  --color-zinc-700: #2d333b;
-  --color-zinc-600: #424a53;
-  --color-zinc-500: #7d8590;
-  --color-zinc-400: #acb6bf;
-  --color-zinc-300: #c8d0da;
-  --color-zinc-200: #dde3ec;
-  --color-zinc-100: #e6edf3;
-  --color-zinc-50:  #f0f3f6;
+  /* Text */
+  --text-primary: #efece3;   /* warm parchment */
+  --text-secondary:#bfbab0;
+  --text-muted:   #74706a;
+  --text-faint:   #4d4a45;
 
-  /* ── Blue scale → Linear indigo-purple accent ── */
-  /* bg-blue-600 / hover:bg-blue-500 → accent-primary / accent-hover */
-  --color-blue-950: #1a1e55;
-  --color-blue-900: #222870;
-  --color-blue-800: #2e3896;
-  --color-blue-700: #4a57cb;
-  --color-blue-600: #5e6ad2;   /* accent-primary */
-  --color-blue-500: #6f7ce0;   /* accent-hover */
-  --color-blue-400: #8289d8;
-  --color-blue-300: #9ba5e4;
-  --color-blue-200: #bac0ec;
-  --color-blue-100: #d9dcf5;
-  --color-blue-50:  #eceef9;
+  /* Accent — acid lime / chartreuse signal */
+  --accent-primary: #d4ff3d;
+  --accent-hover:   #e9ff6e;
+  --accent-ink:     #0a0908;
+  --accent-muted:   rgba(212, 255, 61, 0.18);
+  --accent-glow:    rgba(212, 255, 61, 0.35);
+
+  /* Semantic status colors — restrained */
+  --status-doing:   #f5a524;   /* amber */
+  --status-doing-ink: rgba(245, 165, 36, 0.14);
+  --status-review:  #5eead4;   /* teal/cyan */
+  --status-review-ink: rgba(94, 234, 212, 0.14);
+  --status-done:    #d4ff3d;   /* lime */
+  --status-done-ink: rgba(212, 255, 61, 0.14);
+  --status-todo:    #bfbab0;
+  --status-todo-ink: rgba(191, 186, 176, 0.10);
+  --status-error:   #ff6b6b;
+  --status-error-ink: rgba(255, 107, 107, 0.14);
+  --status-info:    #5eead4;
+  --status-warning: #f5a524;
+  --status-success: #d4ff3d;
+
+  /* Priority — low contrast wedge of color */
+  --prio-low:      #5eead4;
+  --prio-medium:   #f5a524;
+  --prio-high:     #ff8c42;
+  --prio-critical: #ff5b5b;
+
+  /* ── Zinc scale → warm-ink ladder for component compat ── */
+  --color-zinc-950: #0a0908;
+  --color-zinc-900: #131210;
+  --color-zinc-800: #1b1a17;
+  --color-zinc-700: #25231f;
+  --color-zinc-600: #3a372f;
+  --color-zinc-500: #74706a;
+  --color-zinc-400: #9d978e;
+  --color-zinc-300: #bfbab0;
+  --color-zinc-200: #d8d3c8;
+  --color-zinc-100: #efece3;
+  --color-zinc-50:  #f5f2e8;
+
+  /* Blue → repurposed as lime accent for legacy bg-blue-* references */
+  --color-blue-950: #1a2008;
+  --color-blue-900: #2a3611;
+  --color-blue-800: #3f5418;
+  --color-blue-700: #6d8f24;
+  --color-blue-600: #d4ff3d;   /* accent-primary */
+  --color-blue-500: #e9ff6e;   /* accent-hover */
+  --color-blue-400: #b4d935;
+  --color-blue-300: #cfee5e;
+  --color-blue-200: #e1f489;
+  --color-blue-100: #effaba;
+  --color-blue-50:  #f7fde0;
 }
 
-/* ─── Light mode overrides ────────────────────────────────────────────────── */
+/* ─── Light (modern off-white · "Studio") ──────────────────────────────────── */
 html.light {
   color-scheme: light;
 
-  /* Semantic surface tokens */
-  --bg-base:      #ffffff;
-  --bg-surface:   #f6f8fa;
+  --bg-base:      #fafaf7;     /* near-white, faint warmth */
+  --bg-surface:   #f3f2ec;
   --bg-elevated:  #ffffff;
-  --border:       #d0d7de;
-  --text-primary: #0d1117;
-  --text-muted:   #57606a;
+  --bg-sunken:    #ecebe4;
+  --border:       #e2e0d6;
+  --border-strong:#b6b2a4;
+  --hairline:     rgba(20, 20, 18, 0.08);
 
-  /* Accent palette (same primary, adjusted hover) */
-  --accent-primary: #5e6ad2;
-  --accent-hover:   #4f5bc7;
-  --accent-muted:   rgba(94, 106, 210, 0.12);
+  --text-primary: #131210;
+  --text-secondary:#4a4844;
+  --text-muted:   #6f6c66;
+  --text-faint:   #a8a59c;
 
-  /* ── Zinc scale — flipped for light ── */
-  --color-zinc-950: #ffffff;
-  --color-zinc-900: #f6f8fa;
-  --color-zinc-800: #eaeef2;
-  --color-zinc-700: #d0d7de;
-  --color-zinc-600: #57606a;
-  --color-zinc-500: #424a53;
-  --color-zinc-400: #1f2328;
-  --color-zinc-300: #1f2328;
-  --color-zinc-200: #0d1117;
-  --color-zinc-100: #0d1117;
-  --color-zinc-50:  #0d1117;
-  --color-black:    #0d1117;
+  /* Lime accent retained — pairs with dark olive ink for buttons */
+  --accent-primary: #44610a;   /* deep olive — pops on white, echoes lime */
+  --accent-hover:   #38510a;
+  --accent-ink:     #ffffff;   /* text on olive button */
+  --accent-muted:   rgba(68, 97, 10, 0.10);
+  --accent-glow:    rgba(68, 97, 10, 0.20);
 
-  /* ── Blue scale — indigo stays readable on white ── */
-  --color-blue-950: #eceef9;
-  --color-blue-900: #d9dcf5;
-  --color-blue-800: #bac0ec;
-  --color-blue-700: #9ba5e4;
-  --color-blue-600: #5e6ad2;
-  --color-blue-500: #4f5bc7;
-  --color-blue-400: #3d49b8;
-  --color-blue-300: #2e3896;
-  --color-blue-200: #222870;
-  --color-blue-100: #1a1e55;
-  --color-blue-50:  #10143a;
+  --status-doing:   #b56708;
+  --status-doing-ink: rgba(181, 103, 8, 0.10);
+  --status-review:  #0d7d68;
+  --status-review-ink: rgba(13, 125, 104, 0.10);
+  --status-done:    #44610a;
+  --status-done-ink: rgba(68, 97, 10, 0.10);
+  --status-todo:    #4a4844;
+  --status-todo-ink: rgba(74, 72, 68, 0.06);
+  --status-error:   #c01d1d;
+  --status-error-ink: rgba(192, 29, 29, 0.08);
+  --status-info:    #0d7d68;
+  --status-warning: #b56708;
+  --status-success: #44610a;
 
-  /* ── Red — danger / error ── */
+  --prio-low:      #0d7d68;
+  --prio-medium:   #b56708;
+  --prio-high:     #c4521a;
+  --prio-critical: #c01d1d;
+
+  /* Zinc scale flipped */
+  --color-zinc-950: #fafaf7;
+  --color-zinc-900: #f3f2ec;
+  --color-zinc-800: #ffffff;
+  --color-zinc-700: #e2e0d6;
+  --color-zinc-600: #b6b2a4;
+  --color-zinc-500: #6f6c66;
+  --color-zinc-400: #4a4844;
+  --color-zinc-300: #2a2826;
+  --color-zinc-200: #131210;
+  --color-zinc-100: #131210;
+  --color-zinc-50:  #131210;
+  --color-black:    #131210;
+
+  --color-blue-950: #f0f6dc;
+  --color-blue-900: #e2eebd;
+  --color-blue-800: #cfe590;
+  --color-blue-700: #b8d65a;
+  --color-blue-600: #44610a;
+  --color-blue-500: #38510a;
+  --color-blue-400: #2c4108;
+  --color-blue-300: #6d8f24;
+  --color-blue-200: #3f5418;
+  --color-blue-100: #2a3611;
+
+  /* Status palette compat */
   --color-red-950: #fef2f2;
   --color-red-900: #fee2e2;
   --color-red-800: #fecaca;
   --color-red-700: #fca5a5;
-  --color-red-600: #dc2626;
-  --color-red-500: #dc2626;
-  --color-red-400: #b91c1c;
-  --color-red-300: #991b1b;
+  --color-red-600: #b91c1c;
+  --color-red-500: #b91c1c;
+  --color-red-400: #991b1b;
+  --color-red-300: #7f1d1d;
   --color-red-200: #7f1d1d;
 
-  /* ── Yellow — warning / planning ── */
   --color-yellow-950: #fefce8;
   --color-yellow-900: #fef9c3;
   --color-yellow-800: #fef08a;
   --color-yellow-700: #fde047;
-  --color-yellow-600: #ca8a04;
-  --color-yellow-500: #ca8a04;
-  --color-yellow-400: #a16207;
-  --color-yellow-300: #854d0e;
+  --color-yellow-600: #b8740c;
+  --color-yellow-500: #b8740c;
+  --color-yellow-400: #92590a;
+  --color-yellow-300: #6d4307;
 
-  /* ── Purple — review column ── */
-  --color-purple-950: #faf5ff;
-  --color-purple-900: #f3e8ff;
-  --color-purple-800: #e9d5ff;
-  --color-purple-700: #d8b4fe;
-  --color-purple-600: #9333ea;
-  --color-purple-500: #9333ea;
-  --color-purple-400: #7e22ce;
-  --color-purple-300: #6b21a8;
+  --color-purple-950: #f7fde0;
+  --color-purple-900: #effaba;
+  --color-purple-800: #e1f489;
+  --color-purple-700: #cfee5e;
+  --color-purple-600: #0f8d75;
+  --color-purple-500: #0f8d75;
+  --color-purple-400: #0a6e5b;
+  --color-purple-300: #074f42;
 
-  /* ── Emerald — done / success ── */
   --color-emerald-950: #ecfdf5;
   --color-emerald-900: #d1fae5;
   --color-emerald-800: #a7f3d0;
   --color-emerald-700: #6ee7b7;
-  --color-emerald-600: #059669;
-  --color-emerald-500: #059669;
-  --color-emerald-400: #047857;
-  --color-emerald-300: #065f46;
+  --color-emerald-600: #4d6f0e;
+  --color-emerald-500: #4d6f0e;
+  --color-emerald-400: #3a560a;
+  --color-emerald-300: #2a3f07;
 
-  /* ── Orange — executor / attention ── */
   --color-orange-950: #fff7ed;
   --color-orange-900: #ffedd5;
   --color-orange-800: #fed7aa;
   --color-orange-700: #fdba74;
-  --color-orange-600: #ea580c;
-  --color-orange-500: #ea580c;
-  --color-orange-400: #c2410c;
-  --color-orange-300: #9a3412;
+  --color-orange-600: #c4521a;
+  --color-orange-500: #c4521a;
+  --color-orange-400: #9a3f12;
+  --color-orange-300: #6f2c0c;
 }
 
-/* ─── Base styles ─────────────────────────────────────────────────────────── */
-html,
-body {
+/* ─── Base ────────────────────────────────────────────────────────────────── */
+html, body {
   background-color: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
+  font-feature-settings: "ss01", "ss02", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 html.light body {
@@ -164,109 +224,194 @@ html.light body {
   color: var(--text-primary);
 }
 
-code, pre, kbd {
+code, pre, kbd, samp {
   font-family: var(--font-mono);
+  font-feature-settings: "calt", "liga", "ss01";
 }
 
-/* ─── Typography scale ───────────────────────────────────────────────────── */
-/* H1 — page title: 26px / bold */
-.t-h1 { font-size: 1.625rem;  font-weight: 700; line-height: 1.25; }
-/* H2 — section title: 18px / semibold */
-.t-h2 { font-size: 1.125rem;  font-weight: 600; line-height: 1.4;  }
-/* H3 — card title / label: 15px / semibold */
-.t-h3 { font-size: 0.9375rem; font-weight: 600; line-height: 1.4;  }
-/* Body — default copy: 15px / regular */
-.t-body { font-size: 0.9375rem; font-weight: 400; line-height: 1.5; }
-/* Caption — meta / timestamps: 13px / regular */
-.t-caption { font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: var(--text-muted); }
-
-/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
-*::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+::selection {
+  background: var(--accent-primary);
+  color: var(--accent-ink);
 }
+
+/* ─── Page texture — subtle paper grain ───────────────────────────────────── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.85  0 0 0 1 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  mix-blend-mode: overlay;
+}
+html.light body::before {
+  opacity: 0.018;
+  mix-blend-mode: multiply;
+}
+
+/* ─── Typography utilities ────────────────────────────────────────────────── */
+/* Display headline — Fraunces upright, optical-size auto-scales with font-size */
+.t-display {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.05;
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 30, "WONK" 0;
+  font-feature-settings: "ss01", "ss02";
+}
+
+/* Hairline label · ALL-CAPS · tracked · mono */
+.t-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;     /* 11px */
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Numbered marker · mono · faded */
+.t-numeral {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+/* Body */
+.t-body { font-size: 0.875rem; line-height: 1.55; color: var(--text-primary); }
+.t-body-sm { font-size: 0.8125rem; line-height: 1.5; color: var(--text-secondary); }
+.t-caption { font-size: 0.75rem; color: var(--text-muted); line-height: 1.45; }
+
+/* Section/quote — Fraunces italic, softer */
+.t-quote {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: -0.005em;
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 60, "WONK" 0;
+}
+
+/* H1 — page title */
+.t-h1 { font-size: 1.625rem; font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; color: var(--text-primary); }
+.t-h2 { font-size: 1.0625rem; font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; color: var(--text-primary); }
+.t-h3 { font-size: 0.9375rem; font-weight: 600; line-height: 1.4; color: var(--text-primary); }
+
+/* ─── Hairline divider helpers ────────────────────────────────────────────── */
+.hairline-x { border-bottom: 1px solid var(--border); }
+.hairline-y { border-right: 1px solid var(--border); }
+
+/* ─── Scrollbar — flat, almost invisible ──────────────────────────────────── */
+*::-webkit-scrollbar { width: 6px; height: 6px; }
 *::-webkit-scrollbar-thumb {
-  background: #404854;
-  border-radius: 9999px;
+  background: var(--border-strong);
+  border-radius: 0;
 }
-*::-webkit-scrollbar-thumb:hover {
-  background: #4f5966;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
+*::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+*::-webkit-scrollbar-track { background: transparent; }
 
-html.light *::-webkit-scrollbar-thumb {
-  background: #cfd7e0;
-}
-html.light *::-webkit-scrollbar-thumb:hover {
-  background: #b0bac5;
-}
-
-/* ─── Component utility classes ─────────────────────────────────────────── */
-/* Kanban column — dark mode base */
+/* ─── Component utilities ─────────────────────────────────────────────────── */
 .kanban-column {
   background-color: var(--bg-surface);
   border-color: var(--border);
 }
-
-/* ─── Light-mode utility overrides ──────────────────────────────────────── */
-/* Kanban column */
 html.light .kanban-column {
-  background-color: #ffffff;
-  border-color: #d0d7de;
-  box-shadow:
-    0 1px 2px 0 rgb(15 23 42 / 0.04),
-    0 4px 12px -2px rgb(15 23 42 / 0.06);
+  background-color: var(--bg-elevated);
+  border-color: var(--border);
 }
 
-/* Search inputs */
-html.light .kanban-search {
-  background-color: #ffffff;
-  border-color: #d0d7de;
-  box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+.kanban-search {
+  background-color: var(--bg-surface);
+  border-color: var(--border);
+  color: var(--text-primary);
 }
-html.light .kanban-search:focus {
-  border-color: #5e6ad2;
-  box-shadow:
-    0 1px 2px 0 rgb(15 23 42 / 0.05),
-    0 0 0 2px rgba(94, 106, 210, 0.20);
+.kanban-search::placeholder {
+  color: var(--text-faint);
+}
+.kanban-search:focus {
+  border-color: var(--text-secondary);
+  box-shadow: 0 0 0 1px var(--border-strong);
 }
 
-/* Kanban panel — dark mode base */
 .kanban-panel {
   background-color: var(--bg-surface);
   border-color: var(--border);
 }
-
-/* Stat pill / progress panel */
 html.light .kanban-panel {
-  background-color: #ffffff;
-  border-color: #d0d7de;
-  box-shadow:
-    0 1px 2px 0 rgb(15 23 42 / 0.04),
-    0 2px 6px -2px rgb(15 23 42 / 0.05);
+  background-color: var(--bg-elevated);
+  border-color: var(--border);
 }
 
-/* Analysis / code pre block */
+.analysis-block {
+  background-color: var(--bg-sunken);
+  border-color: var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
 html.light .analysis-block {
-  background-color: #f6f8fa;
-  border-color: #d0d7de;
-  color: #0d1117;
-  box-shadow: inset 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  background-color: var(--bg-surface);
+  border-color: var(--border);
+  color: var(--text-primary);
 }
 
-/* ─── Focus ring helper ──────────────────────────────────────────────────── */
-/* Usage: className="focus-visible:outline-none focus-ring" */
+/* Lime ink button — primary CTA */
+.btn-ink {
+  background: var(--accent-primary);
+  color: var(--accent-ink);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  transition: transform 80ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.btn-ink:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 0 0 4px var(--accent-muted);
+}
+.btn-ink:active { transform: translateY(1px); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+.btn-ghost:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--bg-surface);
+}
+
+/* ─── Focus ring ──────────────────────────────────────────────────────────── */
 .focus-ring:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-muted);
+  box-shadow: 0 0 0 2px var(--accent-primary);
 }
 
-/* ─── Animations ─────────────────────────────────────────────────────────── */
+/* ─── Divider with center label ───────────────────────────────────────────── */
+.rule-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-muted);
+}
+.rule-label::before,
+.rule-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ─── Animations ──────────────────────────────────────────────────────────── */
 @keyframes pulse-glow {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
+  50%      { opacity: 0.5; }
 }
 @keyframes slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
@@ -284,8 +429,34 @@ html.light .analysis-block {
   0%, 80%, 100% { transform: scale(0); }
   40%           { transform: scale(1); }
 }
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes scan-line {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(200%); }
+}
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
 
 .animate-dot-1 { animation: dot-bounce 1.4s infinite ease-in-out 0s; }
 .animate-dot-2 { animation: dot-bounce 1.4s infinite ease-in-out 0.2s; }
 .animate-dot-3 { animation: dot-bounce 1.4s infinite ease-in-out 0.4s; }
-.animate-fade-up { animation: fade-up 0.2s ease-out both; }
+.animate-fade-up { animation: fade-up 0.22s ease-out both; }
+.animate-ticker  { animation: ticker 28s linear infinite; }
+.animate-scan    { animation: scan-line 1.6s ease-in-out infinite; }
+.animate-blink   { animation: blink 1.05s steps(2) infinite; }
+
+/* ─── Marker prefixes ─────────────────────────────────────────────────────── */
+.t-numeral::before { content: "§"; opacity: 0.45; margin-right: 0.25rem; }
+
+/* ─── Fixed-page micro layout fixes ───────────────────────────────────────── */
+:where(input, textarea, select) {
+  font-family: inherit;
+}
+
+/* ensure body content sits above grain overlay */
+#__next, body > * { position: relative; z-index: 2; }

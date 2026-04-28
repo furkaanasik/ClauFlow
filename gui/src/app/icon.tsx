@@ -10,33 +10,29 @@ export default function Icon() {
         style={{
           width: 32,
           height: 32,
-          borderRadius: 9,
-          background: "linear-gradient(135deg, #7c3aed 0%, #4338ca 100%)",
+          background: "#efece3",
+          color: "#0a0908",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: 0,
+          fontFamily: "monospace",
+          fontWeight: 700,
+          fontSize: 16,
+          letterSpacing: "-0.05em",
+          position: "relative",
         }}
       >
-        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-          {/* Double chevron */}
-          <path
-            d="M4 7.5L8 11L4 14.5"
-            stroke="white"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M10 7.5L14 11L10 14.5"
-            stroke="white"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {/* Trailing dot */}
-          <circle cx="18" cy="11" r="1.8" fill="rgba(255,255,255,0.5)" />
-        </svg>
+        cf
+        <span
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            width: 3,
+            bottom: 0,
+            background: "#d4ff3d",
+          }}
+        />
       </div>
     ),
     { ...size }

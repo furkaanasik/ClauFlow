@@ -1,15 +1,12 @@
 "use client";
 
+import clsx from "clsx";
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 
-/**
- * Türkçe karakter normalize + slug üretimi.
- * "Feature Requests" → "feature-reques" (max 12 karakter)
- */
 function slugify(value: string): string {
   const TR_MAP: Record<string, string> = {
     ç: "c", Ç: "c",
@@ -86,7 +83,6 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
       setError(t.newProject.errorRequired);
       return;
     }
-    // Slug validation
     const finalSlug = slug.trim() || slugify(name.trim());
     if (!SLUG_REGEX.test(finalSlug)) {
       setSlugError(t.newProject.slugError);
@@ -131,14 +127,13 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 
   return (
     <Modal open={open} onClose={handleClose} title={t.newProject.modalTitle}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field label={t.newProject.nameLabel} required>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={(e) => {
-              // Auto-generate slug if user hasn't manually edited it
               if (!slugEdited && e.target.value.trim()) {
                 setSlug(slugify(e.target.value.trim()));
               }
@@ -150,12 +145,11 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
           />
         </Field>
 
-        {/* Slug field */}
-        <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>
-            {t.newProject.slugLabel}
-            <span className="ml-1.5 text-zinc-600 font-normal">{t.newProject.slugHint}</span>
-          </span>
+        <Field
+          label={t.newProject.slugLabel}
+         
+          hint={t.newProject.slugHint}
+        >
           <div className="relative">
             <input
               type="text"
@@ -171,65 +165,95 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
                   setSlugError(t.newProject.slugError);
                 }
               }}
-              className={`${inputCls} pr-16 font-mono ${slugError ? "border-red-500 focus:border-red-500" : ""}`}
+              className={clsx(
+                inputCls,
+                "pr-14 font-mono",
+                slugError && "border-[var(--status-error)]",
+              )}
               placeholder={t.newProject.slugPlaceholder}
               disabled={submitting}
               maxLength={12}
             />
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600">
-              {slug.length}/12
+            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[10px] tabular-nums text-[var(--text-faint)]">
+              {String(slug.length).padStart(2, "0")}/12
             </span>
           </div>
           {slugError && (
-            <span className="text-[10px] text-red-400">{slugError}</span>
+            <span className="text-[11px] text-[var(--status-error)]">
+              {slugError}
+            </span>
           )}
-        </label>
+        </Field>
 
         <Field label={t.newProject.repoPathLabel} required>
           <input
             type="text"
             value={repoPath}
             onChange={(e) => setRepoPath(e.target.value)}
-            className={inputCls}
+            className={clsx(inputCls, "font-mono")}
             placeholder="/home/user/projects/my-repo"
             disabled={submitting}
           />
         </Field>
 
-        {/* AI Prompt */}
-        <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>{t.newProject.aiPromptLabel}</span>
+        <Field label={t.newProject.aiPromptLabel}>
           <textarea
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
             rows={4}
-            className={`${inputCls} resize-none`}
+            className={clsx(inputCls, "resize-none")}
             placeholder={t.newProject.aiPromptPlaceholder}
             disabled={submitting}
           />
-        </label>
+        </Field>
 
-<Field label={t.newProject.defaultBranchLabel}>
+        <Field label={t.newProject.defaultBranchLabel}>
           <input
             type="text"
             value={defaultBranch}
             onChange={(e) => setDefaultBranch(e.target.value)}
-            className={inputCls}
+            className={clsx(inputCls, "font-mono")}
             placeholder="main"
             disabled={submitting}
           />
         </Field>
 
         {/* GitHub repo creation toggle */}
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 transition" style={{ borderColor: "var(--border)" }}>
+        <label
+          className={clsx(
+            "flex cursor-pointer items-center gap-3 border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-3 transition",
+            createGithub && "border-[var(--accent-primary)]",
+          )}
+        >
+          <span
+            className={clsx(
+              "flex h-4 w-4 shrink-0 items-center justify-center border",
+              createGithub
+                ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] text-[var(--accent-ink)]"
+                : "border-[var(--border-strong)]",
+            )}
+          >
+            {createGithub && (
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <polyline points="2 6 5 9 10 3" />
+              </svg>
+            )}
+          </span>
           <input
             type="checkbox"
             checked={createGithub}
             onChange={(e) => setCreateGithub(e.target.checked)}
             disabled={submitting}
-            className="h-3.5 w-3.5 accent-emerald-500"
+            className="sr-only"
           />
-          <span className="text-xs" style={{ color: "var(--text-primary)" }}>{t.newProject.createGithubLabel}</span>
+          <div className="flex flex-1 flex-col">
+            <span className="text-sm text-[var(--text-primary)]">
+              {t.newProject.createGithubLabel}
+            </span>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              Uses GitHub CLI device flow
+            </span>
+          </div>
         </label>
 
         {createGithub && (
@@ -239,24 +263,24 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
                 type="text"
                 value={repoName}
                 onChange={(e) => setRepoName(e.target.value)}
-                className={inputCls}
+                className={clsx(inputCls, "font-mono")}
                 placeholder={name.trim() || t.newProject.namePlaceholder}
                 disabled={submitting}
               />
             </Field>
 
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>{t.newProject.visibilityLabel}</span>
-              <div className="flex gap-2">
+            <Field label={t.newProject.visibilityLabel}>
+              <div className="flex gap-px border border-[var(--border)] bg-[var(--border)]">
                 <button
                   type="button"
                   onClick={() => setIsPrivate(true)}
                   disabled={submitting}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  className={clsx(
+                    "flex-1 px-3 py-2 text-[12px] font-medium transition",
                     isPrivate
-                      ? "bg-emerald-700 text-white"
-                      : "border border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
-                  }`}
+                      ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                      : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+                  )}
                 >
                   {t.newProject.visibilityPrivate}
                 </button>
@@ -264,16 +288,17 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
                   type="button"
                   onClick={() => setIsPrivate(false)}
                   disabled={submitting}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  className={clsx(
+                    "flex-1 px-3 py-2 text-[12px] font-medium transition",
                     !isPrivate
-                      ? "bg-emerald-700 text-white"
-                      : "border border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
-                  }`}
+                      ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                      : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+                  )}
                 >
                   {t.newProject.visibilityPublic}
                 </button>
               </div>
-            </div>
+            </Field>
           </>
         )}
 
@@ -283,7 +308,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
               type="text"
               value={remote}
               onChange={(e) => setRemote(e.target.value)}
-              className={inputCls}
+              className={clsx(inputCls, "font-mono")}
               placeholder="git@github.com:org/repo.git"
               disabled={submitting}
             />
@@ -291,23 +316,23 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
         )}
 
         {error && (
-          <div className="rounded-md border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
+          <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-xs text-[var(--status-error)]">
             {error}
           </div>
         )}
 
         {githubWarning && (
-          <div className="rounded-md border border-yellow-700 bg-yellow-950/40 px-3 py-2 text-xs text-yellow-300">
+          <div className="border border-[var(--status-warning)] bg-[var(--status-doing-ink)] px-3 py-2 text-xs text-[var(--status-warning)]">
             {t.newProject.githubWarningPrefix}{githubWarning}
           </div>
         )}
 
-        <div className="mt-2 flex justify-end gap-2">
+        <div className="mt-2 flex justify-between gap-2 border-t border-[var(--border)] pt-4">
           {githubWarning ? (
             <button
               type="button"
               onClick={() => { reset(); onClose(); }}
-              className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-600"
+              className="btn-ink ml-auto px-5 py-2 text-[12px] font-medium"
             >
               {t.newProject.close}
             </button>
@@ -317,19 +342,17 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
                 type="button"
                 onClick={handleClose}
                 disabled={submitting}
-                className="rounded-md px-3 py-1.5 text-xs transition"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
+                className="btn-ghost px-4 py-2 text-[12px] font-medium"
               >
                 {t.newProject.cancel}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-600 disabled:opacity-50"
+                className="btn-ink inline-flex items-center gap-2 px-5 py-2 text-[12px] font-medium disabled:opacity-50"
               >
                 {submitting ? t.newProject.submitting : t.newProject.submit}
+                <span aria-hidden>→</span>
               </button>
             </>
           )}
@@ -340,24 +363,33 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 }
 
 const inputCls =
-  "w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-primary)] outline-none ring-0 transition focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/20";
+  "w-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)]";
 
 function Field({
   label,
   required,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>
-        {label}
-        {required && <span className="ml-1 text-red-400">*</span>}
-      </span>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+          {label}
+          {required && (
+            <span className="ml-1 text-[var(--status-error)]">*</span>
+          )}
+        </span>
+        {hint && (
+          <span className="ml-auto text-[11px] italic text-[var(--text-muted)]">{hint}</span>
+        )}
+      </div>
       {children}
-    </label>
+    </div>
   );
 }

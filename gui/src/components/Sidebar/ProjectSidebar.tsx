@@ -23,7 +23,6 @@ export function ProjectSidebar() {
 
   const t = useTranslation();
 
-  // Close popover on click-outside
   useEffect(() => {
     if (!menuOpenId) return;
     const handler = (e: MouseEvent) => {
@@ -41,22 +40,22 @@ export function ProjectSidebar() {
 
   return (
     <>
-      <aside
-        className="flex h-full w-60 shrink-0 flex-col border-r bg-[var(--bg-base)]"
-        style={{ borderColor: "var(--border)" }}
-      >
+      <aside className="flex h-full w-64 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-base)]">
         {/* Title */}
-        <div className="border-b px-3.5 py-2.5" style={{ borderColor: "var(--border)" }}>
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+        <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+          <span className="text-[13px] font-semibold text-[var(--text-primary)]">
             {t.sidebar.title}
+          </span>
+          <span className="font-mono text-[11px] tabular-nums text-[var(--text-muted)]">
+            {projects.length}
           </span>
         </div>
 
         {/* Search */}
-        <div className="border-b px-2 py-2" style={{ borderColor: "var(--border)" }}>
+        <div className="border-b border-[var(--border)] p-3">
           <div className="relative flex items-center">
-            <span className="pointer-events-none absolute left-3 text-[var(--text-muted)] opacity-60">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+            <span className="pointer-events-none absolute left-2.5 text-[var(--text-faint)]">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
                 <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" />
               </svg>
             </span>
@@ -65,33 +64,29 @@ export function ProjectSidebar() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t.sidebar.searchPlaceholder}
-              className="kanban-search w-full rounded-md border py-1.5 pl-8 pr-6 text-xs outline-none transition"
-              style={{
-                background:  "var(--bg-elevated)",
-                borderColor: "var(--border)",
-                color:       "var(--text-primary)",
-              }}
+              className="kanban-search w-full border border-[var(--border)] bg-[var(--bg-surface)] py-1.5 pl-7 pr-6 text-xs outline-none transition focus:border-[var(--text-secondary)]"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-2 text-[var(--text-muted)] opacity-60 hover:opacity-100 transition"
+                className="absolute right-2 font-mono text-[10px] text-[var(--text-faint)] hover:text-[var(--text-primary)]"
+                aria-label="Clear"
               >
-                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
-                </svg>
+                ✕
               </button>
             )}
           </div>
         </div>
 
         {/* Project list */}
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
+        <nav className="flex flex-1 flex-col overflow-y-auto">
           {filtered.length === 0 && (
-            <p className="px-3 py-6 text-center text-xs text-[var(--text-muted)]">
-              {search ? t.sidebar.emptySearch : t.sidebar.emptyAll}
-            </p>
+            <div className="px-4 py-10 text-center">
+              <p className="t-quote text-base text-[var(--text-secondary)]">
+                {search ? t.sidebar.emptySearch : t.sidebar.emptyAll}
+              </p>
+            </div>
           )}
           {filtered.map((p) => {
             const isSelected     = selectedProjectId === p.id;
@@ -99,66 +94,57 @@ export function ProjectSidebar() {
             const isPlannerError = p.planningStatus === "error";
             const isMenuOpen     = menuOpenId === p.id;
             return (
-              <div key={p.id} className="relative">
+              <div
+                key={p.id}
+                className="relative border-b border-[var(--border)]"
+              >
                 <button
                   type="button"
                   onClick={() => selectProject(p.id)}
                   className={clsx(
-                    "group relative flex w-full flex-col gap-0.5 rounded-lg px-3 py-2.5 pr-8 text-left transition",
+                    "group relative flex w-full items-start gap-3 px-4 py-3 pr-10 text-left transition",
+                    isSelected
+                      ? "bg-[var(--bg-surface)]"
+                      : "hover:bg-[var(--bg-surface)]",
                   )}
-                  style={{
-                    background: isSelected ? "var(--bg-surface)" : "transparent",
-                    color:      isSelected ? "var(--text-primary)" : "var(--text-muted)",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected)
-                      (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected)
-                      (e.currentTarget as HTMLElement).style.background = "transparent";
-                  }}
                 >
-                  {/* Accent line */}
+                  {/* selected accent */}
                   {isSelected && (
                     <span
-                      className="absolute inset-y-1.5 left-0 w-0.5 rounded-full"
-                      style={{ background: "var(--accent-primary)" }}
+                      aria-hidden
+                      className="absolute inset-y-0 left-0 w-[3px] bg-[var(--accent-primary)]"
                     />
                   )}
-                  <span className="flex items-center gap-1.5 truncate text-sm font-medium leading-tight">
-                    <span className="truncate">{p.name}</span>
-                    {isPlanning && (
-                      <span title={t.sidebar.plannerRunning} className="shrink-0">
-                        <svg
-                          className="h-3.5 w-3.5 animate-spin"
-                          style={{ color: "var(--accent-primary)" }}
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                      </span>
-                    )}
-                    {isPlannerError && (
-                      <span
-                        title={`${t.sidebar.plannerError}${p.planningError ? `: ${p.planningError}` : ""}`}
-                        className="h-2 w-2 shrink-0 rounded-full bg-red-500"
-                      />
-                    )}
-                  </span>
+
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="flex items-center gap-1.5 truncate text-[13px] font-medium leading-tight text-[var(--text-primary)]">
+                      <span className="truncate">{p.name}</span>
+                      {isPlanning && (
+                        <span title={t.sidebar.plannerRunning} className="shrink-0">
+                          <Spinner />
+                        </span>
+                      )}
+                      {isPlannerError && (
+                        <span
+                          title={`${t.sidebar.plannerError}${p.planningError ? `: ${p.planningError}` : ""}`}
+                          className="h-1.5 w-1.5 shrink-0 bg-[var(--status-error)]"
+                        />
+                      )}
+                    </span>
+                    <span className="truncate font-mono text-[11px] text-[var(--text-faint)]">
+                      {p.repoPath}
+                    </span>
+                  </div>
                   <span
-                    className="truncate font-mono text-[10px] transition"
-                    style={{ color: isSelected ? "var(--text-muted)" : "var(--text-muted)", opacity: isSelected ? 0.7 : 0.5 }}
-                  >
-                    {p.repoPath}
-                  </span>
+                    aria-hidden
+                    className={clsx(
+                      "absolute bottom-0 left-0 h-px transition-all duration-500",
+                      isSelected ? "w-full bg-[var(--accent-primary)]" : "w-0 bg-[var(--accent-primary)] group-hover:w-1/3",
+                    )}
+                  />
                 </button>
 
-                {/* Three-dot menu button */}
+                {/* three-dot menu */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -166,30 +152,24 @@ export function ProjectSidebar() {
                     setMenuOpenId(isMenuOpen ? null : p.id);
                   }}
                   className={clsx(
-                    "absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1.5 transition",
+                    "absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-1 transition",
+                    isMenuOpen
+                      ? "text-[var(--text-primary)]"
+                      : "text-[var(--text-faint)] hover:text-[var(--text-primary)]",
                   )}
-                  style={{
-                    color:      isMenuOpen ? "var(--text-primary)" : "var(--text-muted)",
-                    background: isMenuOpen ? "var(--bg-surface)" : "transparent",
-                  }}
-                  aria-label="Proje menüsü"
+                  aria-label="Project menu"
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                    <circle cx="8" cy="2" r="1.5" />
-                    <circle cx="8" cy="8" r="1.5" />
-                    <circle cx="8" cy="14" r="1.5" />
+                    <circle cx="8" cy="2" r="1.3" />
+                    <circle cx="8" cy="8" r="1.3" />
+                    <circle cx="8" cy="14" r="1.3" />
                   </svg>
                 </button>
 
-                {/* Popover menu */}
                 {isMenuOpen && (
                   <div
                     ref={menuRef}
-                    className="absolute right-0 top-full z-50 mt-0.5 min-w-[140px] rounded-lg border py-1 shadow-xl"
-                    style={{
-                      background:   "var(--bg-elevated)",
-                      borderColor:  "var(--border)",
-                    }}
+                    className="absolute right-2 top-full z-50 mt-1 min-w-[150px] border border-[var(--border)] bg-[var(--bg-elevated)] py-1 shadow-xl"
                   >
                     <button
                       type="button"
@@ -197,19 +177,10 @@ export function ProjectSidebar() {
                         setMenuOpenId(null);
                         setDetailProjectId(p.id);
                       }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition"
-                      style={{ color: "var(--text-muted)" }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)";
-                        (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLElement).style.background = "transparent";
-                        (e.currentTarget as HTMLElement).style.color = "var(--text-muted)";
-                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[var(--text-secondary)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
                     >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 2.5a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zM7.25 7a.75.75 0 0 1 .75-.75h.5a.75.75 0 0 1 .75.75v3.25h.25a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1 0-1.5h.25V7.75H7.25z"/>
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 2.5a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zM7.25 7a.75.75 0 0 1 .75-.75h.5a.75.75 0 0 1 .75.75v3.25h.25a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1 0-1.5h.25V7.75H7.25z" />
                       </svg>
                       {t.projectDetail.details}
                     </button>
@@ -220,24 +191,18 @@ export function ProjectSidebar() {
           })}
         </nav>
 
-        {/* New Project button */}
-        <div className="border-t p-2" style={{ borderColor: "var(--border)" }}>
+        {/* Footer · new project */}
+        <div className="border-t border-[var(--border)] p-3">
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-2 text-sm transition"
-            style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)";
-              (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "transparent";
-              (e.currentTarget as HTMLElement).style.color = "var(--text-muted)";
-            }}
+            className="group flex w-full items-center justify-between border border-dashed border-[var(--border)] px-3 py-2.5 text-[13px] text-[var(--text-muted)] transition hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
           >
-            <span className="text-lg leading-none">+</span>
-            <span>{t.sidebar.newProject}</span>
+            <span className="flex items-center gap-2">
+              <span aria-hidden className="text-base leading-none">+</span>
+              {t.sidebar.newProject}
+            </span>
+            <span aria-hidden className="opacity-0 transition group-hover:opacity-100">→</span>
           </button>
         </div>
       </aside>
@@ -248,5 +213,21 @@ export function ProjectSidebar() {
         onClose={() => setDetailProjectId(null)}
       />
     </>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="h-3 w-3 animate-spin"
+      style={{ color: "var(--accent-primary)" }}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
   );
 }

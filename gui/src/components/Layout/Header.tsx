@@ -43,116 +43,112 @@ export function Header() {
 
   return (
     <>
-      <header
-        className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-3 border-b bg-[var(--bg-base)] px-4 backdrop-blur-md"
-        style={{ borderColor: "var(--border)" }}
-      >
+      <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-stretch border-b border-[var(--border)] bg-[var(--bg-base)]">
         {/* Logo */}
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-2 hover:opacity-80 transition-opacity"
+          className="group flex shrink-0 items-center gap-2.5 px-5 transition hover:opacity-80"
         >
-          <ClauFlowIcon />
-          <span className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+          <Monogram />
+          <span className="text-[14px] font-semibold tracking-tight text-[var(--text-primary)]">
             ClauFlow
           </span>
         </Link>
 
+        {/* Divider */}
+        <div className="my-3 w-px bg-[var(--border)]" />
+
         {/* Breadcrumb */}
-        <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
+        <div className="flex flex-1 items-center gap-2.5 overflow-hidden px-5">
+          <Link
+            href="/board"
+            className="text-[13px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+          >
+            Board
+          </Link>
           {selectedProject && (
             <>
-              <BreadSep />
-              <span className="truncate text-xs font-medium text-[var(--text-muted)]">
+              <Slash />
+              <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
                 {selectedProject.name}
               </span>
             </>
           )}
           {selectedTask && (
             <>
-              <BreadSep />
-              <span className="truncate text-xs text-[var(--text-muted)] opacity-75">
+              <Slash />
+              <span className="truncate font-mono text-[11px] text-[var(--text-muted)]">
                 #{selectedTask.id.slice(0, 7)}
-                {selectedTask.title ? ` · ${selectedTask.title.slice(0, 28)}` : ""}
               </span>
+              {selectedTask.title && (
+                <span className="truncate text-[13px] italic text-[var(--text-secondary)]">
+                  {selectedTask.title.slice(0, 38)}
+                </span>
+              )}
             </>
           )}
         </div>
 
-        {/* Right action zone — icons only */}
-        <div className="flex shrink-0 items-center gap-1">
-          {/* GitHub PRs link */}
-          {selectedProjectId && (
-            <Link
-              href={`/github?projectId=${selectedProjectId}`}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--accent-primary)]"
-              title="Pull Requests"
-            >
-              <GithubIcon className="h-4 w-4" />
-            </Link>
-          )}
-
-          {/* Language toggle */}
-          <button
-            type="button"
-            onClick={toggleLang}
-            className="flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs font-semibold text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
-            title={lang === "tr" ? "Switch to English" : "Türkçeye geç"}
-          >
-            {lang === "tr" ? "EN" : "TR"}
-          </button>
-
-          {/* Theme toggle */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
-            title={isLight ? t.header.themeToDark : t.header.themeToLight}
-          >
-            {isLight ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <circle cx="12" cy="12" r="5" />
-                <line x1="12" y1="1" x2="12" y2="3" />
-                <line x1="12" y1="21" x2="12" y2="23" />
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                <line x1="1" y1="12" x2="3" y2="12" />
-                <line x1="21" y1="12" x2="23" y2="12" />
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-              </svg>
-            )}
-          </button>
-
-          {/* WS status — dot only, no label */}
-          <div
-            className="flex h-8 w-8 items-center justify-center"
+        {/* Right action zone */}
+        <div className="flex shrink-0 items-center gap-1 px-3">
+          {/* WS status */}
+          <span
+            className="hidden items-center gap-1.5 px-2 sm:flex"
             title={wsConnected ? t.header.wsConnected : t.header.wsConnecting}
           >
             <span
-              className={`h-2 w-2 rounded-full ${
-                wsConnected ? "bg-emerald-400" : "bg-[var(--text-muted)] opacity-50"
+              className={`h-1.5 w-1.5 ${
+                wsConnected
+                  ? "bg-[var(--accent-primary)]"
+                  : "bg-[var(--text-faint)]"
               }`}
             />
-          </div>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              {wsConnected ? "Live" : "Offline"}
+            </span>
+          </span>
 
-          {/* Thin separator */}
-          <div className="mx-1 h-5 w-px" style={{ background: "var(--border)" }} />
-
-          {/* GitHub connection */}
-          {githubStatus.connected ? (
-            <div
-              className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-emerald-400"
-              title={githubStatus.user ? `@${githubStatus.user}` : t.header.githubConnected}
+          {selectedProjectId && (
+            <Link
+              href={`/github?projectId=${selectedProjectId}`}
+              className="flex h-9 items-center gap-2 px-3 text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              title="Pull Requests"
             >
               <GithubIcon className="h-4 w-4" />
+              <span className="hidden text-[12px] md:inline">PRs</span>
+            </Link>
+          )}
+
+          <button
+            type="button"
+            onClick={toggleLang}
+            className="flex h-9 items-center px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+            title={lang === "tr" ? "Switch to English" : "Türkçeye geç"}
+          >
+            {lang === "tr" ? "TR" : "EN"}
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex h-9 w-9 items-center justify-center text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+            title={isLight ? t.header.themeToDark : t.header.themeToLight}
+          >
+            {isLight ? <MoonIcon /> : <SunIcon />}
+          </button>
+
+          <div className="mx-1 h-5 w-px bg-[var(--border)]" />
+
+          {githubStatus.connected ? (
+            <div
+              className="flex h-9 items-center gap-2 px-3"
+              title={githubStatus.user ? `@${githubStatus.user}` : t.header.githubConnected}
+            >
+              <span className="h-1.5 w-1.5 bg-[var(--accent-primary)]" />
+              <GithubIcon className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
               {githubStatus.user && (
-                <span className="max-w-[100px] truncate hidden sm:inline">
-                  @{githubStatus.user}
+                <span className="hidden max-w-[120px] truncate text-[12px] text-[var(--text-primary)] sm:inline">
+                  {githubStatus.user}
                 </span>
               )}
             </div>
@@ -160,10 +156,9 @@ export function Header() {
             <button
               type="button"
               onClick={() => setGithubModalOpen(true)}
-              className="flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-              style={{ borderColor: "var(--border)" }}
+              className="btn-ink flex h-9 items-center gap-2 px-4 font-mono text-[11px] uppercase tracking-[0.16em]"
             >
-              <GithubIcon className="h-4 w-4" />
+              <GithubIcon className="h-3.5 w-3.5" />
               <span>{t.header.githubConnect}</span>
             </button>
           )}
@@ -178,32 +173,36 @@ export function Header() {
   );
 }
 
-function BreadSep() {
+function Slash() {
   return (
-    <span className="shrink-0 text-xs text-[var(--text-muted)] opacity-40">/</span>
+    <span aria-hidden className="text-[13px] text-[var(--text-faint)]">
+      /
+    </span>
   );
 }
 
-function ClauFlowIcon() {
+function Monogram() {
   return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 18 18"
-      fill="none"
-      className="shrink-0"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="clf-grad" x1="0" y1="0" x2="18" y2="18" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#5e6ad2" />
-          <stop offset="1" stopColor="#4a57cb" />
-        </linearGradient>
-      </defs>
-      <rect width="18" height="18" rx="5" fill="url(#clf-grad)" />
-      <path d="M4 6.5L6.5 9L4 11.5" stroke="white" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M8.5 6.5L11 9L8.5 11.5" stroke="white" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="14.5" cy="9" r="1.2" fill="rgba(255,255,255,0.55)" />
+    <div className="relative flex h-7 w-7 items-center justify-center overflow-hidden border border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-base)]">
+      <span className="font-mono text-[12px] font-bold leading-none">cf</span>
+      <span className="absolute inset-y-0 right-0 w-[2px] bg-[var(--accent-primary)]" />
+    </div>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
     </svg>
   );
 }

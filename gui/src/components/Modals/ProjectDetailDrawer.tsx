@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Badge } from "@/components/ui/Badge";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { Project, ProjectPatch, Task } from "@/types";
+import type { Project, ProjectPatch, Task, TaskStatus } from "@/types";
 
 interface ProjectDetailDrawerProps {
   projectId: string | null;
@@ -34,22 +33,27 @@ function makeDraft(p: Project): DraftState {
 
 function draftsEqual(a: DraftState, b: DraftState): boolean {
   return (
-    a.name          === b.name &&
-    a.description   === b.description &&
-    a.aiPrompt      === b.aiPrompt &&
-    a.repoPath      === b.repoPath &&
+    a.name === b.name &&
+    a.description === b.description &&
+    a.aiPrompt === b.aiPrompt &&
+    a.repoPath === b.repoPath &&
     a.defaultBranch === b.defaultBranch
   );
 }
 
-function planningStatusTone(status?: string) {
-  switch (status) {
-    case "planning": return "yellow" as const;
-    case "done":     return "green" as const;
-    case "error":    return "red" as const;
-    default:         return "neutral" as const;
-  }
-}
+const STATUS_INK: Record<TaskStatus, string> = {
+  todo:   "var(--status-todo)",
+  doing:  "var(--status-doing)",
+  review: "var(--status-review)",
+  done:   "var(--status-done)",
+};
+
+const PLAN_INK: Record<string, string> = {
+  planning: "var(--status-warning)",
+  done:     "var(--accent-primary)",
+  error:    "var(--status-error)",
+  idle:     "var(--text-muted)",
+};
 
 export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerProps) {
   const t = useTranslation();
@@ -57,7 +61,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
 
   const project       = useBoardStore((s) => s.projects.find((p) => p.id === projectId) ?? null);
   const updateProject = useBoardStore((s) => s.updateProject);
-  const deleteProject = useBoardStore((s) => s.deleteProject); // used by handleDeleteKanban
+  const deleteProject = useBoardStore((s) => s.deleteProject);
 
   const open = Boolean(projectId && project);
 
@@ -82,7 +86,6 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
   const [confirmKanban, setConfirmKanban] = useState(false);
   const [deleting,      setDeleting]      = useState(false);
 
-  // Reset state when project changes
   useEffect(() => {
     if (project) {
       setDraft(makeDraft(project));
@@ -94,8 +97,6 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
     setDeleting(false);
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch this project's tasks so stats reflect the drawer subject,
-  // not whichever project is currently selected on the board.
   useEffect(() => {
     if (!projectId) {
       setProjectTasks([]);
@@ -112,7 +113,6 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
     return () => { cancelled = true; };
   }, [projectId]);
 
-  // Escape key
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -127,7 +127,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
 
   const handleSave = async () => {
     if (!project || !draft) return;
-    if (!draft.name.trim()) { setError("Proje adı zorunludur."); return; }
+    if (!draft.name.trim()) { setError("Project name required."); return; }
     setSaving(true);
     setError(null);
     try {
@@ -141,7 +141,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       const updated = await api.updateProject(project.id, patch);
       updateProject(project.id, updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Güncelleme başarısız.");
+      setError(err instanceof Error ? err.message : "Update failed.");
     } finally {
       setSaving(false);
     }
@@ -156,7 +156,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       const updated = await api.deleteProjectGithub(project.id);
       updateProject(project.id, { remote: updated.remote });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Silme başarısız.");
+      setError(err instanceof Error ? err.message : "Delete failed.");
     } finally {
       setDeleting(false);
     }
@@ -172,27 +172,25 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       deleteProject(project.id);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Silme başarısız.");
+      setError(err instanceof Error ? err.message : "Delete failed.");
       setDeleting(false);
     }
   };
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className={clsx(
-          "fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200",
+          "fixed inset-0 z-40 bg-black/65 backdrop-blur-sm transition-opacity duration-200",
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
         )}
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Drawer */}
       <aside
         className={clsx(
-          "fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl",
+          "fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-[var(--border)] bg-[var(--bg-base)] shadow-2xl",
           "transform transition-transform duration-300 ease-out",
           open ? "translate-x-0" : "translate-x-full",
         )}
@@ -201,233 +199,203 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       >
         {project && draft ? (
           <>
-            {/* Header */}
-            <header className="flex items-start justify-between gap-3 border-b border-zinc-800 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                  {project.planningStatus && project.planningStatus !== "idle" && (
-                    <Badge tone={planningStatusTone(project.planningStatus)}>
-                      {project.planningStatus}
-                    </Badge>
-                  )}
-                  {project.remote && (
-                    <span className="truncate font-mono text-[10px] text-zinc-600">
-                      {project.remote}
-                    </span>
-                  )}
+            <header className="border-b border-[var(--border)] px-6 py-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="t-display text-3xl leading-[1.1] text-[var(--text-primary)]">
+                    {project.name}
+                  </h2>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {project.planningStatus && project.planningStatus !== "idle" && (
+                      <span
+                        className="inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium capitalize"
+                        style={{
+                          borderColor: PLAN_INK[project.planningStatus],
+                          color: PLAN_INK[project.planningStatus],
+                        }}
+                      >
+                        <span
+                          className="h-1 w-1"
+                          style={{ background: PLAN_INK[project.planningStatus] }}
+                        />
+                        {project.planningStatus}
+                      </span>
+                    )}
+                    {project.remote && (
+                      <span className="truncate font-mono text-[11px] text-[var(--text-faint)]">
+                        {project.remote}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <h2 className="text-sm font-semibold leading-tight text-zinc-100">
-                  {project.name}
-                </h2>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="shrink-0 border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                  aria-label="Close"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M1 1l12 12M13 1L1 13" />
+                  </svg>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="shrink-0 rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
-                aria-label="Kapat"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M1 1l12 12M13 1L1 13" />
-                </svg>
-              </button>
             </header>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-4 py-3">
+            <div className="flex-1 overflow-y-auto px-6 py-5">
               {error && (
-                <div className="mb-4 whitespace-pre-wrap break-words rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
+                <div className="mb-4 whitespace-pre-wrap break-words border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-xs text-[var(--status-error)]">
                   {error}
                 </div>
               )}
 
               {/* Stats */}
-              <section className="mb-6">
-                <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
-                  {pd.progress}
-                </h3>
-                {/* Progress bar */}
-                <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-                  <div
-                    className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                    style={{ width: `${donePercent}%` }}
-                  />
-                </div>
-                <p className="mb-3 text-right font-mono text-[11px] text-zinc-500">
-                  {donePercent}%
-                </p>
-                {/* Task counts */}
-                <div className="grid grid-cols-4 gap-2">
+              <Section label={pd.progress}>
+                <div className="grid grid-cols-4 gap-px border border-[var(--border)] bg-[var(--border)]">
                   {(["todo", "doing", "review", "done"] as const).map((s) => (
                     <div
                       key={s}
-                      className={clsx(
-                        "flex flex-col items-center gap-1 rounded-lg border px-2 py-2",
-                        s === "todo"   && "border-zinc-800 bg-zinc-900/60",
-                        s === "doing"  && "border-yellow-800/50 bg-yellow-950/20",
-                        s === "review" && "border-purple-800/50 bg-purple-950/20",
-                        s === "done"   && "border-emerald-800/50 bg-emerald-950/20",
-                      )}
+                      className="flex flex-col gap-1 bg-[var(--bg-surface)] px-3 py-3"
                     >
                       <span
-                        className={clsx(
-                          "text-lg font-bold leading-none",
-                          s === "todo"   && "text-zinc-300",
-                          s === "doing"  && "text-yellow-300",
-                          s === "review" && "text-purple-300",
-                          s === "done"   && "text-emerald-300",
-                        )}
+                        className="text-[11px] font-medium capitalize"
+                        style={{ color: STATUS_INK[s] }}
+                      >
+                        {pd.stats[s]}
+                      </span>
+                      <span
+                        className="font-mono text-2xl font-semibold tabular-nums"
+                        style={{ color: STATUS_INK[s] }}
                       >
                         {stats[s]}
-                      </span>
-                      <span className="text-[9px] uppercase tracking-widest text-zinc-600">
-                        {pd.stats[s]}
                       </span>
                     </div>
                   ))}
                 </div>
-              </section>
 
-              {/* Planner error */}
+                <div className="mt-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[12px] text-[var(--text-muted)]">Progress</span>
+                    <span className="font-mono text-xs tabular-nums text-[var(--text-secondary)]">
+                      {donePercent}%
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1 w-full overflow-hidden bg-[var(--bg-sunken)]">
+                    <div
+                      className="h-full bg-[var(--accent-primary)] transition-all duration-500"
+                      style={{ width: `${donePercent}%` }}
+                    />
+                  </div>
+                </div>
+              </Section>
+
               {project.planningStatus === "error" && project.planningError && (
-                <section className="mb-6 rounded-xl border border-red-900/60 bg-red-950/20 p-4">
-                  <h3 className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-red-400">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <circle cx="8" cy="8" r="7" />
-                      <path d="M8 4v5M8 11.5h.01" />
-                    </svg>
-                    {pd.plannerErrorTitle}
-                  </h3>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md border border-red-900/40 bg-red-950/40 p-2 font-mono text-[11px] leading-relaxed text-red-200">
+                <Section label={pd.plannerErrorTitle} tone="var(--status-error)">
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words border border-[var(--status-error)] bg-[var(--status-error-ink)] p-3 font-mono text-[11px] leading-relaxed text-[var(--status-error)]">
                     {project.planningError}
                   </pre>
-                  <p className="mt-2 text-[11px] text-zinc-500">{pd.plannerErrorHint}</p>
-                </section>
+                  <p className="mt-2 text-xs italic text-[var(--text-muted)]">{pd.plannerErrorHint}</p>
+                </Section>
               )}
 
-              {/* Form */}
-              <section className="mb-6 flex flex-col gap-3">
-                <h3 className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
-                  {pd.details}
-                </h3>
+              <Section label={pd.details}>
+                <div className="flex flex-col gap-4">
+                  <Field label={pd.projectName}>
+                    <input
+                      type="text"
+                      value={draft.name}
+                      onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                      className={inputCls}
+                      placeholder="Project name"
+                    />
+                  </Field>
 
-                {/* Name */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                    {pd.projectName}
-                  </label>
-                  <input
-                    type="text"
-                    value={draft.name}
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
-                    placeholder="Proje adı"
-                  />
-                </div>
+                  <Field label={pd.projectDescription}>
+                    <textarea
+                      value={draft.description}
+                      onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                      rows={2}
+                      className={clsx(inputCls, "resize-y")}
+                      placeholder="Short description…"
+                    />
+                  </Field>
 
-                {/* Description */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                    {pd.projectDescription}
-                  </label>
-                  <textarea
-                    value={draft.description}
-                    onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                    rows={2}
-                    className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
-                    placeholder="Kısa açıklama..."
-                  />
-                </div>
+                  <Field label={pd.projectAiPrompt}>
+                    <textarea
+                      value={draft.aiPrompt}
+                      onChange={(e) => setDraft({ ...draft, aiPrompt: e.target.value })}
+                      rows={5}
+                      className={clsx(inputCls, "resize-y font-mono text-xs")}
+                      placeholder="Describe the project; the planner will split it into tasks…"
+                    />
+                  </Field>
 
-                {/* AI Prompt */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                    {pd.projectAiPrompt}
-                  </label>
-                  <textarea
-                    value={draft.aiPrompt}
-                    onChange={(e) => setDraft({ ...draft, aiPrompt: e.target.value })}
-                    rows={5}
-                    className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
-                    placeholder="Projeyi kısaca tanımla, planner task'lara bölsün..."
-                  />
-                </div>
-
-                {/* Repo Path */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                    {pd.projectRepoPath}
-                  </label>
-                  <input
-                    type="text"
-                    value={draft.repoPath}
-                    onChange={(e) => setDraft({ ...draft, repoPath: e.target.value })}
-                    disabled={projectHasActiveTasks}
-                    className={clsx(
-                      "w-full rounded-lg border px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none",
-                      projectHasActiveTasks
-                        ? "cursor-not-allowed border-zinc-800 bg-zinc-900/40 text-zinc-600"
-                        : "border-zinc-700 bg-zinc-900",
+                  <Field label={pd.projectRepoPath}>
+                    <input
+                      type="text"
+                      value={draft.repoPath}
+                      onChange={(e) => setDraft({ ...draft, repoPath: e.target.value })}
+                      disabled={projectHasActiveTasks}
+                      className={clsx(
+                        inputCls,
+                        "font-mono",
+                        projectHasActiveTasks && "cursor-not-allowed opacity-50",
+                      )}
+                      placeholder="/path/to/repo"
+                    />
+                    {projectHasActiveTasks && (
+                      <p className="text-[11px] text-[var(--text-faint)]">
+                        {pd.activeTasksBlockPath}
+                      </p>
                     )}
-                    placeholder="/path/to/repo"
-                  />
-                  {projectHasActiveTasks && (
-                    <p className="mt-1 text-[11px] text-zinc-600">{pd.activeTasksBlockPath}</p>
-                  )}
-                </div>
+                  </Field>
 
-                {/* Default Branch */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                    {pd.projectDefaultBranch}
-                  </label>
-                  <input
-                    type="text"
-                    value={draft.defaultBranch}
-                    onChange={(e) => setDraft({ ...draft, defaultBranch: e.target.value })}
-                    disabled={projectHasActiveTasks}
-                    className={clsx(
-                      "w-full rounded-lg border px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-blue-500 focus:outline-none",
-                      projectHasActiveTasks
-                        ? "cursor-not-allowed border-zinc-800 bg-zinc-900/40 text-zinc-600"
-                        : "border-zinc-700 bg-zinc-900",
+                  <Field label={pd.projectDefaultBranch}>
+                    <input
+                      type="text"
+                      value={draft.defaultBranch}
+                      onChange={(e) => setDraft({ ...draft, defaultBranch: e.target.value })}
+                      disabled={projectHasActiveTasks}
+                      className={clsx(
+                        inputCls,
+                        "font-mono",
+                        projectHasActiveTasks && "cursor-not-allowed opacity-50",
+                      )}
+                      placeholder="main"
+                    />
+                    {projectHasActiveTasks && (
+                      <p className="text-[11px] text-[var(--text-faint)]">
+                        {pd.activeTasksBlockPath}
+                      </p>
                     )}
-                    placeholder="main"
-                  />
-                  {projectHasActiveTasks && (
-                    <p className="mt-1 text-[11px] text-zinc-600">{pd.activeTasksBlockPath}</p>
-                  )}
+                  </Field>
                 </div>
-              </section>
+              </Section>
 
-              {/* External link */}
               {project.remote && (
-                <section className="mb-6">
+                <Section label="External">
                   <a
                     href={project.remote}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-blue-400 transition hover:border-zinc-500 hover:text-blue-300"
+                    className="inline-flex items-center gap-2 border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--accent-primary)] transition hover:border-[var(--accent-primary)]"
                   >
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+                      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
                     </svg>
-                    {pd.openInGithub}
+                    {pd.openInGithub} ↗
                   </a>
-                </section>
+                </Section>
               )}
 
               {/* Danger Zone */}
-              <section className="rounded-xl border border-red-900/60 bg-red-950/10 p-4">
-                <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-red-500">
-                  {pd.dangerZone}
-                </h3>
+              <Section label={pd.dangerZone} tone="var(--status-error)">
                 <div className="flex flex-col gap-2">
                   {project.remote && (
                     <button
                       type="button"
                       onClick={() => setConfirmGithub(true)}
                       disabled={deleting}
-                      className="rounded-lg border border-red-800/60 bg-red-950/30 px-4 py-2 text-sm text-red-400 transition hover:bg-red-900/40 disabled:opacity-50 text-left"
+                      className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-4 py-2 text-left text-[12px] font-medium text-[var(--status-error)] transition hover:bg-[var(--status-error)] hover:text-[var(--bg-base)] disabled:opacity-50"
                     >
                       {deleting ? pd.deleting : pd.deleteFromGithub}
                     </button>
@@ -436,21 +404,20 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                     type="button"
                     onClick={() => setConfirmKanban(true)}
                     disabled={deleting}
-                    className="rounded-lg border border-zinc-700 bg-zinc-900/60 px-4 py-2 text-sm text-zinc-400 transition hover:border-red-800/60 hover:bg-red-950/20 hover:text-red-400 disabled:opacity-50 text-left"
+                    className="border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-left text-[12px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--status-error)] hover:text-[var(--status-error)] disabled:opacity-50"
                   >
                     {deleting ? pd.deleting : pd.deleteFromKanban}
                   </button>
                 </div>
-              </section>
+              </Section>
             </div>
 
-            {/* Footer */}
-            <footer className="flex items-center justify-end gap-1.5 border-t border-zinc-800 bg-zinc-950/80 px-4 py-2.5">
+            <footer className="flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--bg-surface)] px-6 py-4">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={saving}
-                className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition hover:text-zinc-200 disabled:opacity-50"
+                className="btn-ghost px-4 py-2 text-[12px] font-medium"
               >
                 {pd.cancel}
               </button>
@@ -458,7 +425,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                 type="button"
                 onClick={handleSave}
                 disabled={saving || !isDirty}
-                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-50"
+                className="btn-ink px-4 py-2 text-[12px] font-medium disabled:opacity-50"
               >
                 {saving ? pd.saving : pd.saveChanges}
               </button>
@@ -489,5 +456,49 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
         onCancel={() => setConfirmKanban(false)}
       />
     </>
+  );
+}
+
+const inputCls =
+  "w-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)]";
+
+function Section({
+  label,
+  tone,
+  children,
+}: {
+  label: string;
+  tone?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-7">
+      <header className="mb-3">
+        <span
+          className="text-[12px] font-semibold uppercase tracking-[0.08em]"
+          style={{ color: tone ?? "var(--text-muted)" }}
+        >
+          {label}
+        </span>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }

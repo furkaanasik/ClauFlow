@@ -10,14 +10,14 @@ export type BadgeTone =
   | "green"
   | "red";
 
-const TONE_CLASSES: Record<BadgeTone, string> = {
-  neutral: "bg-zinc-800 text-zinc-200 ring-zinc-700",
-  blue: "bg-blue-900/60 text-blue-200 ring-blue-700",
-  yellow: "bg-yellow-900/60 text-yellow-200 ring-yellow-700",
-  orange: "bg-orange-900/60 text-orange-200 ring-orange-700",
-  purple: "bg-purple-900/60 text-purple-200 ring-purple-700",
-  green: "bg-emerald-900/60 text-emerald-200 ring-emerald-700",
-  red: "bg-red-900/60 text-red-200 ring-red-700",
+const TONE_INK: Record<BadgeTone, string> = {
+  neutral: "var(--text-secondary)",
+  blue:    "var(--status-info)",
+  yellow:  "var(--status-warning)",
+  orange:  "var(--prio-high)",
+  purple:  "var(--status-review)",
+  green:   "var(--accent-primary)",
+  red:     "var(--status-error)",
 };
 
 interface BadgeProps {
@@ -33,15 +33,17 @@ export function Badge({
   className,
   pulse = false,
 }: BadgeProps) {
+  const ink = TONE_INK[tone];
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset",
-        TONE_CLASSES[tone],
+        "inline-flex items-center gap-1.5 border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest",
         pulse && "animate-pulse",
         className,
       )}
+      style={{ borderColor: ink, color: ink }}
     >
+      <span className="h-1 w-1" style={{ background: ink }} />
       {children}
     </span>
   );

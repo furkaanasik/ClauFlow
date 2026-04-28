@@ -84,78 +84,89 @@ export function GithubConnectModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="GitHub'a Bağlan">
-      <div className="flex flex-col gap-4">
+    <Modal open={open} onClose={onClose} title="Connect GitHub">
+      <div className="flex flex-col gap-5">
         {startLoading && !userCode && (
-          <p className="text-xs text-zinc-400">Kod alınıyor...</p>
+          <p className="text-[12px] text-[var(--text-muted)]">
+            Requesting code…
+          </p>
         )}
 
         {startError && (
-          <div className="flex flex-col gap-1.5">
-            <p className="text-xs text-red-400">{startError}</p>
+          <div className="flex flex-col gap-2 border border-[var(--status-error)] bg-[var(--status-error-ink)] p-3">
+            <p className="text-xs text-[var(--status-error)]">{startError}</p>
             <button
               type="button"
               onClick={beginFlow}
-              className="self-start rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition"
+              className="btn-ghost self-start px-3 py-1.5 text-[12px] font-medium"
             >
-              Tekrar Dene
+              Retry
             </button>
           </div>
         )}
 
         {userCode && (
           <>
-            <div className="flex flex-col gap-1.5">
-              <p className="text-xs text-zinc-300">
-                1. Aşağıdaki kodu kopyala:
-              </p>
-              <div className="flex items-center gap-1.5">
-                <div className="flex-1 rounded-lg border px-3 py-2 text-center font-mono text-xl font-bold tracking-widest" style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}>
+            <Step label="Copy this code">
+              <div className="flex items-stretch gap-2">
+                <div className="flex flex-1 items-center justify-center border border-[var(--border)] bg-[var(--bg-surface)] py-3 text-center font-mono text-2xl font-bold tracking-[0.4em] text-[var(--text-primary)]">
                   {userCode}
                 </div>
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="rounded-lg border px-3 py-2 text-xs transition"
-                  style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-primary)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
+                  className="btn-ghost px-4 text-[12px] font-medium"
                 >
-                  {copied ? "Kopyalandı" : "Kopyala"}
+                  {copied ? "Copied ✓" : "Copy"}
                 </button>
               </div>
-            </div>
+            </Step>
 
-            <div className="flex flex-col gap-1.5">
-              <p className="text-xs text-zinc-300">
-                2. GitHub'ı aç ve kodu gir:
-              </p>
+            <Step label="Open GitHub & paste">
               <button
                 type="button"
                 onClick={handleOpenGithub}
                 disabled={!verificationUri}
-                className="self-start rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
+                className="btn-ink inline-flex items-center gap-3 px-4 py-2 text-[12px] font-medium disabled:opacity-50"
               >
                 {verificationUri
-                  ? `${stripProtocol(verificationUri)} aç →`
-                  : "Bağlantı hazır değil"}
+                  ? `${stripProtocol(verificationUri)}`
+                  : "Link unavailable"}
+                <span aria-hidden>↗</span>
               </button>
-            </div>
+            </Step>
 
-            <div className="flex items-center gap-1.5 border-t pt-3" style={{ borderColor: "var(--border)" }}>
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-600 border-t-[var(--accent-primary)]" />
-              <span className="text-xs text-zinc-400">
-                Bağlantı bekleniyor...
+            <div className="flex items-center gap-2 border-t border-[var(--border)] pt-3">
+              <span className="h-1.5 w-1.5 animate-pulse bg-[var(--accent-primary)]" />
+              <span className="text-[12px] text-[var(--text-muted)]">
+                Waiting for confirmation…
               </span>
             </div>
 
             {status.error && (
-              <p className="text-xs text-red-400">{status.error}</p>
+              <p className="text-xs text-[var(--status-error)]">{status.error}</p>
             )}
           </>
         )}
       </div>
     </Modal>
+  );
+}
+
+function Step({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+        {label}
+      </span>
+      {children}
+    </div>
   );
 }
 

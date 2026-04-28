@@ -25,6 +25,12 @@ import { useTranslation } from "@/hooks/useTranslation";
 import type { TaskStatus } from "@/types";
 
 const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "review", "done"];
+const COLUMN_NUMERALS: Record<TaskStatus, string> = {
+  todo: "01",
+  doing: "02",
+  review: "03",
+  done: "04",
+};
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   todo:   ["doing"],
@@ -40,6 +46,7 @@ export function Board() {
   const columns = COLUMN_STATUSES.map((status) => ({
     status,
     title: t.board.columns[status],
+    numeral: COLUMN_NUMERALS[status],
   }));
 
   const tasks             = useBoardStore((s) => s.tasks);
@@ -53,7 +60,7 @@ export function Board() {
   const selectPRTask      = useBoardStore((s) => s.selectPRTask);
   const upsertTask        = useBoardStore((s) => s.upsertTask);
 
-  const toast          = useToast();
+  const toast = useToast();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -75,7 +82,6 @@ export function Board() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [pendingMove, setPendingMove] = useState<{ taskId: string; from: TaskStatus; to: TaskStatus } | null>(null);
 
-  // Klavye kisayollari
   useKeyboardShortcuts({
     onNewTask:     useCallback(() => setAddOpen(true), []),
     onEscape:      useCallback(() => {
@@ -159,90 +165,118 @@ export function Board() {
 
   if (!selectedProjectId) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-3 text-base text-zinc-500">
-        <div className="flex h-14 w-14 items-center justify-center rounded-xl border" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+      <div className="flex h-full flex-col items-center justify-center gap-6 px-6">
+        <div className="flex h-14 w-14 items-center justify-center border border-[var(--border)] text-[var(--text-muted)]">
           <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden>
-            <rect x="1" y="1" width="5" height="11" rx="1.5" fill="currentColor" opacity="0.4" />
-            <rect x="8" y="1" width="5" height="8"  rx="1.5" fill="currentColor" opacity="0.4" />
-            <rect x="15" y="1" width="4" height="15" rx="1.5" fill="currentColor" opacity="0.4" />
+            <rect x="1" y="1" width="5" height="11" rx="0" fill="currentColor" opacity="0.4" />
+            <rect x="8" y="1" width="5" height="8"  rx="0" fill="currentColor" opacity="0.4" />
+            <rect x="15" y="1" width="4" height="15" rx="0" fill="currentColor" opacity="0.4" />
           </svg>
         </div>
-        <span>Soldan bir proje sec ya da yeni proje olustur.</span>
+        <div className="text-center">
+          <p className="t-display text-3xl text-[var(--text-primary)]">No project selected</p>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">Pick one from the left, or create a new project.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Board header — istatistik + arama */}
-      <div className="kanban-panel flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5">
-        {/* Stat pills */}
-        <div className="flex flex-wrap gap-2">
-          {columns.map((col) => {
-            const count = Object.values(tasks).filter(
-              (t) => t?.projectId === selectedProjectId && t.status === col.status,
-            ).length;
-            return (
-              <span
-                key={col.status}
-                className="rounded-md bg-zinc-800/80 px-2.5 py-1 text-[11px] font-medium text-zinc-400"
-              >
-                {col.title}:{" "}
-                <span className="font-semibold text-zinc-200">{count}</span>
-              </span>
-            );
-          })}
-        </div>
-
-        {/* Progress bar */}
-        {totalCount > 0 && (
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-xs text-zinc-500">
-              %{progressPct}
-            </span>
-            <div className="h-1.5 w-28 overflow-hidden rounded-full bg-zinc-800">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                style={{ width: `${progressPct}%` }}
-              />
+    <div className="flex flex-col gap-6">
+      {/* ── Board header ──────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-5 border-b border-[var(--border)] pb-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="t-display text-4xl leading-tight text-[var(--text-primary)] md:text-5xl">
+              Board
+            </h1>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
+              Drag a task to <span className="text-[var(--accent-primary)]">DOING</span> — Claude opens a PR.
+            </p>
+          </div>
+          <div className="flex items-center gap-5">
+            <Stat label="Total" value={totalCount} />
+            <span className="h-9 w-px bg-[var(--border)]" />
+            <Stat label="Done" value={doneCount} accent />
+            <span className="h-9 w-px bg-[var(--border)]" />
+            <div className="w-40">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] text-[var(--text-muted)]">Progress</span>
+                <span className="font-mono text-xs tabular-nums text-[var(--text-secondary)]">
+                  {progressPct}%
+                </span>
+              </div>
+              <div className="mt-1.5 h-1 w-full overflow-hidden bg-[var(--bg-sunken)]">
+                <div
+                  className="h-full bg-[var(--accent-primary)] transition-all duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Arama */}
-        <div className="relative ml-auto flex-shrink-0">
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-zinc-600">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" />
-            </svg>
-          </span>
-          <input
-            ref={searchRef}
-            type="text"
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-            placeholder={t.board.searchPlaceholder}
-            className="kanban-search rounded-lg border border-[var(--border)] bg-[var(--bg-base)] py-1.5 pl-8.5 pr-3 text-sm text-[var(--text-primary)] placeholder-zinc-600 outline-none transition focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/20 w-56"
-          />
-          {filterText && (
-            <button
-              type="button"
-              onClick={() => setFilterText("")}
-              className="absolute inset-y-0 right-2.5 flex items-center text-zinc-600 hover:text-zinc-400"
-            >
-              ×
-            </button>
-          )}
+        {/* Stat strip + search */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {columns.map((col) => {
+              const count = Object.values(tasks).filter(
+                (t) => t?.projectId === selectedProjectId && t.status === col.status,
+              ).length;
+              return (
+                <span
+                  key={col.status}
+                  className="flex items-center gap-2 border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5"
+                >
+                  <span className="text-[12px] text-[var(--text-secondary)]">{col.title}</span>
+                  <span className="font-mono text-xs font-semibold tabular-nums text-[var(--text-primary)]">
+                    {count}
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+
+          {/* Search */}
+          <div className="relative ml-auto">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--text-faint)]">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" />
+              </svg>
+            </span>
+            <input
+              ref={searchRef}
+              type="text"
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              placeholder={t.board.searchPlaceholder}
+              className="kanban-search w-64 border border-[var(--border)] bg-[var(--bg-surface)] py-2 pl-9 pr-9 text-[13px] outline-none transition focus:border-[var(--text-secondary)]"
+            />
+            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center font-mono text-[10px] text-[var(--text-faint)]">
+              {filterText ? (
+                <button
+                  type="button"
+                  onClick={() => setFilterText("")}
+                  className="pointer-events-auto px-1 hover:text-[var(--text-primary)]"
+                  aria-label="Clear"
+                >
+                  ✕
+                </button>
+              ) : (
+                "/"
+              )}
+            </span>
+          </div>
         </div>
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+        <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-sm text-[var(--status-error)]">
           {t.board.loadError}: {error}
         </div>
       )}
       {loading && (
-        <div className="text-sm text-zinc-500">{t.board.loadingTasks}</div>
+        <div className="t-label">{t.board.loadingTasks}</div>
       )}
 
       <DndContext
@@ -250,12 +284,13 @@ export function Board() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {columns.map((col) => (
             <BoardColumn
               key={col.status}
               status={col.status}
               title={col.title}
+              numeral={col.numeral}
               tasks={byStatus[col.status]}
               onAddTask={col.status === "todo" ? () => setAddOpen(true) : undefined}
             />
@@ -299,28 +334,32 @@ export function Board() {
 
       <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} />
 
-      {/* Kisayol yardim overlay */}
+      {/* Help overlay */}
       {showHelp && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           onClick={() => setShowHelp(false)}
         >
           <div
-            className="w-96 rounded-2xl border p-5 shadow-2xl"
-            style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}
+            className="w-96 border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-4 text-base font-semibold" style={{ color: "var(--text-primary)" }}>{t.board.shortcuts.title}</h3>
-            <div className="flex flex-col gap-2">
+            <h3 className="t-display mb-5 text-2xl text-[var(--text-primary)]">
+              {t.board.shortcuts.title}
+            </h3>
+            <div className="flex flex-col">
               {[
                 { key: "N",   desc: t.board.shortcuts.newTask },
                 { key: "/",   desc: t.board.shortcuts.focusSearch },
                 { key: "Esc", desc: t.board.shortcuts.close },
                 { key: "?",   desc: t.board.shortcuts.openHelp },
               ].map(({ key, desc }) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-sm" style={{ color: "var(--text-muted)" }}>{desc}</span>
-                  <kbd className="rounded border px-2 py-1 font-mono text-xs" style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}>
+                <div
+                  key={key}
+                  className="flex items-center justify-between border-b border-[var(--border)] py-2.5 last:border-b-0"
+                >
+                  <span className="text-sm text-[var(--text-secondary)]">{desc}</span>
+                  <kbd className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-0.5 font-mono text-[11px] text-[var(--text-primary)]">
                     {key}
                   </kbd>
                 </div>
@@ -329,10 +368,7 @@ export function Board() {
             <button
               type="button"
               onClick={() => setShowHelp(false)}
-              className="mt-4 w-full rounded-lg border py-2 text-sm transition"
-              style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-primary)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
+              className="btn-ghost mt-5 w-full px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em]"
             >
               {t.board.shortcuts.close}
             </button>
@@ -367,6 +403,21 @@ export function Board() {
         }}
         onCancel={() => setPendingMove(null)}
       />
+    </div>
+  );
+}
+
+function Stat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div className="text-right">
+      <p className="text-[11px] text-[var(--text-muted)]">{label}</p>
+      <p
+        className={`font-mono text-2xl font-semibold tabular-nums ${
+          accent ? "text-[var(--accent-primary)]" : "text-[var(--text-primary)]"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }

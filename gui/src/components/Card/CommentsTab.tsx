@@ -27,80 +27,38 @@ function formatDate(isoString: string): string {
     date.getMonth() === yesterday.getMonth() &&
     date.getDate() === yesterday.getDate();
 
-  if (isYesterday) return `Dun ${time}`;
+  if (isYesterday) return `Y'day ${time}`;
 
   const dd = String(date.getDate()).padStart(2, "0");
   const mo = String(date.getMonth() + 1).padStart(2, "0");
   return `${dd}.${mo} ${time}`;
 }
 
-interface StatusIndicatorProps {
-  status: CommentStatus;
+const STATUS_LABEL: Record<CommentStatus, { label: string; ink: string; pulse: boolean }> = {
+  pending: { label: "Queued",        ink: "var(--text-muted)",     pulse: false },
+  running: { label: "Agent working", ink: "var(--status-doing)",   pulse: true  },
+  done:    { label: "Applied",       ink: "var(--accent-primary)", pulse: false },
+  error:   { label: "Error",         ink: "var(--status-error)",   pulse: false },
+};
+
+function StatusIndicator({ status }: { status: CommentStatus }) {
+  const s = STATUS_LABEL[status];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[11px] font-medium"
+      style={{ color: s.ink }}
+    >
+      <span
+        className={clsx("h-1.5 w-1.5", s.pulse && "animate-pulse")}
+        style={{ background: s.ink }}
+      />
+      {s.label}
+    </span>
+  );
 }
 
-function StatusIndicator({ status }: StatusIndicatorProps) {
-  switch (status) {
-    case "pending":
-      return (
-        <span className="flex items-center gap-1 text-[10px] text-zinc-500">
-          <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
-          Bekliyor
-        </span>
-      );
-    case "running":
-      return (
-        <span className="flex items-center gap-1 text-[10px] text-yellow-400">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />
-          AI duzzeltiyor...
-        </span>
-      );
-    case "done":
-      return (
-        <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-          <svg
-            width="11"
-            height="11"
-            viewBox="0 0 12 12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="2 6 5 9 10 3" />
-          </svg>
-          Tamamlandi
-        </span>
-      );
-    case "error":
-      return (
-        <span className="flex items-center gap-1 text-[10px] text-red-400">
-          <svg
-            width="11"
-            height="11"
-            viewBox="0 0 12 12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <path d="M2 2l8 8M10 2L2 10" />
-          </svg>
-          Hata
-        </span>
-      );
-  }
-}
-
-interface CommentCardProps {
-  comment: Comment;
-}
-
-function CommentCard({ comment }: CommentCardProps) {
-  const autoOpen =
-    comment.status === "running" || comment.status === "error";
+function CommentCard({ comment }: { comment: Comment }) {
+  const autoOpen = comment.status === "running" || comment.status === "error";
   const [logOpen, setLogOpen] = useState(autoOpen);
   const logRef = useRef<HTMLPreElement | null>(null);
 
@@ -109,43 +67,33 @@ function CommentCard({ comment }: CommentCardProps) {
     comment.agentLog.length > 0;
 
   return (
-    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
-      <p className="mb-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-200">
+    <div className="border border-[var(--border)] bg-[var(--bg-surface)] p-4">
+      <p className="mb-3 whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-primary)]">
         {comment.body}
       </p>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] pt-2.5">
         <StatusIndicator status={comment.status} />
-        <span className="font-mono text-[10px] text-zinc-600">
+        <span className="font-mono text-[10px] text-[var(--text-faint)]">
           {formatDate(comment.createdAt)}
         </span>
       </div>
 
       {hasLog && (
-        <div className="mt-2">
+        <div className="mt-3">
           <button
             type="button"
             onClick={() => setLogOpen((v) => !v)}
-            className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition"
+            className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
           >
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="currentColor"
-              className={clsx(
-                "transition-transform",
-                logOpen ? "rotate-90" : "rotate-0",
-              )}
-              aria-hidden="true"
-            >
-              <path d="M3 2l4 3-4 3V2z" />
-            </svg>
-            {logOpen ? "Logu gizle" : "Logu goster"}
+            <span aria-hidden className={clsx("transition-transform", logOpen ? "rotate-90" : "rotate-0")}>
+              ▸
+            </span>
+            {logOpen ? "Hide log" : "Show log"}
           </button>
           {logOpen && (
             <pre
               ref={logRef}
-              className="mt-1.5 max-h-48 overflow-auto rounded-lg border border-zinc-800 bg-black p-3 font-mono text-[11px] leading-relaxed text-emerald-400"
+              className="mt-2 max-h-48 overflow-auto border border-[var(--border)] bg-[var(--bg-sunken)] p-3 font-mono text-[11px] leading-relaxed text-[var(--accent-primary)]"
             >
               {comment.agentLog.join("\n")}
             </pre>
@@ -168,8 +116,7 @@ export function CommentsTab({ task }: CommentsTabProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canComment =
-    task.status === "review" || task.status === "doing";
+  const canComment = task.status === "review" || task.status === "doing";
 
   const handleSend = async () => {
     const trimmed = body.trim();
@@ -181,9 +128,7 @@ export function CommentsTab({ task }: CommentsTabProps) {
       upsertComment(comment);
       setBody("");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Yorum gonderilemedi.",
-      );
+      setError(err instanceof Error ? err.message : "Could not send.");
     } finally {
       setSending(false);
     }
@@ -197,23 +142,26 @@ export function CommentsTab({ task }: CommentsTabProps) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-2.5 px-4 py-3">
-      {/* Yorum listesi */}
-      <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
+    <div className="flex h-full flex-col gap-3 p-4">
+      <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
         {comments.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 py-10 text-xs text-zinc-700">
-            Henuz yorum yok
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 border border-dashed border-[var(--border)] py-12">
+            <p className="t-display text-xl text-[var(--text-secondary)]">
+              No comments yet
+            </p>
+            <p className="text-[12px] text-[var(--text-faint)]">
+              Write feedback — the agent re-runs the branch
+            </p>
           </div>
         ) : (
           comments.map((c) => <CommentCard key={c.id} comment={c} />)
         )}
       </div>
 
-      {/* Yorum formu */}
       {canComment && (
-        <div className="shrink-0 flex flex-col gap-1.5 border-t pt-2.5" style={{ borderColor: "var(--border)" }}>
+        <div className="flex shrink-0 flex-col gap-2 border-t border-[var(--border)] pt-3">
           {error && (
-            <div className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-1.5 text-xs text-red-300">
+            <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-1.5 text-xs text-[var(--status-error)]">
               {error}
             </div>
           )}
@@ -223,22 +171,20 @@ export function CommentsTab({ task }: CommentsTabProps) {
             onKeyDown={handleKeyDown}
             disabled={sending}
             rows={3}
-            placeholder="AI'ya duzeltme talimati yaz..."
-            className="w-full resize-none rounded-lg border px-3 py-1.5 text-sm placeholder-zinc-600 focus:outline-none disabled:opacity-50"
-            style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+            placeholder="Write a fix instruction for the agent…"
+            className="w-full resize-none border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--text-secondary)] focus:outline-none disabled:opacity-50"
           />
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-zinc-700">Ctrl+Enter ile gonder</span>
+            <span className="text-[11px] text-[var(--text-faint)]">
+              ⌘ / Ctrl + ↵ to send
+            </span>
             <button
               type="button"
               onClick={() => void handleSend()}
               disabled={sending || !body.trim()}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 transition"
-              style={{ background: "var(--accent-primary)" }}
-              onMouseEnter={(e) => { if (!e.currentTarget.disabled) (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-primary)"; }}
+              className="btn-ink px-4 py-1.5 text-[12px] font-medium disabled:opacity-50"
             >
-              {sending ? "Gonderiliyor..." : "Gonder"}
+              {sending ? "Sending…" : "Send"}
             </button>
           </div>
         </div>

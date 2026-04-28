@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CommentsTab } from "@/components/Card/CommentsTab";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
@@ -18,30 +17,25 @@ type DrawerTab = "details" | "log" | "comments";
 const EMPTY_TOOL_CALLS: ToolCall[] = [];
 const EMPTY_AGENT_TEXTS: AgentText[] = [];
 
+const STATUS_COLOR: Record<Task["status"], string> = {
+  todo:   "var(--status-todo)",
+  doing:  "var(--status-doing)",
+  review: "var(--status-review)",
+  done:   "var(--status-done)",
+};
+
+const PRIO_COLOR: Record<EditPriority, string> = {
+  low:      "var(--prio-low)",
+  medium:   "var(--prio-medium)",
+  high:     "var(--prio-high)",
+  critical: "var(--prio-critical)",
+};
+
 interface DraftState {
   title: string;
   description: string;
   analysis: string;
   priority: EditPriority;
-}
-
-function priorityTone(priority?: string | null): BadgeTone {
-  switch ((priority ?? "").toLowerCase()) {
-    case "critical":
-    case "high":   return "red";
-    case "medium": return "yellow";
-    case "low":    return "green";
-    default:       return "neutral";
-  }
-}
-
-function statusTone(status: Task["status"]): BadgeTone {
-  switch (status) {
-    case "doing":  return "yellow";
-    case "review": return "purple";
-    case "done":   return "green";
-    default:       return "neutral";
-  }
 }
 
 function normalizePriority(p?: string | null): EditPriority {
@@ -59,12 +53,7 @@ function makeDraft(task: Task): DraftState {
   };
 }
 
-const PRIORITY_BUTTONS: { value: EditPriority; color: string }[] = [
-  { value: "low",      color: "text-emerald-400 border-emerald-700 bg-emerald-950/40" },
-  { value: "medium",   color: "text-yellow-400  border-yellow-700  bg-yellow-950/40"  },
-  { value: "high",     color: "text-orange-400  border-orange-700  bg-orange-950/40"  },
-  { value: "critical", color: "text-red-400     border-red-700     bg-red-950/40"     },
-];
+const PRIORITY_BUTTONS: EditPriority[] = ["low", "medium", "high", "critical"];
 
 export function TaskDetailDrawer() {
   const tt = useTranslation();
@@ -73,10 +62,10 @@ export function TaskDetailDrawer() {
   const task           = useBoardStore((s) =>
     s.selectedTaskId ? s.tasks[s.selectedTaskId] ?? null : null,
   );
-  const projects    = useBoardStore((s) => s.projects);
-  const selectTask    = useBoardStore((s) => s.selectTask);
-  const upsertTask    = useBoardStore((s) => s.upsertTask);
-  const removeTask    = useBoardStore((s) => s.removeTask);
+  const projects       = useBoardStore((s) => s.projects);
+  const selectTask     = useBoardStore((s) => s.selectTask);
+  const upsertTask     = useBoardStore((s) => s.upsertTask);
+  const removeTask     = useBoardStore((s) => s.removeTask);
   const upsertComment  = useBoardStore((s) => s.upsertComment);
   const setToolCalls   = useBoardStore((s) => s.setToolCalls);
   const setAgentTexts  = useBoardStore((s) => s.setAgentTexts);
@@ -114,7 +103,7 @@ export function TaskDetailDrawer() {
     api.getAgentTexts(selectedTaskId).then((list) => {
       setAgentTexts(selectedTaskId, list);
     }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
 
   const close = () => selectTask(null);
@@ -180,7 +169,6 @@ export function TaskDetailDrawer() {
     setError(null);
     try {
       await api.abortTask(task.id);
-      // WS will broadcast the rolled-back task; nothing else to do here.
     } catch (err) {
       setError(err instanceof Error ? err.message : "Abort failed");
     } finally {
@@ -207,12 +195,10 @@ export function TaskDetailDrawer() {
   const commentCount = task?.comments?.length ?? 0;
   const projectName  = task ? (projects.find((p) => p.id === task.projectId)?.name ?? "") : "";
 
-  // Tool call timeline + agent texts
   const toolCalls   = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
   const agentTexts  = useBoardStore((s) => task ? (s.agentTexts[task.id] ?? EMPTY_AGENT_TEXTS) : EMPTY_AGENT_TEXTS);
   const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
 
-  // Cost pill
   const costPill = useMemo(() => {
     if (!task?.usage) return null;
     const total = totalTokens(task.usage);
@@ -226,224 +212,211 @@ export function TaskDetailDrawer() {
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className={clsx(
-          "fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200",
+          "fixed inset-0 z-40 bg-black/65 backdrop-blur-sm transition-opacity duration-200",
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
         )}
         onClick={close}
         aria-hidden="true"
       />
 
-      {/* Drawer */}
       <aside
         className={clsx(
-          "fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l shadow-2xl",
+          "fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-[var(--border)] bg-[var(--bg-base)] shadow-2xl",
           "transform transition-transform duration-300 ease-out",
           open ? "translate-x-0" : "translate-x-full",
         )}
         role="dialog"
         aria-modal="true"
-        style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}
       >
         {task ? (
           <>
             {/* Header */}
-            <header className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "var(--border)" }}>
-              <div className="min-w-0 flex-1">
-                {/* Meta bilgiler */}
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge tone={statusTone(task.status)}>{task.status}</Badge>
-                  {task.priority && !editing && (
-                    <Badge tone={priorityTone(task.priority)}>{task.priority}</Badge>
-                  )}
-                  {projectName && (
-                    <span className="text-[11px] text-zinc-600">{projectName}</span>
-                  )}
-                  {task.displayId ? (
-                    <code className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] font-bold text-zinc-400">
-                      {task.displayId}
-                    </code>
+            <header className="border-b border-[var(--border)] px-6 py-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {/* Meta row */}
+                  <div className="mb-3 flex flex-wrap items-center gap-2.5">
+                    <span className="font-mono text-[11px] text-[var(--text-faint)]">
+                      {task.displayId ?? `#${task.id.slice(0, 8)}`}
+                    </span>
+                    {projectName && (
+                      <>
+                        <span className="text-[var(--text-faint)]">·</span>
+                        <span className="text-[12px] text-[var(--text-muted)]">
+                          {projectName}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {/* Title */}
+                  {editing && draft ? (
+                    <input
+                      type="text"
+                      value={draft.title}
+                      onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                      className="w-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-lg text-[var(--text-primary)] focus:border-[var(--text-secondary)] focus:outline-none"
+                      placeholder={td.titlePlaceholder}
+                    />
                   ) : (
-                    <span className="font-mono text-[11px] text-zinc-700">#{task.id.slice(0, 8)}</span>
+                    <h2 className="t-display text-3xl leading-[1.1] text-[var(--text-primary)]">
+                      {task.title}
+                    </h2>
                   )}
+
+                  {/* Status + Priority pills */}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Pill ink={STATUS_COLOR[task.status]} label={task.status} />
+                    {task.priority && !editing && (
+                      <Pill
+                        ink={PRIO_COLOR[normalizePriority(task.priority)]}
+                        label={task.priority}
+                      />
+                    )}
+                  </div>
                 </div>
-                {/* Baslik */}
-                {editing && draft ? (
-                  <input
-                    type="text"
-                    value={draft.title}
-                    onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                    className="w-full rounded-lg border px-3 py-2 text-base font-semibold placeholder-zinc-600 focus:outline-none"
-                    style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
-                    placeholder={td.titlePlaceholder}
-                  />
-                ) : (
-                  <h2 className="text-base font-semibold leading-tight text-zinc-100">
-                    {task.title}
-                  </h2>
-                )}
+                <button
+                  type="button"
+                  onClick={close}
+                  className="shrink-0 border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                  aria-label={td.closeLabel}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M1 1l12 12M13 1L1 13" />
+                  </svg>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={close}
-                className="shrink-0 rounded-md p-1.5 transition"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
-                aria-label={td.closeLabel}
-              >
-                <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M1 1l12 12M13 1L1 13" />
-                </svg>
-              </button>
             </header>
 
-            {/* Sekmeler */}
-            <div className="flex border-b" style={{ borderColor: "var(--border)" }}>
-              <button
-                type="button"
-                onClick={() => setTab("details")}
-                className={clsx(
-                  "px-4 py-2.5 text-sm font-medium transition",
-                  tab === "details"
-                    ? "border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]"
-                    : "text-zinc-500 hover:text-zinc-300",
-                )}
-              >
-                {td.tabDetails}
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab("log")}
-                className={clsx(
-                  "px-4 py-2.5 text-sm font-medium transition",
-                  tab === "log"
-                    ? "border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]"
-                    : "text-zinc-500 hover:text-zinc-300",
-                )}
-              >
-                {`${td.tabLog}${logs.length > 0 ? ` (${logs.length})` : ""}`}
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab("comments")}
-                className={clsx(
-                  "px-4 py-2.5 text-sm font-medium transition",
-                  tab === "comments"
-                    ? "border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]"
-                    : "text-zinc-500 hover:text-zinc-300",
-                )}
-              >
-                {commentCount > 0 ? `${td.tabComments} (${commentCount})` : td.tabComments}
-              </button>
+            {/* Tabs */}
+            <div className="flex border-b border-[var(--border)]">
+              {([
+                { id: "details" as const,  label: td.tabDetails,  count: 0 },
+                { id: "log" as const,      label: td.tabLog,      count: logs.length },
+                { id: "comments" as const, label: td.tabComments, count: commentCount },
+              ]).map(({ id, label, count }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTab(id)}
+                  className={clsx(
+                    "relative flex flex-1 items-center justify-center gap-2 px-4 py-3 text-[13px] font-medium transition",
+                    tab === id
+                      ? "text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+                  )}
+                >
+                  <span>{label}</span>
+                  {count > 0 && (
+                    <span className="font-mono text-[11px] text-[var(--text-faint)]">
+                      ({count})
+                    </span>
+                  )}
+                  {tab === id && (
+                    <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-[var(--accent-primary)]" />
+                  )}
+                </button>
+              ))}
             </div>
 
-            {/* Icerik */}
+            {/* Content */}
             <div className="flex-1 overflow-y-auto">
               {tab === "comments" ? (
                 <CommentsTab task={task} />
               ) : tab === "details" ? (
-                <div className="px-5 py-4">
+                <div className="px-6 py-5">
                   {error && (
-                    <div className="mb-3 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+                    <div className="mb-4 border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-sm text-[var(--status-error)]">
                       {error}
                     </div>
                   )}
 
-                  {/* Aciklama */}
-                  <section className="mb-6">
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
-                      {td.descriptionLabel}
-                    </h3>
+                  {/* Description */}
+                  <Section label={td.descriptionLabel} numeral="01">
                     {editing && draft ? (
                       <textarea
                         value={draft.description}
                         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                         rows={3}
-                        className="w-full resize-y rounded-lg border px-3 py-2 text-sm placeholder-zinc-600 focus:outline-none"
-                        style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+                        className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--text-secondary)] focus:outline-none"
                         placeholder={td.descriptionPlaceholder}
                       />
                     ) : task.description ? (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-secondary)]">
                         {task.description}
                       </p>
                     ) : (
-                      <p className="text-sm italic text-zinc-700">{td.descriptionEmpty}</p>
+                      <p className="t-quote text-sm text-[var(--text-faint)]">{td.descriptionEmpty}</p>
                     )}
-                  </section>
+                  </Section>
 
-                  {/* Analiz */}
-                  <section className="mb-6">
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
-                      {td.analysisLabel}
-                    </h3>
+                  {/* Analysis */}
+                  <Section label={td.analysisLabel} numeral="02">
                     {editing && draft ? (
                       <textarea
                         value={draft.analysis}
                         onChange={(e) => setDraft({ ...draft, analysis: e.target.value })}
                         rows={8}
-                        className="w-full resize-y rounded-lg border px-3 py-2.5 font-mono text-[13px] placeholder-zinc-600 focus:outline-none"
-                        style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+                        className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-[13px] text-[var(--text-primary)] focus:border-[var(--text-secondary)] focus:outline-none"
                         placeholder={td.analysisPlaceholder}
                       />
                     ) : task.analysis ? (
-                      <pre className="analysis-block max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-900/60 p-3.5 font-mono text-[13px] leading-relaxed text-zinc-200">
+                      <pre className="analysis-block max-h-80 overflow-auto whitespace-pre-wrap border p-3.5">
                         {task.analysis}
                       </pre>
                     ) : (
-                      <p className="text-sm italic text-zinc-700">{td.analysisEmpty}</p>
+                      <p className="t-quote text-sm text-[var(--text-faint)]">{td.analysisEmpty}</p>
                     )}
-                  </section>
+                  </Section>
 
-                  {/* Oncelik (edit modunda) */}
+                  {/* Priority (edit mode) */}
                   {editing && draft && (
-                    <section className="mb-6">
-                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
-                        {td.priorityLabel}
-                      </h3>
-                      <div className="flex gap-2">
-                        {PRIORITY_BUTTONS.map(({ value, color }) => (
+                    <Section label={td.priorityLabel} numeral="03">
+                      <div className="flex gap-px border border-[var(--border)] bg-[var(--border)]">
+                        {PRIORITY_BUTTONS.map((value) => (
                           <button
                             key={value}
                             type="button"
                             onClick={() => setDraft({ ...draft, priority: value })}
                             className={clsx(
-                              "rounded-lg border px-3 py-2 text-sm font-medium transition",
-                              color,
+                              "flex-1 px-3 py-2 font-mono text-[11px] uppercase tracking-widest transition",
                               draft.priority === value
-                                ? "ring-2 ring-offset-1 ring-offset-zinc-900 ring-current"
-                                : "opacity-50 hover:opacity-80",
+                                ? "bg-[var(--bg-surface)] text-[var(--text-primary)]"
+                                : "bg-[var(--bg-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
                             )}
+                            style={
+                              draft.priority === value
+                                ? { boxShadow: `inset 0 -2px 0 ${PRIO_COLOR[value]}` }
+                                : {}
+                            }
                           >
                             {tt.addTask.priorities[value]}
                           </button>
                         ))}
                       </div>
-                    </section>
+                    </Section>
                   )}
 
-                  {/* Retry — doing + takili kalmis */}
+                  {/* Retry / Abort panel */}
                   {task.status === "doing" && (
-                    <section className="mb-6">
-                      <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/60 px-3.5 py-3">
-                        <div className="flex items-center gap-2 text-sm text-zinc-400">
+                    <Section label={td.connectionsLabel} numeral="04">
+                      <div className="flex items-center justify-between gap-3 border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3">
+                        <div className="flex items-center gap-2 text-sm">
                           {task.agent.status === "idle" ? (
                             <>
-                              <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
-                              <span>{td.queueWaiting}</span>
+                              <span className="h-1.5 w-1.5 bg-[var(--text-faint)]" />
+                              <span className="text-[var(--text-muted)]">{td.queueWaiting}</span>
                             </>
                           ) : task.agent.status === "error" ? (
                             <>
-                              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                              <span className="text-red-400">{td.errorOccurred}</span>
+                              <span className="h-1.5 w-1.5 bg-[var(--status-error)]" />
+                              <span className="text-[var(--status-error)]">{td.errorOccurred}</span>
                             </>
                           ) : (
                             <>
-                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />
-                              <span className="text-yellow-300">
+                              <span className="h-1.5 w-1.5 animate-pulse bg-[var(--status-doing)]" />
+                              <span className="text-[var(--status-doing)]">
                                 {td.agentStatus[task.agent.status as keyof typeof td.agentStatus] ?? task.agent.status}
                               </span>
                             </>
@@ -455,11 +428,8 @@ export function TaskDetailDrawer() {
                               type="button"
                               onClick={() => setConfirmAbort(true)}
                               disabled={aborting}
-                              className="flex items-center gap-1.5 rounded-md border border-red-900/60 bg-red-950/30 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:border-red-700 hover:bg-red-900/40 hover:text-red-200 disabled:opacity-50"
+                              className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--status-error)] transition hover:bg-[var(--status-error)] hover:text-[var(--bg-base)] disabled:opacity-50"
                             >
-                              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                                <rect x="3" y="3" width="10" height="10" rx="1.5" />
-                              </svg>
                               {aborting ? td.abortingButton : td.abortButton}
                             </button>
                           )}
@@ -478,21 +448,13 @@ export function TaskDetailDrawer() {
                                 type="button"
                                 onClick={doRetry}
                                 disabled={retrying}
-                                className={
+                                className={clsx(
+                                  "border px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition disabled:opacity-50",
                                   isActive
-                                    ? "flex items-center gap-1.5 rounded-md border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 px-3 py-1.5 text-xs font-medium text-[var(--accent-primary)] transition hover:border-[var(--accent-primary)]/60 hover:bg-[var(--accent-primary)]/20 disabled:opacity-50"
-                                    : "flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-50"
-                                }
-                                title={
-                                  isActive
-                                    ? "Çalışan claude oturumunu kapatıp yeni bir oturum açar"
-                                    : undefined
-                                }
+                                    ? "border-[var(--accent-primary)] bg-[var(--accent-muted)] text-[var(--accent-primary)] hover:bg-[var(--accent-primary)] hover:text-[var(--accent-ink)]"
+                                    : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]",
+                                )}
                               >
-                                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                                  <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                                  <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-                                </svg>
                                 {retrying
                                   ? td.retryingButton
                                   : isActive
@@ -503,63 +465,60 @@ export function TaskDetailDrawer() {
                           })()}
                         </div>
                       </div>
-                    </section>
+                    </Section>
                   )}
 
                   {/* Branch / PR */}
                   {(task.branch || task.prUrl) && (
-                    <section className="mb-6 flex flex-col gap-3">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
-                        {td.connectionsLabel}
-                      </h3>
-                      {task.branch && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-zinc-600">{td.branchLabel}</span>
-                          <code className="rounded-md bg-zinc-900 px-2 py-1 font-mono text-xs text-blue-300">
-                            {task.branch}
-                          </code>
-                        </div>
-                      )}
-                      {task.prUrl && (
-                        <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3.5 py-3">
-                          <div className="flex flex-1 items-center gap-2">
+                    <Section label={td.connectionsLabel} numeral="05">
+                      <div className="flex flex-col gap-2.5">
+                        {task.branch && (
+                          <div className="flex items-center gap-3 border-b border-[var(--border)] pb-2.5">
+                            <span className="t-label">{td.branchLabel}</span>
+                            <code className="font-mono text-xs text-[var(--accent-primary)]">
+                              {task.branch}
+                            </code>
+                          </div>
+                        )}
+                        {task.prUrl && (
+                          <div className="flex items-center justify-between gap-2 border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3">
                             <a
                               href={task.prUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-base font-medium transition" style={{ color: "var(--accent-primary)" }}
+                              className="font-mono text-sm font-medium text-[var(--accent-primary)] transition hover:opacity-80"
                             >
                               {td.openPr} {task.prNumber ? `#${task.prNumber}` : ""} ↗
                             </a>
+                            {task.status === "done" && (
+                              <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--accent-primary)]">
+                                ● {td.merged}
+                              </span>
+                            )}
+                            {task.agent.status === "error" && task.status !== "done" && (
+                              <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--status-error)]">
+                                ● {td.mergeError}
+                              </span>
+                            )}
                           </div>
-                          {task.status === "done" && (
-                            <span className="flex items-center gap-1 rounded-full bg-[var(--accent-primary)]/10 px-3 py-1 text-xs font-semibold text-[var(--accent-primary)]">
-                              {td.merged}
-                            </span>
-                          )}
-                          {task.agent.status === "error" && task.status !== "done" && (
-                            <span className="rounded-full bg-red-900/50 px-3 py-1 text-xs font-semibold text-red-300">
-                              {td.mergeError}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </section>
+                        )}
+                      </div>
+                    </Section>
                   )}
                 </div>
               ) : (
-                /* Agent Logu sekmesi */
-                <div className="flex h-full flex-col gap-2.5 p-3.5">
-                  {/* View toggle: Timeline / Raw */}
-                  <div className="flex shrink-0 items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/60 p-1 self-start">
+                /* Log tab */
+                <div className="flex h-full flex-col gap-3 p-4">
+                  {/* View toggle */}
+                  <div className="inline-flex self-start border border-[var(--border)] bg-[var(--bg-surface)]">
                     <button
                       type="button"
                       onClick={() => setLogView("timeline")}
                       className={clsx(
-                        "rounded-md px-3 py-1.5 text-[11px] font-medium transition",
+                        "border-r border-[var(--border)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
                         logView === "timeline"
-                          ? "bg-zinc-700 text-zinc-100"
-                          : "text-zinc-500 hover:text-zinc-300",
+                          ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
                       )}
                     >
                       {td.toolTimelineTab}{toolCalls.length > 0 && ` (${toolCalls.length})`}
@@ -568,30 +527,29 @@ export function TaskDetailDrawer() {
                       type="button"
                       onClick={() => setLogView("raw")}
                       className={clsx(
-                        "rounded-md px-3 py-1.5 text-[11px] font-medium transition",
+                        "px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
                         logView === "raw"
-                          ? "bg-zinc-700 text-zinc-100"
-                          : "text-zinc-500 hover:text-zinc-300",
+                          ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
                       )}
                     >
                       {td.toolRawTab}{logs.length > 0 && ` (${logs.length})`}
                     </button>
                   </div>
 
-                  {/* Timeline view */}
                   {logView === "timeline" && (
                     task.status === "doing" && task.agent.status === "idle" ? (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-sm text-zinc-500">
+                      <div className="flex flex-1 flex-col items-center justify-center gap-3 border border-dashed border-[var(--border)] text-sm text-[var(--text-muted)]">
                         <span className="flex gap-1">
                           {[0, 1, 2].map((i) => (
                             <span
                               key={i}
-                              className="h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse"
+                              className="h-1.5 w-1.5 animate-pulse bg-[var(--text-faint)]"
                               style={{ animationDelay: `${i * 200}ms` }}
                             />
                           ))}
                         </span>
-                        <span>{td.queueWaiting}</span>
+                        <span className="t-quote text-base">{td.queueWaiting}</span>
                       </div>
                     ) : (
                       <div className="flex-1 overflow-y-auto">
@@ -607,37 +565,36 @@ export function TaskDetailDrawer() {
                     )
                   )}
 
-                  {/* Raw log view */}
                   {logView === "raw" && (
                     task.status === "doing" && task.agent.status === "idle" ? (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-800 text-sm text-zinc-500">
+                      <div className="flex flex-1 flex-col items-center justify-center gap-3 border border-dashed border-[var(--border)] text-sm text-[var(--text-muted)]">
                         <span className="flex gap-1">
                           {[0, 1, 2].map((i) => (
                             <span
                               key={i}
-                              className="h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse"
+                              className="h-1.5 w-1.5 animate-pulse bg-[var(--text-faint)]"
                               style={{ animationDelay: `${i * 200}ms` }}
                             />
                           ))}
                         </span>
-                        <span>{td.queueWaiting}</span>
+                        <span className="t-quote text-base">{td.queueWaiting}</span>
                       </div>
                     ) : logs.length > 0 ? (
                       <pre
                         ref={logRef}
-                        className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-black p-3.5 font-mono text-[13px] leading-relaxed text-emerald-400"
+                        className="flex-1 overflow-auto border border-[var(--border)] bg-[var(--bg-sunken)] p-4 font-mono text-[12px] leading-relaxed text-[var(--accent-primary)]"
                       >
                         {logs.join("\n")}
                       </pre>
                     ) : (
-                      <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-800 text-sm text-zinc-700">
+                      <div className="flex flex-1 items-center justify-center border border-dashed border-[var(--border)] text-sm text-[var(--text-faint)]">
                         {td.logsEmpty}
                       </div>
                     )
                   )}
 
                   {task.agent.status === "error" && task.agent.error && (
-                    <div className="shrink-0 rounded-lg border border-red-800 bg-red-950/40 px-3.5 py-3 font-mono text-[13px] leading-relaxed text-red-400">
+                    <div className="shrink-0 border border-[var(--status-error)] bg-[var(--status-error-ink)] px-4 py-3 font-mono text-[12px] leading-relaxed text-[var(--status-error)]">
                       <span className="mr-2 font-bold">✖ {td.logsErrorPrefix}</span>
                       <span className="whitespace-pre-wrap">{task.agent.error}</span>
                     </div>
@@ -647,14 +604,14 @@ export function TaskDetailDrawer() {
             </div>
 
             {/* Footer */}
-            <footer className="flex items-center justify-between gap-2 border-t px-5 py-3.5" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+            <footer className="flex items-center justify-between gap-2 border-t border-[var(--border)] bg-[var(--bg-surface)] px-6 py-4">
               {editing ? (
                 <>
                   <button
                     type="button"
                     onClick={cancelEdit}
                     disabled={saving}
-                    className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition"
+                    className="btn-ghost px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] disabled:opacity-50"
                   >
                     {td.cancelButton}
                   </button>
@@ -662,10 +619,7 @@ export function TaskDetailDrawer() {
                     type="button"
                     onClick={saveEdit}
                     disabled={saving}
-                    className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 transition"
-                    style={{ background: "var(--accent-primary)" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-primary)"; }}
+                    className="btn-ink px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] disabled:opacity-50"
                   >
                     {saving ? td.savingButton : td.saveButton}
                   </button>
@@ -676,21 +630,15 @@ export function TaskDetailDrawer() {
                     type="button"
                     onClick={() => setConfirmDelete(true)}
                     disabled={deleting}
-                    className="rounded-lg border border-red-800/60 bg-red-950/30 px-4 py-2 text-sm text-red-400 hover:bg-red-900/40 disabled:opacity-50 transition"
+                    className="border border-[var(--status-error)] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-50"
                   >
                     {deleting ? td.deletingButton : td.deleteButton}
                   </button>
 
-                  {/* Cost pill */}
                   {costPill && (
                     <span
-                      className="rounded-full border px-3 py-1 text-[11px] font-medium"
-                      style={{
-                        background: "var(--bg-surface)",
-                        borderColor: "var(--border)",
-                        color: "var(--text-muted)",
-                      }}
-                      title="Approximate cost (Sonnet 4.5 pricing)"
+                      className="border border-[var(--border)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--text-muted)]"
+                      title="Approximate cost"
                     >
                       {costPill.tokens} {td.costTokens} · ~${costPill.cost}
                     </span>
@@ -699,10 +647,7 @@ export function TaskDetailDrawer() {
                   <button
                     type="button"
                     onClick={beginEdit}
-                    className="rounded-lg px-4 py-2 text-sm font-medium text-white transition"
-                    style={{ background: "var(--accent-primary)" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-primary)"; }}
+                    className="btn-ink px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em]"
                   >
                     {td.editButton}
                   </button>
@@ -735,5 +680,37 @@ export function TaskDetailDrawer() {
         onCancel={() => setConfirmAbort(false)}
       />
     </>
+  );
+}
+
+function Section({
+  label,
+  children,
+}: {
+  label: string;
+  numeral?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-6">
+      <header className="mb-2.5">
+        <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+          {label}
+        </span>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function Pill({ ink, label }: { ink: string; label: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium capitalize"
+      style={{ borderColor: ink, color: ink }}
+    >
+      <span className="h-1 w-1" style={{ background: ink }} />
+      {label}
+    </span>
   );
 }
