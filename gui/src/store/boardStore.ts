@@ -261,12 +261,15 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     })),
 
   selectProject: (id) =>
-    set(() => ({
-      selectedProjectId: id,
-      tasks: {},
-      order: [],
-      selectedTaskId: null,
-    })),
+    set((state) => {
+      if (state.selectedProjectId === id) return state;
+      return {
+        selectedProjectId: id,
+        tasks: {},
+        order: [],
+        selectedTaskId: null,
+      };
+    }),
 
   selectTask: (id) => set(() => ({ selectedTaskId: id })),
 

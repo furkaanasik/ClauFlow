@@ -57,11 +57,10 @@ export function Board() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (selectedProjectId == null) return;
     const params = new URLSearchParams(window.location.search);
-    const current = params.get("projectId");
-    if (selectedProjectId === current) return;
-    if (selectedProjectId == null) params.delete("projectId");
-    else params.set("projectId", selectedProjectId);
+    if (params.get("projectId") === selectedProjectId) return;
+    params.set("projectId", selectedProjectId);
     const qs = params.toString();
     window.history.replaceState(
       null,
