@@ -23,7 +23,15 @@ export function useProjects() {
         setProjects(projects);
         setError(null);
         if (!useBoardStore.getState().selectedProjectId && projects.length > 0) {
-          selectProject(projects[0]!.id);
+          let initialId: string | undefined;
+          if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            const urlPid = params.get("projectId");
+            if (urlPid && projects.some((p) => p.id === urlPid)) {
+              initialId = urlPid;
+            }
+          }
+          selectProject(initialId ?? projects[0]!.id);
         }
       })
       .catch((err) => {
