@@ -176,13 +176,29 @@ function sidePrefix(type: SideVariant | undefined): string {
   return " ";
 }
 
+function HunkHeader({ raw }: { raw: string }) {
+  const match = raw.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@ ?(.*)$/);
+  const newStart = match?.[2];
+  const context = match?.[3]?.trim();
+
+  return (
+    <div className="flex items-center gap-3 border-y border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-1">
+      <span className="inline-flex items-center gap-1.5 font-mono text-[10px] tabular-nums text-[var(--text-faint)]">
+        <span aria-hidden>↳</span>
+        line {newStart ?? "?"}
+      </span>
+      {context && (
+        <span className="truncate font-mono text-[11px] italic text-[var(--text-muted)]">
+          {context}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function SplitDiffRow({ row }: { row: SplitRow }) {
   if (row.hunkHeader) {
-    return (
-      <div className="border-y border-[var(--border)] bg-[var(--bg-surface)] px-3 py-0.5 font-mono text-[10px] text-[var(--text-muted)]">
-        {row.hunkHeader}
-      </div>
-    );
+    return <HunkHeader raw={row.hunkHeader} />;
   }
 
   const left = row.left;
