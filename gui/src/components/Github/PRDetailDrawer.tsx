@@ -628,11 +628,11 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
                   <p className="px-2 py-3 text-xs text-[var(--status-error)]">{detailsError}</p>
                 )}
 
-                {details && details.files.map((file) => {
+                {details && details.files.map((file, idx) => {
                   const isViewed = viewedFiles.has(file.filename);
                   return (
                     <button
-                      key={file.filename}
+                      key={`${file.filename ?? "file"}-${idx}`}
                       type="button"
                       onClick={() => scrollToFile(file.filename)}
                       className="group relative flex w-full items-start gap-2 px-3 py-2 text-left transition hover:bg-[var(--bg-elevated)]"
@@ -700,7 +700,7 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
                 <div className="flex flex-col gap-3 p-4">
                   {files.map((file, idx) => (
                     <FileBlock
-                      key={file.filename}
+                      key={`${file.filename ?? "file"}-${idx}`}
                       file={file}
                       index={idx}
                       isViewed={viewedFiles.has(file.filename)}
