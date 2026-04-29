@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import clsx from "clsx";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { githubApi, type PRListItem, type PRDetails } from "@/lib/api";
 import { PR_STATE_STYLES } from "@/lib/githubConstants";
@@ -31,19 +30,38 @@ interface SplitSide {
 interface SplitRow {
   left?: SplitSide;
   right?: SplitSide;
-  header?: { content: string; type: "file-header" | "hunk-header"; fileId?: string };
+  hunkHeader?: string;
 }
 
-function parseSplitDiff(raw: string): SplitRow[] {
+interface FileDiff {
+  filename: string;
+  fileId: string;
+  rows: SplitRow[];
+  additions: number;
+  deletions: number;
+}
+
+/**
+ * Parse a unified diff into a list of files. Each file has its own rows
+ * (split-view, hunk headers inline). The "diff --git" header is not included
+ * in rows — it's surfaced as the file's name on the surrounding component.
+ */
+function parseDiffByFile(raw: string): FileDiff[] {
   const lines = raw.split("\n");
-  const rows: SplitRow[] = [];
+  const files: FileDiff[] = [];
+
+  let current: FileDiff | null = null;
   let oldLine = 0;
   let newLine = 0;
   const removedBuf: SplitSide[] = [];
 
   const flushRemoved = () => {
+    if (!current) return;
     while (removedBuf.length > 0) {
-      rows.push({ left: removedBuf.shift(), right: { lineNum: 0, content: "", type: "empty" } });
+      current.rows.push({
+        left: removedBuf.shift(),
+        right: { lineNum: 0, content: "", type: "empty" },
+      });
     }
   };
 
@@ -51,13 +69,33 @@ function parseSplitDiff(raw: string): SplitRow[] {
     if (line.startsWith("diff --git")) {
       flushRemoved();
       const match = line.match(/diff --git a\/.+ b\/(.+)/);
-      const filename = match ? match[1] : line;
-      rows.push({ header: { content: line, type: "file-header", fileId: `diff-file-${slugify(filename)}` } });
+      const filename = match ? match[1] : "unknown";
+      current = {
+        filename,
+        fileId: `diff-file-${slugify(filename)}`,
+        rows: [],
+        additions: 0,
+        deletions: 0,
+      };
+      files.push(current);
+      oldLine = 0;
+      newLine = 0;
       continue;
     }
-    if (line.startsWith("--- ") || line.startsWith("+++ ") || line.startsWith("index ") || line.startsWith("new file") || line.startsWith("deleted file")) {
+    if (
+      line.startsWith("--- ") ||
+      line.startsWith("+++ ") ||
+      line.startsWith("index ") ||
+      line.startsWith("new file") ||
+      line.startsWith("deleted file") ||
+      line.startsWith("similarity index") ||
+      line.startsWith("rename from") ||
+      line.startsWith("rename to")
+    ) {
       continue;
     }
+    if (!current) continue;
+
     if (line.startsWith("@@")) {
       flushRemoved();
       const match = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
@@ -65,36 +103,39 @@ function parseSplitDiff(raw: string): SplitRow[] {
         oldLine = parseInt(match[1], 10);
         newLine = parseInt(match[2], 10);
       }
-      rows.push({ header: { content: line, type: "hunk-header" } });
+      current.rows.push({ hunkHeader: line });
       continue;
     }
     if (line.startsWith("-")) {
       removedBuf.push({ lineNum: oldLine++, content: line.slice(1), type: "removed" });
+      current.deletions++;
       continue;
     }
     if (line.startsWith("+")) {
+      current.additions++;
       const addedSide: SplitSide = { lineNum: newLine++, content: line.slice(1), type: "added" };
       if (removedBuf.length > 0) {
-        rows.push({ left: removedBuf.shift(), right: addedSide });
+        current.rows.push({ left: removedBuf.shift(), right: addedSide });
       } else {
-        rows.push({ left: { lineNum: 0, content: "", type: "empty" }, right: addedSide });
+        current.rows.push({ left: { lineNum: 0, content: "", type: "empty" }, right: addedSide });
       }
       continue;
     }
     if (line.startsWith(" ") || line === "") {
       flushRemoved();
       const content = line.startsWith(" ") ? line.slice(1) : line;
-      rows.push({
-        left:  { lineNum: oldLine++, content, type: "context" },
+      current.rows.push({
+        left: { lineNum: oldLine++, content, type: "context" },
         right: { lineNum: newLine++, content, type: "context" },
       });
       continue;
     }
   }
-
   flushRemoved();
-  return rows;
+  return files;
 }
+
+// ─── Per-row styling helpers ──────────────────────────────────────────────────
 
 type SideVariant = "removed" | "added" | "empty" | "context";
 
@@ -103,39 +144,32 @@ function leftBg(type: SideVariant | undefined): string {
   if (type === "empty")   return "bg-[var(--bg-sunken)]";
   return "";
 }
-
 function rightBg(type: SideVariant | undefined): string {
   if (type === "added") return "bg-[var(--accent-muted)]";
   if (type === "empty") return "bg-[var(--bg-sunken)]";
   return "";
 }
-
 function leftNumCls(type: SideVariant | undefined): string {
   if (type === "removed") return "bg-[var(--status-error-ink)] text-[var(--status-error)]";
   return "bg-[var(--bg-base)] text-[var(--text-faint)]";
 }
-
 function rightNumCls(type: SideVariant | undefined): string {
   if (type === "added") return "bg-[var(--accent-muted)] text-[var(--accent-primary)]";
   return "bg-[var(--bg-base)] text-[var(--text-faint)]";
 }
-
 function leftContentCls(type: SideVariant | undefined): string {
   if (type === "removed") return "text-[var(--status-error)]";
   return "text-[var(--text-secondary)]";
 }
-
 function rightContentCls(type: SideVariant | undefined): string {
   if (type === "added") return "text-[var(--accent-primary)]";
   return "text-[var(--text-secondary)]";
 }
-
 function prefixCls(type: SideVariant | undefined): string {
   if (type === "removed") return "text-[var(--status-error)]";
   if (type === "added")   return "text-[var(--accent-primary)]";
   return "text-[var(--text-faint)]";
 }
-
 function sidePrefix(type: SideVariant | undefined): string {
   if (type === "removed") return "-";
   if (type === "added")   return "+";
@@ -143,31 +177,17 @@ function sidePrefix(type: SideVariant | undefined): string {
 }
 
 function SplitDiffRow({ row }: { row: SplitRow }) {
-  if (row.header) {
-    const isFile = row.header.type === "file-header";
-    if (isFile) {
-      return (
-        <div
-          id={row.header.fileId}
-          className="flex items-center gap-2 border-y border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--text-secondary)]"
-        >
-          <span className="text-[var(--text-faint)]">▸</span>
-          <span className="font-mono normal-case tracking-normal text-[var(--text-primary)]">
-            {row.header.content.replace(/^diff --git a\/.+ b\//, "")}
-          </span>
-        </div>
-      );
-    }
+  if (row.hunkHeader) {
     return (
-      <div className="border-b border-[var(--border)] bg-[var(--bg-surface)] px-3 py-0.5 font-mono text-[10px] text-[var(--text-muted)]">
-        {row.header.content}
+      <div className="border-y border-[var(--border)] bg-[var(--bg-surface)] px-3 py-0.5 font-mono text-[10px] text-[var(--text-muted)]">
+        {row.hunkHeader}
       </div>
     );
   }
 
-  const left  = row.left;
+  const left = row.left;
   const right = row.right;
-  const leftType  = left?.type  as SideVariant | undefined;
+  const leftType = left?.type as SideVariant | undefined;
   const rightType = right?.type as SideVariant | undefined;
 
   return (
@@ -209,82 +229,158 @@ function SplitDiffRow({ row }: { row: SplitRow }) {
   );
 }
 
-function SplitDiffView({ diff, scrollToFileId }: { diff: string; scrollToFileId?: string | null }) {
-  const rows = parseSplitDiff(diff);
-  const parentRef = useRef<HTMLDivElement>(null);
+// ─── Per-file block ──────────────────────────────────────────────────────────
 
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 22,
-    overscan: 20,
-  });
+interface FileBlockProps {
+  file: FileDiff;
+  index: number;
+  isViewed: boolean;
+  isExpanded: boolean;
+  onToggleViewed: () => void;
+  onToggleExpanded: () => void;
+  registerRef: (el: HTMLDivElement | null) => void;
+}
 
-  useEffect(() => {
-    if (!scrollToFileId) return;
-    const idx = rows.findIndex((r) => r.header?.fileId === scrollToFileId);
-    if (idx !== -1) {
-      virtualizer.scrollToIndex(idx, { align: "start" });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollToFileId]);
-
-  if (!diff.trim()) {
-    return (
-      <p className="t-quote py-12 text-center text-base text-[var(--text-muted)]">
-        diff is empty.
-      </p>
-    );
-  }
-
+function FileBlock({
+  file,
+  index,
+  isViewed,
+  isExpanded,
+  onToggleViewed,
+  onToggleExpanded,
+  registerRef,
+}: FileBlockProps) {
   return (
-    <div ref={parentRef} className="h-full overflow-auto">
-      <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
-        {virtualizer.getVirtualItems().map((vItem) => {
-          const row = rows[vItem.index]!;
-          return (
-            <div
-              key={vItem.key}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${vItem.start}px)`,
-              }}
-            >
-              <SplitDiffRow row={row} />
-            </div>
-          );
-        })}
-      </div>
+    <div
+      ref={registerRef}
+      id={file.fileId}
+      className={clsx(
+        "border border-[var(--border)] bg-[var(--bg-base)] transition-colors",
+        isViewed && "border-[var(--accent-primary)]/40 bg-[var(--bg-sunken)]",
+      )}
+    >
+      {/* sticky file header */}
+      <header
+        className={clsx(
+          "sticky top-0 z-[1] flex items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2",
+          isViewed && "bg-[var(--bg-sunken)]",
+        )}
+      >
+        {/* expand/collapse toggle */}
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="flex h-6 w-6 shrink-0 items-center justify-center text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+          aria-label={isExpanded ? "Collapse" : "Expand"}
+        >
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={clsx("transition-transform", isExpanded ? "rotate-90" : "rotate-0")}
+            aria-hidden
+          >
+            <polyline points="6,4 10,8 6,12" />
+          </svg>
+        </button>
+
+        {/* index */}
+        <span className="font-mono text-[10px] tabular-nums text-[var(--text-faint)]">
+          {String(index + 1).padStart(2, "0")}
+        </span>
+
+        {/* filename */}
+        <code
+          className={clsx(
+            "min-w-0 flex-1 truncate font-mono text-[12px]",
+            isViewed ? "text-[var(--text-muted)] line-through opacity-70" : "text-[var(--text-primary)]",
+          )}
+          title={file.filename}
+        >
+          {file.filename}
+        </code>
+
+        {/* +/- counts */}
+        <span className="hidden shrink-0 gap-2 font-mono text-[11px] tabular-nums sm:flex">
+          <span className="text-[var(--accent-primary)]">+{file.additions}</span>
+          <span className="text-[var(--status-error)]">−{file.deletions}</span>
+        </span>
+
+        {/* Viewed toggle */}
+        <button
+          type="button"
+          onClick={onToggleViewed}
+          className={clsx(
+            "inline-flex shrink-0 items-center gap-2 border px-2.5 py-1 text-[11px] font-medium transition",
+            isViewed
+              ? "border-[var(--accent-primary)] bg-[var(--accent-primary)] text-[var(--accent-ink)]"
+              : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]",
+          )}
+          aria-pressed={isViewed}
+        >
+          <span
+            className={clsx(
+              "flex h-3 w-3 shrink-0 items-center justify-center border",
+              isViewed
+                ? "border-[var(--accent-ink)] bg-[var(--accent-ink)]"
+                : "border-[var(--border-strong)]",
+            )}
+          >
+            {isViewed && (
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="var(--accent-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <polyline points="2 6 5 9 10 3" />
+              </svg>
+            )}
+          </span>
+          {isViewed ? "Viewed" : "Mark viewed"}
+        </button>
+      </header>
+
+      {/* body */}
+      {isExpanded && (
+        <div className="overflow-x-auto">
+          {file.rows.map((row, i) => (
+            <SplitDiffRow key={i} row={row} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
+// ─── Drawer ──────────────────────────────────────────────────────────────────
+
 export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDrawerProps) {
-  const [details, setDetails]               = useState<PRDetails | null>(null);
+  const [details, setDetails] = useState<PRDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
-  const [detailsError, setDetailsError]     = useState<string | null>(null);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
 
-  const [diff, setDiff]               = useState<string | null>(null);
+  const [diff, setDiff] = useState<string | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
-  const [diffError, setDiffError]     = useState<string | null>(null);
+  const [diffError, setDiffError] = useState<string | null>(null);
 
-  const [merging, setMerging]             = useState(false);
-  const [mergeError, setMergeError]       = useState<string | null>(null);
-  const [confirmMerge, setConfirmMerge]   = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [confirmMerge, setConfirmMerge] = useState(false);
 
-  const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [scrollToFileId, setScrollToFileId] = useState<string | null>(null);
+  const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
 
-  const diffPanelRef = useRef<HTMLDivElement>(null);
+  const fileRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const stateStyle = PR_STATE_STYLES[pr.state] ?? PR_STATE_STYLES["OPEN"];
   const loading = detailsLoading || diffLoading;
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -321,6 +417,8 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const files = useMemo<FileDiff[]>(() => (diff ? parseDiffByFile(diff) : []), [diff]);
+
   const handleMerge = async () => {
     setConfirmMerge(false);
     setMerging(true);
@@ -337,9 +435,60 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
   };
 
   const scrollToFile = (filename: string) => {
-    setActiveFile(filename);
-    setScrollToFileId(`diff-file-${slugify(filename)}`);
+    const el = fileRefs.current[filename];
+    const container = scrollContainerRef.current;
+    if (!el || !container) return;
+    // open the file if collapsed
+    setCollapsedFiles((s) => {
+      if (!s.has(filename)) return s;
+      const next = new Set(s);
+      next.delete(filename);
+      return next;
+    });
+    requestAnimationFrame(() => {
+      const elTop = el.offsetTop;
+      container.scrollTo({ top: elTop - 8, behavior: "smooth" });
+    });
   };
+
+  const toggleViewed = (filename: string) => {
+    setViewedFiles((s) => {
+      const next = new Set(s);
+      if (next.has(filename)) {
+        next.delete(filename);
+      } else {
+        next.add(filename);
+        // collapse after marking viewed
+        setCollapsedFiles((c) => {
+          const cn = new Set(c);
+          cn.add(filename);
+          return cn;
+        });
+        // jump to next unviewed file
+        const idx = files.findIndex((f) => f.filename === filename);
+        const nextFile = files
+          .slice(idx + 1)
+          .find((f) => !next.has(f.filename));
+        if (nextFile) {
+          requestAnimationFrame(() => scrollToFile(nextFile.filename));
+        }
+      }
+      return next;
+    });
+  };
+
+  const toggleExpanded = (filename: string) => {
+    setCollapsedFiles((s) => {
+      const next = new Set(s);
+      if (next.has(filename)) next.delete(filename);
+      else next.add(filename);
+      return next;
+    });
+  };
+
+  const viewedCount = viewedFiles.size;
+  const totalFiles = files.length;
+  const allViewed = totalFiles > 0 && viewedCount === totalFiles;
 
   return (
     <>
@@ -355,7 +504,7 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
           role="dialog"
           aria-modal="true"
         >
-          {/* ── Header ── */}
+          {/* Header */}
           <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--border)] px-6 py-4">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <span className="font-mono text-base font-semibold tabular-nums text-[var(--text-muted)]">
@@ -416,7 +565,40 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
             </div>
           )}
 
-          {/* ── Body ── */}
+          {/* Review progress strip */}
+          {totalFiles > 0 && (
+            <div className="flex shrink-0 items-center gap-4 border-b border-[var(--border)] bg-[var(--bg-surface)] px-6 py-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] text-[var(--text-muted)]">Review progress</span>
+                <span className="font-mono text-[12px] font-semibold tabular-nums text-[var(--text-primary)]">
+                  {viewedCount}/{totalFiles}
+                </span>
+              </div>
+              <div className="relative h-1 flex-1 overflow-hidden bg-[var(--bg-sunken)]">
+                <div
+                  className="h-full bg-[var(--accent-primary)] transition-all duration-300"
+                  style={{ width: `${(viewedCount / totalFiles) * 100}%` }}
+                />
+              </div>
+              {allViewed && (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--accent-primary)]">
+                  <span className="h-1.5 w-1.5 bg-[var(--accent-primary)]" />
+                  All files reviewed
+                </span>
+              )}
+              {viewedCount > 0 && !allViewed && (
+                <button
+                  type="button"
+                  onClick={() => setViewedFiles(new Set())}
+                  className="text-[11px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Body */}
           <div className="flex flex-1 overflow-hidden">
             {/* File list panel */}
             <aside className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-[var(--border)] bg-[var(--bg-surface)]">
@@ -446,33 +628,46 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
                   <p className="px-2 py-3 text-xs text-[var(--status-error)]">{detailsError}</p>
                 )}
 
-                {details && details.files.map((file, idx) => {
-                  const isActive = activeFile === file.filename;
+                {details && details.files.map((file) => {
+                  const isViewed = viewedFiles.has(file.filename);
                   return (
                     <button
-                      key={file.filename ?? idx}
+                      key={file.filename}
                       type="button"
                       onClick={() => scrollToFile(file.filename)}
-                      className={clsx(
-                        "group relative flex w-full flex-col gap-0.5 px-3 py-2 text-left transition",
-                        isActive
-                          ? "bg-[var(--bg-elevated)]"
-                          : "hover:bg-[var(--bg-elevated)]",
-                      )}
+                      className="group relative flex w-full items-start gap-2 px-3 py-2 text-left transition hover:bg-[var(--bg-elevated)]"
                     >
-                      {isActive && (
-                        <span
-                          aria-hidden
-                          className="absolute inset-y-0 left-0 w-[2px] bg-[var(--accent-primary)]"
-                        />
-                      )}
-                      <code className="block truncate font-mono text-[11px] text-[var(--text-primary)]">
-                        {file.filename}
-                      </code>
-                      <span className="flex gap-2 font-mono text-[10px] tabular-nums">
-                        <span className="text-[var(--accent-primary)]">+{file.additions}</span>
-                        <span className="text-[var(--status-error)]">−{file.deletions}</span>
+                      <span
+                        className={clsx(
+                          "mt-1 flex h-3 w-3 shrink-0 items-center justify-center border",
+                          isViewed
+                            ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]"
+                            : "border-[var(--border-strong)]",
+                        )}
+                        aria-hidden
+                      >
+                        {isViewed && (
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="var(--accent-ink)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="2 6 5 9 10 3" />
+                          </svg>
+                        )}
                       </span>
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <code
+                          className={clsx(
+                            "block truncate font-mono text-[11px]",
+                            isViewed
+                              ? "text-[var(--text-muted)] line-through opacity-70"
+                              : "text-[var(--text-primary)]",
+                          )}
+                        >
+                          {file.filename}
+                        </code>
+                        <span className="flex gap-2 font-mono text-[10px] tabular-nums">
+                          <span className="text-[var(--accent-primary)]">+{file.additions}</span>
+                          <span className="text-[var(--status-error)]">−{file.deletions}</span>
+                        </span>
+                      </div>
                     </button>
                   );
                 })}
@@ -480,7 +675,7 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
             </aside>
 
             {/* Diff panel */}
-            <div ref={diffPanelRef} className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-base)]">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-[var(--bg-base)]">
               {diffLoading && (
                 <div className="flex flex-col gap-2 p-6">
                   {[...Array(12)].map((_, i) => (
@@ -491,14 +686,32 @@ export function PRDetailDrawer({ pr, projectId, onClose, onMerged }: PRDetailDra
 
               {diffError && (
                 <div className="m-6 border border-[var(--status-error)] bg-[var(--status-error-ink)] px-4 py-3 text-sm text-[var(--status-error)]">
-                  <span className="mr-2 font-mono uppercase tracking-widest">err·</span>
                   {diffError}
                 </div>
               )}
 
-              {diff !== null && !diffLoading && (
-                <div className="flex-1 overflow-hidden">
-                  <SplitDiffView diff={diff} scrollToFileId={scrollToFileId} />
+              {!diffLoading && !diffError && files.length === 0 && diff !== null && (
+                <p className="t-quote py-12 text-center text-base text-[var(--text-muted)]">
+                  Diff is empty.
+                </p>
+              )}
+
+              {!diffLoading && files.length > 0 && (
+                <div className="flex flex-col gap-3 p-4">
+                  {files.map((file, idx) => (
+                    <FileBlock
+                      key={file.filename}
+                      file={file}
+                      index={idx}
+                      isViewed={viewedFiles.has(file.filename)}
+                      isExpanded={!collapsedFiles.has(file.filename)}
+                      onToggleViewed={() => toggleViewed(file.filename)}
+                      onToggleExpanded={() => toggleExpanded(file.filename)}
+                      registerRef={(el) => {
+                        fileRefs.current[file.filename] = el;
+                      }}
+                    />
+                  ))}
                 </div>
               )}
             </div>
