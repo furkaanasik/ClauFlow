@@ -106,10 +106,10 @@ Gerektiğinde aşağıdaki skill'leri `/skill-name` ile çağır:
 
 | Durum | Skill |
 |-------|-------|
+| UI/UX tasarım, görsel yenileme, modern arayüz | `/frontend-design` |
 | Next.js component/routing/SSR işleri | `/fullstack-dev-skills:nextjs-developer` |
 | React component, hook, state yönetimi | `/fullstack-dev-skills:react-expert` |
 | TypeScript tip sorunları | `/fullstack-dev-skills:typescript-pro` |
-| UI/UX tasarım kararları, layout | `/fullstack-dev-skills:nextjs-developer` |
 | JavaScript mantık/algoritma | `/fullstack-dev-skills:javascript-pro` |
 
 ---
