@@ -29,6 +29,9 @@ export function useAgentSocket(url?: string) {
       updateProjectPlanningStatus,
       appendToolCall,
       appendAgentText,
+      setCloneProgress,
+      completeClone,
+      failClone,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -108,6 +111,18 @@ export function useAgentSocket(url?: string) {
             case "project_planning_error": {
               const m = msg as Extract<WsEvent, { type: "project_planning_error" }>;
               updateProjectPlanningStatus(m.projectId, "error", m.error);
+              break;
+            }
+            case "clone_progress": {
+              const m = msg as Extract<WsEvent, { type: "clone_progress" }>;
+              const { status: cloneStatus, message, project } = m.payload;
+              if (cloneStatus === "cloning") {
+                setCloneProgress(m.targetPath, message);
+              } else if (cloneStatus === "done") {
+                completeClone(m.targetPath, project);
+              } else {
+                failClone(m.targetPath, message);
+              }
               break;
             }
             case "hello":

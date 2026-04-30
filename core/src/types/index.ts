@@ -123,6 +123,15 @@ export type WsMessage =
       taskCount: number;
     }
   | { type: "project_planning_error"; projectId: string; error: string }
+  | {
+      type: "clone_progress";
+      targetPath: string;
+      payload: {
+        status: "cloning" | "done" | "error";
+        message: string;
+        project?: Project;
+      };
+    }
   | { type: "hello"; payload: { serverVersion: string } };
 
 export function createEmptyAgentState(): AgentState {

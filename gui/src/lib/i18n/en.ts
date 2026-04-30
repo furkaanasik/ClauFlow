@@ -174,6 +174,19 @@ export const en: Translations = {
       deleteFailed: "Delete failed.",
     },
   },
+  cloneModal: {
+    title: "Clone Repository",
+    targetDirLabel: "Target Directory",
+    targetDirPlaceholder: "~/Projects/repo-name",
+    cancel: "Cancel",
+    submit: "Clone",
+    submitting: "Cloning...",
+    cloning: "Cloning...",
+    errorPrefix: "Error:",
+  },
+  githubRepos: {
+    sectionTitle: "GITHUB REPOS",
+  },
   projectDetail: {
     title: "Project Details",
     editProject: "Edit Project",

@@ -167,6 +167,19 @@ export interface Translations {
       deleteFailed: string;
     };
   };
+  cloneModal: {
+    title: string;
+    targetDirLabel: string;
+    targetDirPlaceholder: string;
+    cancel: string;
+    submit: string;
+    submitting: string;
+    cloning: string;
+    errorPrefix: string;
+  };
+  githubRepos: {
+    sectionTitle: string;
+  };
   projectDetail: {
     title: string;
     editProject: string;

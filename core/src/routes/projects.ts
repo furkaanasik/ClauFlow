@@ -1,7 +1,21 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+
+function expandHome(p: string): string {
+  if (p === "~") return os.homedir();
+  if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
+  return p;
+}
+
+function normalizeClonePath(raw: string): string {
+  const expanded = expandHome(raw.trim());
+  if (!path.isAbsolute(expanded)) return expanded;
+  const resolved = path.resolve(expanded);
+  return resolved.length > 1 ? resolved.replace(/\/+$/, "") : resolved;
+}
 import {
   createProject,
   deleteProject,
@@ -18,6 +32,7 @@ import {
   commitAll,
 } from "../services/gitService.js";
 import { runProjectPlanner } from "../agents/projectPlanner.js";
+import { runCloneRepo } from "../agents/cloneRunner.js";
 
 const router = Router();
 
@@ -151,6 +166,53 @@ router.post("/", async (req: Request, res: Response) => {
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
+});
+
+const cloneProjectSchema = z.object({
+  repoUrl: z.string().min(1),
+  targetPath: z.string().min(1),
+  name: z.string().min(1),
+});
+
+router.post("/clone", async (req: Request, res: Response) => {
+  const parsed = cloneProjectSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: "invalid_body", issues: parsed.error.issues });
+  }
+  const { repoUrl, name } = parsed.data;
+  const targetPath = normalizeClonePath(parsed.data.targetPath);
+
+  if (!path.isAbsolute(targetPath)) {
+    return res.status(400).json({ error: "targetPath mutlak bir yol olmalıdır" });
+  }
+
+  if (fs.existsSync(targetPath)) {
+    try {
+      const entries = fs.readdirSync(targetPath);
+      if (entries.length > 0) {
+        return res
+          .status(409)
+          .json({ error: "targetPath mevcut ve boş değil" });
+      }
+    } catch (err) {
+      return res.status(400).json({ error: (err as Error).message });
+    }
+  }
+
+  const projects = await listProjects();
+  if (projects.some((p) => p.repoPath === targetPath)) {
+    return res
+      .status(409)
+      .json({ error: "Bu yola sahip bir proje zaten mevcut" });
+  }
+
+  runCloneRepo({ repoUrl, targetPath, name }).catch((err) => {
+    console.error("[projects] runCloneRepo failed:", err);
+  });
+
+  res.status(202).json({ status: "cloning", targetPath });
 });
 
 const updateProjectSchema = z.object({

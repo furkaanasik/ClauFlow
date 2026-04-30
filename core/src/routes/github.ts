@@ -1,7 +1,12 @@
 import { Router, type Request, type Response } from "express";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { getProject, listTasks, updateTask } from "../services/taskService.js";
+import {
+  getProject,
+  listProjects,
+  listTasks,
+  updateTask,
+} from "../services/taskService.js";
 import { broadcastTaskUpdated } from "../services/wsService.js";
 import type { Project } from "../types/index.js";
 
@@ -45,6 +50,54 @@ function handleGhError(err: unknown, res: Response, context: string): void {
 }
 
 const router = Router();
+
+interface GhRepo {
+  name: string;
+  nameWithOwner: string;
+  description: string | null;
+  url: string;
+  sshUrl: string;
+  visibility: string;
+  updatedAt: string;
+}
+
+function normalizeRemote(remote: string): string {
+  return remote.replace(/\.git$/, "").toLowerCase();
+}
+
+router.get("/repos", async (_req: Request, res: Response) => {
+  try {
+    const { stdout } = await execFileAsync(
+      "gh",
+      [
+        "repo",
+        "list",
+        "--json",
+        "name,nameWithOwner,description,sshUrl,url,visibility,updatedAt",
+        "--limit",
+        "100",
+      ],
+    );
+
+    const ghRepos = JSON.parse(stdout) as GhRepo[];
+    const projects = await listProjects();
+
+    const repos = ghRepos.map((repo) => {
+      const candidates = [repo.url, repo.sshUrl].map(normalizeRemote);
+      const matched = projects.find((p) => {
+        if (!p.remote) return false;
+        return candidates.includes(normalizeRemote(p.remote));
+      });
+      return matched
+        ? { ...repo, isLocal: true, localPath: matched.repoPath }
+        : { ...repo, isLocal: false };
+    });
+
+    res.json({ repos });
+  } catch (err: unknown) {
+    handleGhError(err, res, "repo list");
+  }
+});
 
 router.get("/prs", async (req: Request, res: Response) => {
   const project = await resolveProject(req, res);
