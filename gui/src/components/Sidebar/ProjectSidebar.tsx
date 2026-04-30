@@ -30,7 +30,23 @@ export function ProjectSidebar() {
 
   const { status: githubStatus } = useGithubAuth();
   const { repos } = useGithubRepos();
-  const remoteRepos = repos.filter((r) => !r.isLocal);
+  const q = search.toLowerCase();
+  const stripGit = (s: string | null | undefined) =>
+    (s ?? "").replace(/\.git$/, "").toLowerCase();
+  const localRemotes = new Set(projects.map((p) => stripGit(p.remote)));
+  const remoteRepos = repos
+    .filter(
+      (r) =>
+        !r.isLocal &&
+        !localRemotes.has(stripGit(r.url)) &&
+        !localRemotes.has(stripGit(r.sshUrl)),
+    )
+    .filter(
+      (r) =>
+        !q ||
+        r.name.toLowerCase().includes(q) ||
+        r.nameWithOwner.toLowerCase().includes(q),
+    );
 
   useEffect(() => {
     if (!menuOpenId) return;
@@ -198,7 +214,6 @@ export function ProjectSidebar() {
               </div>
             );
           })}
-        </nav>
 
         {/* GitHub repos section */}
         {githubStatus.connected && remoteRepos.length > 0 && (
@@ -232,6 +247,7 @@ export function ProjectSidebar() {
             ))}
           </div>
         )}
+        </nav>
 
         {/* Footer · new project */}
         <div className="border-t border-[var(--border)] p-3">
