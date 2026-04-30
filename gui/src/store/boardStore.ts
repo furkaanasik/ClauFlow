@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, Comment, PlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, CloneStatus, Comment, PlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
 
 type Lang = "tr" | "en";
 
@@ -23,6 +23,8 @@ interface BoardState {
   toolCalls: Record<string, ToolCall[]>;
   /** Agent narrative texts per task, keyed by taskId */
   agentTexts: Record<string, AgentText[]>;
+  /** Clone progress per targetPath */
+  cloneStatus: Record<string, { status: CloneStatus; message: string }>;
 
   setTasks: (tasks: Task[]) => void;
   upsertTask: (task: Task) => void;
@@ -59,6 +61,10 @@ interface BoardState {
   setLang: (lang: Lang) => void;
   clearNewTaskId: (id: string) => void;
 
+  setCloneProgress: (targetPath: string, message: string) => void;
+  completeClone: (targetPath: string, project?: Project) => void;
+  failClone: (targetPath: string, message: string) => void;
+
   getByStatus: (status: TaskStatus) => Task[];
 }
 
@@ -77,6 +83,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   newTaskIds: new Set<string>(),
   toolCalls: {},
   agentTexts: {},
+  cloneStatus: {},
 
   setTasks: (tasks) =>
     set(() => ({
@@ -282,6 +289,32 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       newTaskIds.delete(id);
       return { newTaskIds };
     }),
+
+  setCloneProgress: (targetPath, message) =>
+    set((state) => ({
+      cloneStatus: { ...state.cloneStatus, [targetPath]: { status: "cloning", message } },
+    })),
+
+  completeClone: (targetPath, project) =>
+    set((state) => {
+      const next: BoardState["cloneStatus"] = {
+        ...state.cloneStatus,
+        [targetPath]: { status: "done", message: "" },
+      };
+      if (project) {
+        return {
+          cloneStatus: next,
+          projects: [...state.projects, project],
+          selectedProjectId: project.id,
+        };
+      }
+      return { cloneStatus: next };
+    }),
+
+  failClone: (targetPath, message) =>
+    set((state) => ({
+      cloneStatus: { ...state.cloneStatus, [targetPath]: { status: "error", message } },
+    })),
 
   setWsConnected: (connected) => set(() => ({ wsConnected: connected })),
   setFilterText: (text) => set(() => ({ filterText: text })),

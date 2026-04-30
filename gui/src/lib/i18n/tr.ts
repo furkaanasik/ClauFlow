@@ -174,6 +174,19 @@ export const tr: Translations = {
       deleteFailed: "Silme başarısız.",
     },
   },
+  cloneModal: {
+    title: "Repo Klonla",
+    targetDirLabel: "Hedef Dizin",
+    targetDirPlaceholder: "~/Projects/repo-adi",
+    cancel: "İptal",
+    submit: "Clone et",
+    submitting: "Klonlanıyor...",
+    cloning: "Klonlanıyor...",
+    errorPrefix: "Hata:",
+  },
+  githubRepos: {
+    sectionTitle: "GITHUB REPOLARI",
+  },
   projectDetail: {
     title: "Proje Detayları",
     editProject: "Projeyi Düzenle",

@@ -1,4 +1,4 @@
-import type { AgentText, Comment, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
+import type { AgentText, Comment, GithubRepo, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -200,6 +200,33 @@ export interface GithubAuthStatus {
   userCode: string | null;
   verificationUri: string | null;
   error: string | null;
+}
+
+export interface CloneProjectInput {
+  repoUrl: string;
+  targetPath: string;
+  name: string;
+}
+
+export async function getGithubRepos(): Promise<GithubRepo[]> {
+  const res = await fetch(`${BASE}/github/repos`, { cache: "no-store" });
+  const data = await handle<{ repos: GithubRepo[] }>(res);
+  return data.repos ?? [];
+}
+
+export async function cloneProject(input: CloneProjectInput): Promise<{ status: "cloning"; targetPath: string }> {
+  const res = await fetch(`${BASE}/projects/clone`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (res.status === 409) {
+    const text = await res.text().catch(() => res.statusText);
+    let msg = text;
+    try { msg = JSON.parse(text).error ?? text; } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return handle<{ status: "cloning"; targetPath: string }>(res);
 }
 
 export async function startGithubAuth(): Promise<GithubAuthStart> {

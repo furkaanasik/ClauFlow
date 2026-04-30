@@ -4,9 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { useBoardStore } from "@/store/boardStore";
 import { useProjects } from "@/hooks/useBoard";
+import { useGithubAuth } from "@/hooks/useGithubAuth";
+import { useGithubRepos } from "@/hooks/useGithubRepos";
 import { NewProjectModal } from "@/components/Modals/NewProjectModal";
 import { ProjectDetailDrawer } from "@/components/Modals/ProjectDetailDrawer";
+import { CloneRepoModal } from "@/components/Modals/CloneRepoModal";
 import { useTranslation } from "@/hooks/useTranslation";
+import type { GithubRepo } from "@/types";
 
 export function ProjectSidebar() {
   useProjects();
@@ -19,9 +23,14 @@ export function ProjectSidebar() {
   const [search,          setSearch]          = useState("");
   const [menuOpenId,      setMenuOpenId]      = useState<string | null>(null);
   const [detailProjectId, setDetailProjectId] = useState<string | null>(null);
+  const [cloneRepo,       setCloneRepo]       = useState<GithubRepo | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const t = useTranslation();
+
+  const { status: githubStatus } = useGithubAuth();
+  const { repos } = useGithubRepos();
+  const remoteRepos = repos.filter((r) => !r.isLocal);
 
   useEffect(() => {
     if (!menuOpenId) return;
@@ -191,6 +200,39 @@ export function ProjectSidebar() {
           })}
         </nav>
 
+        {/* GitHub repos section */}
+        {githubStatus.connected && remoteRepos.length > 0 && (
+          <div className="border-t border-[var(--border)]">
+            <div className="px-4 py-2">
+              <span className="text-[10px] font-semibold tracking-widest text-[var(--text-faint)]">
+                {t.githubRepos.sectionTitle}
+              </span>
+            </div>
+            {remoteRepos.map((repo) => (
+              <button
+                key={repo.nameWithOwner}
+                type="button"
+                onClick={() => setCloneRepo(repo)}
+                className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-[var(--bg-surface)]"
+              >
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate text-[13px] font-medium leading-tight text-[var(--text-primary)]">
+                    {repo.name}
+                  </span>
+                  <span className="truncate font-mono text-[11px] text-[var(--text-faint)]">
+                    {repo.nameWithOwner}
+                  </span>
+                </div>
+                <span className="shrink-0 text-[var(--text-faint)] transition group-hover:text-[var(--text-secondary)]">
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+                  </svg>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Footer · new project */}
         <div className="border-t border-[var(--border)] p-3">
           <button
@@ -212,6 +254,7 @@ export function ProjectSidebar() {
         projectId={detailProjectId}
         onClose={() => setDetailProjectId(null)}
       />
+      <CloneRepoModal repo={cloneRepo} onClose={() => setCloneRepo(null)} />
     </>
   );
 }

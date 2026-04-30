@@ -117,6 +117,26 @@ export interface ToolCall {
   createdAt?: string;
 }
 
+export interface GithubRepo {
+  name: string;
+  nameWithOwner: string;
+  description: string | null;
+  url: string;
+  sshUrl: string;
+  visibility: string;
+  updatedAt: string;
+  isLocal: boolean;
+  localPath?: string;
+}
+
+export type CloneStatus = "cloning" | "done" | "error";
+
+export interface CloneProgress {
+  status: CloneStatus;
+  message: string;
+  project?: Project;
+}
+
 export type WsEvent =
   | { type: "agent_log"; taskId: string; payload: { line: string } }
   | {
@@ -137,4 +157,5 @@ export type WsEvent =
   | { type: "project_planning_started"; projectId: string }
   | { type: "project_planning_done"; projectId: string; taskCount: number }
   | { type: "project_planning_error"; projectId: string; error: string }
+  | { type: "clone_progress"; targetPath: string; payload: CloneProgress }
   | { type: "hello"; payload: { serverVersion: string } };
