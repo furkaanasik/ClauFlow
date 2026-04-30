@@ -49,7 +49,7 @@ export function CloneRepoModal({ repo, onClose }: CloneRepoModalProps) {
     setSubmitting(true);
     try {
       const result = await cloneProject({
-        repoUrl: repo.sshUrl,
+        repoUrl: `${repo.url}.git`,
         targetPath,
         name: repo.name,
       });

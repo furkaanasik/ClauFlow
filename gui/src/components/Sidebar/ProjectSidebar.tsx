@@ -198,7 +198,6 @@ export function ProjectSidebar() {
               </div>
             );
           })}
-        </nav>
 
         {/* GitHub repos section */}
         {githubStatus.connected && remoteRepos.length > 0 && (
@@ -232,6 +231,7 @@ export function ProjectSidebar() {
             ))}
           </div>
         )}
+        </nav>
 
         {/* Footer · new project */}
         <div className="border-t border-[var(--border)] p-3">
