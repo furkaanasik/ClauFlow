@@ -1,7 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+
+function expandHome(p: string): string {
+  if (p === "~") return os.homedir();
+  if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
+  return p;
+}
 import {
   createProject,
   deleteProject,
@@ -167,7 +174,8 @@ router.post("/clone", async (req: Request, res: Response) => {
       .status(400)
       .json({ error: "invalid_body", issues: parsed.error.issues });
   }
-  const { repoUrl, targetPath, name } = parsed.data;
+  const { repoUrl, name } = parsed.data;
+  const targetPath = expandHome(parsed.data.targetPath);
 
   if (!path.isAbsolute(targetPath)) {
     return res.status(400).json({ error: "targetPath mutlak bir yol olmalıdır" });
