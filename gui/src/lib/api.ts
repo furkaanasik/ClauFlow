@@ -209,7 +209,7 @@ export interface CloneProjectInput {
 }
 
 export async function getGithubRepos(): Promise<GithubRepo[]> {
-  const res = await fetch(`${BASE}/github/repos`, { cache: "no-store" });
+  const res = await fetch(`${GHBASE}/github/repos`, { cache: "no-store" });
   const data = await handle<{ repos: GithubRepo[] }>(res);
   return data.repos ?? [];
 }
