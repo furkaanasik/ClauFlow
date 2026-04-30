@@ -41,6 +41,45 @@ export function run(
   });
 }
 
+export function runWithProgress(
+  cmd: string,
+  args: string[],
+  cwd: string,
+  onLine: (line: string) => void,
+): Promise<RunResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { cwd, env: process.env });
+    let stdout = "";
+    let stderr = "";
+    let outBuf = "";
+    let errBuf = "";
+
+    const pump = (chunk: Buffer, which: "out" | "err") => {
+      const text = chunk.toString("utf8");
+      if (which === "out") stdout += text;
+      else stderr += text;
+      let buffer = which === "out" ? outBuf + text : errBuf + text;
+      let nl: number;
+      while ((nl = buffer.search(/\r|\n/)) !== -1) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        if (line.length > 0) onLine(line);
+      }
+      if (which === "out") outBuf = buffer;
+      else errBuf = buffer;
+    };
+
+    child.stdout.on("data", (chunk: Buffer) => pump(chunk, "out"));
+    child.stderr.on("data", (chunk: Buffer) => pump(chunk, "err"));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (outBuf.length > 0) onLine(outBuf);
+      if (errBuf.length > 0) onLine(errBuf);
+      resolve({ code: code ?? -1, stdout, stderr });
+    });
+  });
+}
+
 function slugify(input: string): string {
   return input
     .toLowerCase()

@@ -4,6 +4,7 @@ import type {
   AgentStatus,
   AgentText,
   Comment,
+  Project,
   Task,
   ToolCall,
   WsMessage,
@@ -102,6 +103,19 @@ export function broadcastProjectPlanningError(
   error: string,
 ): void {
   broadcast({ type: "project_planning_error", projectId, error });
+}
+
+export function broadcastCloneProgress(
+  targetPath: string,
+  status: "cloning" | "done" | "error",
+  message: string,
+  project?: Project,
+): void {
+  broadcast({
+    type: "clone_progress",
+    targetPath,
+    payload: project ? { status, message, project } : { status, message },
+  });
 }
 
 export function closeWebSocket(): Promise<void> {
