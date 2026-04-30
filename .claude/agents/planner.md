@@ -65,18 +65,6 @@ Every task you create must follow this shape:
 4. Append the new tasks to `tasks.json`.
 5. Report the created tasks back to the user as a summary table.
 
-## Available Skills
-
-When needed, invoke the following skills with `/skill-name`:
-
-| Situation | Skill |
-|-----------|-------|
-| Feature analysis, requirements discovery | `/fullstack-dev-skills:feature-forge` |
-| Architectural design decisions | `/fullstack-dev-skills:architecture-designer` |
-| API endpoint design | `/fullstack-dev-skills:api-designer` |
-
----
-
 ## Constraints
 
 - Do not delete or modify existing tasks — only add new ones.

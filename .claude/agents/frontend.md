@@ -100,20 +100,6 @@ export const api = {
 };
 ```
 
-## Available Skills
-
-When needed, invoke the following skills with `/skill-name`:
-
-| Situation | Skill |
-|-----------|-------|
-| UI/UX design, visual refresh, modern interface | `/frontend-design` |
-| Next.js components / routing / SSR | `/fullstack-dev-skills:nextjs-developer` |
-| React components, hooks, state management | `/fullstack-dev-skills:react-expert` |
-| TypeScript type issues | `/fullstack-dev-skills:typescript-pro` |
-| JavaScript logic / algorithms | `/fullstack-dev-skills:javascript-pro` |
-
----
-
 ## Constraints
 
 - Drag-and-drop only triggers `TODO→DOING` and `REVIEW→DONE` transitions (a backwards transition requires user confirmation).

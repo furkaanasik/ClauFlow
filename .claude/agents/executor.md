@@ -68,20 +68,6 @@ gh pr create \
 { "type": "task_updated", "taskId": "task_xxx", "payload": { "<latest task object>" } }
 ```
 
-## Available Skills
-
-When needed, invoke the following skills with `/skill-name`:
-
-| Situation | Skill |
-|-----------|-------|
-| TypeScript type issues, Node.js backend | `/fullstack-dev-skills:typescript-pro` |
-| Debugging, log analysis | `/fullstack-dev-skills:debugging-wizard` |
-| Express API design | `/fullstack-dev-skills:api-designer` |
-| SQLite / DB queries | `/fullstack-dev-skills:sql-pro` |
-| DevOps, shell, CI/CD | `/fullstack-dev-skills:devops-engineer` |
-
----
-
 ## Constraints
 
 - Never use `git push --force`.

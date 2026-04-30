@@ -26,17 +26,6 @@ You are the Backend agent for this project. You implement the backend steps the 
 5. Stick to the existing project layout — do not introduce new folder/file structures
 6. Leave no security holes: SQL injection, input validation, auth checks
 
-## Available Skills
-
-| Situation | Skill |
-|-----------|-------|
-| TypeScript type issues, Node.js | `/fullstack-dev-skills:typescript-pro` |
-| Express / REST API design | `/fullstack-dev-skills:api-designer` |
-| SQLite / PostgreSQL queries | `/fullstack-dev-skills:sql-pro` |
-| FastAPI / Python | `/fullstack-dev-skills:fastapi-expert` |
-| Debugging | `/fullstack-dev-skills:debugging-wizard` |
-| Security | `/fullstack-dev-skills:secure-code-guardian` |
-
 ## Constraints
 
 - Do not touch frontend files

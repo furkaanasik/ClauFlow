@@ -60,14 +60,6 @@ You are the Reviewer agent for this project. You inspect the changes the fronten
 <short summary>
 ```
 
-## Available Skills
-
-| Situation | Skill |
-|-----------|-------|
-| Code review, diff analysis | `/fullstack-dev-skills:code-reviewer` |
-| Security vulnerability detection | `/fullstack-dev-skills:security-reviewer` |
-| Test evaluation | `/fullstack-dev-skills:test-master` |
-
 ## Constraints
 
 - Do not change code unless there is a critical finding

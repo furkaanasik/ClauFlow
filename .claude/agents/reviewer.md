@@ -81,18 +81,6 @@ gh pr merge <task.prNumber> --squash --delete-branch
 - Append the review notes to `agent.log`
 - Re-trigger the executor agent
 
-## Available Skills
-
-When needed, invoke the following skills with `/skill-name`:
-
-| Situation | Skill |
-|-----------|-------|
-| Code review, diff analysis | `/fullstack-dev-skills:code-reviewer` |
-| Security vulnerability detection | `/fullstack-dev-skills:security-reviewer` |
-| Test writing / evaluation | `/fullstack-dev-skills:test-master` |
-
----
-
 ## Constraints
 
 - Do not `merge` without user approval.

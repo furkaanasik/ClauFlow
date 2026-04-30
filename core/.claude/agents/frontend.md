@@ -24,16 +24,6 @@ You are the Frontend agent for this project. You implement the frontend steps th
 4. If TypeScript is used, leave no type errors
 5. Match the existing code style — do not introduce a new one
 
-## Available Skills
-
-| Situation | Skill |
-|-----------|-------|
-| Next.js components / routing / SSR | `/fullstack-dev-skills:nextjs-developer` |
-| React components, hooks, state | `/fullstack-dev-skills:react-expert` |
-| TypeScript type issues | `/fullstack-dev-skills:typescript-pro` |
-| Vue 3 components | `/fullstack-dev-skills:vue-expert` |
-| JavaScript logic / algorithms | `/fullstack-dev-skills:javascript-pro` |
-
 ## Constraints
 
 - Do not touch backend files
