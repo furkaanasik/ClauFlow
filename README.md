@@ -47,9 +47,24 @@ Every step streams over WebSocket, so the agent's logs, status transitions, and 
 
 ### Prerequisites
 
-- Node.js 18+
-- [Claude Code CLI](https://claude.ai/code) installed and authenticated
-- `gh` CLI installed and authenticated (`gh auth login`)
+ClauFlow shells out to two CLIs at runtime — both must be installed and authenticated **before** you start the backend:
+
+| CLI | Why it's needed | Install | Auth |
+|-----|-----------------|---------|------|
+| **Claude Code** (`claude`) | Runs the actual code generation in each executor / comment task | [docs.claude.com/claude-code](https://docs.claude.com/en/docs/claude-code/overview) | `claude` (first run prompts login) |
+| **GitHub CLI** (`gh`) | Clones repos, sets up git credentials, opens & merges PRs | macOS: `brew install gh` · Arch/CachyOS: `sudo pacman -S github-cli` · Debian/Ubuntu: see [cli.github.com](https://cli.github.com) | `gh auth login` then `gh auth setup-git` |
+
+Plus:
+- **Node.js 18+** and **pnpm** (frontend uses pnpm, backend uses npm)
+- **Git** with a configured identity (`git config --global user.name` / `user.email`)
+
+Verify everything is wired up:
+
+```bash
+claude --version
+gh auth status
+node --version
+```
 
 ### Install & Run
 
@@ -110,45 +125,26 @@ The project uses a CLAUDE.md-defined agent team for its own development:
 
 ---
 
-## Project Structure
+## Repository Layout
 
-```
-kanban/
-├── core/               # Express + WebSocket backend
-│   └── src/
-│       ├── agents/
-│       │   ├── executor.ts       # Task execution pipeline
-│       │   └── commentRunner.ts  # Comment apply pipeline
-│       ├── routes/               # REST: /api/tasks, /api/projects, /api/comments
-│       ├── services/
-│       │   ├── taskService.ts
-│       │   ├── commentService.ts
-│       │   ├── claudeService.ts  # Claude CLI wrapper (spawn)
-│       │   ├── gitService.ts
-│       │   └── wsService.ts
-│       └── types/
-└── gui/                # Next.js 15 frontend
-    └── src/
-        ├── app/
-        │   ├── page.tsx          # Landing page
-        │   ├── board/page.tsx    # Kanban board
-        │   └── github/page.tsx   # PR list
-        ├── components/
-        │   ├── Board/            # Columns + dnd-kit
-        │   ├── Card/             # TaskCard, TaskDetailDrawer, CommentsTab
-        │   ├── Github/           # PRDetailDrawer
-        │   ├── Modals/           # AddTaskModal, NewProjectModal
-        │   └── Sidebar/          # ProjectSidebar
-        ├── hooks/
-        │   ├── useAgentSocket.ts # WebSocket → Zustand
-        │   ├── useBoard.ts
-        │   └── useTranslation.ts # TR/EN i18n
-        ├── lib/
-        │   ├── api.ts
-        │   └── i18n/             # tr.ts, en.ts, types.ts
-        └── store/
-            └── boardStore.ts     # Zustand global state
-```
+Two packages, run independently:
+
+- [`core/`](core/) — Express + WebSocket backend (Node.js, `npm`, port `3001`). SQLite store, executor / comment-runner pipelines, REST + WS routes.
+- [`gui/`](gui/) — Next.js 15 frontend (`pnpm`, port `3000`). Kanban board, PR viewer, project sidebar.
+
+For a deeper tour of the architecture, data flow, and conventions, see [`CLAUDE.md`](CLAUDE.md) — it's the source of truth for both human contributors and AI agents working on the repo.
+
+---
+
+## Contributing
+
+PRs welcome. A few notes before you open one:
+
+- **Read [`CLAUDE.md`](CLAUDE.md) first** — it documents the data flow, WS event shape, and project conventions (e.g. no `window.confirm`, Tailwind v4 theming, comment runner contract).
+- **Roadmap** lives in [`ROADMAP.md`](ROADMAP.md). Pick something marked active or open an issue before tackling a larger change.
+- Run `npm run typecheck` (in `core/`) and `pnpm typecheck && pnpm lint` (in `gui/`) before pushing.
+- Keep commits scoped and the PR description focused on the *why*.
+- ClauFlow itself is a kanban for Claude — feel free to use it on its own repo. Meta loops are encouraged.
 
 ---
 
