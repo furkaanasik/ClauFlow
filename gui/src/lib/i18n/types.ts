@@ -176,6 +176,14 @@ export interface Translations {
     submitting: string;
     cloning: string;
     errorPrefix: string;
+    repoInfoTitle: string;
+    description: string;
+    noDescription: string;
+    visibility: string;
+    visibilityPublic: string;
+    visibilityPrivate: string;
+    updatedAt: string;
+    viewOnGithub: string;
   };
   githubRepos: {
     sectionTitle: string;
