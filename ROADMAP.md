@@ -1,6 +1,42 @@
 # ROADMAP
 
-## 1. Project Claude Config + Agent Studio
+## 1. Landing sayfasında tema seçimi
+
+**Maliyet:** ~0.5 gün · **Değer:** orta (ilk izlenim, kişiselleştirme)
+
+Projenin base dizinindeki landing sayfasına (`/`) tema seçici ekle. Mevcut `theme` Zustand state + `html.light` CSS variable override altyapısı kullanılır; sadece landing'e görünür bir toggle/picker eklenir.
+
+### Kapsam
+
+- Landing header veya hero bölümünde tema toggle (light/dark, gerekirse system)
+- `boardStore` `theme` state'i ile sync, `localStorage` persist
+- Mevcut `Header` toggle'ı ile çakışmasın
+
+---
+
+## 2. GitHub repo'ları sidebar'da + tıklayınca clone
+
+**Maliyet:** ~2-3 gün · **Değer:** yüksek (onboarding sürtünmesini sıfırlar)
+
+Kullanıcı GitHub'a bağlandığında sol sidebar'daki "Projeler" listesi kendi repo'larını da göstersin. Henüz lokal'de olmayan bir repo'ya tıklandığında popup açılsın: "Bu repo'yu nereye clone alalım?" — kullanıcı dizin seçer, backend `git clone` çalıştırır, repo lokal proje olarak kaydedilir ve seçilir.
+
+### Kapsam (MVP)
+
+- **Repo listeleme** — `gh repo list --json` ile kullanıcının repoları çekilir, sidebar'da "GitHub Repoları" bölümünde listelenir (lokal projelerden ayrı segment)
+- **Lokal/uzak ayrımı** — lokal'de path'i mevcut olan repo'lar normal proje gibi görünür; olmayanlar "cloud" ikonuyla işaretlenir
+- **Clone popup** — uzak repo'ya tıklayınca `Modal` açılır: hedef dizin input + "Browse" (varsayılan: `~/Projects/<repo-name>`)
+- **Clone akışı** — `POST /api/projects/clone` → backend `git clone` çalıştırır, WS ile progress yayar, biter bitmez `projects` tablosuna ekler ve aktif proje yapar
+- **Hata yönetimi** — dizin doluysa, auth eksikse, network hatası — kullanıcıya net mesaj
+
+### Kapsam dışı
+
+- Repo arama/filter (sonra)
+- Organization repoları toggle'ı (default: kullanıcının kendi repoları + üye olduğu org'lar)
+- Sub-path / sparse checkout
+
+---
+
+## 3. Project Claude Config + Agent Studio
 
 **Maliyet:** ~6-8 gün · **Değer:** çok yüksek (ClauFlow'u "task runner"dan "Claude proje kontrol paneli"ne dönüştürür)
 
