@@ -1,20 +1,6 @@
 # ROADMAP
 
-## 1. Landing sayfasında tema seçimi
-
-**Maliyet:** ~0.5 gün · **Değer:** orta (ilk izlenim, kişiselleştirme)
-
-Projenin base dizinindeki landing sayfasına (`/`) tema seçici ekle. Mevcut `theme` Zustand state + `html.light` CSS variable override altyapısı kullanılır; sadece landing'e görünür bir toggle/picker eklenir.
-
-### Kapsam
-
-- Landing header veya hero bölümünde tema toggle (light/dark, gerekirse system)
-- `boardStore` `theme` state'i ile sync, `localStorage` persist
-- Mevcut `Header` toggle'ı ile çakışmasın
-
----
-
-## 2. GitHub repo'ları sidebar'da + tıklayınca clone
+## 1. GitHub repo'ları sidebar'da + tıklayınca clone
 
 **Maliyet:** ~2-3 gün · **Değer:** yüksek (onboarding sürtünmesini sıfırlar)
 
@@ -36,7 +22,7 @@ Kullanıcı GitHub'a bağlandığında sol sidebar'daki "Projeler" listesi kendi
 
 ---
 
-## 3. Project Claude Config + Agent Studio
+## 2. Project Claude Config + Agent Studio
 
 **Maliyet:** ~6-8 gün · **Değer:** çok yüksek (ClauFlow'u "task runner"dan "Claude proje kontrol paneli"ne dönüştürür)
 
@@ -82,6 +68,7 @@ Proje detay ekranına Claude'un proje-yerel sürface alanını yöneten bir kont
 - ✅ Frontend ölçek / yoğunluk (#12)
 - ✅ Tüm UI yenilemesi — Fraunces tipografi, modern landing (canlı mini-kanban demo), tüm iç sayfaların sadeleştirilmesi
 - ✅ Modern diff görünümü (PR detay) — per-file collapsible blok, sticky header, **Mark viewed** toggle + auto-scroll, sidebar tick mirror, lime/coral palet, hunk header `↳ line N + context` olarak insancıllaştı
+- ✅ Landing sayfasında tema seçimi — `/` header'ında sun/moon toggle, mevcut `html.light` + `localStorage` altyapısıyla sync
 
 ---
 
