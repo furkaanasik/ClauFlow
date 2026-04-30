@@ -9,6 +9,13 @@ function expandHome(p: string): string {
   if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
   return p;
 }
+
+function normalizeClonePath(raw: string): string {
+  const expanded = expandHome(raw.trim());
+  if (!path.isAbsolute(expanded)) return expanded;
+  const resolved = path.resolve(expanded);
+  return resolved.length > 1 ? resolved.replace(/\/+$/, "") : resolved;
+}
 import {
   createProject,
   deleteProject,
@@ -175,7 +182,7 @@ router.post("/clone", async (req: Request, res: Response) => {
       .json({ error: "invalid_body", issues: parsed.error.issues });
   }
   const { repoUrl, name } = parsed.data;
-  const targetPath = expandHome(parsed.data.targetPath);
+  const targetPath = normalizeClonePath(parsed.data.targetPath);
 
   if (!path.isAbsolute(targetPath)) {
     return res.status(400).json({ error: "targetPath mutlak bir yol olmalıdır" });

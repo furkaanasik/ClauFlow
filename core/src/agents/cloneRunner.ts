@@ -12,6 +12,17 @@ export interface CloneRepoInput {
 
 export async function runCloneRepo(input: CloneRepoInput): Promise<void> {
   const { repoUrl, targetPath, name } = input;
+  const targetExistedBefore = fs.existsSync(targetPath);
+
+  const cleanupPartial = () => {
+    if (targetExistedBefore) return;
+    try {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+    } catch (err) {
+      console.error("[cloneRunner] failed to clean partial clone:", err);
+    }
+  };
+
   try {
     broadcastCloneProgress(targetPath, "cloning", "Starting git clone...");
 
@@ -28,6 +39,7 @@ export async function runCloneRepo(input: CloneRepoInput): Promise<void> {
     );
 
     if (result.code !== 0) {
+      cleanupPartial();
       const errMsg = result.stderr.trim() || result.stdout.trim() || `git clone exited with code ${result.code}`;
       broadcastCloneProgress(targetPath, "error", errMsg);
       return;
@@ -49,6 +61,7 @@ export async function runCloneRepo(input: CloneRepoInput): Promise<void> {
 
     broadcastCloneProgress(targetPath, "done", "Clone complete", project);
   } catch (err) {
+    cleanupPartial();
     const message = err instanceof Error ? err.message : String(err);
     broadcastCloneProgress(targetPath, "error", message);
   }
