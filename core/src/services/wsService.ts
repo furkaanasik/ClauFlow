@@ -120,14 +120,14 @@ export function broadcastCloneProgress(
 
 export function broadcastSkillInstallProgress(
   projectId: string,
-  skillSlug: string,
-  status: "cloning" | "enabling" | "done" | "error",
+  pluginId: string,
+  status: "running" | "done" | "error",
   message: string,
 ): void {
   broadcast({
     type: "skill_install_progress",
     projectId,
-    payload: { skillSlug, status, message },
+    payload: { pluginId, status, message },
   });
 }
 

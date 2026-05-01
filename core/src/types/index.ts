@@ -127,8 +127,8 @@ export type WsMessage =
       type: "skill_install_progress";
       projectId: string;
       payload: {
-        skillSlug: string;
-        status: "cloning" | "enabling" | "done" | "error";
+        pluginId: string;
+        status: "running" | "done" | "error";
         message: string;
       };
     }
@@ -142,6 +142,54 @@ export type WsMessage =
       };
     }
   | { type: "hello"; payload: { serverVersion: string } };
+
+export interface AvailablePluginSource {
+  source: string;
+  url?: string;
+  repo?: string;
+  path?: string;
+  ref?: string;
+  sha?: string;
+}
+
+export interface AvailablePluginAuthor {
+  name?: string;
+  email?: string;
+}
+
+export interface AvailablePlugin {
+  pluginId: string;
+  name: string;
+  description: string;
+  marketplaceName: string;
+  source: AvailablePluginSource;
+  installCount?: number;
+  homepage?: string;
+  author?: AvailablePluginAuthor;
+}
+
+export interface InstalledPlugin {
+  id: string;
+  version: string;
+  scope: "user" | "project" | "local";
+  enabled: boolean;
+  installPath: string;
+  installedAt: string;
+  lastUpdated: string;
+  projectPath?: string;
+}
+
+export interface ClaudeMarketplaceSource {
+  source: string;
+  repo?: string;
+  url?: string;
+  path?: string;
+}
+
+export interface ClaudeMarketplace {
+  name: string;
+  source: ClaudeMarketplaceSource;
+}
 
 export function createEmptyAgentState(): AgentState {
   return {
