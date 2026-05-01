@@ -13,7 +13,7 @@ This epic is **sliced into five independently-shippable phases**. Each phase end
 ```
 1A ✅ (foundation) ─┬── 1B ✅ (agents) ──┐
                     │                     ├── 1E (studio)
-                    └── 1D (skills) ─────┘
+                    └── 1D ✅ (skills) ──┘
 
 1C ✅ (prereqs) — independent, can run in parallel
 ```
@@ -58,16 +58,14 @@ Independent — can ship before, after, or in parallel with anything else.
 
 ---
 
-### Phase 1D — Skill Manager (~2–3 days)
+### ✅ Phase 1D — Skill Manager
 
-Depends on 1A. The heaviest phase — can be sub-sliced further (listing first, install second).
+- "Skills" segment with three tabs: Installed, Registry, Marketplaces — backed by a thin passthrough over `claude plugin ...` CLI subcommands (no custom registry JSON, no manual git clone). Installs land as real Claude plugins and show up in `claude /skills`.
+- Backend service: `claudePluginCli.ts` (single `spawn` wrapper, JSON parse, 60s timeout); routes under `/api/projects/:id/claude/skills*` and `.../marketplaces*`. WS event `skill_install_progress` (`running` → `done`/`error`).
+- Frontend: scope dropdown on install (default `local`), instant client-side search, install-count badges, external-link button (homepage → source), single Installed list with enable/disable/uninstall, Marketplaces add (URL / `owner/repo` / path) with confirmation on remove.
+- Initial cut shipped a custom `<repoPath>/.claude/plugins/<slug>` clone path which Claude Code did not actually discover; pivoted mid-PR to the CLI passthrough, dropping `pluginRegistry` / `pluginInstaller` / `pluginManager` in favor of `claudePluginCli`.
 
-- "Skills" segment — marketplace listing (start with hardcoded JSON, later `gh api`), one-click install
-- Backend services: `pluginRegistry` (verified marketplace JSON), `pluginInstaller` (`git clone` → `.claude/plugins/<slug>`, enable in `settings.json`), `pluginManager` (enable/disable/uninstall)
-- WS event: `skill_install_progress`
-- **Does not** depend on the CLI's interactive `/plugin install` flow.
-
-**Ships:** the skill ecosystem opens up via the GUI.
+**Shipped:** the skill ecosystem opens up via the GUI, fully integrated with Claude's real plugin system.
 
 ---
 
