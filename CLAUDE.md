@@ -2,64 +2,98 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Agent Team
+## Development Workflow
 
-The agent team is available, but **do not spin up a team for every job** — the token cost of the team-create / spawn / shutdown chain outweighs the benefit on small tasks. The coordinator decides based on the size of the work first.
+For non-trivial development work in this repo, use the **multi-model collaborative workflow** via the `/multi-workflow` skill instead of spinning up custom agent teams. The skill orchestrates Claude (lead) + Codex (backend authority) + Gemini (frontend authority) through Research → Ideation → Plan → Execute → Optimize → Review.
 
-### Agent Roles
+### When to Use What
 
-- **planner** → analyzes the request, breaks it into tasks, decides which agent does what
-- **frontend** → all UI / Next.js changes under `gui/`
-- **executor** → git branching, running the claude CLI, commit/push/PR
-- **reviewer** → code review, type errors, bug checks
-
-### When To Use a Team, When To Stay as Coordinator?
-
-**The coordinator handles it directly** (no team):
-- Questions, explanations, research (already an exception)
+**Coordinator handles it directly** (no skill, no team):
+- Questions, explanations, research
 - A few-line bug fix in a single file
 - Documentation, config, memory updates
-- One-off data operations against the DB
+- One-off DB operations
 - File moves / renames, small string or style fixes
 - Clearly localized, single-domain changes
 
-**Spin up a team** (TeamCreate → planner → relevant agents → reviewer → TeamDelete):
+**Use `/multi-workflow <task description>`**:
 - Work that touches multiple areas (frontend + backend, UI + DB, etc.)
 - New feature / non-trivial refactor / architectural decision
 - Changes that need coordination across 4+ files
-- Git/PR automations that require the executor (branch + claude CLI + PR flow)
-- When the user explicitly says "set up a team", "make a plan", "send it to the reviewer"
+- Whenever a second perspective (backend or frontend specialist) materially helps
 
-When in doubt, lean small — spinning up a team is expensive, do not do it if it is not needed. If the coordinator finishes a change and notices it has grown beyond the **single file / few lines** threshold, it can hand off to a team from that point on.
+Related skills (use directly when only one phase is needed):
+- `/multi-plan <task>` — planning only, no code changes
+- `/multi-execute` — execute an existing plan
+- `/multi-backend <task>` — backend-focused full pipeline (Codex-led)
+- `/multi-frontend <task>` — frontend-focused full pipeline (Gemini-led)
 
-The agent team feature is enabled via the committed `.claude/settings.json` so every clone picks it up automatically:
+### Prerequisites
+
+`/multi-workflow` requires both CLIs to be installed and authenticated:
+```bash
+which codex gemini       # both must resolve
+codex --version          # sanity check
+gemini --version         # sanity check
+```
+If either is missing, install and authenticate before invoking the skill.
+
+### Settings
+
+The committed `.claude/settings.json` keeps `bypassPermissions` on so iterative workflow steps don't block on prompts:
 ```json
 {
-  "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" },
   "permissions": { "defaultMode": "bypassPermissions" }
 }
 ```
 Personal overrides (extra plugins, per-user allow rules) belong in `.claude/settings.local.json`, which stays gitignored.
 
-### Setting Up the Team (when a team has been decided on)
+> **Note:** This guidance is for working *on this repo*. The runtime agents inside `core/src/agents/` (executor, commentRunner) are part of the ClauFlow product itself and are unrelated to this workflow.
 
-Stand up the team with **TeamCreate**:
+## Command Cheatsheet
 
+Quick reference for ECC skills used in this repo. Pick the smallest tool that fits the job.
+
+### By Scenario
+
+| Scenario | Primary | Alternative | Notes |
+|----------|---------|-------------|-------|
+| **Suggest new things** (discovery / "what could we add?") | `/prp-prd` | `/feature-dev` | `/prp-prd` is problem-first, hypothesis-driven; `/feature-dev` is single-feature guided |
+| **Plan only** (no code yet) | `/plan` | `/multi-plan` | `/plan` is fast single-model; `/multi-plan` adds Codex+Gemini perspectives |
+| **Frontend work** (UI/UX) | `/multi-frontend` | `/ccg:frontend` | Gemini-led full pipeline (research → exec → review) |
+| **Backend work** (API / DB / algorithms) | `/multi-backend` | `/ccg:backend` | Codex-led full pipeline |
+| **Cross-stack feature** (frontend + backend together) | `/multi-workflow` | — | Full pipeline when work spans both |
+| **Execute an existing plan** | `/multi-execute` | — | Run output of `/plan` or `/multi-plan` |
+| **Code review** | `/code-review` | `/review-pr <PR#>` | Local diff vs GitHub PR |
+| **Security review** | `/security-review` | — | Auth, input handling, payments, secrets |
+| **TDD feature/bugfix** | `/tdd-workflow` | — | Test-first workflow |
+| **Build broken** | `/build-fix` | — | TS / lint / compile errors |
+| **Smart commit** | `/commit` | `/prp-commit` | Conventional commits + smart file grouping |
+| **Open a PR** | `/prp-pr` | — | Branch → PR with summary |
+| **Dead code cleanup** | `/refactor-clean` | — | knip / depcheck / ts-prune sweep |
+| **Raise test coverage** | `/test-coverage` | — | Fill gaps to hit 80% |
+
+### Typical Flows
+
+**Cross-stack feature (full ceremony):**
 ```
-TeamCreate({ team_name: "<feature-slug>", agent_type: "team-lead", description: "<short purpose>" })
+/prp-prd        → clarify what we're building
+/multi-plan     → plan with multi-model perspectives
+/multi-execute  → implement (or use /multi-workflow to do all-in-one)
+/code-review    → review the diff
+/security-review → if sensitive surfaces touched
+/commit         → commit
+/prp-pr         → open PR
 ```
 
-When spawning agents, always pass `team_name` and `name`:
-
+**Small task shortcut:**
 ```
-Agent({ subagent_type: "planner", name: "planner", team_name: "<feature-slug>", prompt: "..." })
+/plan → write code → /code-review → /commit
 ```
 
-Communicate with SendMessage using `to: "<name>"` — **only team-member agents are reachable; an agent spawned without a team is unreachable via SendMessage and the message is lost in the inbox.**
+### Auto-routing Hint
 
-When the work is finished: send `{ type: "shutdown_request" }` to every agent, then close the team with `TeamDelete`.
-
-Do not re-spawn an idle agent — continue with `SendMessage` (if the team is still up, the message wakes the agent).
+For open-ended analysis or feature-suggestion prompts (e.g. "incele ve neler eklenebilir?"), prefer `/prp-prd` or `/feature-dev` over a freeform brainstorm — the skills produce structured, actionable output instead of an ad-hoc list.
 
 ## Services
 
