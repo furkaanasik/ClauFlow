@@ -32,6 +32,7 @@ export function useAgentSocket(url?: string) {
       setCloneProgress,
       completeClone,
       failClone,
+      setSkillProgress,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -123,6 +124,16 @@ export function useAgentSocket(url?: string) {
               } else {
                 failClone(m.targetPath, message);
               }
+              break;
+            }
+            case "skill_install_progress": {
+              const m = msg as Extract<WsEvent, { type: "skill_install_progress" }>;
+              setSkillProgress({
+                projectId: m.projectId,
+                skillSlug: m.payload.skillSlug,
+                status: m.payload.status,
+                message: m.payload.message,
+              });
               break;
             }
             case "hello":

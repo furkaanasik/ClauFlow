@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
-import { api, type ClaudeAgent } from "@/lib/api";
+import { api, type ClaudeAgent, type ClaudePlugin, type ClaudePluginScope, type InstalledSkill, type RegistrySkill } from "@/lib/api";
 import { useTranslation } from "@/hooks/useTranslation";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useBoardStore } from "@/store/boardStore";
 
 type Segment = "instructions" | "agents" | "skills" | "studio";
 
@@ -52,7 +53,10 @@ export function ClaudeConfigTab({ projectId, hasRemote }: ClaudeConfigTabProps) 
       {segment === "agents" && (
         <AgentsSegment projectId={projectId} hasRemote={hasRemote} />
       )}
-      {(segment === "skills" || segment === "studio") && (
+      {segment === "skills" && (
+        <SkillsSegment projectId={projectId} />
+      )}
+      {segment === "studio" && (
         <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
           {cc.notImplemented}
         </div>
@@ -1098,5 +1102,421 @@ function MarkdownFullscreen(p: MarkdownFullscreenProps) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+// ─── Skills Segment ───────────────────────────────────────────────────────────
+
+type SkillsTab = "installed" | "registry";
+
+const SCOPE_COLORS: Record<ClaudePluginScope, string> = {
+  local:   "bg-blue-500/15 text-blue-400",
+  project: "bg-purple-500/15 text-purple-400",
+  user:    "bg-emerald-500/15 text-emerald-400",
+};
+
+function SkillsSegment({ projectId }: { projectId: string }) {
+  const t = useTranslation();
+  const cs = t.claudeSkills;
+  const [tab, setTab] = useState<SkillsTab>("installed");
+  const [plugins, setPlugins] = useState<InstalledSkill[] | null>(null);
+  const [claudePlugins, setClaudePlugins] = useState<ClaudePlugin[]>([]);
+  const [registry, setRegistry] = useState<RegistrySkill[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+
+  const skillProgress = useBoardStore((s) => s.skillProgress);
+  const clearSkillProgress = useBoardStore((s) => s.clearSkillProgress);
+
+  const getProgress = (slug: string) => skillProgress[`${projectId}:${slug}`];
+
+  const loadInstalled = async () => {
+    setLoadError(null);
+    try {
+      const data = await api.listInstalledSkills(projectId);
+      setPlugins(data.plugins);
+      setClaudePlugins(data.claudePlugins ?? []);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : cs.loadError);
+    }
+  };
+
+  const loadRegistry = async () => {
+    if (registry !== null) return;
+    setLoadError(null);
+    try {
+      const data = await api.listSkillsRegistry(projectId);
+      setRegistry(data.skills);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : cs.loadError);
+    }
+  };
+
+  useEffect(() => {
+    void loadInstalled();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  useEffect(() => {
+    if (tab === "registry") void loadRegistry();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // Auto-refresh installed list when an install finishes via WS
+  useEffect(() => {
+    const entries = Object.entries(skillProgress).filter(
+      ([key]) => key.startsWith(`${projectId}:`),
+    );
+    const justDone = entries.some(([, v]) => v.status === "done");
+    if (justDone) void loadInstalled();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skillProgress, projectId]);
+
+  const handleInstall = async (slug: string) => {
+    setActionError(null);
+    try {
+      await api.installSkill(projectId, slug);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : cs.installError);
+    }
+  };
+
+  const handleToggleEnable = async (skill: InstalledSkill) => {
+    setActionError(null);
+    try {
+      if (skill.enabled) {
+        await api.disableSkill(projectId, skill.slug);
+      } else {
+        await api.enableSkill(projectId, skill.slug);
+      }
+      await loadInstalled();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : (skill.enabled ? cs.disableError : cs.enableError),
+      );
+    }
+  };
+
+  const handleRemove = async (slug: string) => {
+    setConfirmRemove(null);
+    setActionError(null);
+    try {
+      await api.removeSkill(projectId, slug);
+      clearSkillProgress(projectId, slug);
+      await loadInstalled();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : cs.removeError);
+    }
+  };
+
+  const installedSlugs = new Set((plugins ?? []).map((s) => s.slug));
+  const totalInstalled = (plugins?.length ?? 0) + claudePlugins.length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Tab bar */}
+      <div className="flex border border-[var(--border)]">
+        {(
+          [
+            { key: "installed" as SkillsTab, label: cs.tabInstalled },
+            { key: "registry"  as SkillsTab, label: cs.tabRegistry },
+          ] as const
+        ).map((tb) => (
+          <button
+            key={tb.key}
+            type="button"
+            onClick={() => setTab(tb.key)}
+            className={clsx(
+              "flex-1 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] transition",
+              tab === tb.key
+                ? "bg-[var(--text-primary)] text-[var(--bg-base)]"
+                : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+            )}
+          >
+            {tb.label}
+            {tb.key === "installed" && totalInstalled > 0 && (
+              <span className="ml-1.5 font-mono text-[10px] opacity-70">({totalInstalled})</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {loadError && (
+        <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-[12px] text-[var(--status-error)]">
+          {loadError}
+        </div>
+      )}
+      {actionError && (
+        <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-[12px] text-[var(--status-error)]">
+          {actionError}
+        </div>
+      )}
+
+      {/* ── Installed tab ── */}
+      {tab === "installed" && (
+        <>
+          {plugins === null ? (
+            <div className="px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">…</div>
+          ) : (
+            <div className="flex flex-col gap-4">
+
+              {/* Project plugins section */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  {cs.sectionProjectPlugins}
+                </span>
+                {plugins.length === 0 ? (
+                  <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-6 text-center text-[12px] text-[var(--text-muted)]">
+                    {cs.emptyInstalled}
+                  </div>
+                ) : (
+                  <ul className="flex flex-col border border-[var(--border)]">
+                    {plugins.map((sk) => {
+                      const prog = getProgress(sk.slug);
+                      const isWorking = prog?.status === "cloning" || prog?.status === "enabling";
+                      return (
+                        <li
+                          key={sk.slug}
+                          className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+                                {sk.slug}
+                              </span>
+                              {sk.version && (
+                                <span className="font-mono text-[10px] text-[var(--text-faint)]">
+                                  v{sk.version}
+                                </span>
+                              )}
+                            </div>
+                            {prog && (
+                              <div
+                                className={clsx(
+                                  "mt-0.5 text-[11px]",
+                                  prog.status === "error"
+                                    ? "text-[var(--status-error)]"
+                                    : "text-[var(--text-muted)]",
+                                )}
+                              >
+                                {prog.status === "cloning"
+                                  ? cs.cloning
+                                  : prog.status === "enabling"
+                                  ? cs.enabling
+                                  : prog.status === "done"
+                                  ? cs.installed
+                                  : prog.message ?? cs.error}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span
+                              className={clsx(
+                                "text-[10px] uppercase tracking-[0.08em]",
+                                sk.enabled ? "text-[var(--accent-primary)]" : "text-[var(--text-faint)]",
+                              )}
+                            >
+                              {sk.enabled ? cs.enabled : cs.disabled}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={isWorking}
+                              onClick={() => void handleToggleEnable(sk)}
+                              className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                            >
+                              {sk.enabled ? cs.disable : cs.enable}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isWorking}
+                              onClick={() => setConfirmRemove(sk.slug)}
+                              className="border border-[var(--status-error)] bg-transparent px-2 py-1 text-[11px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-40"
+                            >
+                              {cs.remove}
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              {/* Claude plugins section — hidden when empty */}
+              {claudePlugins.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                    {cs.sectionClaudePlugins}
+                  </span>
+                  <ul className="flex flex-col border border-[var(--border)]">
+                    {claudePlugins.map((cp) => {
+                      const scopeLabel =
+                        cp.scope === "local"   ? cs.scopeLocal   :
+                        cp.scope === "project" ? cs.scopeProject :
+                        cs.scopeUser;
+                      return (
+                        <li
+                          key={cp.slug}
+                          className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+                                {cp.slug}
+                              </span>
+                              {cp.marketplace && (
+                                <span className="text-[11px] text-[var(--text-muted)]">
+                                  {cp.marketplace}
+                                </span>
+                              )}
+                              {cp.version && (
+                                <span className="font-mono text-[10px] text-[var(--text-faint)]">
+                                  v{cp.version}
+                                </span>
+                              )}
+                              {/* Scope badge */}
+                              <span
+                                className={clsx(
+                                  "rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]",
+                                  SCOPE_COLORS[cp.scope],
+                                )}
+                              >
+                                {scopeLabel}
+                              </span>
+                            </div>
+                            {cp.projectPath && (
+                              <div className="mt-0.5 truncate font-mono text-[10px] text-[var(--text-faint)]">
+                                {cp.projectPath}
+                              </div>
+                            )}
+                            <div
+                              className="mt-0.5 text-[10px] italic text-[var(--text-faint)]"
+                              title={cp.installPath}
+                            >
+                              {cs.managedByClaude}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Registry tab ── */}
+      {tab === "registry" && (
+        <>
+          {registry === null ? (
+            <div className="px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">…</div>
+          ) : registry.length === 0 ? (
+            <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
+              {cs.emptyRegistry}
+            </div>
+          ) : (
+            <ul className="flex flex-col border border-[var(--border)]">
+              {registry.map((sk) => {
+                const alreadyInstalled = installedSlugs.has(sk.slug);
+                const prog = getProgress(sk.slug);
+                const isWorking = prog?.status === "cloning" || prog?.status === "enabling";
+                const externalUrl = sk.homepage ?? sk.repoUrl;
+                return (
+                  <li
+                    key={sk.slug}
+                    className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+                          {sk.name}
+                        </span>
+                        <span className="font-mono text-[10px] text-[var(--text-faint)]">
+                          {sk.slug}
+                        </span>
+                        <span className="font-mono text-[10px] text-[var(--text-faint)]">
+                          v{sk.version}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
+                        {sk.description}
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-[var(--text-faint)]">
+                        {cs.author}: {sk.author}
+                      </div>
+                      {prog && (
+                        <div
+                          className={clsx(
+                            "mt-0.5 text-[11px]",
+                            prog.status === "error"
+                              ? "text-[var(--status-error)]"
+                              : "text-[var(--text-muted)]",
+                          )}
+                        >
+                          {prog.status === "cloning"
+                            ? cs.cloning
+                            : prog.status === "enabling"
+                            ? cs.enabling
+                            : prog.status === "done"
+                            ? cs.installed
+                            : prog.message ?? cs.error}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2 self-center">
+                      {/* External link button */}
+                      <a
+                        href={externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={cs.viewSkill}
+                        className="flex items-center border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--text-muted)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7" />
+                          <path d="M8 1h3v3" />
+                          <path d="M11 1L5.5 6.5" />
+                        </svg>
+                      </a>
+                      {/* Install / installed */}
+                      {alreadyInstalled ? (
+                        <span className="text-[11px] text-[var(--accent-primary)]">
+                          ✓ {cs.installed}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isWorking}
+                          onClick={() => void handleInstall(sk.slug)}
+                          className="btn-ink px-3 py-1.5 text-[11px] disabled:opacity-50"
+                        >
+                          {isWorking ? cs.installing : cs.install}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      )}
+
+      <ConfirmDialog
+        open={confirmRemove !== null}
+        title={cs.confirmRemoveTitle}
+        description={cs.confirmRemoveDescription}
+        confirmLabel={cs.remove}
+        cancelLabel={cs.cancel}
+        variant="danger"
+        onConfirm={() => {
+          if (confirmRemove) void handleRemove(confirmRemove);
+        }}
+        onCancel={() => setConfirmRemove(null)}
+      />
+    </div>
   );
 }

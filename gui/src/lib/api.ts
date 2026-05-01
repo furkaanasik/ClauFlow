@@ -223,7 +223,89 @@ export const api = {
       .then((r) =>
         handle<{ deleted: true; slug: string; committed: boolean; commitSha: string | null; commitWarning: string | null }>(r),
       ),
+
+  listSkillsRegistry: (id: string): Promise<{ skills: RegistrySkill[] }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/registry`, { cache: "no-store" })
+      .then((r) => handle<{ skills: RegistrySkill[] }>(r)),
+
+  listInstalledSkills: (id: string): Promise<InstalledSkillsResponse> =>
+    fetch(`${BASE}/projects/${id}/claude/skills`, { cache: "no-store" })
+      .then((r) => handle<InstalledSkillsResponse>(r)),
+
+  installSkill: (id: string, slug: string): Promise<{ queued: true; slug: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(slug)}/install`, {
+      method: "POST",
+    }).then((r) => handle<{ queued: true; slug: string }>(r)),
+
+  enableSkill: (id: string, slug: string): Promise<{ slug: string; enabled: true }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(slug)}/enable`, {
+      method: "POST",
+    }).then((r) => handle<{ slug: string; enabled: true }>(r)),
+
+  disableSkill: (id: string, slug: string): Promise<{ slug: string; enabled: false }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(slug)}/disable`, {
+      method: "POST",
+    }).then((r) => handle<{ slug: string; enabled: false }>(r)),
+
+  removeSkill: (id: string, slug: string): Promise<{ removed: true; slug: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(slug)}`, {
+      method: "DELETE",
+    }).then((r) => handle<{ removed: true; slug: string }>(r)),
 };
+
+export interface RegistrySkill {
+  slug: string;
+  name: string;
+  description: string;
+  author: string;
+  version: string;
+  repoUrl: string;
+  homepage?: string;
+  tags?: string[];
+}
+
+/** Managed project plugin — installed via ClauFlow, enable/disable/remove actions available */
+export interface InstalledSkill {
+  slug: string;
+  enabled: boolean;
+  source: "project";
+  repoUrl: string;
+  version: string | null;
+  path: string;
+  directoryExists: boolean;
+  managed: true;
+}
+
+export type ClaudePluginScope = "local" | "project" | "user";
+
+/** Read-only Claude-managed plugin — discovered from ~/.claude or project .claude dirs */
+export interface ClaudePlugin {
+  slug: string;
+  marketplace: string | null;
+  scope: ClaudePluginScope;
+  projectPath: string | null;
+  version: string | null;
+  gitCommitSha: string | null;
+  installPath: string;
+  source: "claude";
+  managed: false;
+}
+
+export type InstalledSkillsResponse = {
+  exists: boolean;
+  dir: string;
+  plugins: InstalledSkill[];
+  claudePlugins: ClaudePlugin[];
+};
+
+export type SkillInstallStatus = "cloning" | "enabling" | "done" | "error";
+
+export interface SkillInstallProgress {
+  skillSlug: string;
+  projectId: string;
+  status: SkillInstallStatus;
+  message?: string;
+}
 
 export interface ClaudeAgent {
   slug: string;
