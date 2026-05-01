@@ -285,6 +285,7 @@ export interface Translations {
     marketplaceRemoveError: string;
     confirmRemoveMarketplaceTitle: string;
     confirmRemoveMarketplaceDescription: string;
+    searchRegistryPlaceholder: string;
   };
   claudeAgents: {
     listTitle: string;

@@ -111,6 +111,7 @@ export const tr: Translations = {
     marketplaceRemoveError: "Marketplace kaldırılamadı",
     confirmRemoveMarketplaceTitle: "Marketplace kaldırılsın mı?",
     confirmRemoveMarketplaceDescription: "Bu marketplace kaynağı kaldırılacak. İçindeki plugin'ler kurulu kalmaya devam eder ama registry'de görünmez.",
+    searchRegistryPlaceholder: "Skill ara…",
   },
   claudeAgents: {
     listTitle: "Agent'lar",

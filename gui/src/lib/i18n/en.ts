@@ -111,6 +111,7 @@ export const en: Translations = {
     marketplaceRemoveError: "Failed to remove marketplace",
     confirmRemoveMarketplaceTitle: "Remove this marketplace?",
     confirmRemoveMarketplaceDescription: "The marketplace source will be removed. Plugins from it will remain installed but won't appear in the registry.",
+    searchRegistryPlaceholder: "Search skills…",
   },
   claudeAgents: {
     listTitle: "Agents",

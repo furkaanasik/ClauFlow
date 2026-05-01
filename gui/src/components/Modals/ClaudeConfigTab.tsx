@@ -1110,6 +1110,21 @@ function MarkdownFullscreen(p: MarkdownFullscreenProps) {
 type SkillsTab = "installed" | "registry" | "marketplaces";
 type PluginScope = "local" | "project" | "user";
 
+function SkillSpinner() {
+  return (
+    <svg
+      className="h-4 w-4 animate-spin text-[var(--text-muted)]"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
 const SCOPE_COLORS: Record<PluginScope, string> = {
   local:   "bg-blue-500/15 text-blue-400",
   project: "bg-purple-500/15 text-purple-400",
@@ -1137,6 +1152,8 @@ function SkillsSegment({ projectId }: { projectId: string }) {
   // Marketplace add form
   const [mpSource, setMpSource] = useState("");
   const [mpAdding, setMpAdding] = useState(false);
+  // Registry search
+  const [registrySearch, setRegistrySearch] = useState("");
 
   const skillProgress = useBoardStore((s) => s.skillProgress);
   const clearSkillProgress = useBoardStore((s) => s.clearSkillProgress);
@@ -1261,6 +1278,16 @@ function SkillsSegment({ projectId }: { projectId: string }) {
 
   const installedIds = new Set((installed ?? []).map((p) => p.id));
 
+  const filteredRegistry = (registry ?? []).filter((sk) => {
+    const q = registrySearch.toLowerCase();
+    return (
+      !q ||
+      sk.name.toLowerCase().includes(q) ||
+      sk.description?.toLowerCase().includes(q) ||
+      sk.marketplaceName?.toLowerCase().includes(q)
+    );
+  });
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -1308,7 +1335,7 @@ function SkillsSegment({ projectId }: { projectId: string }) {
       {tab === "installed" && (
         <>
           {installed === null ? (
-            <div className="px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">…</div>
+            <div className="flex justify-center py-6"><SkillSpinner /></div>
           ) : installed.length === 0 ? (
             <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
               {cs.emptyInstalled}
@@ -1401,15 +1428,23 @@ function SkillsSegment({ projectId }: { projectId: string }) {
       {/* ── Registry tab ── */}
       {tab === "registry" && (
         <>
+          {/* Search */}
+          <input
+            value={registrySearch}
+            onChange={(e) => setRegistrySearch(e.target.value)}
+            placeholder={cs.searchRegistryPlaceholder}
+            spellCheck={false}
+            className="w-full border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)] placeholder:text-[var(--text-faint)]"
+          />
           {registry === null ? (
-            <div className="px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">…</div>
-          ) : registry.length === 0 ? (
+            <div className="flex justify-center py-6"><SkillSpinner /></div>
+          ) : filteredRegistry.length === 0 ? (
             <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
               {cs.emptyRegistry}
             </div>
           ) : (
             <ul className="flex flex-col border border-[var(--border)]">
-              {registry.map((avail) => {
+              {filteredRegistry.map((avail) => {
                 const alreadyInstalled = installedIds.has(avail.pluginId);
                 const prog = getProgress(avail.pluginId);
                 const isWorking = prog?.status === "running";
@@ -1543,7 +1578,7 @@ function SkillsSegment({ projectId }: { projectId: string }) {
 
           {/* List */}
           {marketplaces === null ? (
-            <div className="px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">…</div>
+            <div className="flex justify-center py-6"><SkillSpinner /></div>
           ) : marketplaces.length === 0 ? (
             <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
               {cs.noMarketplaces}
