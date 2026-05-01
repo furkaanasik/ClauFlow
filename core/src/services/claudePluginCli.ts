@@ -90,22 +90,28 @@ export async function installPlugin(
 export async function uninstallPlugin(
   repoPath: string,
   pluginId: string,
+  scope: "user" | "project" | "local",
 ): Promise<void> {
-  await runOrThrow(["plugin", "uninstall", pluginId], repoPath);
+  await runOrThrow(
+    ["plugin", "uninstall", pluginId, "--scope", scope, "-y"],
+    repoPath,
+  );
 }
 
 export async function enablePlugin(
   repoPath: string,
   pluginId: string,
+  scope: "user" | "project" | "local",
 ): Promise<void> {
-  await runOrThrow(["plugin", "enable", pluginId], repoPath);
+  await runOrThrow(["plugin", "enable", pluginId, "--scope", scope], repoPath);
 }
 
 export async function disablePlugin(
   repoPath: string,
   pluginId: string,
+  scope: "user" | "project" | "local",
 ): Promise<void> {
-  await runOrThrow(["plugin", "disable", pluginId], repoPath);
+  await runOrThrow(["plugin", "disable", pluginId, "--scope", scope], repoPath);
 }
 
 export async function listMarketplaces(repoPath: string): Promise<ClaudeMarketplace[]> {

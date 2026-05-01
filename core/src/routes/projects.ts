@@ -912,6 +912,15 @@ router.post(
   },
 );
 
+async function findInstalledScope(
+  repoPath: string,
+  pluginId: string,
+): Promise<"user" | "project" | "local" | null> {
+  const installed = await cliListInstalled(repoPath);
+  const entry = installed.find((p) => p.id === pluginId);
+  return entry ? entry.scope : null;
+}
+
 router.delete(
   "/:id/claude/skills/:pluginId",
   async (req: Request, res: Response) => {
@@ -920,8 +929,10 @@ router.delete(
     try {
       const project = await getProject(req.params.id!);
       if (!project) return res.status(404).json({ error: "not_found" });
-      await cliUninstallPlugin(project.repoPath, idParse.data);
-      res.json({ deleted: true, pluginId: idParse.data });
+      const scope = await findInstalledScope(project.repoPath, idParse.data);
+      if (!scope) return res.status(404).json({ error: "plugin_not_installed" });
+      await cliUninstallPlugin(project.repoPath, idParse.data, scope);
+      res.json({ deleted: true, pluginId: idParse.data, scope });
     } catch (err) {
       console.error("[skills.uninstall]", err);
       res.status(500).json({ error: "uninstall_failed" });
@@ -937,8 +948,10 @@ router.post(
     try {
       const project = await getProject(req.params.id!);
       if (!project) return res.status(404).json({ error: "not_found" });
-      await cliEnablePlugin(project.repoPath, idParse.data);
-      res.json({ enabled: true, pluginId: idParse.data });
+      const scope = await findInstalledScope(project.repoPath, idParse.data);
+      if (!scope) return res.status(404).json({ error: "plugin_not_installed" });
+      await cliEnablePlugin(project.repoPath, idParse.data, scope);
+      res.json({ enabled: true, pluginId: idParse.data, scope });
     } catch (err) {
       console.error("[skills.enable]", err);
       res.status(500).json({ error: "enable_failed" });
@@ -954,8 +967,10 @@ router.post(
     try {
       const project = await getProject(req.params.id!);
       if (!project) return res.status(404).json({ error: "not_found" });
-      await cliDisablePlugin(project.repoPath, idParse.data);
-      res.json({ enabled: false, pluginId: idParse.data });
+      const scope = await findInstalledScope(project.repoPath, idParse.data);
+      if (!scope) return res.status(404).json({ error: "plugin_not_installed" });
+      await cliDisablePlugin(project.repoPath, idParse.data, scope);
+      res.json({ enabled: false, pluginId: idParse.data, scope });
     } catch (err) {
       console.error("[skills.disable]", err);
       res.status(500).json({ error: "disable_failed" });
