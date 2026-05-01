@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useBoardStore } from "@/store/boardStore";
 import { useGithubAuth } from "@/hooks/useGithubAuth";
 import { GithubConnectModal } from "@/components/Auth/GithubConnectModal";
+import { PrereqIndicator } from "@/components/Layout/PrereqIndicator";
 import { useTranslation } from "@/hooks/useTranslation";
 
 export function Header() {
@@ -107,6 +108,8 @@ export function Header() {
               {wsConnected ? "Live" : "Offline"}
             </span>
           </span>
+
+          <PrereqIndicator />
 
           {selectedProjectId && (
             <Link

@@ -460,3 +460,31 @@ html.light .analysis-block {
 
 /* ensure body content sits above grain overlay */
 #__next, body > * { position: relative; z-index: 2; }
+
+/* ─── Markdown preview (CLAUDE.md) ────────────────────────────────────────── */
+.prose-claude {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.65;
+  max-width: 70ch;
+}
+.prose-claude h1 { font-size: 1.6rem; font-weight: 700; margin: 1.4rem 0 0.8rem; color: var(--text-primary); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+.prose-claude h2 { font-size: 1.3rem; font-weight: 700; margin: 1.3rem 0 0.6rem; color: var(--text-primary); }
+.prose-claude h3 { font-size: 1.1rem; font-weight: 600; margin: 1.1rem 0 0.5rem; color: var(--text-primary); }
+.prose-claude h4 { font-size: 1rem;   font-weight: 600; margin: 1rem 0 0.4rem; color: var(--text-secondary); }
+.prose-claude p { margin: 0.6rem 0; }
+.prose-claude ul, .prose-claude ol { margin: 0.6rem 0; padding-left: 1.6rem; }
+.prose-claude li { margin: 0.2rem 0; }
+.prose-claude ul { list-style: disc; }
+.prose-claude ol { list-style: decimal; }
+.prose-claude a { color: var(--accent-primary); text-decoration: underline; }
+.prose-claude code { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.88em; background: var(--bg-surface); border: 1px solid var(--border); padding: 0.05em 0.35em; }
+.prose-claude pre { background: var(--bg-surface); border: 1px solid var(--border); padding: 0.85rem 1rem; overflow-x: auto; margin: 0.8rem 0; }
+.prose-claude pre code { background: transparent; border: 0; padding: 0; font-size: 0.85em; }
+.prose-claude blockquote { border-left: 3px solid var(--accent-primary); padding: 0.2rem 0.9rem; color: var(--text-secondary); margin: 0.8rem 0; background: var(--bg-surface); }
+.prose-claude hr { border: 0; border-top: 1px solid var(--border); margin: 1.4rem 0; }
+.prose-claude table { width: 100%; border-collapse: collapse; margin: 0.8rem 0; font-size: 0.9em; }
+.prose-claude th, .prose-claude td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; }
+.prose-claude th { background: var(--bg-surface); font-weight: 600; }
+.prose-claude strong { color: var(--text-primary); font-weight: 600; }
+.prose-claude em { font-style: italic; }

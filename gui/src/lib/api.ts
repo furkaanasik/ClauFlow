@@ -143,7 +143,56 @@ export const api = {
     fetch(`${BASE}/projects/${id}/github`, { method: "DELETE" })
       .then((r) => handle<{ project: Project }>(r))
       .then((d) => d.project),
+
+  getClaudeInstructions: (id: string): Promise<{ exists: boolean; content: string; path: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/instructions`, { cache: "no-store" })
+      .then((r) => handle<{ exists: boolean; content: string; path: string }>(r)),
+
+  putClaudeInstructions: (
+    id: string,
+    content: string,
+  ): Promise<ClaudeInstructionsSaveResult> =>
+    fetch(`${BASE}/projects/${id}/claude/instructions`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    }).then((r) => handle<ClaudeInstructionsSaveResult>(r)),
+
+  pushClaudeInstructions: async (
+    id: string,
+  ): Promise<{ pushed: true; branch: string }> => {
+    const res = await fetch(`${BASE}/projects/${id}/claude/instructions/push`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: res.statusText }));
+      const detail = data.detail ? ` — ${data.detail}` : "";
+      throw new Error(`${data.error ?? "push_failed"}${detail}`);
+    }
+    return res.json();
+  },
+
+  getPrereqs: (): Promise<{ allOk: boolean; items: PrereqItem[] }> =>
+    fetch(`${BASE}/system/prereqs`, { cache: "no-store" })
+      .then((r) => handle<{ allOk: boolean; items: PrereqItem[] }>(r)),
 };
+
+export interface ClaudeInstructionsSaveResult {
+  exists: boolean;
+  content: string;
+  path: string;
+  committed: boolean;
+  commitSha: string | null;
+  commitWarning: string | null;
+}
+
+export interface PrereqItem {
+  name: string;
+  found: boolean;
+  version: string | null;
+  installCmd: string;
+  docsUrl: string;
+}
 
 export interface PRListItem {
   number: number;
