@@ -283,6 +283,8 @@ export interface Translations {
     marketplaceLoadError: string;
     marketplaceAddError: string;
     marketplaceRemoveError: string;
+    confirmRemoveMarketplaceTitle: string;
+    confirmRemoveMarketplaceDescription: string;
   };
   claudeAgents: {
     listTitle: string;

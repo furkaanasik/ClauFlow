@@ -264,7 +264,7 @@ export const api = {
 
   addMarketplace: (
     id: string,
-    source: ClaudeMarketplaceSource,
+    source: string,
   ): Promise<{ ok: true; marketplace: ClaudeMarketplace }> =>
     fetch(`${BASE}/projects/${id}/claude/marketplaces`, {
       method: "POST",
@@ -309,16 +309,9 @@ export interface InstalledPlugin {
   projectPath?: string;
 }
 
-export interface ClaudeMarketplaceSource {
-  source: string;
-  repo?: string;
-  url?: string;
-  path?: string;
-}
-
 export interface ClaudeMarketplace {
   name: string;
-  source: ClaudeMarketplaceSource;
+  source: { source: string; repo?: string; url?: string; path?: string };
 }
 
 export type SkillInstallStatus = "running" | "done" | "error";

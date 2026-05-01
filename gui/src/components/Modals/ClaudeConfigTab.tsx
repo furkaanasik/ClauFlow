@@ -1133,6 +1133,7 @@ function SkillsSegment({ projectId }: { projectId: string }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmUninstall, setConfirmUninstall] = useState<string | null>(null); // pluginId
+  const [confirmRemoveMarketplace, setConfirmRemoveMarketplace] = useState<string | null>(null); // mp name
   // Marketplace add form
   const [mpSource, setMpSource] = useState("");
   const [mpAdding, setMpAdding] = useState(false);
@@ -1230,21 +1231,12 @@ function SkillsSegment({ projectId }: { projectId: string }) {
   };
 
   const handleAddMarketplace = async () => {
-    if (!mpSource.trim()) return;
+    const raw = mpSource.trim();
+    if (!raw) return;
     setMpAdding(true);
     setActionError(null);
     try {
-      // Determine source shape: GitHub shorthand "owner/repo", URL "https://...", or path
-      const raw = mpSource.trim();
-      let sourceObj: ClaudeMarketplace["source"];
-      if (raw.startsWith("http://") || raw.startsWith("https://")) {
-        sourceObj = { source: "url", url: raw };
-      } else if (/^[\w.-]+\/[\w.-]/.test(raw)) {
-        sourceObj = { source: "github", repo: raw };
-      } else {
-        sourceObj = { source: "path", path: raw };
-      }
-      await api.addMarketplace(projectId, sourceObj);
+      await api.addMarketplace(projectId, raw);
       setMpSource("");
       await loadMarketplaces();
       // Refresh registry with the new marketplace source
@@ -1575,7 +1567,7 @@ function SkillsSegment({ projectId }: { projectId: string }) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => void handleRemoveMarketplace(mp.name)}
+                      onClick={() => setConfirmRemoveMarketplace(mp.name)}
                       className="shrink-0 border border-[var(--status-error)] bg-transparent px-2 py-1 text-[11px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)]"
                     >
                       {cs.removeMarketplace}
@@ -1599,6 +1591,19 @@ function SkillsSegment({ projectId }: { projectId: string }) {
           if (confirmUninstall) void handleUninstall(confirmUninstall);
         }}
         onCancel={() => setConfirmUninstall(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmRemoveMarketplace !== null}
+        title={cs.confirmRemoveMarketplaceTitle}
+        description={cs.confirmRemoveMarketplaceDescription}
+        confirmLabel={cs.removeMarketplace}
+        cancelLabel={cs.cancel}
+        variant="danger"
+        onConfirm={() => {
+          if (confirmRemoveMarketplace) void handleRemoveMarketplace(confirmRemoveMarketplace);
+        }}
+        onCancel={() => setConfirmRemoveMarketplace(null)}
       />
     </div>
   );

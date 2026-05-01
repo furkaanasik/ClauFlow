@@ -109,6 +109,8 @@ export const en: Translations = {
     marketplaceLoadError: "Failed to load marketplaces",
     marketplaceAddError: "Failed to add marketplace",
     marketplaceRemoveError: "Failed to remove marketplace",
+    confirmRemoveMarketplaceTitle: "Remove this marketplace?",
+    confirmRemoveMarketplaceDescription: "The marketplace source will be removed. Plugins from it will remain installed but won't appear in the registry.",
   },
   claudeAgents: {
     listTitle: "Agents",
