@@ -50,6 +50,7 @@ export function SkillsManagerModal({ projectId, open, onClose }: SkillsManagerMo
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmUninstall, setConfirmUninstall] = useState<string | null>(null);
+  const [uninstallingId, setUninstallingId] = useState<string | null>(null);
   const [confirmRemoveMarketplace, setConfirmRemoveMarketplace] = useState<string | null>(null);
   const [mpSource, setMpSource] = useState("");
   const [mpAdding, setMpAdding] = useState(false);
@@ -147,12 +148,15 @@ export function SkillsManagerModal({ projectId, open, onClose }: SkillsManagerMo
   const handleUninstall = async (pluginId: string) => {
     setConfirmUninstall(null);
     setActionError(null);
+    setUninstallingId(pluginId);
     try {
       await api.uninstallSkill(projectId, pluginId);
       clearSkillProgress(projectId, pluginId);
       await loadInstalled();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : cs.uninstallError);
+    } finally {
+      setUninstallingId(null);
     }
   };
 
@@ -340,11 +344,17 @@ export function SkillsManagerModal({ projectId, open, onClose }: SkillsManagerMo
                           </button>
                           <button
                             type="button"
-                            disabled={isWorking}
+                            disabled={isWorking || uninstallingId === plugin.id}
                             onClick={() => setConfirmUninstall(plugin.id)}
-                            className="border border-[var(--status-error)] bg-transparent px-2 py-1 text-[11px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-40"
+                            className="inline-flex items-center gap-1.5 border border-[var(--status-error)] bg-transparent px-2 py-1 text-[11px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-60"
                           >
-                            {cs.uninstall}
+                            {uninstallingId === plugin.id && (
+                              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                            )}
+                            {uninstallingId === plugin.id ? cs.uninstalling : cs.uninstall}
                           </button>
                         </div>
                       </li>

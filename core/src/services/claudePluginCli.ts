@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { rm } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type {
   AvailablePlugin,
   ClaudeMarketplace,
@@ -93,10 +96,34 @@ export async function uninstallPlugin(
   pluginId: string,
   scope: "user" | "project" | "local",
 ): Promise<void> {
-  await runOrThrow(
-    ["plugin", "uninstall", pluginId, "--scope", scope, "-y"],
-    repoPath,
+  const scopes: Array<"user" | "project" | "local"> = Array.from(
+    new Set([scope, "local", "project", "user"]),
   );
+  let lastErr: unknown;
+  let succeeded = false;
+  for (const s of scopes) {
+    try {
+      await runOrThrow(["plugin", "uninstall", pluginId, "--scope", s, "-y"], repoPath);
+      succeeded = true;
+      break;
+    } catch (err) {
+      lastErr = err;
+      const msg = errorMessage(err).toLowerCase();
+      if (!msg.includes("not found")) throw err;
+    }
+  }
+  await cleanupOrphanCache(pluginId);
+  if (!succeeded) throw lastErr ?? new Error(`plugin ${pluginId} not found in any scope`);
+}
+
+export async function cleanupOrphanCache(pluginId: string): Promise<void> {
+  if (!/^[A-Za-z0-9_.-]+$/.test(pluginId)) return;
+  const cacheDir = join(homedir(), ".claude", "plugins", "cache", pluginId);
+  try {
+    await rm(cacheDir, { recursive: true, force: true });
+  } catch (err) {
+    console.error("[claudePluginCli] cache cleanup failed", pluginId, errorMessage(err));
+  }
 }
 
 export async function enablePlugin(
