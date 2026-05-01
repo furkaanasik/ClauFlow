@@ -34,6 +34,14 @@ import {
 } from "../services/gitService.js";
 import { runProjectPlanner } from "../agents/projectPlanner.js";
 import { runCloneRepo } from "../agents/cloneRunner.js";
+import { getRegistry, getSkillBySlug } from "../services/pluginRegistry.js";
+import { installPlugin } from "../services/pluginInstaller.js";
+import {
+  listInstalledPlugins,
+  setPluginEnabled,
+  uninstallPlugin,
+} from "../services/pluginManager.js";
+import { broadcastSkillInstallProgress } from "../services/wsService.js";
 
 const router = Router();
 
@@ -506,7 +514,10 @@ function isMinimalBootstrappedSettings(file: string): boolean {
     const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
     const keys = Object.keys(parsed);
-    if (!keys.every((k) => k === "env" || k === "permissions")) return false;
+    if (!keys.every((k) => k === "env" || k === "permissions" || k === "plugins")) {
+      return false;
+    }
+    if (Array.isArray(parsed.plugins) && parsed.plugins.length > 0) return false;
 
     const env = parsed.env ?? {};
     const envKeys = Object.keys(env);
@@ -817,6 +828,131 @@ router.delete("/:id/claude/agents/:slug", async (req: Request, res: Response) =>
     res.status(500).json({ error: (err as Error).message });
   }
 });
+
+const skillSlugSchema = z
+  .string()
+  .min(1)
+  .max(80)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message: "slug only lowercase letters, digits and single hyphens",
+  });
+
+router.get("/:id/claude/skills/registry", async (req: Request, res: Response) => {
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    res.json({ skills: getRegistry() });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/:id/claude/skills", async (req: Request, res: Response) => {
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+
+    const dir = path.join(project.repoPath, ".claude", "plugins");
+    const plugins = fs.existsSync(project.repoPath)
+      ? listInstalledPlugins(project.repoPath)
+      : [];
+    res.json({ exists: fs.existsSync(dir), dir, plugins });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post(
+  "/:id/claude/skills/:slug/install",
+  async (req: Request, res: Response) => {
+    const slugParse = skillSlugSchema.safeParse(req.params.slug);
+    if (!slugParse.success) return res.status(400).json({ error: "invalid_slug" });
+    try {
+      const project = await getProject(req.params.id!);
+      if (!project) return res.status(404).json({ error: "not_found" });
+
+      const skill = getSkillBySlug(slugParse.data);
+      if (!skill) return res.status(404).json({ error: "skill_not_in_registry" });
+
+      if (!fs.existsSync(project.repoPath)) {
+        return res.status(400).json({ error: "repo_path_missing" });
+      }
+
+      ensureClaudeSettings(project.repoPath);
+
+      const result = await installPlugin(project.repoPath, skill, (event) => {
+        broadcastSkillInstallProgress(
+          project.id,
+          skill.slug,
+          event.status,
+          event.message,
+        );
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error ?? "install_failed" });
+      }
+      res.status(201).json({ plugin: result.plugin });
+    } catch (err) {
+      const message = (err as Error).message;
+      broadcastSkillInstallProgress(req.params.id!, req.params.slug!, "error", message);
+      res.status(500).json({ error: message });
+    }
+  },
+);
+
+router.post(
+  "/:id/claude/skills/:slug/enable",
+  async (req: Request, res: Response) => {
+    const slugParse = skillSlugSchema.safeParse(req.params.slug);
+    if (!slugParse.success) return res.status(400).json({ error: "invalid_slug" });
+    try {
+      const project = await getProject(req.params.id!);
+      if (!project) return res.status(404).json({ error: "not_found" });
+      const updated = setPluginEnabled(project.repoPath, slugParse.data, true);
+      if (!updated) return res.status(404).json({ error: "plugin_not_installed" });
+      res.json({ plugin: updated });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  },
+);
+
+router.post(
+  "/:id/claude/skills/:slug/disable",
+  async (req: Request, res: Response) => {
+    const slugParse = skillSlugSchema.safeParse(req.params.slug);
+    if (!slugParse.success) return res.status(400).json({ error: "invalid_slug" });
+    try {
+      const project = await getProject(req.params.id!);
+      if (!project) return res.status(404).json({ error: "not_found" });
+      const updated = setPluginEnabled(project.repoPath, slugParse.data, false);
+      if (!updated) return res.status(404).json({ error: "plugin_not_installed" });
+      res.json({ plugin: updated });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  },
+);
+
+router.delete(
+  "/:id/claude/skills/:slug",
+  async (req: Request, res: Response) => {
+    const slugParse = skillSlugSchema.safeParse(req.params.slug);
+    if (!slugParse.success) return res.status(400).json({ error: "invalid_slug" });
+    try {
+      const project = await getProject(req.params.id!);
+      if (!project) return res.status(404).json({ error: "not_found" });
+      const result = uninstallPlugin(project.repoPath, slugParse.data);
+      if (!result.removedDir && !result.removedFromSettings) {
+        return res.status(404).json({ error: "plugin_not_installed" });
+      }
+      res.json({ deleted: true, slug: slugParse.data, ...result });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  },
+);
 
 router.delete("/:id/github", async (req: Request, res: Response) => {
   try {

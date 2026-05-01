@@ -124,6 +124,15 @@ export type WsMessage =
     }
   | { type: "project_planning_error"; projectId: string; error: string }
   | {
+      type: "skill_install_progress";
+      projectId: string;
+      payload: {
+        skillSlug: string;
+        status: "cloning" | "enabling" | "done" | "error";
+        message: string;
+      };
+    }
+  | {
       type: "clone_progress";
       targetPath: string;
       payload: {
