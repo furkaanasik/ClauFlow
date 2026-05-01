@@ -97,6 +97,10 @@ Two options are supported, with soft as the default:
 - User-level (`~/.claude`) skill/agent management
 - Adding custom marketplaces (default: verified sources only)
 
+### ⚠️ Phase 1D follow-up — real Claude plugin integration
+
+Phase 1D's first cut clones into `<repoPath>/.claude/plugins/<slug>` and toggles a `plugins[]` array in `<repoPath>/.claude/settings.json`. Claude Code's actual plugin system stores cache at `~/.claude/plugins/cache/<marketplace>/<slug>/<version>` and tracks state in `~/.claude/plugins/installed_plugins.json` — so the install flow we shipped does **not** make a skill discoverable by `claude /skills` in practice. The Installed view was patched to also read `~/.claude/plugins/installed_plugins.json` (read-only, with scope badges) so users can at least see what's really there. Pivot work needed: replace the manual `git clone` with a real plugin-install mechanism (CLI passthrough or direct manipulation of `installed_plugins.json` + marketplace cache), and rethink the project-local `plugins[]` array entirely.
+
 ---
 
 ## Completed
