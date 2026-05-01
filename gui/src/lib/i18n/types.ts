@@ -237,6 +237,18 @@ export interface Translations {
     viewEdit: string;
     viewPreview: string;
     previewEmpty: string;
+    studioPromptLabel: string;
+    studioPromptPlaceholder: string;
+    studioGenerate: string;
+    studioGenerating: string;
+    studioSkillsLabel: string;
+    studioPreviewLabel: string;
+    studioPreviewEmpty: string;
+    studioSave: string;
+    studioSaving: string;
+    studioSaved: string;
+    studioSaveError: string;
+    studioGenerateError: string;
   };
   claudeSkills: {
     listTitle: string;

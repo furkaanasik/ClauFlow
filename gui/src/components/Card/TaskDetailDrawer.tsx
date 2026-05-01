@@ -210,26 +210,21 @@ export function TaskDetailDrawer() {
     };
   }, [task?.usage]);
 
+  if (!open) return null;
+
   return (
     <>
       <div
-        className={clsx(
-          "fixed inset-0 z-40 bg-black/65 backdrop-blur-sm transition-opacity duration-200",
-          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
-        )}
+        className="fixed inset-0 z-40 bg-black/65 backdrop-blur-sm"
         onClick={close}
         aria-hidden="true"
       />
-
-      <aside
-        className={clsx(
-          "fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-[var(--border)] bg-[var(--bg-base)] shadow-2xl",
-          "transform transition-transform duration-300 ease-out",
-          open ? "translate-x-0" : "translate-x-full",
-        )}
-        role="dialog"
-        aria-modal="true"
-      >
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <aside
+          className="relative flex h-[88vh] w-full max-w-[72rem] flex-col overflow-hidden border border-[var(--border)] bg-[var(--bg-base)] shadow-2xl"
+          role="dialog"
+          aria-modal="true"
+        >
         {task ? (
           <>
             {/* Header */}
@@ -657,6 +652,7 @@ export function TaskDetailDrawer() {
           </>
         ) : null}
       </aside>
+      </div>
 
       <ConfirmDialog
         open={confirmDelete}

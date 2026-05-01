@@ -137,6 +137,24 @@ export interface CloneProgress {
   project?: Project;
 }
 
+export interface AgentGraphNode {
+  id: string;
+  type: "agent";
+  position: { x: number; y: number };
+  data: { slug: string };
+}
+
+export interface AgentGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+}
+
+export interface AgentGraph {
+  nodes: AgentGraphNode[];
+  edges: AgentGraphEdge[];
+}
+
 export type WsEvent =
   | { type: "agent_log"; taskId: string; payload: { line: string } }
   | {
@@ -166,5 +184,14 @@ export type WsEvent =
         pluginId: string;
         status: "running" | "done" | "error";
         message?: string;
+      };
+    }
+  | {
+      type: "studio_generation";
+      payload: {
+        generationId: string;
+        status: "running" | "done" | "error";
+        chunk?: string;
+        error?: string;
       };
     };
