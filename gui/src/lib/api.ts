@@ -1,4 +1,4 @@
-import type { AgentText, Comment, GithubRepo, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
+import type { AgentGraph, AgentText, Comment, GithubRepo, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -276,6 +276,32 @@ export const api = {
     fetch(`${BASE}/projects/${id}/claude/marketplaces/${encodeURIComponent(name)}`, {
       method: "DELETE",
     }).then((r) => handle<{ ok: true; name: string }>(r)),
+
+  postStudioGenerate: (
+    id: string,
+    body: { prompt: string; skills?: string[] },
+  ): Promise<{ generationId: string; markdown: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/agents/studio/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => handle<{ generationId: string; markdown: string }>(r)),
+
+  getProjectSkills: (id: string): Promise<InstalledPlugin[]> =>
+    fetch(`${BASE}/projects/${id}/claude/skills`, { cache: "no-store" })
+      .then((r) => handle<{ installed: InstalledPlugin[] }>(r))
+      .then((d) => d.installed ?? []),
+
+  getProjectGraph: (id: string): Promise<AgentGraph> =>
+    fetch(`${BASE}/projects/${id}/claude/graph`, { cache: "no-store" })
+      .then((r) => handle<AgentGraph>(r)),
+
+  putProjectGraph: (id: string, body: AgentGraph): Promise<AgentGraph> =>
+    fetch(`${BASE}/projects/${id}/claude/graph`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => handle<AgentGraph>(r)),
 };
 
 // ─── Skill / Plugin types ─────────────────────────────────────────────────────

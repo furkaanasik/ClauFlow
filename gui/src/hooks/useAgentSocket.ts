@@ -33,6 +33,10 @@ export function useAgentSocket(url?: string) {
       completeClone,
       failClone,
       setSkillProgress,
+      studioStart,
+      studioAppend,
+      studioFinish,
+      studioError,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -134,6 +138,22 @@ export function useAgentSocket(url?: string) {
                 status: m.payload.status,
                 message: m.payload.message,
               });
+              break;
+            }
+            case "studio_generation": {
+              const m = msg as Extract<WsEvent, { type: "studio_generation" }>;
+              const { generationId, status, chunk, error } = m.payload;
+              if (status === "running") {
+                if (chunk !== undefined) {
+                  studioAppend(chunk);
+                } else {
+                  studioStart(generationId);
+                }
+              } else if (status === "done") {
+                studioFinish();
+              } else if (status === "error") {
+                studioError(error ?? "generation failed");
+              }
               break;
             }
             case "hello":

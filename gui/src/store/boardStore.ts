@@ -29,6 +29,19 @@ interface BoardState {
   /** Skill install progress keyed by `${projectId}:${skillSlug}` */
   skillProgress: Record<string, { status: SkillInstallStatus; message?: string }>;
 
+  studioGeneration: {
+    generationId: string | null;
+    status: "idle" | "running" | "done" | "error";
+    text: string;
+    error: string | null;
+  };
+
+  studioReset: () => void;
+  studioStart: (id: string) => void;
+  studioAppend: (chunk: string) => void;
+  studioFinish: () => void;
+  studioError: (msg: string) => void;
+
   setTasks: (tasks: Task[]) => void;
   upsertTask: (task: Task) => void;
   removeTask: (id: string) => void;
@@ -91,6 +104,38 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   agentTexts: {},
   cloneStatus: {},
   skillProgress: {},
+
+  studioGeneration: {
+    generationId: null,
+    status: "idle",
+    text: "",
+    error: null,
+  },
+
+  studioReset: () =>
+    set(() => ({
+      studioGeneration: { generationId: null, status: "idle", text: "", error: null },
+    })),
+
+  studioStart: (id) =>
+    set(() => ({
+      studioGeneration: { generationId: id, status: "running", text: "", error: null },
+    })),
+
+  studioAppend: (chunk) =>
+    set((state) => ({
+      studioGeneration: { ...state.studioGeneration, text: state.studioGeneration.text + chunk },
+    })),
+
+  studioFinish: () =>
+    set((state) => ({
+      studioGeneration: { ...state.studioGeneration, status: "done" },
+    })),
+
+  studioError: (msg) =>
+    set((state) => ({
+      studioGeneration: { ...state.studioGeneration, status: "error", error: msg },
+    })),
 
   setTasks: (tasks) =>
     set(() => ({

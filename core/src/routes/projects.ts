@@ -45,7 +45,14 @@ import {
   addMarketplace as cliAddMarketplace,
   removeMarketplace as cliRemoveMarketplace,
 } from "../services/claudePluginCli.js";
-import { broadcastSkillInstallProgress } from "../services/wsService.js";
+import {
+  broadcastSkillInstallProgress,
+  broadcastStudioGeneration,
+} from "../services/wsService.js";
+import { runClaude } from "../services/claudeService.js";
+import { syncTopologyToClaudeMd } from "../services/claudeTopologySyncService.js";
+import { randomUUID } from "node:crypto";
+import type { AgentGraph } from "../types/index.js";
 
 const router = Router();
 
@@ -690,6 +697,85 @@ router.get("/:id/claude/agents/:slug", async (req: Request, res: Response) => {
   }
 });
 
+const studioGenerateSchema = z.object({
+  prompt: z.string().min(1).max(20_000),
+  skills: z.array(z.string().min(1).max(200)).max(50).optional(),
+});
+
+function buildStudioSystemPrompt(userPrompt: string, skills: string[]): string {
+  const skillsSection =
+    skills.length > 0
+      ? `\n\nThe agent has access to the following skills (Soft mode — they may be used when relevant). Append a section titled "## Available Skills" to the agent body containing a markdown table with columns "Skill" and "Description". Use the skill names below as the "Skill" column and a brief description for each.\n\nSkills:\n${skills.map((s) => `- ${s}`).join("\n")}`
+      : "";
+  return `You are generating a Claude Code subagent definition file.
+
+Output ONLY the raw markdown for the agent file: a YAML frontmatter block delimited by --- lines (with at minimum: name, description), followed by the markdown body that defines the agent's role, responsibilities, and behavior.
+
+Strict rules:
+- Do NOT wrap the output in code fences (no \`\`\` markers).
+- Do NOT include any preamble, explanation, or trailing commentary.
+- Do NOT include a \`tools:\` field in the frontmatter.
+- The first line of your output must be \`---\`.
+- The frontmatter must include a \`name\` and a \`description\`.
+
+User request for the agent:
+${userPrompt}${skillsSection}`;
+}
+
+router.post(
+  "/:id/claude/agents/studio/generate",
+  async (req: Request, res: Response) => {
+    const parsed = studioGenerateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json({ error: "invalid_body", issues: parsed.error.issues });
+    }
+    try {
+      const project = await getProject(req.params.id!);
+      if (!project) return res.status(404).json({ error: "not_found" });
+      if (!fs.existsSync(project.repoPath)) {
+        return res.status(400).json({ error: "repo_path_missing" });
+      }
+
+      const generationId = `gen_${randomUUID().slice(0, 8)}`;
+      const skills = parsed.data.skills ?? [];
+      const systemPrompt = buildStudioSystemPrompt(parsed.data.prompt, skills);
+
+      let markdown = "";
+      try {
+        const result = await runClaude({
+          prompt: systemPrompt,
+          cwd: project.repoPath,
+          outputFormat: "stream-json",
+          onText: (text) => {
+            markdown += text;
+            broadcastStudioGeneration({
+              generationId,
+              status: "running",
+              chunk: text,
+            });
+          },
+        });
+        if (result.code !== 0) {
+          const error = (result.stderr || result.stdout || "claude_failed").trim();
+          broadcastStudioGeneration({ generationId, status: "error", error });
+          return res.status(500).json({ error: "claude_failed", detail: error });
+        }
+      } catch (err) {
+        const error = (err as Error).message;
+        broadcastStudioGeneration({ generationId, status: "error", error });
+        return res.status(500).json({ error: "claude_failed", detail: error });
+      }
+
+      broadcastStudioGeneration({ generationId, status: "done" });
+      res.json({ generationId, markdown });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  },
+);
+
 router.post("/:id/claude/agents", async (req: Request, res: Response) => {
   const parsed = agentCreateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -825,6 +911,117 @@ router.delete("/:id/claude/agents/:slug", async (req: Request, res: Response) =>
     );
 
     res.json({ deleted: true, slug: slugParse.data, ...commit });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+function graphFilePath(repoPath: string): string {
+  return path.join(agentsDir(repoPath), "_graph.json");
+}
+
+function listAgentSlugs(repoPath: string): string[] {
+  const dir = agentsDir(repoPath);
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".md") && f !== "_graph.json")
+    .map((f) => f.replace(/\.md$/, ""))
+    .sort();
+}
+
+function loadAgentMeta(
+  repoPath: string,
+  slugs: string[],
+): Array<{ slug: string; name: string }> {
+  return slugs.map((slug) => {
+    const file = agentFilePath(repoPath, slug);
+    if (!fs.existsSync(file)) return { slug, name: slug };
+    const { frontmatter } = parseAgentFile(fs.readFileSync(file, "utf8"));
+    return { slug, name: frontmatter.name ?? slug };
+  });
+}
+
+function deriveDefaultGraph(slugs: string[]): AgentGraph {
+  return {
+    nodes: slugs.map((slug, i) => ({
+      id: slug,
+      type: "agent" as const,
+      position: { x: (i % 4) * 240, y: Math.floor(i / 4) * 160 },
+      data: { slug },
+    })),
+    edges: [],
+  };
+}
+
+const graphNodeSchema = z.object({
+  id: z.string().min(1).max(120),
+  type: z.literal("agent"),
+  position: z.object({ x: z.number(), y: z.number() }),
+  data: z.object({ slug: z.string().min(1).max(120) }),
+});
+
+const graphEdgeSchema = z.object({
+  id: z.string().min(1).max(240),
+  source: z.string().min(1).max(120),
+  target: z.string().min(1).max(120),
+});
+
+const graphSchema = z.object({
+  nodes: z.array(graphNodeSchema).max(500),
+  edges: z.array(graphEdgeSchema).max(2000),
+});
+
+router.get("/:id/claude/graph", async (req: Request, res: Response) => {
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+
+    const file = graphFilePath(project.repoPath);
+    if (fs.existsSync(file)) {
+      try {
+        const raw = fs.readFileSync(file, "utf8");
+        const parsed = graphSchema.safeParse(JSON.parse(raw));
+        if (parsed.success) return res.json(parsed.data);
+      } catch {
+        // fall through to derive
+      }
+    }
+    const slugs = listAgentSlugs(project.repoPath);
+    res.json(deriveDefaultGraph(slugs));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.put("/:id/claude/graph", async (req: Request, res: Response) => {
+  const parsed = graphSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: "invalid_body", issues: parsed.error.issues });
+  }
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    if (!fs.existsSync(project.repoPath)) {
+      return res.status(400).json({ error: "repo_path_missing" });
+    }
+
+    const dir = agentsDir(project.repoPath);
+    fs.mkdirSync(dir, { recursive: true });
+
+    const file = graphFilePath(project.repoPath);
+    const tmp = `${file}.tmp`;
+    const json = JSON.stringify(parsed.data, null, 2);
+    fs.writeFileSync(tmp, json, "utf8");
+    fs.renameSync(tmp, file);
+
+    const slugs = listAgentSlugs(project.repoPath);
+    const agentMeta = loadAgentMeta(project.repoPath, slugs);
+    await syncTopologyToClaudeMd(project.repoPath, parsed.data, agentMeta);
+
+    res.json(parsed.data);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

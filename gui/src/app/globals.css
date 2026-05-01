@@ -488,3 +488,24 @@ html.light .analysis-block {
 .prose-claude th { background: var(--bg-surface); font-weight: 600; }
 .prose-claude strong { color: var(--text-primary); font-weight: 600; }
 .prose-claude em { font-style: italic; }
+
+/* ─── React Flow theming ────────────────────────────────────────────────── */
+.react-flow {
+  --xy-background-color: var(--bg-surface);
+  --xy-background-pattern-color: var(--border);
+  --xy-controls-button-background-color: var(--bg-base);
+  --xy-controls-button-background-color-hover: var(--bg-surface);
+  --xy-controls-button-color: var(--text-primary);
+  --xy-controls-button-color-hover: var(--text-primary);
+  --xy-controls-button-border-color: var(--border);
+  --xy-controls-box-shadow: none;
+  --xy-edge-stroke: var(--text-muted);
+  --xy-edge-stroke-selected: var(--accent-primary);
+  --xy-minimap-background-color: var(--bg-surface);
+  --xy-minimap-mask-background-color: rgba(0, 0, 0, 0.4);
+  --xy-attribution-background-color: transparent;
+}
+.react-flow__controls-button svg {
+  fill: var(--text-primary);
+}
+
