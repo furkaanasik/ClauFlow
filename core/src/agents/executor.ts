@@ -41,6 +41,10 @@ async function acquireSlot(projectId: string, taskId: string): Promise<void> {
     if (!busy) return;
     await new Promise((r) => setTimeout(r, 2000));
   }
+  console.warn(
+    `[executor] acquireSlot timed out for task ${taskId} in project ${projectId} after 240s`,
+  );
+  throw new Error("Slot acquisition timed out after 240s");
 }
 
 const RUNNING = new Map<string, AbortController>();
@@ -135,22 +139,22 @@ export async function run(task: Task, project: Project): Promise<void> {
   const controller = new AbortController();
   RUNNING.set(task.id, controller);
 
-  // Wait until no other executor is active for this project (DB-level, survives restarts)
-  await acquireSlot(project.id, task.id);
-
-  // Stamp start time
-  await updateTask(task.id, {
-    agent: {
-      status: "branching",
-      currentStep: "start",
-      log: [],
-      error: null,
-      startedAt: new Date().toISOString(),
-      finishedAt: null,
-    },
-  });
-
   try {
+    // Wait until no other executor is active for this project (DB-level, survives restarts)
+    await acquireSlot(project.id, task.id);
+
+    // Stamp start time
+    await updateTask(task.id, {
+      agent: {
+        status: "branching",
+        currentStep: "start",
+        log: [],
+        error: null,
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+      },
+    });
+
     await pushLog(task.id, `▸ Feature: ${ref}`);
 
     // ── Step 0: refresh git credential helper ─────────────────────────────

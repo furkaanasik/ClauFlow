@@ -3,6 +3,8 @@ import cors from "cors";
 import express from "express";
 import tasksRouter from "./routes/tasks.js";
 import projectsRouter from "./routes/projects.js";
+import projectsClaudeRouter from "./routes/projectsClaude.js";
+import projectsGithubRouter from "./routes/projectsGithub.js";
 import authRouter from "./routes/auth.js";
 import githubRouter from "./routes/github.js";
 import commentsRouter from "./routes/comments.js";
@@ -22,6 +24,8 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/tasks", tasksRouter);
 app.use("/api/tasks/:id/comments", commentsRouter);
+app.use("/api/projects", projectsClaudeRouter);
+app.use("/api/projects", projectsGithubRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/auth", authRouter);
 app.use("/github", githubRouter);

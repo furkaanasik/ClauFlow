@@ -52,7 +52,11 @@ export function broadcastStatus(
 }
 
 export function broadcastTaskUpdated(task: Task): void {
-  broadcast({ type: "task_updated", taskId: task.id, payload: task });
+  const stripped: Task = {
+    ...task,
+    agent: { ...task.agent, log: [] },
+  };
+  broadcast({ type: "task_updated", taskId: task.id, payload: stripped });
 }
 
 export function broadcastTaskCreated(task: Task): void {

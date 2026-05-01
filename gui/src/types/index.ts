@@ -40,7 +40,7 @@ export interface Task {
   usage?: TaskUsage;
 }
 
-export type PlanningStatus = "idle" | "planning" | "done" | "error";
+export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
 
 export interface Project {
   id: string;
@@ -53,7 +53,7 @@ export interface Project {
   defaultBranch: string;
   remote?: string | null;
   createdAt?: string;
-  planningStatus?: PlanningStatus;
+  planningStatus?: ProjectPlanningStatus;
   planningError?: string | null;
 }
 
@@ -155,7 +155,7 @@ export interface AgentGraph {
   edges: AgentGraphEdge[];
 }
 
-export type WsEvent =
+export type WsMessage =
   | { type: "agent_log"; taskId: string; payload: { line: string } }
   | {
       type: "agent_status";

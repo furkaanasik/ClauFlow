@@ -20,7 +20,26 @@ import {
 } from "../services/wsService.js";
 import type { Comment } from "../services/commentService.js";
 
-export async function runComment(
+const RUNNING = new Map<string, Promise<void>>();
+
+export function runComment(
+  comment: Comment,
+  projectRepoPath: string,
+): Promise<void> {
+  const previous = RUNNING.get(comment.taskId) ?? Promise.resolve();
+  const next = previous
+    .catch(() => {})
+    .then(() => runCommentInner(comment, projectRepoPath));
+  RUNNING.set(comment.taskId, next);
+  next.finally(() => {
+    if (RUNNING.get(comment.taskId) === next) {
+      RUNNING.delete(comment.taskId);
+    }
+  });
+  return next;
+}
+
+async function runCommentInner(
   comment: Comment,
   projectRepoPath: string,
 ): Promise<void> {

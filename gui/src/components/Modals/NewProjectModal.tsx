@@ -6,27 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-
-function slugify(value: string): string {
-  const TR_MAP: Record<string, string> = {
-    ç: "c", Ç: "c",
-    ş: "s", Ş: "s",
-    ğ: "g", Ğ: "g",
-    ü: "u", Ü: "u",
-    ö: "o", Ö: "o",
-    ı: "i", İ: "i",
-  };
-  return value
-    .split("")
-    .map((ch) => TR_MAP[ch] ?? ch)
-    .join("")
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 12);
-}
+import { slugify } from "@/lib/slug";
 
 const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,10}[a-z0-9]$|^[a-z0-9]{2}$/;
 

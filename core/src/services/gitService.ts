@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { slugify } from "./slug.js";
 
 export interface RunResult {
   code: number;
@@ -80,18 +81,8 @@ export function runWithProgress(
   });
 }
 
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-}
-
 export function branchName(taskId: string, title: string): string {
-  const slug = slugify(title) || "task";
+  const slug = slugify(title, 48) || "task";
   return `feature/task-${taskId}-${slug}`;
 }
 

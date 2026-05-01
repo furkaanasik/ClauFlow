@@ -94,7 +94,7 @@ export interface ToolCall {
   id: string;
   taskId: string;
   toolName: string;
-  args: unknown;
+  args?: Record<string, unknown>;
   result: string | null;
   status: ToolCallStatus;
   startedAt: string;

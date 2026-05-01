@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
-import type { WsEvent } from "@/types";
+import type { WsMessage } from "@/types";
 
 const RECONNECT_DELAY_MS = 3000;
 
@@ -65,61 +65,61 @@ export function useAgentSocket(url?: string) {
 
       ws.onmessage = (e) => {
         try {
-          const msg = JSON.parse(e.data) as WsEvent | { type: string };
+          const msg = JSON.parse(e.data) as WsMessage | { type: string };
           switch ((msg as { type: string }).type) {
             case "task_updated":
-              upsertTask((msg as Extract<WsEvent, { type: "task_updated" }>).payload);
+              upsertTask((msg as Extract<WsMessage, { type: "task_updated" }>).payload);
               break;
             case "task_created":
-              addTask((msg as Extract<WsEvent, { type: "task_created" }>).payload);
+              addTask((msg as Extract<WsMessage, { type: "task_created" }>).payload);
               break;
             case "task_deleted":
               removeTask(
-                (msg as Extract<WsEvent, { type: "task_deleted" }>).payload.id,
+                (msg as Extract<WsMessage, { type: "task_deleted" }>).payload.id,
               );
               break;
             case "agent_log": {
-              const m = msg as Extract<WsEvent, { type: "agent_log" }>;
+              const m = msg as Extract<WsMessage, { type: "agent_log" }>;
               appendLog(m.taskId, m.payload.line);
               break;
             }
             case "agent_status": {
-              const m = msg as Extract<WsEvent, { type: "agent_status" }>;
+              const m = msg as Extract<WsMessage, { type: "agent_status" }>;
               setAgentStatus(m.taskId, m.payload);
               break;
             }
             case "agent_tool_call": {
-              const m = msg as Extract<WsEvent, { type: "agent_tool_call" }>;
+              const m = msg as Extract<WsMessage, { type: "agent_tool_call" }>;
               appendToolCall(m.taskId, m.payload);
               break;
             }
             case "agent_text": {
-              const m = msg as Extract<WsEvent, { type: "agent_text" }>;
+              const m = msg as Extract<WsMessage, { type: "agent_text" }>;
               appendAgentText(m.taskId, m.payload);
               break;
             }
             case "comment_updated": {
-              const m = msg as Extract<WsEvent, { type: "comment_updated" }>;
+              const m = msg as Extract<WsMessage, { type: "comment_updated" }>;
               upsertComment(m.payload);
               break;
             }
             case "project_planning_started": {
-              const m = msg as Extract<WsEvent, { type: "project_planning_started" }>;
+              const m = msg as Extract<WsMessage, { type: "project_planning_started" }>;
               updateProjectPlanningStatus(m.projectId, "planning");
               break;
             }
             case "project_planning_done": {
-              const m = msg as Extract<WsEvent, { type: "project_planning_done" }>;
+              const m = msg as Extract<WsMessage, { type: "project_planning_done" }>;
               updateProjectPlanningStatus(m.projectId, "done");
               break;
             }
             case "project_planning_error": {
-              const m = msg as Extract<WsEvent, { type: "project_planning_error" }>;
+              const m = msg as Extract<WsMessage, { type: "project_planning_error" }>;
               updateProjectPlanningStatus(m.projectId, "error", m.error);
               break;
             }
             case "clone_progress": {
-              const m = msg as Extract<WsEvent, { type: "clone_progress" }>;
+              const m = msg as Extract<WsMessage, { type: "clone_progress" }>;
               const { status: cloneStatus, message, project } = m.payload;
               if (cloneStatus === "cloning") {
                 setCloneProgress(m.targetPath, message);
@@ -131,7 +131,7 @@ export function useAgentSocket(url?: string) {
               break;
             }
             case "skill_install_progress": {
-              const m = msg as Extract<WsEvent, { type: "skill_install_progress" }>;
+              const m = msg as Extract<WsMessage, { type: "skill_install_progress" }>;
               setSkillProgress({
                 projectId: m.projectId,
                 pluginId: m.payload.pluginId,
@@ -141,7 +141,7 @@ export function useAgentSocket(url?: string) {
               break;
             }
             case "studio_generation": {
-              const m = msg as Extract<WsEvent, { type: "studio_generation" }>;
+              const m = msg as Extract<WsMessage, { type: "studio_generation" }>;
               const { generationId, status, chunk, error } = m.payload;
               if (status === "running") {
                 if (chunk !== undefined) {

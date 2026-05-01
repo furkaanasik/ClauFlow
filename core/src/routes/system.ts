@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { spawn } from "node:child_process";
+import { errorMessage } from "../utils/error.js";
 
 interface PrereqCheck {
   name: string;
@@ -92,7 +93,7 @@ router.get("/prereqs", async (_req: Request, res: Response) => {
     const allOk = items.every((i) => i.found);
     res.json({ allOk, items });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 

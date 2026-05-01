@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { run } from "../services/gitService.js";
+import { errorMessage } from "../utils/error.js";
 
 const router = Router();
 
@@ -225,7 +226,7 @@ router.post("/github/start", async (_req: Request, res: Response) => {
       }
     }
     session = null;
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -275,7 +276,7 @@ router.get("/github/status", async (_req: Request, res: Response) => {
       error: session.error,
     });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 

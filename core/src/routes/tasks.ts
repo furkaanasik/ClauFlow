@@ -10,6 +10,7 @@ import {
   listToolCallsByTask,
   updateTask,
 } from "../services/taskService.js";
+import { errorMessage } from "../utils/error.js";
 import {
   broadcastTaskCreated,
   broadcastTaskDeleted,
@@ -75,7 +76,7 @@ router.get("/", async (req: Request, res: Response) => {
     const tasks = await listTasks(projectId);
     res.json({ tasks });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -85,7 +86,7 @@ router.get("/:id", async (req: Request, res: Response) => {
     if (!task) return res.status(404).json({ error: "not_found" });
     res.json({ task });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -96,7 +97,7 @@ router.get("/:id/tool-calls", async (req: Request, res: Response) => {
     const toolCalls = listToolCallsByTask(task.id);
     res.json({ toolCalls });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -107,7 +108,7 @@ router.get("/:id/agent-texts", async (req: Request, res: Response) => {
     const agentTexts = getAgentTexts(task.id);
     res.json({ agentTexts });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -121,7 +122,7 @@ router.post("/", async (req: Request, res: Response) => {
     broadcastTaskCreated(task);
     res.status(201).json({ task });
   } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
+    res.status(400).json({ error: errorMessage(err) });
   }
 });
 
@@ -195,7 +196,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       }
     }
   } catch (err) {
-    const msg = (err as Error).message;
+    const msg = errorMessage(err);
     const code = msg.startsWith("Task not found") ? 404 : 400;
     res.status(code).json({ error: msg });
   }
@@ -234,7 +235,7 @@ router.post("/:id/retry", async (req: Request, res: Response) => {
     const project = await getProject(task.projectId);
     if (project) enqueueExecutor(reset, project);
   } catch (err) {
-    const msg = (err as Error).message;
+    const msg = errorMessage(err);
     res.status(500).json({ error: msg });
   }
 });
@@ -269,7 +270,7 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
 
     return res.status(409).json({ error: "task_not_running" });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -280,7 +281,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
     broadcastTaskDeleted(id);
     res.status(204).end();
   } catch (err) {
-    const msg = (err as Error).message;
+    const msg = errorMessage(err);
     const code = msg.startsWith("Task not found") ? 404 : 400;
     res.status(code).json({ error: msg });
   }

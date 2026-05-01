@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, CloneStatus, Comment, PlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, CloneStatus, Comment, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
 import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
 
 type Lang = "tr" | "en";
@@ -65,7 +65,7 @@ interface BoardState {
   deleteProject: (id: string) => void;
   addTask: (task: Task) => void;
   selectProject: (id: string | null) => void;
-  updateProjectPlanningStatus: (projectId: string, status: PlanningStatus, error?: string) => void;
+  updateProjectPlanningStatus: (projectId: string, status: ProjectPlanningStatus, error?: string) => void;
 
   selectTask: (id: string | null) => void;
   selectPRTask: (id: string | null) => void;
@@ -154,8 +154,15 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       const order = state.order.includes(task.id)
         ? state.order
         : [...state.order, task.id];
+      const existing = state.tasks[task.id];
+      const incomingLog = task.agent?.log ?? [];
+      const existingLog = existing?.agent?.log ?? [];
+      const merged: Task =
+        existing && incomingLog.length === 0 && existingLog.length > 0
+          ? { ...task, agent: { ...task.agent, log: existingLog } }
+          : task;
       return {
-        tasks: { ...state.tasks, [task.id]: task },
+        tasks: { ...state.tasks, [task.id]: merged },
         order,
       };
     }),

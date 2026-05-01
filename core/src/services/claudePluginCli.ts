@@ -4,6 +4,7 @@ import type {
   ClaudeMarketplace,
   InstalledPlugin,
 } from "../types/index.js";
+import { errorMessage } from "../utils/error.js";
 
 const TIMEOUT_MS = 60_000;
 
@@ -55,7 +56,7 @@ function parseJson<T>(raw: string, label: string): T {
   try {
     return JSON.parse(trimmed) as T;
   } catch (err) {
-    throw new Error(`${label}: failed to parse JSON: ${(err as Error).message}`);
+    throw new Error(`${label}: failed to parse JSON: ${errorMessage(err)}`);
   }
 }
 

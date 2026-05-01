@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { api, type InstalledPlugin } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useToastStore } from "@/hooks/useToast";
+import { slugify } from "@/lib/slug";
 
 interface StudioToolbarProps {
   projectId: string;
@@ -15,14 +16,6 @@ interface StudioToolbarProps {
 }
 
 const RECOMMENDED_MAX_AGENTS = 5;
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60) || "studio-agent";
-}
 
 function extractFrontmatterField(markdown: string, field: string): string {
   const match = markdown.match(/^---\s*\n([\s\S]*?)\n---/);

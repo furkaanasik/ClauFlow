@@ -400,6 +400,49 @@ const stmtAppendLog = db.prepare(
   `UPDATE tasks SET agentLog = json_insert(agentLog, '$[#]', ?), updatedAt = ? WHERE id = ?`,
 );
 
+const stmtUpdateTaskWithLog = db.prepare(
+  `UPDATE tasks SET
+    title = @title,
+    description = @description,
+    analysis = @analysis,
+    status = @status,
+    priority = @priority,
+    tags = @tags,
+    branch = @branch,
+    prUrl = @prUrl,
+    prNumber = @prNumber,
+    displayId = @displayId,
+    updatedAt = @updatedAt,
+    agentStatus = @agentStatus,
+    agentCurrentStep = @agentCurrentStep,
+    agentLog = @agentLog,
+    agentError = @agentError,
+    agentStartedAt = @agentStartedAt,
+    agentFinishedAt = @agentFinishedAt
+   WHERE id = @id`,
+);
+
+const stmtUpdateTaskWithoutLog = db.prepare(
+  `UPDATE tasks SET
+    title = @title,
+    description = @description,
+    analysis = @analysis,
+    status = @status,
+    priority = @priority,
+    tags = @tags,
+    branch = @branch,
+    prUrl = @prUrl,
+    prNumber = @prNumber,
+    displayId = @displayId,
+    updatedAt = @updatedAt,
+    agentStatus = @agentStatus,
+    agentCurrentStep = @agentCurrentStep,
+    agentError = @agentError,
+    agentStartedAt = @agentStartedAt,
+    agentFinishedAt = @agentFinishedAt
+   WHERE id = @id`,
+);
+
 // ─── Legacy JSON Migration (one-shot on startup) ──────────────────────────
 
 function migrateLegacyJsonIfPresent(): void {
@@ -577,25 +620,25 @@ const stmtListTasksByProject = db.prepare(
 export async function listTasks(projectId?: string): Promise<Task[]> {
   if (projectId) {
     const rows = stmtListTasksByProject.all(projectId) as TaskRow[];
-    return Promise.resolve(rows.map(rowToTask));
+    return rows.map(rowToTask);
   }
   const rows = stmtListTasks.all() as TaskRow[];
-  return Promise.resolve(rows.map(rowToTask));
+  return rows.map(rowToTask);
 }
 
 export async function getTask(id: string): Promise<Task | null> {
   const row = stmtGetTask.get(id) as TaskRow | undefined;
-  return Promise.resolve(row ? rowToTask(row) : null);
+  return row ? rowToTask(row) : null;
 }
 
 export async function listProjects(): Promise<Project[]> {
   const rows = stmtListProjects.all() as ProjectRow[];
-  return Promise.resolve(rows.map(rowToProject));
+  return rows.map(rowToProject);
 }
 
 export async function getProject(id: string): Promise<Project | null> {
   const row = stmtGetProject.get(id) as ProjectRow | undefined;
-  return Promise.resolve(row ? rowToProject(row) : null);
+  return row ? rowToProject(row) : null;
 }
 
 export interface CreateTaskInput {
@@ -677,7 +720,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     agent: emptyAgent,
   };
 
-  return Promise.resolve(task);
+  return task;
 }
 
 export type TaskPatch = Partial<
@@ -708,27 +751,8 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     updatedAt: new Date().toISOString(),
   };
 
-  db.prepare(
-    `UPDATE tasks SET
-      title = @title,
-      description = @description,
-      analysis = @analysis,
-      status = @status,
-      priority = @priority,
-      tags = @tags,
-      branch = @branch,
-      prUrl = @prUrl,
-      prNumber = @prNumber,
-      displayId = @displayId,
-      updatedAt = @updatedAt,
-      agentStatus = @agentStatus,
-      agentCurrentStep = @agentCurrentStep,
-      agentLog = @agentLog,
-      agentError = @agentError,
-      agentStartedAt = @agentStartedAt,
-      agentFinishedAt = @agentFinishedAt
-     WHERE id = @id`,
-  ).run({
+  const includeLog = patch.agent?.log !== undefined;
+  const params = {
     id: next.id,
     title: next.title,
     description: next.description,
@@ -743,13 +767,21 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     updatedAt: next.updatedAt,
     agentStatus: next.agent.status,
     agentCurrentStep: next.agent.currentStep ?? null,
-    agentLog: JSON.stringify(next.agent.log ?? []),
     agentError: next.agent.error ?? null,
     agentStartedAt: next.agent.startedAt ?? null,
     agentFinishedAt: next.agent.finishedAt ?? null,
-  });
+  };
 
-  return Promise.resolve(next);
+  if (includeLog) {
+    stmtUpdateTaskWithLog.run({
+      ...params,
+      agentLog: JSON.stringify(next.agent.log ?? []),
+    });
+  } else {
+    stmtUpdateTaskWithoutLog.run(params);
+  }
+
+  return next;
 }
 
 export async function appendAgentLog(
@@ -757,7 +789,6 @@ export async function appendAgentLog(
   line: string,
 ): Promise<void> {
   stmtAppendLog.run(line, new Date().toISOString(), id);
-  return Promise.resolve();
 }
 
 export async function recoverOrphanedTasks(): Promise<number> {
@@ -831,7 +862,7 @@ export async function createProject(
     taskCounter: project.taskCounter ?? 0,
   });
 
-  return Promise.resolve(project);
+  return project;
 }
 
 export type ProjectPatch = Partial<
@@ -910,7 +941,7 @@ export async function updateProject(
     slug: next.slug ?? null,
   });
 
-  return Promise.resolve(next);
+  return next;
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -940,7 +971,6 @@ export async function projectHasActiveTasks(id: string): Promise<boolean> {
 export async function deleteTask(id: string): Promise<void> {
   const result = stmtDeleteTask.run(id);
   if (result.changes === 0) throw new Error(`Task not found: ${id}`);
-  return Promise.resolve();
 }
 
 // ─── Tool Calls ───────────────────────────────────────────────────────────
@@ -959,11 +989,12 @@ interface ToolCallRow {
 }
 
 function rowToToolCall(row: ToolCallRow): ToolCall {
-  let parsedArgs: unknown = {};
+  let parsedArgs: Record<string, unknown> | undefined;
   try {
-    parsedArgs = JSON.parse(row.args);
+    const v = JSON.parse(row.args);
+    parsedArgs = typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
   } catch {
-    parsedArgs = row.args;
+    parsedArgs = undefined;
   }
   return {
     id: row.id,

@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { githubApi, type PRListItem, type PRDetails } from "@/lib/api";
 import { PR_STATE_STYLES } from "@/lib/githubConstants";
+import { slugify } from "@/lib/slug";
 
 export type PullRequest = PRListItem;
 
@@ -13,10 +14,6 @@ interface PRDetailDrawerProps {
   projectId: string;
   onClose: () => void;
   onMerged: () => void;
-}
-
-function slugify(s: string | undefined): string {
-  return (s ?? "").replace(/[^a-zA-Z0-9]/g, "-");
 }
 
 // ─── Split-view diff types ────────────────────────────────────────────────────
