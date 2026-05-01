@@ -69,7 +69,7 @@ interface BoardState {
   failClone: (targetPath: string, message: string) => void;
 
   setSkillProgress: (progress: SkillInstallProgress) => void;
-  clearSkillProgress: (projectId: string, skillSlug: string) => void;
+  clearSkillProgress: (projectId: string, pluginId: string) => void;
 
   getByStatus: (status: TaskStatus) => Task[];
 }
@@ -323,17 +323,17 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       cloneStatus: { ...state.cloneStatus, [targetPath]: { status: "error", message } },
     })),
 
-  setSkillProgress: ({ projectId, skillSlug, status, message }) =>
+  setSkillProgress: ({ projectId, pluginId, status, message }) =>
     set((state) => ({
       skillProgress: {
         ...state.skillProgress,
-        [`${projectId}:${skillSlug}`]: { status, message },
+        [`${projectId}:${pluginId}`]: { status, message },
       },
     })),
 
-  clearSkillProgress: (projectId, skillSlug) =>
+  clearSkillProgress: (projectId, pluginId) =>
     set((state) => {
-      const key = `${projectId}:${skillSlug}`;
+      const key = `${projectId}:${pluginId}`;
       if (!state.skillProgress[key]) return state;
       const { [key]: _removed, ...rest } = state.skillProgress;
       void _removed;

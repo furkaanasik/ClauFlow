@@ -163,8 +163,8 @@ export type WsEvent =
       type: "skill_install_progress";
       projectId: string;
       payload: {
-        skillSlug: string;
-        status: "cloning" | "enabling" | "done" | "error";
+        pluginId: string;
+        status: "running" | "done" | "error";
         message?: string;
       };
     };

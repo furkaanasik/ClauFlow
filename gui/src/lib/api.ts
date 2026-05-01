@@ -224,84 +224,107 @@ export const api = {
         handle<{ deleted: true; slug: string; committed: boolean; commitSha: string | null; commitWarning: string | null }>(r),
       ),
 
-  listSkillsRegistry: (id: string): Promise<{ skills: RegistrySkill[] }> =>
+  listSkillRegistry: (id: string): Promise<{ available: AvailablePlugin[] }> =>
     fetch(`${BASE}/projects/${id}/claude/skills/registry`, { cache: "no-store" })
-      .then((r) => handle<{ skills: RegistrySkill[] }>(r)),
+      .then((r) => handle<{ available: AvailablePlugin[] }>(r)),
 
-  listInstalledSkills: (id: string): Promise<InstalledSkillsResponse> =>
+  listInstalledSkills: (id: string): Promise<{ installed: InstalledPlugin[] }> =>
     fetch(`${BASE}/projects/${id}/claude/skills`, { cache: "no-store" })
-      .then((r) => handle<InstalledSkillsResponse>(r)),
+      .then((r) => handle<{ installed: InstalledPlugin[] }>(r)),
 
-  installSkill: (id: string, slug: string): Promise<{ queued: true; slug: string }> =>
-    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(slug)}/install`, {
+  installSkill: (
+    id: string,
+    pluginId: string,
+    scope?: InstalledPlugin["scope"],
+  ): Promise<{ ok: true; pluginId: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}/install`, {
       method: "POST",
-    }).then((r) => handle<{ queued: true; slug: string }>(r)),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: scope ?? "local" }),
+    }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
 
-  enableSkill: (id: string, slug: string): Promise<{ slug: string; enabled: true }> =>
-    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(slug)}/enable`, {
-      method: "POST",
-    }).then((r) => handle<{ slug: string; enabled: true }>(r)),
-
-  disableSkill: (id: string, slug: string): Promise<{ slug: string; enabled: false }> =>
-    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(slug)}/disable`, {
-      method: "POST",
-    }).then((r) => handle<{ slug: string; enabled: false }>(r)),
-
-  removeSkill: (id: string, slug: string): Promise<{ removed: true; slug: string }> =>
-    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(slug)}`, {
+  uninstallSkill: (id: string, pluginId: string): Promise<{ ok: true; pluginId: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}`, {
       method: "DELETE",
-    }).then((r) => handle<{ removed: true; slug: string }>(r)),
+    }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
+
+  enableSkill: (id: string, pluginId: string): Promise<{ ok: true; pluginId: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}/enable`, {
+      method: "POST",
+    }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
+
+  disableSkill: (id: string, pluginId: string): Promise<{ ok: true; pluginId: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}/disable`, {
+      method: "POST",
+    }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
+
+  listMarketplaces: (id: string): Promise<{ marketplaces: ClaudeMarketplace[] }> =>
+    fetch(`${BASE}/projects/${id}/claude/marketplaces`, { cache: "no-store" })
+      .then((r) => handle<{ marketplaces: ClaudeMarketplace[] }>(r)),
+
+  addMarketplace: (
+    id: string,
+    source: ClaudeMarketplaceSource,
+  ): Promise<{ ok: true; marketplace: ClaudeMarketplace }> =>
+    fetch(`${BASE}/projects/${id}/claude/marketplaces`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source }),
+    }).then((r) => handle<{ ok: true; marketplace: ClaudeMarketplace }>(r)),
+
+  removeMarketplace: (id: string, name: string): Promise<{ ok: true; name: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/marketplaces/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    }).then((r) => handle<{ ok: true; name: string }>(r)),
 };
 
-export interface RegistrySkill {
-  slug: string;
+// ─── Skill / Plugin types ─────────────────────────────────────────────────────
+
+export interface AvailablePluginSource {
+  source: string;
+  repo?: string;
+  url?: string;
+  path?: string;
+}
+
+export interface AvailablePlugin {
+  pluginId: string;
   name: string;
   description: string;
-  author: string;
-  version: string;
-  repoUrl: string;
+  marketplaceName: string;
+  source: AvailablePluginSource;
+  installCount?: number;
   homepage?: string;
-  tags?: string[];
+  author?: string;
 }
 
-/** Managed project plugin — installed via ClauFlow, enable/disable/remove actions available */
-export interface InstalledSkill {
-  slug: string;
+export interface InstalledPlugin {
+  id: string;
+  version: string | null;
+  scope: "user" | "project" | "local";
   enabled: boolean;
-  source: "project";
-  repoUrl: string;
-  version: string | null;
-  path: string;
-  directoryExists: boolean;
-  managed: true;
-}
-
-export type ClaudePluginScope = "local" | "project" | "user";
-
-/** Read-only Claude-managed plugin — discovered from ~/.claude or project .claude dirs */
-export interface ClaudePlugin {
-  slug: string;
-  marketplace: string | null;
-  scope: ClaudePluginScope;
-  projectPath: string | null;
-  version: string | null;
-  gitCommitSha: string | null;
   installPath: string;
-  source: "claude";
-  managed: false;
+  installedAt: string;
+  lastUpdated: string | null;
+  projectPath?: string;
 }
 
-export type InstalledSkillsResponse = {
-  exists: boolean;
-  dir: string;
-  plugins: InstalledSkill[];
-  claudePlugins: ClaudePlugin[];
-};
+export interface ClaudeMarketplaceSource {
+  source: string;
+  repo?: string;
+  url?: string;
+  path?: string;
+}
 
-export type SkillInstallStatus = "cloning" | "enabling" | "done" | "error";
+export interface ClaudeMarketplace {
+  name: string;
+  source: ClaudeMarketplaceSource;
+}
+
+export type SkillInstallStatus = "running" | "done" | "error";
 
 export interface SkillInstallProgress {
-  skillSlug: string;
+  pluginId: string;
   projectId: string;
   status: SkillInstallStatus;
   message?: string;

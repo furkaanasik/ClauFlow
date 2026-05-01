@@ -130,7 +130,7 @@ export function useAgentSocket(url?: string) {
               const m = msg as Extract<WsEvent, { type: "skill_install_progress" }>;
               setSkillProgress({
                 projectId: m.projectId,
-                skillSlug: m.payload.skillSlug,
+                pluginId: m.payload.pluginId,
                 status: m.payload.status,
                 message: m.payload.message,
               });

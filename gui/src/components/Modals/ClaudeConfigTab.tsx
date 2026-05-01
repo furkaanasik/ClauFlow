@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
-import { api, type ClaudeAgent, type ClaudePlugin, type ClaudePluginScope, type InstalledSkill, type RegistrySkill } from "@/lib/api";
+import { api, type AvailablePlugin, type ClaudeAgent, type ClaudeMarketplace, type InstalledPlugin } from "@/lib/api";
 import { useTranslation } from "@/hooks/useTranslation";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useBoardStore } from "@/store/boardStore";
@@ -1107,9 +1107,10 @@ function MarkdownFullscreen(p: MarkdownFullscreenProps) {
 
 // ─── Skills Segment ───────────────────────────────────────────────────────────
 
-type SkillsTab = "installed" | "registry";
+type SkillsTab = "installed" | "registry" | "marketplaces";
+type PluginScope = "local" | "project" | "user";
 
-const SCOPE_COLORS: Record<ClaudePluginScope, string> = {
+const SCOPE_COLORS: Record<PluginScope, string> = {
   local:   "bg-blue-500/15 text-blue-400",
   project: "bg-purple-500/15 text-purple-400",
   user:    "bg-emerald-500/15 text-emerald-400",
@@ -1119,99 +1120,156 @@ function SkillsSegment({ projectId }: { projectId: string }) {
   const t = useTranslation();
   const cs = t.claudeSkills;
   const [tab, setTab] = useState<SkillsTab>("installed");
-  const [plugins, setPlugins] = useState<InstalledSkill[] | null>(null);
-  const [claudePlugins, setClaudePlugins] = useState<ClaudePlugin[]>([]);
-  const [registry, setRegistry] = useState<RegistrySkill[] | null>(null);
+
+  // Installed
+  const [installed, setInstalled] = useState<InstalledPlugin[] | null>(null);
+  // Registry
+  const [registry, setRegistry] = useState<AvailablePlugin[] | null>(null);
+  // Marketplaces
+  const [marketplaces, setMarketplaces] = useState<ClaudeMarketplace[] | null>(null);
+  // Install scope per pluginId
+  const [scopeMap, setScopeMap] = useState<Record<string, PluginScope>>({});
+
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [confirmUninstall, setConfirmUninstall] = useState<string | null>(null); // pluginId
+  // Marketplace add form
+  const [mpSource, setMpSource] = useState("");
+  const [mpAdding, setMpAdding] = useState(false);
 
   const skillProgress = useBoardStore((s) => s.skillProgress);
   const clearSkillProgress = useBoardStore((s) => s.clearSkillProgress);
 
-  const getProgress = (slug: string) => skillProgress[`${projectId}:${slug}`];
+  const getProgress = (pluginId: string) => skillProgress[`${projectId}:${pluginId}`];
+
+  // ── Loaders ─────────────────────────────────────────────────────────────────
 
   const loadInstalled = async () => {
     setLoadError(null);
     try {
       const data = await api.listInstalledSkills(projectId);
-      setPlugins(data.plugins);
-      setClaudePlugins(data.claudePlugins ?? []);
+      setInstalled(data.installed);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : cs.loadError);
     }
   };
 
-  const loadRegistry = async () => {
-    if (registry !== null) return;
+  const loadRegistry = async (force = false) => {
+    if (registry !== null && !force) return;
     setLoadError(null);
     try {
-      const data = await api.listSkillsRegistry(projectId);
-      setRegistry(data.skills);
+      const data = await api.listSkillRegistry(projectId);
+      setRegistry(data.available);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : cs.loadError);
     }
   };
 
-  useEffect(() => {
-    void loadInstalled();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
-
-  useEffect(() => {
-    if (tab === "registry") void loadRegistry();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
-
-  // Auto-refresh installed list when an install finishes via WS
-  useEffect(() => {
-    const entries = Object.entries(skillProgress).filter(
-      ([key]) => key.startsWith(`${projectId}:`),
-    );
-    const justDone = entries.some(([, v]) => v.status === "done");
-    if (justDone) void loadInstalled();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [skillProgress, projectId]);
-
-  const handleInstall = async (slug: string) => {
-    setActionError(null);
+  const loadMarketplaces = async () => {
+    setLoadError(null);
     try {
-      await api.installSkill(projectId, slug);
+      const data = await api.listMarketplaces(projectId);
+      setMarketplaces(data.marketplaces);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : cs.marketplaceLoadError);
+    }
+  };
+
+  useEffect(() => { void loadInstalled(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (tab === "registry")     void loadRegistry();
+    if (tab === "marketplaces") void loadMarketplaces();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-refresh installed when WS reports done
+  useEffect(() => {
+    const done = Object.entries(skillProgress)
+      .filter(([k]) => k.startsWith(`${projectId}:`))
+      .some(([, v]) => v.status === "done");
+    if (done) void loadInstalled();
+  }, [skillProgress, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
+  const handleInstall = async (pluginId: string) => {
+    setActionError(null);
+    const scope = scopeMap[pluginId] ?? "local";
+    try {
+      await api.installSkill(projectId, pluginId, scope);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : cs.installError);
     }
   };
 
-  const handleToggleEnable = async (skill: InstalledSkill) => {
+  const handleToggleEnable = async (plugin: InstalledPlugin) => {
     setActionError(null);
     try {
-      if (skill.enabled) {
-        await api.disableSkill(projectId, skill.slug);
+      if (plugin.enabled) {
+        await api.disableSkill(projectId, plugin.id);
       } else {
-        await api.enableSkill(projectId, skill.slug);
+        await api.enableSkill(projectId, plugin.id);
       }
       await loadInstalled();
     } catch (err) {
       setActionError(
-        err instanceof Error ? err.message : (skill.enabled ? cs.disableError : cs.enableError),
+        err instanceof Error ? err.message : (plugin.enabled ? cs.disableError : cs.enableError),
       );
     }
   };
 
-  const handleRemove = async (slug: string) => {
-    setConfirmRemove(null);
+  const handleUninstall = async (pluginId: string) => {
+    setConfirmUninstall(null);
     setActionError(null);
     try {
-      await api.removeSkill(projectId, slug);
-      clearSkillProgress(projectId, slug);
+      await api.uninstallSkill(projectId, pluginId);
+      clearSkillProgress(projectId, pluginId);
       await loadInstalled();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : cs.removeError);
+      setActionError(err instanceof Error ? err.message : cs.uninstallError);
     }
   };
 
-  const installedSlugs = new Set((plugins ?? []).map((s) => s.slug));
-  const totalInstalled = (plugins?.length ?? 0) + claudePlugins.length;
+  const handleAddMarketplace = async () => {
+    if (!mpSource.trim()) return;
+    setMpAdding(true);
+    setActionError(null);
+    try {
+      // Determine source shape: GitHub shorthand "owner/repo", URL "https://...", or path
+      const raw = mpSource.trim();
+      let sourceObj: ClaudeMarketplace["source"];
+      if (raw.startsWith("http://") || raw.startsWith("https://")) {
+        sourceObj = { source: "url", url: raw };
+      } else if (/^[\w.-]+\/[\w.-]/.test(raw)) {
+        sourceObj = { source: "github", repo: raw };
+      } else {
+        sourceObj = { source: "path", path: raw };
+      }
+      await api.addMarketplace(projectId, sourceObj);
+      setMpSource("");
+      await loadMarketplaces();
+      // Refresh registry with the new marketplace source
+      void loadRegistry(true);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : cs.marketplaceAddError);
+    } finally {
+      setMpAdding(false);
+    }
+  };
+
+  const handleRemoveMarketplace = async (name: string) => {
+    setActionError(null);
+    try {
+      await api.removeMarketplace(projectId, name);
+      await loadMarketplaces();
+      void loadRegistry(true);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : cs.marketplaceRemoveError);
+    }
+  };
+
+  const installedIds = new Set((installed ?? []).map((p) => p.id));
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col gap-3">
@@ -1219,8 +1277,9 @@ function SkillsSegment({ projectId }: { projectId: string }) {
       <div className="flex border border-[var(--border)]">
         {(
           [
-            { key: "installed" as SkillsTab, label: cs.tabInstalled },
-            { key: "registry"  as SkillsTab, label: cs.tabRegistry },
+            { key: "installed"    as SkillsTab, label: cs.tabInstalled },
+            { key: "registry"     as SkillsTab, label: cs.tabRegistry },
+            { key: "marketplaces" as SkillsTab, label: cs.tabMarketplaces },
           ] as const
         ).map((tb) => (
           <button
@@ -1235,8 +1294,8 @@ function SkillsSegment({ projectId }: { projectId: string }) {
             )}
           >
             {tb.label}
-            {tb.key === "installed" && totalInstalled > 0 && (
-              <span className="ml-1.5 font-mono text-[10px] opacity-70">({totalInstalled})</span>
+            {tb.key === "installed" && (installed?.length ?? 0) > 0 && (
+              <span className="ml-1.5 font-mono text-[10px] opacity-70">({installed!.length})</span>
             )}
           </button>
         ))}
@@ -1256,154 +1315,93 @@ function SkillsSegment({ projectId }: { projectId: string }) {
       {/* ── Installed tab ── */}
       {tab === "installed" && (
         <>
-          {plugins === null ? (
+          {installed === null ? (
             <div className="px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">…</div>
-          ) : (
-            <div className="flex flex-col gap-4">
-
-              {/* Project plugins section */}
-              <div className="flex flex-col gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                  {cs.sectionProjectPlugins}
-                </span>
-                {plugins.length === 0 ? (
-                  <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-6 text-center text-[12px] text-[var(--text-muted)]">
-                    {cs.emptyInstalled}
-                  </div>
-                ) : (
-                  <ul className="flex flex-col border border-[var(--border)]">
-                    {plugins.map((sk) => {
-                      const prog = getProgress(sk.slug);
-                      const isWorking = prog?.status === "cloning" || prog?.status === "enabling";
-                      return (
-                        <li
-                          key={sk.slug}
-                          className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
-                                {sk.slug}
-                              </span>
-                              {sk.version && (
-                                <span className="font-mono text-[10px] text-[var(--text-faint)]">
-                                  v{sk.version}
-                                </span>
-                              )}
-                            </div>
-                            {prog && (
-                              <div
-                                className={clsx(
-                                  "mt-0.5 text-[11px]",
-                                  prog.status === "error"
-                                    ? "text-[var(--status-error)]"
-                                    : "text-[var(--text-muted)]",
-                                )}
-                              >
-                                {prog.status === "cloning"
-                                  ? cs.cloning
-                                  : prog.status === "enabling"
-                                  ? cs.enabling
-                                  : prog.status === "done"
-                                  ? cs.installed
-                                  : prog.message ?? cs.error}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <span
-                              className={clsx(
-                                "text-[10px] uppercase tracking-[0.08em]",
-                                sk.enabled ? "text-[var(--accent-primary)]" : "text-[var(--text-faint)]",
-                              )}
-                            >
-                              {sk.enabled ? cs.enabled : cs.disabled}
-                            </span>
-                            <button
-                              type="button"
-                              disabled={isWorking}
-                              onClick={() => void handleToggleEnable(sk)}
-                              className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
-                            >
-                              {sk.enabled ? cs.disable : cs.enable}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isWorking}
-                              onClick={() => setConfirmRemove(sk.slug)}
-                              className="border border-[var(--status-error)] bg-transparent px-2 py-1 text-[11px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-40"
-                            >
-                              {cs.remove}
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-
-              {/* Claude plugins section — hidden when empty */}
-              {claudePlugins.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                    {cs.sectionClaudePlugins}
-                  </span>
-                  <ul className="flex flex-col border border-[var(--border)]">
-                    {claudePlugins.map((cp) => {
-                      const scopeLabel =
-                        cp.scope === "local"   ? cs.scopeLocal   :
-                        cp.scope === "project" ? cs.scopeProject :
-                        cs.scopeUser;
-                      return (
-                        <li
-                          key={cp.slug}
-                          className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
-                                {cp.slug}
-                              </span>
-                              {cp.marketplace && (
-                                <span className="text-[11px] text-[var(--text-muted)]">
-                                  {cp.marketplace}
-                                </span>
-                              )}
-                              {cp.version && (
-                                <span className="font-mono text-[10px] text-[var(--text-faint)]">
-                                  v{cp.version}
-                                </span>
-                              )}
-                              {/* Scope badge */}
-                              <span
-                                className={clsx(
-                                  "rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]",
-                                  SCOPE_COLORS[cp.scope],
-                                )}
-                              >
-                                {scopeLabel}
-                              </span>
-                            </div>
-                            {cp.projectPath && (
-                              <div className="mt-0.5 truncate font-mono text-[10px] text-[var(--text-faint)]">
-                                {cp.projectPath}
-                              </div>
-                            )}
-                            <div
-                              className="mt-0.5 text-[10px] italic text-[var(--text-faint)]"
-                              title={cp.installPath}
-                            >
-                              {cs.managedByClaude}
-                            </div>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
+          ) : installed.length === 0 ? (
+            <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
+              {cs.emptyInstalled}
             </div>
+          ) : (
+            <ul className="flex flex-col border border-[var(--border)]">
+              {installed.map((plugin) => {
+                const prog = getProgress(plugin.id);
+                const isWorking = prog?.status === "running";
+                const scopeLabel =
+                  plugin.scope === "local"   ? cs.scopeLocal   :
+                  plugin.scope === "project" ? cs.scopeProject :
+                  cs.scopeUser;
+                return (
+                  <li
+                    key={plugin.id}
+                    className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
+                  >
+                    <div className="min-w-0 flex-1" title={plugin.installPath}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+                          {plugin.id}
+                        </span>
+                        {plugin.version && (
+                          <span className="font-mono text-[10px] text-[var(--text-faint)]">
+                            v{plugin.version}
+                          </span>
+                        )}
+                        <span
+                          className={clsx(
+                            "rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]",
+                            SCOPE_COLORS[plugin.scope],
+                          )}
+                        >
+                          {scopeLabel}
+                        </span>
+                      </div>
+                      {plugin.projectPath && (
+                        <div className="mt-0.5 truncate font-mono text-[10px] text-[var(--text-faint)]">
+                          {plugin.projectPath}
+                        </div>
+                      )}
+                      {prog && (
+                        <div
+                          className={clsx(
+                            "mt-0.5 text-[11px]",
+                            prog.status === "error" ? "text-[var(--status-error)]" : "text-[var(--text-muted)]",
+                          )}
+                        >
+                          {prog.status === "running" ? cs.running :
+                           prog.status === "done"    ? cs.done    :
+                           prog.message ?? cs.error}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={clsx(
+                          "text-[10px] uppercase tracking-[0.08em]",
+                          plugin.enabled ? "text-[var(--accent-primary)]" : "text-[var(--text-faint)]",
+                        )}
+                      >
+                        {plugin.enabled ? cs.enabled : cs.disabled}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isWorking}
+                        onClick={() => void handleToggleEnable(plugin)}
+                        className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                      >
+                        {plugin.enabled ? cs.disable : cs.enable}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isWorking}
+                        onClick={() => setConfirmUninstall(plugin.id)}
+                        className="border border-[var(--status-error)] bg-transparent px-2 py-1 text-[11px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-40"
+                      >
+                        {cs.uninstall}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </>
       )}
@@ -1419,82 +1417,104 @@ function SkillsSegment({ projectId }: { projectId: string }) {
             </div>
           ) : (
             <ul className="flex flex-col border border-[var(--border)]">
-              {registry.map((sk) => {
-                const alreadyInstalled = installedSlugs.has(sk.slug);
-                const prog = getProgress(sk.slug);
-                const isWorking = prog?.status === "cloning" || prog?.status === "enabling";
-                const externalUrl = sk.homepage ?? sk.repoUrl;
+              {registry.map((avail) => {
+                const alreadyInstalled = installedIds.has(avail.pluginId);
+                const prog = getProgress(avail.pluginId);
+                const isWorking = prog?.status === "running";
+                const externalUrl = avail.homepage
+                  ?? avail.source.url
+                  ?? (avail.source.repo ? `https://github.com/${avail.source.repo}` : undefined);
+                const scope = scopeMap[avail.pluginId] ?? "local";
                 return (
                   <li
-                    key={sk.slug}
+                    key={avail.pluginId}
                     className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
-                          {sk.name}
+                          {avail.name}
                         </span>
                         <span className="font-mono text-[10px] text-[var(--text-faint)]">
-                          {sk.slug}
+                          {avail.pluginId}
                         </span>
-                        <span className="font-mono text-[10px] text-[var(--text-faint)]">
-                          v{sk.version}
-                        </span>
+                        {avail.marketplaceName && (
+                          <span className="text-[10px] text-[var(--text-faint)]">
+                            {avail.marketplaceName}
+                          </span>
+                        )}
                       </div>
-                      <div className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
-                        {sk.description}
-                      </div>
-                      <div className="mt-0.5 text-[10px] text-[var(--text-faint)]">
-                        {cs.author}: {sk.author}
+                      {avail.description && (
+                        <div className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
+                          {avail.description}
+                        </div>
+                      )}
+                      <div className="mt-0.5 flex items-center gap-3 text-[10px] text-[var(--text-faint)]">
+                        {avail.author && <span>{cs.author}: {avail.author}</span>}
+                        {avail.installCount !== undefined && (
+                          <span>{cs.installCount.replace("{n}", String(avail.installCount))}</span>
+                        )}
                       </div>
                       {prog && (
                         <div
                           className={clsx(
                             "mt-0.5 text-[11px]",
-                            prog.status === "error"
-                              ? "text-[var(--status-error)]"
-                              : "text-[var(--text-muted)]",
+                            prog.status === "error" ? "text-[var(--status-error)]" : "text-[var(--text-muted)]",
                           )}
                         >
-                          {prog.status === "cloning"
-                            ? cs.cloning
-                            : prog.status === "enabling"
-                            ? cs.enabling
-                            : prog.status === "done"
-                            ? cs.installed
-                            : prog.message ?? cs.error}
+                          {prog.status === "running" ? cs.running :
+                           prog.status === "done"    ? cs.installed :
+                           prog.message ?? cs.error}
                         </div>
                       )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-2 self-center">
-                      {/* External link button */}
-                      <a
-                        href={externalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={cs.viewSkill}
-                        className="flex items-center border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--text-muted)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                      >
-                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7" />
-                          <path d="M8 1h3v3" />
-                          <path d="M11 1L5.5 6.5" />
-                        </svg>
-                      </a>
-                      {/* Install / installed */}
+
+                    <div className="flex shrink-0 items-center gap-1.5 self-center">
+                      {/* External link */}
+                      {externalUrl && (
+                        <a
+                          href={externalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={cs.viewSkill}
+                          className="flex items-center border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[var(--text-muted)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7" />
+                            <path d="M8 1h3v3" />
+                            <path d="M11 1L5.5 6.5" />
+                          </svg>
+                        </a>
+                      )}
+                      {/* Scope selector + Install */}
                       {alreadyInstalled ? (
                         <span className="text-[11px] text-[var(--accent-primary)]">
                           ✓ {cs.installed}
                         </span>
                       ) : (
-                        <button
-                          type="button"
-                          disabled={isWorking}
-                          onClick={() => void handleInstall(sk.slug)}
-                          className="btn-ink px-3 py-1.5 text-[11px] disabled:opacity-50"
-                        >
-                          {isWorking ? cs.installing : cs.install}
-                        </button>
+                        <>
+                          <select
+                            value={scope}
+                            onChange={(e) =>
+                              setScopeMap((prev) => ({ ...prev, [avail.pluginId]: e.target.value as PluginScope }))
+                            }
+                            disabled={isWorking}
+                            title={cs.chooseScope}
+                            className="border border-[var(--border)] bg-[var(--bg-surface)] px-1.5 py-1 font-mono text-[10px] text-[var(--text-secondary)] outline-none transition focus:border-[var(--text-secondary)] disabled:opacity-40"
+                          >
+                            <option value="local">{cs.scopeLocal}</option>
+                            <option value="project">{cs.scopeProject}</option>
+                            <option value="user">{cs.scopeUser}</option>
+                          </select>
+                          <button
+                            type="button"
+                            disabled={isWorking}
+                            onClick={() => void handleInstall(avail.pluginId)}
+                            className="btn-ink px-3 py-1.5 text-[11px] disabled:opacity-50"
+                          >
+                            {isWorking ? cs.installing : cs.install}
+                          </button>
+                        </>
                       )}
                     </div>
                   </li>
@@ -1505,17 +1525,80 @@ function SkillsSegment({ projectId }: { projectId: string }) {
         </>
       )}
 
+      {/* ── Marketplaces tab ── */}
+      {tab === "marketplaces" && (
+        <div className="flex flex-col gap-3">
+          {/* Add form */}
+          <div className="flex items-center gap-2">
+            <input
+              value={mpSource}
+              onChange={(e) => setMpSource(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void handleAddMarketplace(); }}
+              disabled={mpAdding}
+              placeholder={cs.marketplaceSourcePlaceholder}
+              spellCheck={false}
+              className="flex-1 border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)] disabled:opacity-60"
+            />
+            <button
+              type="button"
+              onClick={() => void handleAddMarketplace()}
+              disabled={mpAdding || !mpSource.trim()}
+              className="btn-ink whitespace-nowrap px-3 py-1.5 text-[11px] disabled:opacity-50"
+            >
+              {mpAdding ? "…" : cs.addMarketplace}
+            </button>
+          </div>
+
+          {/* List */}
+          {marketplaces === null ? (
+            <div className="px-3 py-6 text-center text-[12px] text-[var(--text-muted)]">…</div>
+          ) : marketplaces.length === 0 ? (
+            <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
+              {cs.noMarketplaces}
+            </div>
+          ) : (
+            <ul className="flex flex-col border border-[var(--border)]">
+              {marketplaces.map((mp) => {
+                const src = mp.source.repo ?? mp.source.url ?? mp.source.path ?? mp.source.source;
+                return (
+                  <li
+                    key={mp.name}
+                    className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+                        {mp.name}
+                      </div>
+                      <div className="mt-0.5 truncate font-mono text-[10px] text-[var(--text-faint)]">
+                        {src}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleRemoveMarketplace(mp.name)}
+                      className="shrink-0 border border-[var(--status-error)] bg-transparent px-2 py-1 text-[11px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)]"
+                    >
+                      {cs.removeMarketplace}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
       <ConfirmDialog
-        open={confirmRemove !== null}
-        title={cs.confirmRemoveTitle}
-        description={cs.confirmRemoveDescription}
-        confirmLabel={cs.remove}
+        open={confirmUninstall !== null}
+        title={cs.confirmUninstallTitle}
+        description={cs.confirmUninstallDescription}
+        confirmLabel={cs.uninstall}
         cancelLabel={cs.cancel}
         variant="danger"
         onConfirm={() => {
-          if (confirmRemove) void handleRemove(confirmRemove);
+          if (confirmUninstall) void handleUninstall(confirmUninstall);
         }}
-        onCancel={() => setConfirmRemove(null)}
+        onCancel={() => setConfirmUninstall(null)}
       />
     </div>
   );
