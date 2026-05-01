@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import clsx from "clsx";
 import { api, type ClaudeAgent } from "@/lib/api";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useTranslation } from "@/hooks/useTranslation";

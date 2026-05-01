@@ -24,7 +24,7 @@ export function CloneRepoModal({ repo, onClose }: CloneRepoModalProps) {
 
   useEffect(() => {
     if (repo) {
-      setTargetPath(`~/Projects/${repo.name}`);
+      setTargetPath(`~/Projects/AI/${repo.name}`);
       setError(null);
       setSubmitting(false);
       currentTargetPath.current = null;
@@ -64,10 +64,10 @@ export function CloneRepoModal({ repo, onClose }: CloneRepoModalProps) {
 
   const updatedLabel = repo?.updatedAt
     ? new Date(repo.updatedAt).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
     : null;
 
   const visibilityLabel =
@@ -78,7 +78,7 @@ export function CloneRepoModal({ repo, onClose }: CloneRepoModalProps) {
   return (
     <Modal
       open={repo !== null}
-      onClose={isCloning ? () => {} : onClose}
+      onClose={isCloning ? () => { } : onClose}
       title={t.cloneModal.title}
       size="xl"
     >
