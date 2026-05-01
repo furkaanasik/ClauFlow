@@ -31,6 +31,5 @@ Thumbs.db
 
 # graphify (knowledge graph cache + Claude hook config)
 graphify-out/
-.claude/settings.json
 .claude/settings.local.json
 *.pre-graphify.bak

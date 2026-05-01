@@ -11,9 +11,9 @@ This epic is **sliced into five independently-shippable phases**. Each phase end
 ### Dependency graph
 
 ```
-1A ✅ (foundation) ─┬── 1B (agents) ──┐
-                    │                  ├── 1E (studio)
-                    └── 1D (skills) ──┘
+1A ✅ (foundation) ─┬── 1B ✅ (agents) ──┐
+                    │                     ├── 1E (studio)
+                    └── 1D (skills) ─────┘
 
 1C ✅ (prereqs) — independent, can run in parallel
 ```
@@ -32,15 +32,17 @@ The foundation everything else attaches to.
 
 ---
 
-### Phase 1B — Agents CRUD (~1–1.5 days)
+### ✅ Phase 1B — Agents CRUD (~1–1.5 days)
 
 Depends on 1A.
 
-- "Agents" segment — list `.claude/agents/*.md`; frontmatter form (name, model, description) + body markdown editor
-- Create / delete / edit agents
-- Backend: `GET/POST/PUT/DELETE /api/projects/:id/claude/agents/:slug`
+- "Agents" segment — list `.claude/agents/*.md`; frontmatter form (name, model, description) + body markdown editor with fullscreen split/preview
+- Create / delete / edit agents; model picker with curated presets + custom override
+- Auto-bootstraps `.claude/settings.json` (team env + bypassPermissions) when an agent is created or when an existing project with agents is opened, and removes it again on the last delete (only if untouched)
+- Repo-wide settings consolidation: `.claude/settings.json` is now committed (team env), `.claude/settings.local.json` stays gitignored for personal overrides
+- Backend: `GET/POST/PUT/DELETE /api/projects/:id/claude/agents/:slug`, plus generic `POST /:id/claude/push`
 
-**Ships:** manual agent setup no longer requires an IDE.
+**Ships:** manual agent setup no longer requires an IDE; the team feature is automatically wired in any project where an agent is added.
 
 ---
 
