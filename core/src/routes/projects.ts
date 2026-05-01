@@ -843,7 +843,14 @@ const installBodySchema = z.object({
 });
 
 const marketplaceAddSchema = z.object({
-  source: z.string().min(1).max(500),
+  source: z
+    .string()
+    .min(1)
+    .max(500)
+    .regex(
+      /^(https?:\/\/[\w.\-/:@%?=&+#]+|[\w.-]+\/[\w.-]+|[\w.-]+)$/,
+      "must be a URL, owner/repo shorthand, or name",
+    ),
 });
 
 const marketplaceNameSchema = z.string().min(1).max(120);
@@ -855,7 +862,8 @@ router.get("/:id/claude/skills/registry", async (req: Request, res: Response) =>
     const available = await cliListAvailable(project.repoPath);
     res.json({ available });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.error("[skills.registry]", err);
+    res.status(500).json({ error: "registry_load_failed" });
   }
 });
 
@@ -866,7 +874,8 @@ router.get("/:id/claude/skills", async (req: Request, res: Response) => {
     const installed = await cliListInstalled(project.repoPath);
     res.json({ installed });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.error("[skills.list]", err);
+    res.status(500).json({ error: "installed_list_failed" });
   }
 });
 
@@ -893,10 +902,12 @@ router.post(
           broadcastSkillInstallProgress(project.id, pluginId, "done", `installed ${pluginId}`);
         })
         .catch((err: Error) => {
-          broadcastSkillInstallProgress(project.id, pluginId, "error", err.message);
+          console.error("[skills.install]", err);
+          broadcastSkillInstallProgress(project.id, pluginId, "error", "install_failed");
         });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      console.error("[skills.install]", err);
+      res.status(500).json({ error: "install_failed" });
     }
   },
 );
@@ -912,7 +923,8 @@ router.delete(
       await cliUninstallPlugin(project.repoPath, idParse.data);
       res.json({ deleted: true, pluginId: idParse.data });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      console.error("[skills.uninstall]", err);
+      res.status(500).json({ error: "uninstall_failed" });
     }
   },
 );
@@ -928,7 +940,8 @@ router.post(
       await cliEnablePlugin(project.repoPath, idParse.data);
       res.json({ enabled: true, pluginId: idParse.data });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      console.error("[skills.enable]", err);
+      res.status(500).json({ error: "enable_failed" });
     }
   },
 );
@@ -944,7 +957,8 @@ router.post(
       await cliDisablePlugin(project.repoPath, idParse.data);
       res.json({ enabled: false, pluginId: idParse.data });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      console.error("[skills.disable]", err);
+      res.status(500).json({ error: "disable_failed" });
     }
   },
 );
@@ -956,7 +970,8 @@ router.get("/:id/claude/marketplaces", async (req: Request, res: Response) => {
     const marketplaces = await cliListMarketplaces(project.repoPath);
     res.json({ marketplaces });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.error("[marketplaces.list]", err);
+    res.status(500).json({ error: "marketplace_list_failed" });
   }
 });
 
@@ -971,7 +986,8 @@ router.post("/:id/claude/marketplaces", async (req: Request, res: Response) => {
     await cliAddMarketplace(project.repoPath, parsed.data.source);
     res.status(201).json({ added: true, source: parsed.data.source });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.error("[marketplaces.add]", err);
+    res.status(500).json({ error: "marketplace_add_failed" });
   }
 });
 
@@ -986,7 +1002,8 @@ router.delete(
       await cliRemoveMarketplace(project.repoPath, nameParse.data);
       res.json({ deleted: true, name: nameParse.data });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      console.error("[marketplaces.remove]", err);
+      res.status(500).json({ error: "marketplace_remove_failed" });
     }
   },
 );

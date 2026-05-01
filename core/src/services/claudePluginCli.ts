@@ -20,7 +20,8 @@ function runClaude(args: string[], cwd: string): Promise<RunResult> {
     let stderr = "";
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error(`claude ${args.join(" ")} timed out after ${TIMEOUT_MS}ms`));
+      console.error("[claudePluginCli] timed out", args);
+      reject(new Error("claude plugin command timed out"));
     }, TIMEOUT_MS);
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString("utf8");
