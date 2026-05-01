@@ -188,6 +188,56 @@ export interface Translations {
   githubRepos: {
     sectionTitle: string;
   };
+  prereqs: {
+    title: string;
+    allGood: string;
+    missingOne: string;
+    missingMany: string;
+    found: string;
+    missing: string;
+    install: string;
+    copy: string;
+    copied: string;
+    docs: string;
+    rerun: string;
+    checking: string;
+    error: string;
+  };
+  claudeConfig: {
+    tabLabel: string;
+    overviewTab: string;
+    segmentInstructions: string;
+    segmentAgents: string;
+    segmentSkills: string;
+    segmentStudio: string;
+    instructionsHint: string;
+    instructionsPlaceholder: string;
+    instructionsEmpty: string;
+    save: string;
+    saving: string;
+    revert: string;
+    saved: string;
+    saveError: string;
+    repoMissing: string;
+    fileLabel: string;
+    notImplemented: string;
+    commitHint: string;
+    committed: string;
+    commitSkipped: string;
+    commitNoChanges: string;
+    commitNotARepo: string;
+    commitFailed: string;
+    push: string;
+    pushing: string;
+    pushed: string;
+    pushFailed: string;
+    expand: string;
+    collapse: string;
+    viewSplit: string;
+    viewEdit: string;
+    viewPreview: string;
+    previewEmpty: string;
+  };
   projectDetail: {
     title: string;
     editProject: string;

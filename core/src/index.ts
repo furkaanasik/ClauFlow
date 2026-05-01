@@ -6,6 +6,7 @@ import projectsRouter from "./routes/projects.js";
 import authRouter from "./routes/auth.js";
 import githubRouter from "./routes/github.js";
 import commentsRouter from "./routes/comments.js";
+import systemRouter from "./routes/system.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
 import { recoverOrphanedTasks } from "./services/taskService.js";
 
@@ -24,6 +25,7 @@ app.use("/api/tasks/:id/comments", commentsRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/auth", authRouter);
 app.use("/github", githubRouter);
+app.use("/api/system", systemRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "not_found", path: req.path });

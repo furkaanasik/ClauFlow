@@ -30,6 +30,7 @@ import {
   deleteGithubRepo,
   getRemoteUrl,
   commitAll,
+  run,
 } from "../services/gitService.js";
 import { runProjectPlanner } from "../agents/projectPlanner.js";
 import { runCloneRepo } from "../agents/cloneRunner.js";
@@ -283,6 +284,135 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
     await deleteProject(id);
     res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/:id/claude/instructions", async (req: Request, res: Response) => {
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+
+    const file = path.join(project.repoPath, "CLAUDE.md");
+    if (!fs.existsSync(file)) {
+      return res.json({ exists: false, content: "", path: file });
+    }
+    const content = fs.readFileSync(file, "utf8");
+    res.json({ exists: true, content, path: file });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+const instructionsSchema = z.object({ content: z.string().max(500_000) });
+
+router.put("/:id/claude/instructions", async (req: Request, res: Response) => {
+  const parsed = instructionsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+
+    if (!fs.existsSync(project.repoPath)) {
+      return res.status(400).json({ error: "repo_path_missing" });
+    }
+
+    const file = path.join(project.repoPath, "CLAUDE.md");
+    fs.writeFileSync(file, parsed.data.content, "utf8");
+
+    let committed = false;
+    let commitSha: string | null = null;
+    let commitWarning: string | null = null;
+
+    if (fs.existsSync(path.join(project.repoPath, ".git"))) {
+      const add = await run("git", ["add", "CLAUDE.md"], project.repoPath);
+      if (add.code !== 0) {
+        commitWarning = `git add failed: ${add.stderr || add.stdout}`.trim();
+      } else {
+        const status = await run(
+          "git",
+          ["diff", "--cached", "--name-only"],
+          project.repoPath,
+        );
+        if (status.stdout.trim().length === 0) {
+          commitWarning = "no_changes";
+        } else {
+          const commit = await run(
+            "git",
+            ["commit", "-m", "chore: update CLAUDE.md"],
+            project.repoPath,
+          );
+          if (commit.code !== 0) {
+            commitWarning = `git commit failed: ${commit.stderr || commit.stdout}`.trim();
+          } else {
+            committed = true;
+            const sha = await run(
+              "git",
+              ["rev-parse", "--short", "HEAD"],
+              project.repoPath,
+            );
+            commitSha = sha.code === 0 ? sha.stdout.trim() : null;
+          }
+        }
+      }
+    } else {
+      commitWarning = "not_a_git_repo";
+    }
+
+    res.json({
+      exists: true,
+      content: parsed.data.content,
+      path: file,
+      committed,
+      commitSha,
+      commitWarning,
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/:id/claude/instructions/push", async (req: Request, res: Response) => {
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+
+    if (!fs.existsSync(path.join(project.repoPath, ".git"))) {
+      return res.status(400).json({ error: "not_a_git_repo" });
+    }
+
+    const remotes = await run("git", ["remote"], project.repoPath);
+    if (remotes.stdout.trim() === "") {
+      return res.status(400).json({ error: "no_remote" });
+    }
+
+    const branch = await run(
+      "git",
+      ["rev-parse", "--abbrev-ref", "HEAD"],
+      project.repoPath,
+    );
+    if (branch.code !== 0) {
+      return res.status(500).json({ error: `git rev-parse failed: ${branch.stderr || branch.stdout}` });
+    }
+    const branchName = branch.stdout.trim();
+
+    const push = await run(
+      "git",
+      ["push", "origin", branchName],
+      project.repoPath,
+    );
+    if (push.code !== 0) {
+      return res.status(409).json({
+        error: "push_failed",
+        branch: branchName,
+        detail: (push.stderr || push.stdout).trim(),
+      });
+    }
+
+    res.json({ pushed: true, branch: branchName });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ClaudeConfigTab } from "@/components/Modals/ClaudeConfigTab";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -79,6 +80,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
 
   const projectHasActiveTasks = stats.doing > 0 || stats.review > 0;
 
+  const [activeTab,     setActiveTab]     = useState<"overview" | "claude">("overview");
   const [draft,         setDraft]         = useState<DraftState | null>(null);
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState<string | null>(null);
@@ -95,6 +97,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
     setError(null);
     setSaving(false);
     setDeleting(false);
+    setActiveTab("overview");
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -241,7 +244,32 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
               </div>
             </header>
 
+            <div className="flex border-b border-[var(--border)] px-6">
+              {([
+                { key: "overview", label: pd.details },
+                { key: "claude",   label: t.claudeConfig.tabLabel },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={clsx(
+                    "px-3 py-2.5 text-[12px] font-medium transition border-b-2 -mb-px",
+                    activeTab === tab.key
+                      ? "border-[var(--text-primary)] text-[var(--text-primary)]"
+                      : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex-1 overflow-y-auto px-6 py-5">
+              {activeTab === "claude" ? (
+                <ClaudeConfigTab projectId={project.id} hasRemote={Boolean(project.remote)} />
+              ) : (
+              <>
               {error && (
                 <div className="mb-4 whitespace-pre-wrap break-words border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-xs text-[var(--status-error)]">
                   {error}
@@ -387,7 +415,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                 </Section>
               )}
 
-              {/* Danger Zone */}
+              {/* Danger Zone — only on overview */}
               <Section label={pd.dangerZone} tone="var(--status-error)">
                 <div className="flex flex-col gap-2">
                   {project.remote && (
@@ -410,8 +438,11 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                   </button>
                 </div>
               </Section>
+              </>
+              )}
             </div>
 
+            {activeTab === "overview" && (
             <footer className="flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--bg-surface)] px-6 py-4">
               <button
                 type="button"
@@ -430,6 +461,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                 {saving ? pd.saving : pd.saveChanges}
               </button>
             </footer>
+            )}
           </>
         ) : null}
       </aside>
