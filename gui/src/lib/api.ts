@@ -175,7 +175,168 @@ export const api = {
   getPrereqs: (): Promise<{ allOk: boolean; items: PrereqItem[] }> =>
     fetch(`${BASE}/system/prereqs`, { cache: "no-store" })
       .then((r) => handle<{ allOk: boolean; items: PrereqItem[] }>(r)),
+
+  pushClaude: async (id: string): Promise<{ pushed: true; branch: string }> => {
+    const res = await fetch(`${BASE}/projects/${id}/claude/push`, { method: "POST" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: res.statusText }));
+      const detail = data.detail ? ` — ${data.detail}` : "";
+      throw new Error(`${data.error ?? "push_failed"}${detail}`);
+    }
+    return res.json();
+  },
+
+  listClaudeAgents: (id: string): Promise<{ exists: boolean; dir: string; agents: ClaudeAgent[] }> =>
+    fetch(`${BASE}/projects/${id}/claude/agents`, { cache: "no-store" })
+      .then((r) => handle<{ exists: boolean; dir: string; agents: ClaudeAgent[] }>(r)),
+
+  getClaudeAgent: (id: string, slug: string): Promise<ClaudeAgent> =>
+    fetch(`${BASE}/projects/${id}/claude/agents/${slug}`, { cache: "no-store" })
+      .then((r) => handle<ClaudeAgent>(r)),
+
+  createClaudeAgent: (
+    id: string,
+    input: { slug: string; name?: string; model?: string; description?: string; body?: string },
+  ): Promise<ClaudeAgentSaveResult> =>
+    fetch(`${BASE}/projects/${id}/claude/agents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }).then((r) => handle<ClaudeAgentSaveResult>(r)),
+
+  updateClaudeAgent: (
+    id: string,
+    slug: string,
+    input: { name?: string; model?: string; description?: string; body?: string },
+  ): Promise<ClaudeAgentSaveResult> =>
+    fetch(`${BASE}/projects/${id}/claude/agents/${slug}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }).then((r) => handle<ClaudeAgentSaveResult>(r)),
+
+  deleteClaudeAgent: (
+    id: string,
+    slug: string,
+  ): Promise<{ deleted: true; slug: string; committed: boolean; commitSha: string | null; commitWarning: string | null }> =>
+    fetch(`${BASE}/projects/${id}/claude/agents/${slug}`, { method: "DELETE" })
+      .then((r) =>
+        handle<{ deleted: true; slug: string; committed: boolean; commitSha: string | null; commitWarning: string | null }>(r),
+      ),
+
+  listSkillRegistry: (id: string): Promise<{ available: AvailablePlugin[] }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/registry`, { cache: "no-store" })
+      .then((r) => handle<{ available: AvailablePlugin[] }>(r)),
+
+  listInstalledSkills: (id: string): Promise<{ installed: InstalledPlugin[] }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills`, { cache: "no-store" })
+      .then((r) => handle<{ installed: InstalledPlugin[] }>(r)),
+
+  installSkill: (
+    id: string,
+    pluginId: string,
+    scope?: InstalledPlugin["scope"],
+  ): Promise<{ ok: true; pluginId: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}/install`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: scope ?? "local" }),
+    }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
+
+  uninstallSkill: (id: string, pluginId: string): Promise<{ ok: true; pluginId: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}`, {
+      method: "DELETE",
+    }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
+
+  enableSkill: (id: string, pluginId: string): Promise<{ ok: true; pluginId: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}/enable`, {
+      method: "POST",
+    }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
+
+  disableSkill: (id: string, pluginId: string): Promise<{ ok: true; pluginId: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}/disable`, {
+      method: "POST",
+    }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
+
+  listMarketplaces: (id: string): Promise<{ marketplaces: ClaudeMarketplace[] }> =>
+    fetch(`${BASE}/projects/${id}/claude/marketplaces`, { cache: "no-store" })
+      .then((r) => handle<{ marketplaces: ClaudeMarketplace[] }>(r)),
+
+  addMarketplace: (
+    id: string,
+    source: string,
+  ): Promise<{ ok: true; marketplace: ClaudeMarketplace }> =>
+    fetch(`${BASE}/projects/${id}/claude/marketplaces`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source }),
+    }).then((r) => handle<{ ok: true; marketplace: ClaudeMarketplace }>(r)),
+
+  removeMarketplace: (id: string, name: string): Promise<{ ok: true; name: string }> =>
+    fetch(`${BASE}/projects/${id}/claude/marketplaces/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    }).then((r) => handle<{ ok: true; name: string }>(r)),
 };
+
+// ─── Skill / Plugin types ─────────────────────────────────────────────────────
+
+export interface AvailablePluginSource {
+  source: string;
+  repo?: string;
+  url?: string;
+  path?: string;
+}
+
+export interface AvailablePlugin {
+  pluginId: string;
+  name: string;
+  description: string;
+  marketplaceName: string;
+  source: AvailablePluginSource;
+  installCount?: number;
+  homepage?: string;
+  author?: string;
+}
+
+export interface InstalledPlugin {
+  id: string;
+  version: string | null;
+  scope: "user" | "project" | "local";
+  enabled: boolean;
+  installPath: string;
+  installedAt: string;
+  lastUpdated: string | null;
+  projectPath?: string;
+}
+
+export interface ClaudeMarketplace {
+  name: string;
+  source: { source: string; repo?: string; url?: string; path?: string };
+}
+
+export type SkillInstallStatus = "running" | "done" | "error";
+
+export interface SkillInstallProgress {
+  pluginId: string;
+  projectId: string;
+  status: SkillInstallStatus;
+  message?: string;
+}
+
+export interface ClaudeAgent {
+  slug: string;
+  name: string;
+  model: string | null;
+  description: string | null;
+  body: string;
+  path: string;
+}
+
+export interface ClaudeAgentSaveResult extends ClaudeAgent {
+  committed: boolean;
+  commitSha: string | null;
+  commitWarning: string | null;
+}
 
 export interface ClaudeInstructionsSaveResult {
   exists: boolean;

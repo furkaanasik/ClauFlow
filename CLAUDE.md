@@ -32,10 +32,14 @@ The agent team is available, but **do not spin up a team for every job** — the
 
 When in doubt, lean small — spinning up a team is expensive, do not do it if it is not needed. If the coordinator finishes a change and notices it has grown beyond the **single file / few lines** threshold, it can hand off to a team from that point on.
 
-The agent team feature is enabled via `.claude/settings.local.json`:
+The agent team feature is enabled via the committed `.claude/settings.json` so every clone picks it up automatically:
 ```json
-{ "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" } }
+{
+  "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" },
+  "permissions": { "defaultMode": "bypassPermissions" }
+}
 ```
+Personal overrides (extra plugins, per-user allow rules) belong in `.claude/settings.local.json`, which stays gitignored.
 
 ### Setting Up the Team (when a team has been decided on)
 

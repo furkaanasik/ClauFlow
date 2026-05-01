@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { AgentStatus, AgentText, CloneStatus, Comment, PlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
+import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
 
 type Lang = "tr" | "en";
 
@@ -25,6 +26,8 @@ interface BoardState {
   agentTexts: Record<string, AgentText[]>;
   /** Clone progress per targetPath */
   cloneStatus: Record<string, { status: CloneStatus; message: string }>;
+  /** Skill install progress keyed by `${projectId}:${skillSlug}` */
+  skillProgress: Record<string, { status: SkillInstallStatus; message?: string }>;
 
   setTasks: (tasks: Task[]) => void;
   upsertTask: (task: Task) => void;
@@ -65,6 +68,9 @@ interface BoardState {
   completeClone: (targetPath: string, project?: Project) => void;
   failClone: (targetPath: string, message: string) => void;
 
+  setSkillProgress: (progress: SkillInstallProgress) => void;
+  clearSkillProgress: (projectId: string, pluginId: string) => void;
+
   getByStatus: (status: TaskStatus) => Task[];
 }
 
@@ -84,6 +90,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   toolCalls: {},
   agentTexts: {},
   cloneStatus: {},
+  skillProgress: {},
 
   setTasks: (tasks) =>
     set(() => ({
@@ -315,6 +322,23 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     set((state) => ({
       cloneStatus: { ...state.cloneStatus, [targetPath]: { status: "error", message } },
     })),
+
+  setSkillProgress: ({ projectId, pluginId, status, message }) =>
+    set((state) => ({
+      skillProgress: {
+        ...state.skillProgress,
+        [`${projectId}:${pluginId}`]: { status, message },
+      },
+    })),
+
+  clearSkillProgress: (projectId, pluginId) =>
+    set((state) => {
+      const key = `${projectId}:${pluginId}`;
+      if (!state.skillProgress[key]) return state;
+      const { [key]: _removed, ...rest } = state.skillProgress;
+      void _removed;
+      return { skillProgress: rest };
+    }),
 
   setWsConnected: (connected) => set(() => ({ wsConnected: connected })),
   setFilterText: (text) => set(() => ({ filterText: text })),

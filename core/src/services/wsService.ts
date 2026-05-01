@@ -118,6 +118,19 @@ export function broadcastCloneProgress(
   });
 }
 
+export function broadcastSkillInstallProgress(
+  projectId: string,
+  pluginId: string,
+  status: "running" | "done" | "error",
+  message: string,
+): void {
+  broadcast({
+    type: "skill_install_progress",
+    projectId,
+    payload: { pluginId, status, message },
+  });
+}
+
 export function closeWebSocket(): Promise<void> {
   return new Promise((resolve) => {
     if (!wss) return resolve();

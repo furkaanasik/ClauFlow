@@ -158,4 +158,13 @@ export type WsEvent =
   | { type: "project_planning_done"; projectId: string; taskCount: number }
   | { type: "project_planning_error"; projectId: string; error: string }
   | { type: "clone_progress"; targetPath: string; payload: CloneProgress }
-  | { type: "hello"; payload: { serverVersion: string } };
+  | { type: "hello"; payload: { serverVersion: string } }
+  | {
+      type: "skill_install_progress";
+      projectId: string;
+      payload: {
+        pluginId: string;
+        status: "running" | "done" | "error";
+        message?: string;
+      };
+    };
