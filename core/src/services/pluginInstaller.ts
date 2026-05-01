@@ -67,7 +67,7 @@ export async function installPlugin(
   const entry: PluginEntry = {
     slug: skill.slug,
     enabled: true,
-    source: "git",
+    source: "project",
     repoUrl: skill.repoUrl,
     version: skill.version,
     path: path.join(".claude", "plugins", skill.slug),

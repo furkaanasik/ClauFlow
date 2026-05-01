@@ -37,6 +37,7 @@ import { runCloneRepo } from "../agents/cloneRunner.js";
 import { getRegistry, getSkillBySlug } from "../services/pluginRegistry.js";
 import { installPlugin } from "../services/pluginInstaller.js";
 import {
+  listClaudePlugins,
   listInstalledPlugins,
   setPluginEnabled,
   uninstallPlugin,
@@ -856,7 +857,8 @@ router.get("/:id/claude/skills", async (req: Request, res: Response) => {
     const plugins = fs.existsSync(project.repoPath)
       ? listInstalledPlugins(project.repoPath)
       : [];
-    res.json({ exists: fs.existsSync(dir), dir, plugins });
+    const claudePlugins = listClaudePlugins(project.repoPath);
+    res.json({ exists: fs.existsSync(dir), dir, plugins, claudePlugins });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

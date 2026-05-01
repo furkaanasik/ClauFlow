@@ -1,10 +1,11 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 export interface PluginEntry {
   slug: string;
   enabled: boolean;
-  source: "git";
+  source: "project";
   repoUrl: string;
   version: string;
   path: string;
@@ -12,6 +13,23 @@ export interface PluginEntry {
 
 export interface InstalledPlugin extends PluginEntry {
   directoryExists: boolean;
+  managed: true;
+}
+
+export type ClaudePluginScope = "local" | "project" | "user";
+
+export interface ClaudePlugin {
+  slug: string;
+  marketplace: string;
+  scope: ClaudePluginScope;
+  projectPath: string | null;
+  version: string;
+  gitCommitSha: string | null;
+  installPath: string;
+  installedAt: string | null;
+  lastUpdated: string | null;
+  source: "claude";
+  managed: false;
 }
 
 interface SettingsShape {
@@ -110,6 +128,7 @@ export function listInstalledPlugins(repoPath: string): InstalledPlugin[] {
   const result: InstalledPlugin[] = plugins.map((p) => ({
     ...p,
     directoryExists: dirEntries.has(p.slug),
+    managed: true,
   }));
 
   for (const name of dirEntries) {
@@ -117,12 +136,84 @@ export function listInstalledPlugins(repoPath: string): InstalledPlugin[] {
     result.push({
       slug: name,
       enabled: false,
-      source: "git",
+      source: "project",
       repoUrl: "",
       version: "",
       path: path.join(".claude", "plugins", name),
       directoryExists: true,
+      managed: true,
     });
+  }
+  return result;
+}
+
+interface RawClaudePluginEntry {
+  scope?: string;
+  projectPath?: string;
+  installPath?: string;
+  version?: string;
+  installedAt?: string;
+  lastUpdated?: string;
+  gitCommitSha?: string;
+}
+
+interface RawClaudeInstalled {
+  version?: number;
+  plugins?: Record<string, RawClaudePluginEntry[]>;
+}
+
+function claudeInstalledPath(): string {
+  return path.join(os.homedir(), ".claude", "plugins", "installed_plugins.json");
+}
+
+function parseSlugMarketplace(key: string): { slug: string; marketplace: string } {
+  const at = key.lastIndexOf("@");
+  if (at <= 0) return { slug: key, marketplace: "" };
+  return { slug: key.slice(0, at), marketplace: key.slice(at + 1) };
+}
+
+function isValidScope(s: unknown): s is ClaudePluginScope {
+  return s === "local" || s === "project" || s === "user";
+}
+
+export function listClaudePlugins(repoPath: string): ClaudePlugin[] {
+  const file = claudeInstalledPath();
+  if (!fs.existsSync(file)) return [];
+  let parsed: RawClaudeInstalled;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, "utf8")) as RawClaudeInstalled;
+  } catch {
+    return [];
+  }
+  const map = parsed?.plugins;
+  if (!map || typeof map !== "object") return [];
+
+  const normalizedRepo = path.resolve(repoPath);
+  const result: ClaudePlugin[] = [];
+
+  for (const [key, entries] of Object.entries(map)) {
+    if (!Array.isArray(entries)) continue;
+    const { slug, marketplace } = parseSlugMarketplace(key);
+    for (const e of entries) {
+      const scope = isValidScope(e.scope) ? e.scope : "user";
+      const entryProjectPath = e.projectPath ? path.resolve(e.projectPath) : null;
+      if (scope !== "user") {
+        if (!entryProjectPath || entryProjectPath !== normalizedRepo) continue;
+      }
+      result.push({
+        slug,
+        marketplace,
+        scope,
+        projectPath: entryProjectPath,
+        version: typeof e.version === "string" ? e.version : "",
+        gitCommitSha: typeof e.gitCommitSha === "string" ? e.gitCommitSha : null,
+        installPath: typeof e.installPath === "string" ? e.installPath : "",
+        installedAt: typeof e.installedAt === "string" ? e.installedAt : null,
+        lastUpdated: typeof e.lastUpdated === "string" ? e.lastUpdated : null,
+        source: "claude",
+        managed: false,
+      });
+    }
   }
   return result;
 }
