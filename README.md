@@ -51,9 +51,12 @@ There's no chat. There's no copy-paste. The board is the interface, the PR is th
 
 - **Drag-driven AI execution** — column transitions trigger real git/Claude/gh pipelines, no manual scripts
 - **Branch-aware comment loop** — review feedback gets applied as new commits on the same PR branch
-- **Live agent logs** — WebSocket stream of every step: checkout, prompt, commit, push, PR
+- **Live agent logs** — WebSocket stream of every step: checkout, prompt, commit, push, PR (with tool-call traces and token / cost observability)
 - **Built-in PR viewer** — full-screen drawer with side-by-side diff, file tree, per-file collapse, Mark viewed
-- **Multi-project support** — sidebar with search; each project has its own board, repo, and tasks
+- **Agent Studio** — node-graph canvas (React Flow) for editing `.claude/agents/*.md`, drag-and-drop skill assignment, AI-generated agents from a prompt, topology synced back to `_graph.json` + a Mermaid block in `CLAUDE.md`
+- **Skills Manager** — Installed / Registry / Marketplaces tabs backed by the real `claude plugin` CLI — plugins you install here become discoverable to `claude /skills`
+- **Claude Config tab** — split-pane `CLAUDE.md` editor with live preview, plus a prereq banner that checks `claude` / `git` / `gh` versions and offers copy-paste install commands
+- **Multi-project support** — sidebar with search and `gh repo list` integration; click any GitHub repo to clone it as a new project
 - **GitHub via `gh` device flow** — no custom OAuth app to register
 - **i18n + theming** — TR/EN toggle and dark/light mode, both persisted in `localStorage`
 - **SQLite (WAL mode)** — transaction-safe storage, automatic migration from the legacy `tasks.json`
@@ -119,6 +122,14 @@ Open <http://localhost:3000>, connect a GitHub repo, drop a card on **DOING**, a
 3. Runner checks out the task's existing branch, runs Claude with the comment as feedback, commits and pushes (no new PR opened)
 4. Comment status updates live: spinner → ✓ done / ✗ error
 
+### Project control panel
+
+Each project gets a Claude Config drawer with three tabs:
+
+- **CLAUDE.md** — split editor with live Markdown preview; saving commits and pushes alongside the rest of the project.
+- **Agents** — Agent Studio canvas. Each agent is a node, skills are pills you drag onto it. New agents can be drafted from a one-line prompt; the topology is persisted to `.claude/agents/_graph.json` and mirrored as a Mermaid block in `CLAUDE.md`.
+- **Skills** — Installed / Registry / Marketplaces, all backed by `claude plugin` CLI passthrough. Anything installed here shows up in `claude /skills` for the executor and comment runner.
+
 ### Agent team (for the project's own development)
 
 | Agent    | Role |
@@ -149,7 +160,7 @@ The team only spawns for non-trivial work — see [`CLAUDE.md`](CLAUDE.md) for t
 
 | Layer    | Stack |
 |----------|------|
-| Frontend | Next.js 15 (App Router), Tailwind CSS 4, Zustand, dnd-kit |
+| Frontend | Next.js 15 (App Router), Tailwind CSS 4, Zustand, dnd-kit, React Flow (`@xyflow/react`) |
 | Backend  | Node.js, Express, `ws`, `better-sqlite3` (WAL mode) |
 | AI       | Claude Code CLI (`claude`) |
 | VCS      | Git + GitHub CLI (`gh`) |
