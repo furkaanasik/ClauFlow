@@ -11,22 +11,22 @@ This epic is **sliced into five independently-shippable phases**. Each phase end
 ### Dependency graph
 
 ```
-1A (foundation) ──┬── 1B (agents) ──┐
-                  │                  ├── 1E (studio)
-                  └── 1D (skills) ──┘
+1A ✅ (foundation) ─┬── 1B (agents) ──┐
+                    │                  ├── 1E (studio)
+                    └── 1D (skills) ──┘
 
-1C (prereqs) — independent, can run in parallel
+1C ✅ (prereqs) — independent, can run in parallel
 ```
 
 ---
 
-### Phase 1A — Claude Config tab + CLAUDE.md editor (~1 day)
+### ✅ Phase 1A — Claude Config tab + CLAUDE.md editor (~1 day)
 
 The foundation everything else attaches to.
 
 - New "Claude Config" tab inside `ProjectDetailDrawer`, sub-segmented skeleton (Instructions / Agents / Skills / Studio)
-- First segment: **Instructions** — read `CLAUDE.md`, simple markdown textarea (preview optional), save
-- Backend: `GET /api/projects/:id/claude/instructions`, `PUT .../instructions`
+- First segment: **Instructions** — read `CLAUDE.md`, markdown textarea, fullscreen modal with split editor + live preview (synchronized scroll), save commits the file on the current branch (no auto-push), explicit Push button when a remote exists
+- Backend: `GET/PUT /api/projects/:id/claude/instructions`, `POST .../instructions/push`
 
 **Ships:** the user can edit project instructions without opening an IDE.
 
@@ -44,7 +44,7 @@ Depends on 1A.
 
 ---
 
-### Phase 1C — Prereq onboarding (~0.5 day)
+### ✅ Phase 1C — Prereq onboarding (~0.5 day)
 
 Independent — can ship before, after, or in parallel with anything else.
 
