@@ -175,7 +175,70 @@ export const api = {
   getPrereqs: (): Promise<{ allOk: boolean; items: PrereqItem[] }> =>
     fetch(`${BASE}/system/prereqs`, { cache: "no-store" })
       .then((r) => handle<{ allOk: boolean; items: PrereqItem[] }>(r)),
+
+  pushClaude: async (id: string): Promise<{ pushed: true; branch: string }> => {
+    const res = await fetch(`${BASE}/projects/${id}/claude/push`, { method: "POST" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: res.statusText }));
+      const detail = data.detail ? ` — ${data.detail}` : "";
+      throw new Error(`${data.error ?? "push_failed"}${detail}`);
+    }
+    return res.json();
+  },
+
+  listClaudeAgents: (id: string): Promise<{ exists: boolean; dir: string; agents: ClaudeAgent[] }> =>
+    fetch(`${BASE}/projects/${id}/claude/agents`, { cache: "no-store" })
+      .then((r) => handle<{ exists: boolean; dir: string; agents: ClaudeAgent[] }>(r)),
+
+  getClaudeAgent: (id: string, slug: string): Promise<ClaudeAgent> =>
+    fetch(`${BASE}/projects/${id}/claude/agents/${slug}`, { cache: "no-store" })
+      .then((r) => handle<ClaudeAgent>(r)),
+
+  createClaudeAgent: (
+    id: string,
+    input: { slug: string; name?: string; model?: string; description?: string; body?: string },
+  ): Promise<ClaudeAgentSaveResult> =>
+    fetch(`${BASE}/projects/${id}/claude/agents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }).then((r) => handle<ClaudeAgentSaveResult>(r)),
+
+  updateClaudeAgent: (
+    id: string,
+    slug: string,
+    input: { name?: string; model?: string; description?: string; body?: string },
+  ): Promise<ClaudeAgentSaveResult> =>
+    fetch(`${BASE}/projects/${id}/claude/agents/${slug}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }).then((r) => handle<ClaudeAgentSaveResult>(r)),
+
+  deleteClaudeAgent: (
+    id: string,
+    slug: string,
+  ): Promise<{ deleted: true; slug: string; committed: boolean; commitSha: string | null; commitWarning: string | null }> =>
+    fetch(`${BASE}/projects/${id}/claude/agents/${slug}`, { method: "DELETE" })
+      .then((r) =>
+        handle<{ deleted: true; slug: string; committed: boolean; commitSha: string | null; commitWarning: string | null }>(r),
+      ),
 };
+
+export interface ClaudeAgent {
+  slug: string;
+  name: string;
+  model: string | null;
+  description: string | null;
+  body: string;
+  path: string;
+}
+
+export interface ClaudeAgentSaveResult extends ClaudeAgent {
+  committed: boolean;
+  commitSha: string | null;
+  commitWarning: string | null;
+}
 
 export interface ClaudeInstructionsSaveResult {
   exists: boolean;
