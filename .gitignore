@@ -16,6 +16,10 @@ build/
 *.db
 *.db-shm
 *.db-wal
+*.db.bak-*
+
+# Runtime data (kanban DB + migration leftovers)
+core/data/
 
 # Logs
 *.log
