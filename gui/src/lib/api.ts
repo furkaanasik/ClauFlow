@@ -372,6 +372,7 @@ export interface ClaudeAgent {
   name: string;
   model: string | null;
   description: string | null;
+  allowedTools: string | null;
   body: string;
   path: string;
 }
