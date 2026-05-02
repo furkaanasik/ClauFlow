@@ -6,6 +6,7 @@ import {
   getAgentTexts,
   getTask,
   getProject,
+  listNodeRunsByTask,
   listTasks,
   listToolCallsByTask,
   updateTask,
@@ -18,10 +19,13 @@ import {
 } from "../services/wsService.js";
 import {
   enqueue as enqueueExecutor,
+  enqueueResume as enqueueExecutorResume,
   abort as abortExecutor,
   isRunning as isExecutorRunning,
   waitForIdle as waitForExecutorIdle,
 } from "../agents/executor.js";
+import { loadGraph } from "../services/graphService.js";
+import { planGraph } from "../agents/graphRunner.js";
 import { mergePr } from "../services/gitService.js";
 
 const router = Router();
@@ -96,6 +100,17 @@ router.get("/:id/tool-calls", async (req: Request, res: Response) => {
     if (!task) return res.status(404).json({ error: "not_found" });
     const toolCalls = listToolCallsByTask(task.id);
     res.json({ toolCalls });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.get("/:id/node-runs", async (req: Request, res: Response) => {
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    const nodeRuns = listNodeRunsByTask(task.id);
+    res.json({ nodeRuns });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
@@ -269,6 +284,67 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
     }
 
     return res.status(409).json({ error: "task_not_running" });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.post("/:id/nodes/:nodeId/abort", async (req: Request, res: Response) => {
+  try {
+    const { id, nodeId } = req.params as { id: string; nodeId: string };
+    const task = await getTask(id);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    if (!isExecutorRunning(id)) {
+      return res.status(409).json({ error: "task_not_running" });
+    }
+    const runs = listNodeRunsByTask(id);
+    const live = runs.find((r) => r.nodeId === nodeId && r.status === "running");
+    if (!live) return res.status(409).json({ error: "node_not_running" });
+    abortExecutor(id);
+    return res.json({ aborted: true, nodeId });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.post("/:id/nodes/:nodeId/retry", async (req: Request, res: Response) => {
+  try {
+    const { id, nodeId } = req.params as { id: string; nodeId: string };
+    const task = await getTask(id);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    if (task.status !== "doing") {
+      return res.status(400).json({ error: "task_not_in_doing" });
+    }
+    const project = await getProject(task.projectId);
+    if (!project) return res.status(404).json({ error: "project_not_found" });
+
+    const graph = loadGraph(project.repoPath);
+    if (!graph || graph.nodes.length < 2) {
+      return res.status(400).json({ error: "no_graph_use_task_retry" });
+    }
+    const plan = planGraph(graph);
+    if (!plan.order.includes(nodeId)) {
+      return res.status(400).json({ error: "node_not_in_graph" });
+    }
+
+    if (isExecutorRunning(id)) {
+      abortExecutor(id);
+      await waitForExecutorIdle(id, 5000);
+    }
+
+    const reset = await updateTask(id, {
+      agent: {
+        status: "idle",
+        currentStep: undefined,
+        log: [],
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+      },
+    });
+    broadcastTaskUpdated(reset);
+    res.json({ task: reset, resumeFromNodeId: nodeId });
+    enqueueExecutorResume(reset, project, { resumeFromNodeId: nodeId });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }

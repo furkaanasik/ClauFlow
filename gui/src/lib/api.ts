@@ -1,12 +1,29 @@
-import type { AgentGraph, AgentText, Comment, GithubRepo, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
+import type { AgentGraph, AgentText, Comment, GithubRepo, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
 
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public body: unknown,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`API ${res.status}: ${text}`);
+    let body: unknown = text;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // not JSON, leave as raw text
+    }
+    throw new ApiError(res.status, `API ${res.status}: ${text}`, body);
   }
   return res.json() as Promise<T>;
 }
@@ -302,6 +319,29 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then((r) => handle<AgentGraph>(r)),
+
+  getNodeRuns: (taskId: string): Promise<NodeRun[]> =>
+    fetch(`${BASE}/tasks/${taskId}/node-runs`, { cache: "no-store" })
+      .then((r) => handle<{ nodeRuns: NodeRun[] }>(r))
+      .then((d) => d.nodeRuns ?? []),
+
+  abortNode: (
+    taskId: string,
+    nodeId: string,
+  ): Promise<{ aborted: true; nodeId: string }> =>
+    fetch(
+      `${BASE}/tasks/${taskId}/nodes/${encodeURIComponent(nodeId)}/abort`,
+      { method: "POST" },
+    ).then((r) => handle<{ aborted: true; nodeId: string }>(r)),
+
+  retryNode: (
+    taskId: string,
+    nodeId: string,
+  ): Promise<{ task: Task; resumeFromNodeId: string }> =>
+    fetch(
+      `${BASE}/tasks/${taskId}/nodes/${encodeURIComponent(nodeId)}/retry`,
+      { method: "POST" },
+    ).then((r) => handle<{ task: Task; resumeFromNodeId: string }>(r)),
 
   getPricing: async (): Promise<PricingResponse> => {
     const res = await fetch(`${BASE}/pricing`, { cache: "no-store" });

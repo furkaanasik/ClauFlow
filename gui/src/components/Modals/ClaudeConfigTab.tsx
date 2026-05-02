@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
 import { api } from "@/lib/api";
+import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { StudioCanvas } from "@/components/Studio/StudioCanvas";
 
@@ -17,7 +18,14 @@ interface ClaudeConfigTabProps {
 
 export function ClaudeConfigTab({ projectId, hasRemote }: ClaudeConfigTabProps) {
   const cc = useTranslation().claudeConfig;
-  const [segment, setSegment] = useState<Segment>("instructions");
+  const studioRequest = useBoardStore((s) => s.studioRequest);
+  const wantsStudio = !!studioRequest && studioRequest.projectId === projectId;
+  const [segment, setSegment] = useState<Segment>(
+    wantsStudio ? "studio" : "instructions",
+  );
+  useEffect(() => {
+    if (wantsStudio) setSegment("studio");
+  }, [wantsStudio]);
 
   const segments: Array<{ key: Segment; label: string }> = [
     { key: "instructions", label: cc.segmentInstructions },
@@ -467,9 +475,14 @@ function ExpandedEditor(p: ExpandedEditorProps) {
 }
 
 function StudioSegmentNew({ projectId }: { projectId: string }) {
+  const studioRequest = useBoardStore((s) => s.studioRequest);
+  const taskId =
+    studioRequest && studioRequest.projectId === projectId
+      ? studioRequest.taskId
+      : undefined;
   return (
     <div className="min-h-[500px] flex-1">
-      <StudioCanvas projectId={projectId} />
+      <StudioCanvas projectId={projectId} taskId={taskId} />
     </div>
   );
 }

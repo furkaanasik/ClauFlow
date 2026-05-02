@@ -80,8 +80,24 @@ export async function waitForIdle(taskId: string, timeoutMs = 5000): Promise<voi
   }
 }
 
-export function enqueue(task: Task, project: Project): void {
-  run(task, project).catch(() => {}); // errors handled inside run()
+export interface EnqueueOptions {
+  resumeFromNodeId?: string;
+}
+
+export function enqueue(
+  task: Task,
+  project: Project,
+  options: EnqueueOptions = {},
+): void {
+  run(task, project, options).catch(() => {}); // errors handled inside run()
+}
+
+export function enqueueResume(
+  task: Task,
+  project: Project,
+  options: { resumeFromNodeId: string },
+): void {
+  enqueue(task, project, options);
 }
 
 async function setAgentStep(
@@ -140,7 +156,11 @@ function taskRef(task: Task): string {
   return task.displayId ?? task.id;
 }
 
-export async function run(task: Task, project: Project): Promise<void> {
+export async function run(
+  task: Task,
+  project: Project,
+  options: EnqueueOptions = {},
+): Promise<void> {
   const branch = buildBranchName(task);
   const ref = taskRef(task);
   const controller = new AbortController();
@@ -230,7 +250,9 @@ export async function run(task: Task, project: Project): Promise<void> {
         `▸ Running graph (${graph.nodes.length} nodes)…`,
       ]);
       try {
-        await runGraph(task, project, graph, controller, project.defaultBranch);
+        await runGraph(task, project, graph, controller, project.defaultBranch, {
+          resumeFromNodeId: options.resumeFromNodeId,
+        });
       } catch (err) {
         if (err instanceof GraphValidationError) {
           throw new Error(`Invalid agent graph: ${err.reason}`);
@@ -552,6 +574,32 @@ export async function run(task: Task, project: Project): Promise<void> {
     broadcastTaskUpdated(errTask);
     if (!useGraphRunner) {
       finalizeNodeRun(nodeRunId, aborted ? "aborted" : "error", message);
+    }
+
+    // Cleanup: discard claude's uncommitted edits, return to base branch,
+    // delete the failed feature branch. Best-effort — git failures must not
+    // mask the original task error. Skip silently if the branch never existed
+    // (e.g. error happened before createBranch).
+    try {
+      await gitRun("git", ["reset", "--hard", "HEAD"], project.repoPath);
+      await gitRun("git", ["clean", "-fd"], project.repoPath);
+      const co = await gitRun(
+        "git",
+        ["checkout", project.defaultBranch],
+        project.repoPath,
+      );
+      if (co.code === 0) {
+        await gitRun("git", ["branch", "-D", branch], project.repoPath);
+        await pushLog(
+          task.id,
+          `↺ Cleaned up: returned to ${project.defaultBranch}, dropped ${branch}`,
+        );
+      }
+    } catch (cleanupErr) {
+      console.warn(
+        `[executor] post-error cleanup failed for ${ref}:`,
+        cleanupErr,
+      );
     }
   } finally {
     RUNNING.delete(task.id);

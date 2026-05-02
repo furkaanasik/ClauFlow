@@ -35,6 +35,7 @@ import {
 } from "../services/graphService.js";
 import type { AgentGraph } from "../types/index.js";
 import { errorMessage } from "../utils/error.js";
+import { GraphValidationError, planGraph } from "../agents/graphRunner.js";
 
 const router = Router();
 
@@ -682,6 +683,21 @@ router.put("/:id/claude/graph", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "repo_path_missing" });
     }
 
+    if (parsed.data.nodes.length > 0) {
+      try {
+        planGraph(parsed.data);
+      } catch (err) {
+        if (err instanceof GraphValidationError) {
+          return res.status(400).json({
+            error: "graph_invalid",
+            reason: err.reason,
+            offendingNodeIds: err.offendingNodeIds,
+          });
+        }
+        throw err;
+      }
+    }
+
     const dir = agentsDir(project.repoPath);
     fs.mkdirSync(dir, { recursive: true });
 
@@ -694,6 +710,24 @@ router.put("/:id/claude/graph", async (req: Request, res: Response) => {
     const slugs = listAgentSlugs(project.repoPath);
     const agentMeta = loadAgentMeta(project.repoPath, slugs);
     await syncTopologyToClaudeMd(project.repoPath, parsed.data, agentMeta);
+
+    // Auto-commit graph + CLAUDE.md so executor's checkoutBase doesn't
+    // auto-stash these files into oblivion when a task is dragged to doing.
+    try {
+      await run("git", ["add", ".claude/agents/_graph.json", "CLAUDE.md"], project.repoPath);
+      const commit = await run(
+        "git",
+        ["commit", "-m", "chore(agents): update graph layout"],
+        project.repoPath,
+      );
+      if (commit.code !== 0 && !/nothing to commit/i.test(commit.stdout + commit.stderr)) {
+        console.warn(
+          `[graph PUT] auto-commit failed (continuing): ${commit.stderr.slice(0, 200)}`,
+        );
+      }
+    } catch (err) {
+      console.warn(`[graph PUT] auto-commit threw (continuing):`, err);
+    }
 
     res.json(parsed.data);
   } catch (err) {
