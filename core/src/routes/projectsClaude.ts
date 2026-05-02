@@ -23,6 +23,16 @@ import {
 } from "../services/wsService.js";
 import { runClaude } from "../services/claudeService.js";
 import { syncTopologyToClaudeMd } from "../services/claudeTopologySyncService.js";
+import {
+  agentFilePath as gsAgentFilePath,
+  agentsDir as gsAgentsDir,
+  graphFilePath as gsGraphFilePath,
+  graphSchema as gsGraphSchema,
+  parseAgentFile as gsParseAgentFile,
+  serializeAgentFile as gsSerializeAgentFile,
+  type AgentFrontmatter as GsAgentFrontmatter,
+  type ParsedAgent as GsParsedAgent,
+} from "../services/graphService.js";
 import type { AgentGraph } from "../types/index.js";
 import { errorMessage } from "../utils/error.js";
 
@@ -162,51 +172,10 @@ router.post("/:id/claude/push", async (req: Request, res: Response) => {
   }
 });
 
-interface AgentFrontmatter {
-  name?: string;
-  model?: string;
-  description?: string;
-  [key: string]: string | undefined;
-}
-
-interface ParsedAgent {
-  frontmatter: AgentFrontmatter;
-  body: string;
-}
-
-function parseAgentFile(raw: string): ParsedAgent {
-  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  if (!match) return { frontmatter: {}, body: raw };
-  const fmRaw = match[1] ?? "";
-  const body = match[2] ?? "";
-  const frontmatter: AgentFrontmatter = {};
-  for (const line of fmRaw.split(/\r?\n/)) {
-    const m = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (!m) continue;
-    let value = (m[2] ?? "").trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    frontmatter[m[1]!] = value;
-  }
-  return { frontmatter, body };
-}
-
-function serializeAgentFile(fm: AgentFrontmatter, body: string): string {
-  const keys = ["name", "model", "description"] as const;
-  const lines: string[] = ["---"];
-  for (const k of keys) {
-    const v = fm[k];
-    if (v === undefined || v === "") continue;
-    const safe = /[:#\n"']/.test(v) ? JSON.stringify(v) : v;
-    lines.push(`${k}: ${safe}`);
-  }
-  lines.push("---", "");
-  return lines.join("\n") + (body.startsWith("\n") ? body : `\n${body}`).replace(/^\n+/, "\n");
-}
+type AgentFrontmatter = GsAgentFrontmatter;
+type ParsedAgent = GsParsedAgent;
+const parseAgentFile = gsParseAgentFile;
+const serializeAgentFile = gsSerializeAgentFile;
 
 const agentSlugSchema = z
   .string()
@@ -220,6 +189,7 @@ const agentBodySchema = z.object({
   name: z.string().min(1).max(80).optional(),
   model: z.string().max(80).optional(),
   description: z.string().max(500).optional(),
+  allowedTools: z.string().max(500).optional(),
   body: z.string().max(200_000).optional(),
 });
 
@@ -227,13 +197,8 @@ const agentCreateSchema = agentBodySchema.extend({
   slug: agentSlugSchema,
 });
 
-function agentsDir(repoPath: string): string {
-  return path.join(repoPath, ".claude", "agents");
-}
-
-function agentFilePath(repoPath: string, slug: string): string {
-  return path.join(agentsDir(repoPath), `${slug}.md`);
-}
+const agentsDir = gsAgentsDir;
+const agentFilePath = gsAgentFilePath;
 
 function settingsPath(repoPath: string): string {
   return path.join(repoPath, ".claude", "settings.json");
@@ -383,6 +348,7 @@ router.get("/:id/claude/agents", async (req: Request, res: Response) => {
         name: frontmatter.name ?? slug,
         model: frontmatter.model ?? null,
         description: frontmatter.description ?? null,
+        allowedTools: frontmatter.allowedTools ?? null,
         body,
         path: path.join(dir, file),
       };
@@ -409,6 +375,7 @@ router.get("/:id/claude/agents/:slug", async (req: Request, res: Response) => {
       name: frontmatter.name ?? slugParse.data,
       model: frontmatter.model ?? null,
       description: frontmatter.description ?? null,
+      allowedTools: frontmatter.allowedTools ?? null,
       body,
       path: file,
     });
@@ -521,6 +488,7 @@ router.post("/:id/claude/agents", async (req: Request, res: Response) => {
       name: parsed.data.name ?? parsed.data.slug,
       model: parsed.data.model,
       description: parsed.data.description,
+      allowedTools: parsed.data.allowedTools,
     };
     const content = serializeAgentFile(fm, parsed.data.body ?? "");
     fs.writeFileSync(file, content, "utf8");
@@ -541,6 +509,7 @@ router.post("/:id/claude/agents", async (req: Request, res: Response) => {
       name: fm.name ?? parsed.data.slug,
       model: fm.model ?? null,
       description: fm.description ?? null,
+      allowedTools: fm.allowedTools ?? null,
       body: parsed.data.body ?? "",
       path: file,
       ...commit,
@@ -569,6 +538,8 @@ router.put("/:id/claude/agents/:slug", async (req: Request, res: Response) => {
       name: parsed.data.name ?? existing.frontmatter.name ?? slugParse.data,
       model: parsed.data.model ?? existing.frontmatter.model,
       description: parsed.data.description ?? existing.frontmatter.description,
+      allowedTools:
+        parsed.data.allowedTools ?? existing.frontmatter.allowedTools,
     };
     const body = parsed.data.body ?? existing.body;
     fs.writeFileSync(file, serializeAgentFile(fm, body), "utf8");
@@ -585,6 +556,7 @@ router.put("/:id/claude/agents/:slug", async (req: Request, res: Response) => {
       name: fm.name ?? slugParse.data,
       model: fm.model ?? null,
       description: fm.description ?? null,
+      allowedTools: fm.allowedTools ?? null,
       body,
       path: file,
       ...commit,
@@ -636,9 +608,7 @@ router.delete("/:id/claude/agents/:slug", async (req: Request, res: Response) =>
   }
 });
 
-function graphFilePath(repoPath: string): string {
-  return path.join(agentsDir(repoPath), "_graph.json");
-}
+const graphFilePath = gsGraphFilePath;
 
 function listAgentSlugs(repoPath: string): string[] {
   const dir = agentsDir(repoPath);
@@ -674,23 +644,7 @@ function deriveDefaultGraph(slugs: string[]): AgentGraph {
   };
 }
 
-const graphNodeSchema = z.object({
-  id: z.string().min(1).max(120),
-  type: z.literal("agent"),
-  position: z.object({ x: z.number(), y: z.number() }),
-  data: z.object({ slug: z.string().min(1).max(120) }),
-});
-
-const graphEdgeSchema = z.object({
-  id: z.string().min(1).max(240),
-  source: z.string().min(1).max(120),
-  target: z.string().min(1).max(120),
-});
-
-const graphSchema = z.object({
-  nodes: z.array(graphNodeSchema).max(500),
-  edges: z.array(graphEdgeSchema).max(2000),
-});
+const graphSchema = gsGraphSchema;
 
 router.get("/:id/claude/graph", async (req: Request, res: Response) => {
   try {

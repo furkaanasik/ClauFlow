@@ -145,12 +145,7 @@ export function broadcastSkillInstallProgress(
   });
 }
 
-function nodeEventsEnabled(): boolean {
-  return process.env.CLAUFLOW_NODE_EVENTS === "1";
-}
-
 export function broadcastNodeStarted(nodeRun: NodeRun): void {
-  if (!nodeEventsEnabled()) return;
   broadcast({
     type: "node_started",
     taskId: nodeRun.taskId,
@@ -159,7 +154,6 @@ export function broadcastNodeStarted(nodeRun: NodeRun): void {
 }
 
 export function broadcastNodeFinished(nodeRun: NodeRun): void {
-  if (!nodeEventsEnabled()) return;
   broadcast({
     type: "node_finished",
     taskId: nodeRun.taskId,
@@ -172,7 +166,6 @@ export function broadcastNodeLog(
   nodeId: string,
   line: string,
 ): void {
-  if (!nodeEventsEnabled()) return;
   broadcast({
     type: "node_log",
     taskId,

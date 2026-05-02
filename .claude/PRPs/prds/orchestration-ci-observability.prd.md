@@ -186,7 +186,7 @@ Phase B inserts a `ci` node between coder and reviewer; Phase C surfaces the run
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Foundations | Pricing service, `task_node_runs` table, WS event additions, legacy-graph adapter | complete | - | - | [.claude/PRPs/plans/completed/foundations-pricing-node-runs.plan.md](../plans/completed/foundations-pricing-node-runs.plan.md) → [report](../reports/foundations-pricing-node-runs-report.md) |
-| 2 | Graph Runner MVP (Bet 1) | Linear `planner → coder → reviewer` execution, per-node prompts/tools, artifact passing | pending | - | 1 | - |
+| 2 | Graph Runner MVP (Bet 1) | Linear `planner → coder → reviewer` execution, per-node prompts/tools, artifact passing | complete | - | 1 | [.claude/PRPs/plans/completed/graph-runner-mvp.plan.md](../plans/completed/graph-runner-mvp.plan.md) → [report](../reports/graph-runner-mvp-report.md) |
 | 3 | Studio Runtime UX | Run-trace overlay, per-node abort/retry, graph validation on save | pending | with 4 | 2 | - |
 | 4 | CI Gate + Fix Loop (Bet 2) | `ci` column + node, structured failure parsing, fix sub-node, cycle iteration cap | pending | with 3 | 2 | - |
 | 5 | Cost Guardrails | Per-task USD budget, pause-and-escalate, model-aware accounting end-to-end | pending | - | 1, 4 | - |
