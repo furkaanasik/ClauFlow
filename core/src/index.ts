@@ -8,6 +8,7 @@ import projectsGithubRouter from "./routes/projectsGithub.js";
 import authRouter from "./routes/auth.js";
 import githubRouter from "./routes/github.js";
 import commentsRouter from "./routes/comments.js";
+import pricingRouter from "./routes/pricing.js";
 import systemRouter from "./routes/system.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
 import { recoverOrphanedTasks } from "./services/taskService.js";
@@ -29,6 +30,7 @@ app.use("/api/projects", projectsGithubRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/auth", authRouter);
 app.use("/github", githubRouter);
+app.use("/api/pricing", pricingRouter);
 app.use("/api/system", systemRouter);
 
 app.use((req, res) => {

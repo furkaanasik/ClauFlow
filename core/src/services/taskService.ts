@@ -6,6 +6,9 @@ import {
   createEmptyAgentState,
   type AgentState,
   type AgentText,
+  type NodeRun,
+  type NodeRunStatus,
+  type NodeType,
   type Project,
   type ProjectPlanningStatus,
   type Task,
@@ -102,6 +105,26 @@ db.exec(`
     sequence INTEGER NOT NULL DEFAULT 0,
     createdAt TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS task_node_runs (
+    id TEXT PRIMARY KEY,
+    taskId TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    nodeId TEXT NOT NULL,
+    nodeType TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running',
+    startedAt TEXT NOT NULL,
+    finishedAt TEXT,
+    inputArtifact TEXT,
+    outputArtifact TEXT,
+    inputTokens INTEGER NOT NULL DEFAULT 0,
+    outputTokens INTEGER NOT NULL DEFAULT 0,
+    cacheReadTokens INTEGER NOT NULL DEFAULT 0,
+    cacheWriteTokens INTEGER NOT NULL DEFAULT 0,
+    model TEXT,
+    ciIteration INTEGER,
+    errorMessage TEXT,
+    createdAt TEXT NOT NULL
+  );
 `);
 
 // Idempotent migration: ensure task_tool_calls table exists with current shape
@@ -181,6 +204,67 @@ db.exec(
 db.exec(
   `CREATE INDEX IF NOT EXISTS idx_agent_texts_task_created
      ON task_agent_texts(taskId, createdAt);`,
+);
+
+// Idempotent migration: ensure task_node_runs has expected shape on databases
+// created before this feature landed.
+{
+  const nodeRunsTableExists = db
+    .prepare(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='task_node_runs'`,
+    )
+    .get();
+  if (nodeRunsTableExists) {
+    const cols = db
+      .prepare(`PRAGMA table_info(task_node_runs)`)
+      .all() as { name: string }[];
+    const expected = [
+      "id",
+      "taskId",
+      "nodeId",
+      "nodeType",
+      "status",
+      "startedAt",
+      "finishedAt",
+      "inputArtifact",
+      "outputArtifact",
+      "inputTokens",
+      "outputTokens",
+      "cacheReadTokens",
+      "cacheWriteTokens",
+      "model",
+      "ciIteration",
+      "errorMessage",
+      "createdAt",
+    ];
+    const ddl: Record<string, string> = {
+      nodeId: `ALTER TABLE task_node_runs ADD COLUMN nodeId TEXT NOT NULL DEFAULT ''`,
+      nodeType: `ALTER TABLE task_node_runs ADD COLUMN nodeType TEXT NOT NULL DEFAULT 'coder'`,
+      status: `ALTER TABLE task_node_runs ADD COLUMN status TEXT NOT NULL DEFAULT 'running'`,
+      startedAt: `ALTER TABLE task_node_runs ADD COLUMN startedAt TEXT NOT NULL DEFAULT ''`,
+      finishedAt: `ALTER TABLE task_node_runs ADD COLUMN finishedAt TEXT`,
+      inputArtifact: `ALTER TABLE task_node_runs ADD COLUMN inputArtifact TEXT`,
+      outputArtifact: `ALTER TABLE task_node_runs ADD COLUMN outputArtifact TEXT`,
+      inputTokens: `ALTER TABLE task_node_runs ADD COLUMN inputTokens INTEGER NOT NULL DEFAULT 0`,
+      outputTokens: `ALTER TABLE task_node_runs ADD COLUMN outputTokens INTEGER NOT NULL DEFAULT 0`,
+      cacheReadTokens: `ALTER TABLE task_node_runs ADD COLUMN cacheReadTokens INTEGER NOT NULL DEFAULT 0`,
+      cacheWriteTokens: `ALTER TABLE task_node_runs ADD COLUMN cacheWriteTokens INTEGER NOT NULL DEFAULT 0`,
+      model: `ALTER TABLE task_node_runs ADD COLUMN model TEXT`,
+      ciIteration: `ALTER TABLE task_node_runs ADD COLUMN ciIteration INTEGER`,
+      errorMessage: `ALTER TABLE task_node_runs ADD COLUMN errorMessage TEXT`,
+      createdAt: `ALTER TABLE task_node_runs ADD COLUMN createdAt TEXT NOT NULL DEFAULT ''`,
+    };
+    for (const name of expected) {
+      if (!cols.some((c) => c.name === name) && ddl[name]) {
+        db.exec(ddl[name]!);
+      }
+    }
+  }
+}
+
+db.exec(
+  `CREATE INDEX IF NOT EXISTS idx_node_runs_task_started
+     ON task_node_runs(taskId, startedAt);`,
 );
 
 // Idempotent migrations for projects table.
@@ -1215,4 +1299,207 @@ export async function updateTaskUsage(
   });
   const next = stmtGetTask.get(id) as TaskRow | undefined;
   return next ? rowToTask(next) : null;
+}
+
+// ─── Node Runs ────────────────────────────────────────────────────────────
+
+interface NodeRunRow {
+  id: string;
+  taskId: string;
+  nodeId: string;
+  nodeType: string;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  inputArtifact: string | null;
+  outputArtifact: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  model: string | null;
+  ciIteration: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+function parseArtifact(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    return typeof v === "object" && v !== null && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function rowToNodeRun(row: NodeRunRow): NodeRun {
+  return {
+    id: row.id,
+    taskId: row.taskId,
+    nodeId: row.nodeId,
+    nodeType: row.nodeType as NodeType,
+    status: row.status as NodeRunStatus,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    inputArtifact: parseArtifact(row.inputArtifact),
+    outputArtifact: parseArtifact(row.outputArtifact),
+    inputTokens: row.inputTokens ?? 0,
+    outputTokens: row.outputTokens ?? 0,
+    cacheReadTokens: row.cacheReadTokens ?? 0,
+    cacheWriteTokens: row.cacheWriteTokens ?? 0,
+    model: row.model,
+    ciIteration: row.ciIteration,
+    errorMessage: row.errorMessage,
+    createdAt: row.createdAt,
+  };
+}
+
+const stmtInsertNodeRun = db.prepare(
+  `INSERT OR REPLACE INTO task_node_runs (
+    id, taskId, nodeId, nodeType, status,
+    startedAt, finishedAt, inputArtifact, outputArtifact,
+    inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens,
+    model, ciIteration, errorMessage, createdAt
+  ) VALUES (
+    @id, @taskId, @nodeId, @nodeType, @status,
+    @startedAt, @finishedAt, @inputArtifact, @outputArtifact,
+    @inputTokens, @outputTokens, @cacheReadTokens, @cacheWriteTokens,
+    @model, @ciIteration, @errorMessage, @createdAt
+  )`,
+);
+
+const stmtGetNodeRun = db.prepare(`SELECT * FROM task_node_runs WHERE id = ?`);
+
+const stmtListNodeRunsByTask = db.prepare(
+  `SELECT * FROM task_node_runs WHERE taskId = ? ORDER BY startedAt ASC`,
+);
+
+const stmtUpdateNodeRun = db.prepare(
+  `UPDATE task_node_runs SET
+    status = @status,
+    finishedAt = @finishedAt,
+    inputArtifact = @inputArtifact,
+    outputArtifact = @outputArtifact,
+    inputTokens = @inputTokens,
+    outputTokens = @outputTokens,
+    cacheReadTokens = @cacheReadTokens,
+    cacheWriteTokens = @cacheWriteTokens,
+    model = @model,
+    ciIteration = @ciIteration,
+    errorMessage = @errorMessage
+   WHERE id = @id`,
+);
+
+export interface InsertNodeRunInput {
+  id: string;
+  taskId: string;
+  nodeId: string;
+  nodeType: NodeType;
+  status?: NodeRunStatus;
+  startedAt?: string;
+  finishedAt?: string | null;
+  inputArtifact?: Record<string, unknown> | null;
+  outputArtifact?: Record<string, unknown> | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  model?: string | null;
+  ciIteration?: number | null;
+  errorMessage?: string | null;
+}
+
+function stringifyArtifact(
+  v: Record<string, unknown> | null | undefined,
+): string | null {
+  if (v === null || v === undefined) return null;
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return null;
+  }
+}
+
+export function insertNodeRun(input: InsertNodeRunInput): NodeRun {
+  const createdAt = new Date().toISOString();
+  const startedAt = input.startedAt ?? createdAt;
+  stmtInsertNodeRun.run({
+    id: input.id,
+    taskId: input.taskId,
+    nodeId: input.nodeId,
+    nodeType: input.nodeType,
+    status: input.status ?? "running",
+    startedAt,
+    finishedAt: input.finishedAt ?? null,
+    inputArtifact: stringifyArtifact(input.inputArtifact),
+    outputArtifact: stringifyArtifact(input.outputArtifact),
+    inputTokens: input.inputTokens ?? 0,
+    outputTokens: input.outputTokens ?? 0,
+    cacheReadTokens: input.cacheReadTokens ?? 0,
+    cacheWriteTokens: input.cacheWriteTokens ?? 0,
+    model: input.model ?? null,
+    ciIteration: input.ciIteration ?? null,
+    errorMessage: input.errorMessage ?? null,
+    createdAt,
+  });
+  const row = stmtGetNodeRun.get(input.id) as NodeRunRow | undefined;
+  if (!row) throw new Error(`Node run insert failed: ${input.id}`);
+  return rowToNodeRun(row);
+}
+
+export interface UpdateNodeRunPatch {
+  status?: NodeRunStatus;
+  finishedAt?: string | null;
+  inputArtifact?: Record<string, unknown> | null;
+  outputArtifact?: Record<string, unknown> | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  model?: string | null;
+  ciIteration?: number | null;
+  errorMessage?: string | null;
+}
+
+export function updateNodeRun(
+  id: string,
+  patch: UpdateNodeRunPatch,
+): NodeRun | null {
+  const row = stmtGetNodeRun.get(id) as NodeRunRow | undefined;
+  if (!row) return null;
+  stmtUpdateNodeRun.run({
+    id,
+    status: patch.status ?? row.status,
+    finishedAt: patch.finishedAt ?? row.finishedAt,
+    inputArtifact:
+      patch.inputArtifact !== undefined
+        ? stringifyArtifact(patch.inputArtifact)
+        : row.inputArtifact,
+    outputArtifact:
+      patch.outputArtifact !== undefined
+        ? stringifyArtifact(patch.outputArtifact)
+        : row.outputArtifact,
+    inputTokens: patch.inputTokens ?? row.inputTokens,
+    outputTokens: patch.outputTokens ?? row.outputTokens,
+    cacheReadTokens: patch.cacheReadTokens ?? row.cacheReadTokens,
+    cacheWriteTokens: patch.cacheWriteTokens ?? row.cacheWriteTokens,
+    model: patch.model ?? row.model,
+    ciIteration: patch.ciIteration ?? row.ciIteration,
+    errorMessage: patch.errorMessage ?? row.errorMessage,
+  });
+  const next = stmtGetNodeRun.get(id) as NodeRunRow | undefined;
+  return next ? rowToNodeRun(next) : null;
+}
+
+export function getNodeRun(id: string): NodeRun | null {
+  const row = stmtGetNodeRun.get(id) as NodeRunRow | undefined;
+  return row ? rowToNodeRun(row) : null;
+}
+
+export function listNodeRunsByTask(taskId: string): NodeRun[] {
+  const rows = stmtListNodeRunsByTask.all(taskId) as NodeRunRow[];
+  return rows.map(rowToNodeRun);
 }

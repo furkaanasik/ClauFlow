@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   checkoutBase,
   createBranch,
@@ -12,8 +13,10 @@ import {
   getProject,
   getTask,
   insertAgentText,
+  insertNodeRun,
   insertToolCall,
   listTasks,
+  updateNodeRun,
   updateTask,
   updateTaskUsage,
   updateToolCall,
@@ -22,6 +25,8 @@ import { slugify } from "../services/slug.js";
 import {
   broadcastAgentText,
   broadcastLog,
+  broadcastNodeFinished,
+  broadcastNodeStarted,
   broadcastStatus,
   broadcastTaskUpdated,
   broadcastToolCall,
@@ -138,6 +143,27 @@ export async function run(task: Task, project: Project): Promise<void> {
   const ref = taskRef(task);
   const controller = new AbortController();
   RUNNING.set(task.id, controller);
+
+  // Legacy adapter: every executor run gets one task_node_runs row so Phase 6
+  // aggregations can treat single-claude tasks uniformly with future
+  // multi-node graph runs. nodeId="legacy:coder" lets queries exclude or
+  // bucket pre-graph data cleanly.
+  const nodeRunId = `noderun_${randomUUID().slice(0, 8)}`;
+  try {
+    const initialNodeRun = insertNodeRun({
+      id: nodeRunId,
+      taskId: task.id,
+      nodeId: "legacy:coder",
+      nodeType: "coder",
+      status: "running",
+      startedAt: new Date().toISOString(),
+      model: process.env.CLAUFLOW_DEFAULT_MODEL ?? null,
+    });
+    broadcastNodeStarted(initialNodeRun);
+  } catch (e) {
+    // Node-run telemetry must never break the executor.
+    console.error(`[executor] insertNodeRun failed for ${task.id}:`, e);
+  }
 
   try {
     // Wait until no other executor is active for this project (DB-level, survives restarts)
@@ -299,6 +325,19 @@ export async function run(task: Task, project: Project): Promise<void> {
         .catch((e) => {
           console.error(`[executor] updateTaskUsage failed:`, e);
         });
+      // Mirror per-run usage onto the legacy node-run row. SET semantics
+      // (not increment) — the stream-json result event reports cumulative
+      // usage for the run, so the latest value is canonical.
+      try {
+        updateNodeRun(nodeRunId, {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cacheReadTokens: usage.cacheReadTokens,
+          cacheWriteTokens: usage.cacheWriteTokens,
+        });
+      } catch (e) {
+        console.error(`[executor] updateNodeRun(usage) failed:`, e);
+      }
     };
 
     let claudeResult = await runClaude({
@@ -383,6 +422,7 @@ export async function run(task: Task, project: Project): Promise<void> {
       });
       broadcastStatus(task.id, "done", "completed");
       broadcastTaskUpdated(final);
+      finalizeNodeRun(nodeRunId, "done");
       return;
     }
 
@@ -463,6 +503,7 @@ export async function run(task: Task, project: Project): Promise<void> {
     });
     broadcastStatus(task.id, "done", "completed");
     broadcastTaskUpdated(final);
+    finalizeNodeRun(nodeRunId, "done");
   } catch (err) {
     const aborted = controller.signal.aborted;
     const baseMessage = err instanceof Error ? err.message : String(err);
@@ -484,7 +525,25 @@ export async function run(task: Task, project: Project): Promise<void> {
     });
     broadcastStatus(task.id, "error");
     broadcastTaskUpdated(errTask);
+    finalizeNodeRun(nodeRunId, aborted ? "aborted" : "error", message);
   } finally {
     RUNNING.delete(task.id);
+  }
+}
+
+function finalizeNodeRun(
+  nodeRunId: string,
+  status: "done" | "error" | "aborted",
+  errorMessage?: string,
+): void {
+  try {
+    const updated = updateNodeRun(nodeRunId, {
+      status,
+      finishedAt: new Date().toISOString(),
+      errorMessage: errorMessage ?? null,
+    });
+    if (updated) broadcastNodeFinished(updated);
+  } catch (e) {
+    console.error(`[executor] finalizeNodeRun(${status}) failed:`, e);
   }
 }
