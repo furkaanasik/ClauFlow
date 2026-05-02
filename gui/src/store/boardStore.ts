@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, CloneStatus, Comment, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, CloneStatus, Comment, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
 import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
 
 type Lang = "tr" | "en";
@@ -28,6 +28,13 @@ interface BoardState {
   cloneStatus: Record<string, { status: CloneStatus; message: string }>;
   /** Skill install progress keyed by `${projectId}:${skillSlug}` */
   skillProgress: Record<string, { status: SkillInstallStatus; message?: string }>;
+  /** Node runs per task, keyed by taskId then nodeId — last-write-wins */
+  nodeRuns: Record<string, Record<string, NodeRun>>;
+  /** Node logs per task, keyed by taskId then nodeId — capped ring buffer */
+  nodeLogs: Record<string, Record<string, string[]>>;
+  /** Open-Studio intent. ProjectSidebar opens the project drawer when non-null;
+   *  ClaudeConfigTab forces the Studio segment; StudioCanvas binds to taskId. */
+  studioRequest: { projectId: string; taskId: string } | null;
 
   studioGeneration: {
     generationId: string | null;
@@ -84,6 +91,13 @@ interface BoardState {
   setSkillProgress: (progress: SkillInstallProgress) => void;
   clearSkillProgress: (projectId: string, pluginId: string) => void;
 
+  upsertNodeRun: (run: NodeRun) => void;
+  appendNodeLog: (taskId: string, nodeId: string, line: string) => void;
+  clearNodeRuns: (taskId: string) => void;
+
+  openStudio: (projectId: string, taskId: string) => void;
+  closeStudio: () => void;
+
   getByStatus: (status: TaskStatus) => Task[];
 }
 
@@ -104,6 +118,9 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   agentTexts: {},
   cloneStatus: {},
   skillProgress: {},
+  nodeRuns: {},
+  nodeLogs: {},
+  studioRequest: null,
 
   studioGeneration: {
     generationId: null,
@@ -391,6 +408,47 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       void _removed;
       return { skillProgress: rest };
     }),
+
+  upsertNodeRun: (run) =>
+    set((state) => ({
+      nodeRuns: {
+        ...state.nodeRuns,
+        [run.taskId]: {
+          ...(state.nodeRuns[run.taskId] ?? {}),
+          [run.nodeId]: run,
+        },
+      },
+    })),
+
+  appendNodeLog: (taskId, nodeId, line) =>
+    set((state) => {
+      const perTask = state.nodeLogs[taskId] ?? {};
+      const existing = perTask[nodeId] ?? [];
+      const next =
+        existing.length >= LOG_LIMIT
+          ? [...existing.slice(-(LOG_LIMIT - 1)), line]
+          : [...existing, line];
+      return {
+        nodeLogs: {
+          ...state.nodeLogs,
+          [taskId]: { ...perTask, [nodeId]: next },
+        },
+      };
+    }),
+
+  clearNodeRuns: (taskId) =>
+    set((state) => {
+      const { [taskId]: _runs, ...restRuns } = state.nodeRuns;
+      const { [taskId]: _logs, ...restLogs } = state.nodeLogs;
+      void _runs;
+      void _logs;
+      return { nodeRuns: restRuns, nodeLogs: restLogs };
+    }),
+
+  openStudio: (projectId, taskId) =>
+    set(() => ({ studioRequest: { projectId, taskId } })),
+
+  closeStudio: () => set(() => ({ studioRequest: null })),
 
   setWsConnected: (connected) => set(() => ({ wsConnected: connected })),
   setFilterText: (text) => set(() => ({ filterText: text })),

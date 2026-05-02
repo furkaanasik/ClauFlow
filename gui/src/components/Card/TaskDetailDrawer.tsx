@@ -69,6 +69,7 @@ export function TaskDetailDrawer() {
   const upsertComment  = useBoardStore((s) => s.upsertComment);
   const setToolCalls   = useBoardStore((s) => s.setToolCalls);
   const setAgentTexts  = useBoardStore((s) => s.setAgentTexts);
+  const openStudio     = useBoardStore((s) => s.openStudio);
 
   const [editing,       setEditing]       = useState(false);
   const [draft,         setDraft]         = useState<DraftState | null>(null);
@@ -242,6 +243,19 @@ export function TaskDetailDrawer() {
                         <span className="text-[12px] text-[var(--text-muted)]">
                           {projectName}
                         </span>
+                        <span className="text-[var(--text-faint)]">·</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!task) return;
+                            openStudio(task.projectId, task.id);
+                            selectTask(null);
+                          }}
+                          className="rounded border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 font-mono text-[10px] text-blue-300 transition hover:bg-blue-500/20"
+                          aria-label="Studio'da aç"
+                        >
+                          studio →
+                        </button>
                       </>
                     )}
                   </div>

@@ -37,6 +37,8 @@ export function useAgentSocket(url?: string) {
       studioAppend,
       studioFinish,
       studioError,
+      upsertNodeRun,
+      appendNodeLog,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -96,6 +98,21 @@ export function useAgentSocket(url?: string) {
             case "agent_text": {
               const m = msg as Extract<WsMessage, { type: "agent_text" }>;
               appendAgentText(m.taskId, m.payload);
+              break;
+            }
+            case "node_started": {
+              const m = msg as Extract<WsMessage, { type: "node_started" }>;
+              upsertNodeRun(m.payload);
+              break;
+            }
+            case "node_finished": {
+              const m = msg as Extract<WsMessage, { type: "node_finished" }>;
+              upsertNodeRun(m.payload);
+              break;
+            }
+            case "node_log": {
+              const m = msg as Extract<WsMessage, { type: "node_log" }>;
+              appendNodeLog(m.taskId, m.payload.nodeId, m.payload.line);
               break;
             }
             case "comment_updated": {

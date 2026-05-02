@@ -24,6 +24,12 @@ export function ProjectSidebar() {
   const [menuOpenId,      setMenuOpenId]      = useState<string | null>(null);
   const [detailProjectId, setDetailProjectId] = useState<string | null>(null);
   const [cloneRepo,       setCloneRepo]       = useState<GithubRepo | null>(null);
+
+  const studioRequest = useBoardStore((s) => s.studioRequest);
+  const closeStudio = useBoardStore((s) => s.closeStudio);
+  useEffect(() => {
+    if (studioRequest) setDetailProjectId(studioRequest.projectId);
+  }, [studioRequest]);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const t = useTranslation();
@@ -268,7 +274,10 @@ export function ProjectSidebar() {
       <NewProjectModal open={modalOpen} onClose={() => setModalOpen(false)} />
       <ProjectDetailDrawer
         projectId={detailProjectId}
-        onClose={() => setDetailProjectId(null)}
+        onClose={() => {
+          setDetailProjectId(null);
+          closeStudio();
+        }}
       />
       <CloneRepoModal repo={cloneRepo} onClose={() => setCloneRepo(null)} />
     </>

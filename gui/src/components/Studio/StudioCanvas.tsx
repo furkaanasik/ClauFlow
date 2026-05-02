@@ -14,15 +14,25 @@ import {
   type Edge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { api, type ClaudeAgent, type InstalledPlugin } from "@/lib/api";
-import type { AgentGraph } from "@/types";
+import { api, ApiError, type ClaudeAgent, type InstalledPlugin } from "@/lib/api";
+import type { AgentGraph, NodeRun } from "@/types";
+import { useBoardStore } from "@/store/boardStore";
 import { AgentNode, type AgentNodeData } from "./AgentNode";
+
+const EMPTY_NODE_RUNS: Record<string, NodeRun> = Object.freeze({}) as Record<string, NodeRun>;
 import { AgentEditDrawer } from "./AgentEditDrawer";
+import { NodeRunPanel } from "./NodeRunPanel";
 import { SkillsSidebar } from "./SkillsSidebar";
 import { StudioToolbar } from "./StudioToolbar";
 
 interface StudioCanvasProps {
   projectId: string;
+  taskId?: string;
+}
+
+interface ValidationState {
+  reason: string;
+  ids: Set<string>;
 }
 
 const NODE_TYPES: NodeTypes = { agent: AgentNode };
@@ -45,7 +55,7 @@ function buildNodes(
   });
 }
 
-export function StudioCanvas({ projectId }: StudioCanvasProps) {
+export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvasProps) {
   const [agents, setAgents] = useState<ClaudeAgent[]>([]);
   const [graph, setGraph] = useState<AgentGraph>({ nodes: [], edges: [] });
   const [installedSkills, setInstalledSkills] = useState<InstalledPlugin[]>([]);
@@ -56,6 +66,87 @@ export function StudioCanvas({ projectId }: StudioCanvasProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [validation, setValidation] = useState<ValidationState | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  // Auto-bind: if no explicit ?taskId=, fall back to a "doing" task in this project.
+  // Lets the user open Studio normally and still see live overlay.
+  const autoBoundTaskId = useBoardStore((s) => {
+    if (explicitTaskId) return undefined;
+    const candidates = Object.values(s.tasks).filter(
+      (t) => t.projectId === projectId && t.status === "doing",
+    );
+    return candidates.length === 1 ? candidates[0]!.id : undefined;
+  });
+  const taskId = explicitTaskId ?? autoBoundTaskId;
+
+  const taskRef = useBoardStore((s) =>
+    taskId ? s.tasks[taskId]?.displayId ?? taskId : undefined,
+  );
+
+  const upsertNodeRun = useBoardStore((s) => s.upsertNodeRun);
+  const appendNodeLog = useBoardStore((s) => s.appendNodeLog);
+
+  // Backfill past NodeRuns on bind. WS only delivers future events; rows
+  // recorded before this client mounted (e.g. user dragged the task to doing
+  // before opening Studio) live only in the DB until we fetch them here.
+  useEffect(() => {
+    if (!taskId) return;
+    let cancelled = false;
+    void api
+      .getNodeRuns(taskId)
+      .then((runs) => {
+        if (cancelled) return;
+        for (const run of runs) {
+          upsertNodeRun(run);
+          const buffered = run.outputArtifact?.logLines;
+          if (Array.isArray(buffered)) {
+            for (const line of buffered) {
+              appendNodeLog(taskId, run.nodeId, line as string);
+            }
+          }
+        }
+      })
+      .catch((err) => {
+        // best-effort backfill; live WS events still arrive even if this fails
+        console.warn("[Studio] backfill nodeRuns failed:", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId, upsertNodeRun, appendNodeLog]);
+
+  const nodeRuns = useBoardStore((s) =>
+    taskId ? s.nodeRuns[taskId] ?? EMPTY_NODE_RUNS : EMPTY_NODE_RUNS,
+  );
+
+  const onAbortNode = useCallback(
+    async (nodeId: string) => {
+      if (!taskId) return;
+      try {
+        await api.abortNode(taskId, nodeId);
+      } catch {
+        // 409 race is expected when a node finishes between click and request
+      }
+    },
+    [taskId],
+  );
+
+  const onRetryNode = useCallback(
+    async (nodeId: string) => {
+      if (!taskId) return;
+      try {
+        await api.retryNode(taskId, nodeId);
+      } catch {
+        // surfaced via task error agent log
+      }
+    },
+    [taskId],
+  );
+
+  const onSelectNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+  }, []);
 
   const onEdit = useCallback((slug: string) => {
     setEditSlug(slug);
@@ -118,16 +209,59 @@ export function StudioCanvas({ projectId }: StudioCanvasProps) {
   }, [projectId, onEdit, onRemoveSkill, onAddSkill, setNodes, setEdges]);
 
   useEffect(() => {
+    // Fires on initial mount (prev=null !== projectId) AND on projectId
+    // change. The previous duplicate mount-only useEffect was removed because
+    // double-loadAll wiped freshly-applied runState (race with the backfill
+    // upsertNodeRun cycle).
     if (prevProjectId.current !== projectId) {
       prevProjectId.current = projectId;
       void loadAll();
     }
   }, [projectId, loadAll]);
 
+  // Sync runState/validation into node.data via setNodes (instead of a useMemo
+  // that builds a new Node[] each render). New Node[] refs cause ReactFlow to
+  // remeasure and visually drop edges; in-place data update keeps edges stable.
   useEffect(() => {
-    void loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setNodes((prev) =>
+      prev.map((n) => {
+        const d = n.data as unknown as AgentNodeData;
+        const runRow = nodeRuns[n.id];
+        const runState = runRow
+          ? {
+              status: runRow.status,
+              nodeRunId: runRow.id,
+              tokens: {
+                input: runRow.inputTokens,
+                output: runRow.outputTokens,
+              },
+              model: runRow.model,
+            }
+          : undefined;
+        const validationError =
+          validation && validation.ids.has(n.id)
+            ? { reason: validation.reason }
+            : undefined;
+        const sameRun =
+          d.runState?.status === runState?.status &&
+          d.runState?.nodeRunId === runState?.nodeRunId;
+        const sameValidation =
+          d.validationError?.reason === validationError?.reason;
+        if (sameRun && sameValidation) return n;
+        return {
+          ...n,
+          data: {
+            ...d,
+            runState,
+            validationError,
+            onAbortNode: taskId ? onAbortNode : undefined,
+            onRetryNode: taskId ? onRetryNode : undefined,
+            onSelectNode: taskId ? onSelectNode : undefined,
+          } as unknown as Record<string, unknown>,
+        };
+      }),
+    );
+  }, [nodeRuns, validation, taskId, onAbortNode, onRetryNode, onSelectNode, setNodes, nodes.length]);
 
   const handleNodesChange = useCallback(
     (changes: Parameters<typeof onNodesChange>[0]) => {
@@ -155,6 +289,15 @@ export function StudioCanvas({ projectId }: StudioCanvasProps) {
   );
 
   const handleSave = async () => {
+    // Guard: refuse to write a multi-node graph with zero edges.
+    // Without this, a transient empty-edges state (mid-load, ReactFlow remount,
+    // accidental delete-all) would overwrite a previously-saved topology.
+    if (nodes.length > 1 && edges.length === 0) {
+      const ok = window.confirm(
+        "Bu graph'ta birden fazla node var ama hiç edge yok. Kaydedersen mevcut bağlantılar diskten silinir. Devam edilsin mi?",
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     try {
       const payload: AgentGraph = {
@@ -168,7 +311,19 @@ export function StudioCanvas({ projectId }: StudioCanvasProps) {
       };
       await api.putProjectGraph(projectId, payload);
       setIsDirty(false);
-    } catch {
+      setValidation(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) {
+        const body = err.body as
+          | { error?: string; reason?: string; offendingNodeIds?: string[] }
+          | undefined;
+        if (body?.error === "graph_invalid" && body.reason) {
+          setValidation({
+            reason: body.reason,
+            ids: new Set(body.offendingNodeIds ?? []),
+          });
+        }
+      }
       // leave dirty so user can retry
     } finally {
       setSaving(false);
@@ -330,6 +485,23 @@ export function StudioCanvas({ projectId }: StudioCanvasProps) {
         />
 
         <div className="relative flex-1">
+          {/* Run-trace banner */}
+          {taskId && (
+            <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-[11px] text-blue-300 shadow">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
+              <span className="font-mono">
+                Live: {taskRef ?? taskId}
+                {!explicitTaskId && (
+                  <span className="ml-1 text-[10px] text-blue-400/60">(auto)</span>
+                )}
+                <span className="ml-1 text-[10px] text-blue-400/60">
+                  ({Object.keys(nodeRuns).length} runs:{" "}
+                  {Object.keys(nodeRuns).join(",") || "—"})
+                </span>
+              </span>
+            </div>
+          )}
+
           {/* Save button */}
           <div className="absolute right-4 top-4 z-10">
             <button
@@ -373,7 +545,26 @@ export function StudioCanvas({ projectId }: StudioCanvasProps) {
             <Background color="var(--border)" gap={20} />
             <Controls />
           </ReactFlow>
+
+          {validation && (
+            <div className="absolute left-4 top-4 z-10 max-w-[400px] rounded border border-rose-500 bg-[var(--bg-base)] px-3 py-2 text-[11px] text-rose-500 shadow">
+              Graph invalid: <span className="font-mono">{validation.reason}</span>
+              {validation.ids.size > 0 && (
+                <span className="ml-1 font-mono text-[10px] text-[var(--text-muted)]">
+                  ({[...validation.ids].join(", ")})
+                </span>
+              )}
+            </div>
+          )}
         </div>
+
+        {taskId && (
+          <NodeRunPanel
+            taskId={taskId}
+            nodeId={selectedNodeId}
+            onClose={() => setSelectedNodeId(null)}
+          />
+        )}
       </div>
 
       <AgentEditDrawer
