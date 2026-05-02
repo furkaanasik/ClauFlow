@@ -63,6 +63,63 @@ describe("planGraph", () => {
     ).toThrow(/multiple_entries/);
   });
 
+  it("attaches offendingNodeIds for multiple entries", () => {
+    try {
+      planGraph({
+        nodes: [node("a"), node("b"), node("c")],
+        edges: [edge("a", "c")],
+      });
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(GraphValidationError);
+      const ids = (err as GraphValidationError).offendingNodeIds;
+      expect(ids).toEqual(expect.arrayContaining(["a", "b"]));
+    }
+  });
+
+  it("attaches offendingNodeIds for branching", () => {
+    try {
+      planGraph({
+        nodes: [node("a"), node("b"), node("c")],
+        edges: [edge("a", "b"), edge("a", "c")],
+      });
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(GraphValidationError);
+      expect((err as GraphValidationError).reason).toBe("branching");
+      expect((err as GraphValidationError).offendingNodeIds).toContain("a");
+    }
+  });
+
+  it("attaches offendingNodeIds for cycle", () => {
+    try {
+      planGraph({
+        nodes: [node("a"), node("b")],
+        edges: [edge("a", "b"), edge("b", "b")],
+      });
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(GraphValidationError);
+      expect((err as GraphValidationError).reason).toBe("cycle");
+      expect((err as GraphValidationError).offendingNodeIds).toContain("b");
+    }
+  });
+
+  it("attaches offendingNodeIds for disconnected (a→b plus orphan c)", () => {
+    try {
+      planGraph({
+        nodes: [node("a"), node("b"), node("c")],
+        edges: [edge("a", "b")],
+      });
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(GraphValidationError);
+      const e = err as GraphValidationError;
+      expect(["disconnected", "multiple_entries"]).toContain(e.reason);
+      expect(e.offendingNodeIds).toContain("c");
+    }
+  });
+
   it("rejects all-cycle (no entry)", () => {
     expect(() =>
       planGraph({

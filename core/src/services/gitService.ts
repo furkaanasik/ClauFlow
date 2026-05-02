@@ -122,6 +122,27 @@ export async function checkoutBase(repoPath: string, base: string): Promise<RunR
   const remotes = await run("git", ["remote"], repoPath);
   if (remotes.stdout.trim() === "") return co;
 
+  // Before stashing, auto-commit graph layout files that the GUI Studio just
+  // wrote. Without this, the user's just-saved `_graph.json` and CLAUDE.md
+  // mermaid block end up in a stash (silently consumed) and the executor
+  // reads stale graph data. Best-effort — failures are warned, not fatal.
+  const preserveFiles = [".claude/agents/_graph.json", "CLAUDE.md"];
+  const dirtyPreserve = await run(
+    "git",
+    ["status", "--porcelain", "--", ...preserveFiles],
+    repoPath,
+  );
+  if (dirtyPreserve.code === 0 && dirtyPreserve.stdout.trim() !== "") {
+    const add = await run("git", ["add", "--", ...preserveFiles], repoPath);
+    if (add.code === 0) {
+      await run(
+        "git",
+        ["commit", "-m", "chore(agents): autosave graph layout"],
+        repoPath,
+      );
+    }
+  }
+
   // Defensive: `git pull` fails fast on a dirty working tree when the user's
   // global config has `pull.rebase = true` ("cannot pull with rebase: You
   // have unstaged changes"). Checkout itself can leave the tree dirty via

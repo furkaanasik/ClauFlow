@@ -10,6 +10,7 @@ import {
   insertAgentText,
   insertNodeRun,
   insertToolCall,
+  listNodeRunsByTask,
   updateNodeRun,
   updateTaskUsage,
   updateToolCall,
@@ -18,6 +19,7 @@ import {
   broadcastAgentText,
   broadcastLog,
   broadcastNodeFinished,
+  broadcastNodeLog,
   broadcastNodeStarted,
   broadcastTaskUpdated,
   broadcastToolCall,
@@ -64,7 +66,10 @@ export type GraphValidationReason =
   | "disconnected";
 
 export class GraphValidationError extends Error {
-  constructor(public reason: GraphValidationReason) {
+  constructor(
+    public reason: GraphValidationReason,
+    public offendingNodeIds: string[] = [],
+  ) {
     super(`Graph validation failed: ${reason}`);
     this.name = "GraphValidationError";
   }
@@ -83,10 +88,13 @@ export function planGraph(graph: AgentGraph): GraphPlan {
     .map(([id]) => id);
 
   if (graph.edges.length > 0 && entries.length === 0) {
-    throw new GraphValidationError("no_entry");
+    throw new GraphValidationError(
+      "no_entry",
+      graph.nodes.map((n) => n.id),
+    );
   }
   if (graph.nodes.length > 1 && entries.length > 1) {
-    throw new GraphValidationError("multiple_entries");
+    throw new GraphValidationError("multiple_entries", entries);
   }
 
   const outBySource = new Map<string, string[]>();
@@ -95,21 +103,33 @@ export function planGraph(graph: AgentGraph): GraphPlan {
     arr.push(e.target);
     outBySource.set(e.source, arr);
   }
-  for (const [, targets] of outBySource) {
-    if (targets.length > 1) throw new GraphValidationError("branching");
+  const branchingSources: string[] = [];
+  for (const [src, targets] of outBySource) {
+    if (targets.length > 1) branchingSources.push(src);
+  }
+  if (branchingSources.length > 0) {
+    throw new GraphValidationError("branching", branchingSources);
   }
 
   const order: string[] = [];
   const seen = new Set<string>();
   let cur: string | undefined = entries[0];
   while (cur) {
-    if (seen.has(cur)) throw new GraphValidationError("cycle");
+    if (seen.has(cur)) {
+      const cycleStart = order.indexOf(cur);
+      const cycleIds =
+        cycleStart >= 0 ? [...order.slice(cycleStart), cur] : [cur];
+      throw new GraphValidationError("cycle", cycleIds);
+    }
     seen.add(cur);
     order.push(cur);
     cur = outBySource.get(cur)?.[0];
   }
   if (order.length !== graph.nodes.length) {
-    throw new GraphValidationError("disconnected");
+    const unreached = graph.nodes
+      .filter((n) => !seen.has(n.id))
+      .map((n) => n.id);
+    throw new GraphValidationError("disconnected", unreached);
   }
 
   const slugById: Record<string, string> = {};
@@ -132,6 +152,7 @@ export function buildNodePrompt(
   task: Task,
   project: Project,
   prior: NodeArtifact | null,
+  pipelineContext?: string,
 ): string {
   const taskBrief = task.analysis || task.description || task.title;
   const background = project.aiPrompt?.trim();
@@ -139,6 +160,9 @@ export function buildNodePrompt(
   const sections: string[] = [];
   sections.push(agent.body.trim() || `# ${agent.frontmatter.name ?? agent.slug}`);
   sections.push("---");
+  if (pipelineContext) {
+    sections.push(pipelineContext);
+  }
   if (background) {
     sections.push(`Project background (reference only):\n${background}`);
   }
@@ -167,18 +191,55 @@ export interface RunGraphResult {
   completedNodes: number;
 }
 
+export interface RunGraphOptions {
+  resumeFromNodeId?: string;
+}
+
 export async function runGraph(
   task: Task,
   project: Project,
   graph: AgentGraph,
   controller: AbortController,
   baseBranch: string,
+  options: RunGraphOptions = {},
 ): Promise<RunGraphResult> {
   const plan = planGraph(graph);
   let prior: NodeArtifact | null = null;
   let completedNodes = 0;
 
-  for (const nodeId of plan.order) {
+  let startIdx = 0;
+  if (options.resumeFromNodeId) {
+    startIdx = plan.order.indexOf(options.resumeFromNodeId);
+    if (startIdx < 0) {
+      throw new Error(
+        `resumeFromNodeId '${options.resumeFromNodeId}' not in plan`,
+      );
+    }
+    if (startIdx > 0) {
+      const priorNodeId = plan.order[startIdx - 1]!;
+      const rows = listNodeRunsByTask(task.id);
+      const lastDone = [...rows]
+        .reverse()
+        .find((r) => r.nodeId === priorNodeId && r.status === "done");
+      if (!lastDone || !lastDone.outputArtifact) {
+        throw new Error(
+          `Cannot resume at '${options.resumeFromNodeId}': prior node '${priorNodeId}' has no done row`,
+        );
+      }
+      const art = lastDone.outputArtifact as Record<string, unknown>;
+      prior = {
+        text: typeof art.text === "string" ? art.text : "",
+        diff: typeof art.diff === "string" ? art.diff : null,
+        extra:
+          art.extra && typeof art.extra === "object"
+            ? (art.extra as Record<string, unknown>)
+            : {},
+      };
+    }
+  }
+
+  for (let i = startIdx; i < plan.order.length; i++) {
+    const nodeId = plan.order[i]!;
     if (controller.signal.aborted) {
       throw new Error("aborted");
     }
@@ -196,6 +257,11 @@ export async function runGraph(
 
     const nodeType = deriveNodeType(slug);
     const nodeRunId = `noderun_${randomUUID().slice(0, 8)}`;
+    const logBuffer: string[] = [];
+    const pushLogBuffer = (line: string) => {
+      logBuffer.push(line);
+      if (logBuffer.length > 200) logBuffer.splice(0, logBuffer.length - 200);
+    };
 
     let nodeRun: NodeRun;
     try {
@@ -223,8 +289,26 @@ export async function runGraph(
 
     await pushLog(task.id, "");
     await pushLog(task.id, `▸ Node: ${nodeId} (${slug})`);
+    broadcastNodeLog(task.id, nodeId, `▸ Node: ${nodeId} (${slug})`);
 
-    const prompt = buildNodePrompt(agent, task, project, prior);
+    let pipelineContext: string | undefined;
+    if (i === startIdx && plan.order.length > 1) {
+      const downstream = plan.order.slice(i + 1).map((id, k) => {
+        const downSlug = plan.slugById[id] ?? id;
+        const downAgent = loadAgentDefinition(project.repoPath, downSlug);
+        const desc = downAgent?.frontmatter.description?.trim() ?? "";
+        return `${k + 2}. ${downSlug}${desc ? ` — ${desc}` : ""}`;
+      });
+      pipelineContext = [
+        "Pipeline overview (multi-agent run — you are the orchestrator for this stage):",
+        `1. ${slug} (you)${agent.frontmatter.description ? ` — ${agent.frontmatter.description}` : ""}`,
+        ...downstream,
+        "",
+        "Downstream nodes will receive your output as `Previous node output`. Plan your work so they can pick up exactly where you stop. Do not attempt their work yourself.",
+      ].join("\n");
+    }
+
+    const prompt = buildNodePrompt(agent, task, project, prior, pipelineContext);
     const allowedTools = agent.allowedTools ?? DEFAULT_TOOLS;
 
     let textBuffer = "";
@@ -236,6 +320,8 @@ export async function runGraph(
       const entry = stream === "stderr" ? `[stderr] ${line}` : line;
       await appendAgentLog(task.id, entry);
       broadcastLog(task.id, entry);
+      broadcastNodeLog(task.id, nodeId, entry);
+      pushLogBuffer(entry);
     };
 
     const onAgentText = (text: string): void => {
@@ -246,6 +332,12 @@ export async function runGraph(
         broadcastAgentText(stored);
       } catch (e) {
         console.error(`[graphRunner] insertAgentText failed:`, e);
+      }
+      for (const ln of text.split(/\r?\n/)) {
+        if (ln.trim()) {
+          broadcastNodeLog(task.id, nodeId, ln);
+          pushLogBuffer(ln);
+        }
       }
     };
 
@@ -325,18 +417,18 @@ export async function runGraph(
         onResult: onClaudeResult,
       });
     } catch (err) {
-      finalizeNodeRunRow(nodeRunId, "error", errMessage(err));
+      finalizeNodeRunRow(nodeRunId, "error", errMessage(err), logBuffer);
       throw err;
     }
 
     if (controller.signal.aborted) {
-      finalizeNodeRunRow(nodeRunId, "aborted", "Aborted by user");
+      finalizeNodeRunRow(nodeRunId, "aborted", "Aborted by user", logBuffer);
       throw new Error("aborted");
     }
 
     if (claudeResult.code !== 0) {
       const msg = `claude CLI exited ${claudeResult.code}:\n${claudeResult.stderr.slice(0, 500)}`;
-      finalizeNodeRunRow(nodeRunId, "error", msg);
+      finalizeNodeRunRow(nodeRunId, "error", msg, logBuffer);
       throw new Error(msg);
     }
 
@@ -366,6 +458,7 @@ export async function runGraph(
           text: artifact.text,
           diff: artifact.diff,
           extra: artifact.extra,
+          logLines: [...logBuffer],
         },
         inputTokens: cumulativeUsage.inputTokens,
         outputTokens: cumulativeUsage.outputTokens,
@@ -392,12 +485,16 @@ function finalizeNodeRunRow(
   nodeRunId: string,
   status: "error" | "aborted",
   errorMessage: string,
+  logLines?: string[],
 ): void {
   try {
     const updated = updateNodeRun(nodeRunId, {
       status,
       finishedAt: new Date().toISOString(),
       errorMessage,
+      ...(logLines && logLines.length > 0
+        ? { outputArtifact: { text: "", diff: null, extra: {}, logLines } }
+        : {}),
     });
     if (updated) broadcastNodeFinished(updated);
   } catch (e) {
