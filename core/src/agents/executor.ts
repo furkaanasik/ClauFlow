@@ -8,6 +8,8 @@ import {
   run as gitRun,
 } from "../services/gitService.js";
 import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
+import { loadGraph } from "../services/graphService.js";
+import { runGraph, GraphValidationError } from "./graphRunner.js";
 import {
   appendAgentLog,
   getProject,
@@ -144,25 +146,30 @@ export async function run(task: Task, project: Project): Promise<void> {
   const controller = new AbortController();
   RUNNING.set(task.id, controller);
 
-  // Legacy adapter: every executor run gets one task_node_runs row so Phase 6
-  // aggregations can treat single-claude tasks uniformly with future
-  // multi-node graph runs. nodeId="legacy:coder" lets queries exclude or
-  // bucket pre-graph data cleanly.
+  // Phase 2: route to graphRunner when the project has a real multi-node graph.
+  // 0 or 1 nodes → legacy single-claude path (preserves Phase 1 behavior byte-for-byte).
+  const graph = loadGraph(project.repoPath);
+  const useGraphRunner = !!graph && graph.nodes.length >= 2;
+
+  // Legacy adapter: only inserted on the legacy path so graphRunner doesn't
+  // produce a phantom row alongside its real per-node rows.
   const nodeRunId = `noderun_${randomUUID().slice(0, 8)}`;
-  try {
-    const initialNodeRun = insertNodeRun({
-      id: nodeRunId,
-      taskId: task.id,
-      nodeId: "legacy:coder",
-      nodeType: "coder",
-      status: "running",
-      startedAt: new Date().toISOString(),
-      model: process.env.CLAUFLOW_DEFAULT_MODEL ?? null,
-    });
-    broadcastNodeStarted(initialNodeRun);
-  } catch (e) {
-    // Node-run telemetry must never break the executor.
-    console.error(`[executor] insertNodeRun failed for ${task.id}:`, e);
+  if (!useGraphRunner) {
+    try {
+      const initialNodeRun = insertNodeRun({
+        id: nodeRunId,
+        taskId: task.id,
+        nodeId: "legacy:coder",
+        nodeType: "coder",
+        status: "running",
+        startedAt: new Date().toISOString(),
+        model: process.env.CLAUFLOW_DEFAULT_MODEL ?? null,
+      });
+      broadcastNodeStarted(initialNodeRun);
+    } catch (e) {
+      // Node-run telemetry must never break the executor.
+      console.error(`[executor] insertNodeRun failed for ${task.id}:`, e);
+    }
   }
 
   try {
@@ -212,12 +219,29 @@ export async function run(task: Task, project: Project): Promise<void> {
       broadcastTaskUpdated(t);
     }
 
-    // ── Step 3: run claude CLI ────────────────────────────────────────────
+    // Acceptance criteria are needed by both branches' PR body building below.
+    const acceptanceCriteria = extractAcceptanceCriteria(task.analysis);
+
+    // ── Step 3: run agent work ────────────────────────────────────────────
+    if (useGraphRunner && graph) {
+      await setAgentStep(task.id, "running", "graph_run");
+      await pushBlock(task.id, [
+        "",
+        `▸ Running graph (${graph.nodes.length} nodes)…`,
+      ]);
+      try {
+        await runGraph(task, project, graph, controller, project.defaultBranch);
+      } catch (err) {
+        if (err instanceof GraphValidationError) {
+          throw new Error(`Invalid agent graph: ${err.reason}`);
+        }
+        throw err;
+      }
+    } else {
     await setAgentStep(task.id, "running", "claude_cli");
 
     const taskBrief = task.analysis || task.description || task.title;
     const background = project.aiPrompt?.trim();
-    const acceptanceCriteria = extractAcceptanceCriteria(task.analysis);
     const testingInstructions =
       `Testing requirements:\n` +
       `- Before coding, detect the repo's test runner: check package.json scripts ("test", "test:unit"), and config files (vitest.config.*, jest.config.*, pytest.ini, pyproject.toml with pytest, go.mod for go test).\n` +
@@ -381,6 +405,7 @@ export async function run(task: Task, project: Project): Promise<void> {
           claudeResult.stderr.slice(0, 500),
       );
     }
+    } // end else (legacy single-claude branch)
 
     // ── Step 4: git add . && commit ───────────────────────────────────────
     await setAgentStep(task.id, "pushing", "git_commit");
@@ -422,7 +447,7 @@ export async function run(task: Task, project: Project): Promise<void> {
       });
       broadcastStatus(task.id, "done", "completed");
       broadcastTaskUpdated(final);
-      finalizeNodeRun(nodeRunId, "done");
+      if (!useGraphRunner) finalizeNodeRun(nodeRunId, "done");
       return;
     }
 
@@ -525,7 +550,9 @@ export async function run(task: Task, project: Project): Promise<void> {
     });
     broadcastStatus(task.id, "error");
     broadcastTaskUpdated(errTask);
-    finalizeNodeRun(nodeRunId, aborted ? "aborted" : "error", message);
+    if (!useGraphRunner) {
+      finalizeNodeRun(nodeRunId, aborted ? "aborted" : "error", message);
+    }
   } finally {
     RUNNING.delete(task.id);
   }
