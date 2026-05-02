@@ -1,21 +1,72 @@
 import type { TaskUsage } from "@/types";
+import { api } from "./api";
 
-// Sonnet 4.5 pricing (per 1M tokens)
-const PRICE_INPUT_PER_M = 3.0;
-const PRICE_OUTPUT_PER_M = 15.0;
-const PRICE_CACHE_CREATION_PER_M = 3.75;
-const PRICE_CACHE_READ_PER_M = 0.3;
+// Sonnet 4.5 fallback prices (per 1M tokens) — used until the server pricing
+// table loads, or if the request fails. Identical to the previous hardcoded
+// values, so first paint stays correct in offline / pre-load scenarios.
+interface PriceRow {
+  input: number;
+  output: number;
+  cw: number;
+  cr: number;
+}
+
+const FALLBACK: PriceRow = {
+  input: 3.0,
+  output: 15.0,
+  cw: 3.75,
+  cr: 0.3,
+};
+
+let cache: { defaultModel: string; table: Map<string, PriceRow> } | null = null;
+let inflight: Promise<void> | null = null;
+
+async function ensureLoaded(): Promise<void> {
+  if (cache) return;
+  if (!inflight) {
+    inflight = api
+      .getPricing()
+      .then((res) => {
+        const t = new Map<string, PriceRow>();
+        for (const p of res.pricing) {
+          t.set(p.model, {
+            input: p.inputPerM,
+            output: p.outputPerM,
+            cw: p.cacheCreationPerM,
+            cr: p.cacheReadPerM,
+          });
+        }
+        cache = { defaultModel: res.defaultModel, table: t };
+      })
+      .catch(() => {
+        // Keep fallback. Phase 5 will surface a "pricing unreachable" warning.
+      });
+  }
+  await inflight;
+}
+
+// Trigger fetch on module load — sync calculateCost callers benefit from
+// having the table cached by the time they render.
+void ensureLoaded();
 
 /**
  * Calculate approximate cost in USD from token usage.
+ *
+ * Optional `model` lets callers compute per-node costs once Phase 2 lands.
+ * Unknown / null model falls back to the server's default model, then to the
+ * Sonnet 4.5 fallback prices if the server pricing table isn't loaded yet.
  */
-export function calculateCost(usage: TaskUsage): number {
-  const { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens } = usage;
+export function calculateCost(
+  usage: TaskUsage,
+  model?: string | null,
+): number {
+  const key = model ?? cache?.defaultModel ?? null;
+  const p = (key ? cache?.table.get(key) : null) ?? FALLBACK;
   return (
-    (inputTokens * PRICE_INPUT_PER_M +
-      outputTokens * PRICE_OUTPUT_PER_M +
-      cacheWriteTokens * PRICE_CACHE_CREATION_PER_M +
-      cacheReadTokens * PRICE_CACHE_READ_PER_M) /
+    (usage.inputTokens * p.input +
+      usage.outputTokens * p.output +
+      usage.cacheWriteTokens * p.cw +
+      usage.cacheReadTokens * p.cr) /
     1_000_000
   );
 }

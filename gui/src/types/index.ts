@@ -102,6 +102,37 @@ export interface TaskUsage {
   cacheWriteTokens: number;
 }
 
+export type NodeRunStatus = "running" | "done" | "error" | "aborted";
+
+export type NodeType =
+  | "planner"
+  | "coder"
+  | "reviewer"
+  | "tester"
+  | "ci"
+  | "fix"
+  | "custom";
+
+export interface NodeRun {
+  id: string;
+  taskId: string;
+  nodeId: string;
+  nodeType: NodeType;
+  status: NodeRunStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  inputArtifact: Record<string, unknown> | null;
+  outputArtifact: Record<string, unknown> | null;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  model: string | null;
+  ciIteration: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
 export type ToolCallStatus = "running" | "done" | "error";
 
 export interface ToolCall {
@@ -168,6 +199,13 @@ export type WsMessage =
       payload: ToolCall;
     }
   | { type: "agent_text"; taskId: string; payload: AgentText }
+  | { type: "node_started"; taskId: string; payload: NodeRun }
+  | { type: "node_finished"; taskId: string; payload: NodeRun }
+  | {
+      type: "node_log";
+      taskId: string;
+      payload: { nodeId: string; line: string };
+    }
   | { type: "task_updated"; taskId: string; payload: Task }
   | { type: "task_created"; taskId: string; payload: Task }
   | { type: "task_deleted"; taskId: string; payload: { id: string } }
