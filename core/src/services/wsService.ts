@@ -4,6 +4,7 @@ import type {
   AgentStatus,
   AgentText,
   Comment,
+  NodeRun,
   Project,
   Task,
   ToolCall,
@@ -141,6 +142,41 @@ export function broadcastSkillInstallProgress(
     type: "skill_install_progress",
     projectId,
     payload: { pluginId, status, message },
+  });
+}
+
+function nodeEventsEnabled(): boolean {
+  return process.env.CLAUFLOW_NODE_EVENTS === "1";
+}
+
+export function broadcastNodeStarted(nodeRun: NodeRun): void {
+  if (!nodeEventsEnabled()) return;
+  broadcast({
+    type: "node_started",
+    taskId: nodeRun.taskId,
+    payload: nodeRun,
+  });
+}
+
+export function broadcastNodeFinished(nodeRun: NodeRun): void {
+  if (!nodeEventsEnabled()) return;
+  broadcast({
+    type: "node_finished",
+    taskId: nodeRun.taskId,
+    payload: nodeRun,
+  });
+}
+
+export function broadcastNodeLog(
+  taskId: string,
+  nodeId: string,
+  line: string,
+): void {
+  if (!nodeEventsEnabled()) return;
+  broadcast({
+    type: "node_log",
+    taskId,
+    payload: { nodeId, line },
   });
 }
 

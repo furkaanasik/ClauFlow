@@ -302,7 +302,25 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then((r) => handle<AgentGraph>(r)),
+
+  getPricing: async (): Promise<PricingResponse> => {
+    const res = await fetch(`${BASE}/pricing`, { cache: "no-store" });
+    return handle<PricingResponse>(res);
+  },
 };
+
+export interface ModelPricing {
+  model: string;
+  inputPerM: number;
+  outputPerM: number;
+  cacheCreationPerM: number;
+  cacheReadPerM: number;
+}
+
+export interface PricingResponse {
+  defaultModel: string;
+  pricing: ModelPricing[];
+}
 
 // ─── Skill / Plugin types ─────────────────────────────────────────────────────
 
