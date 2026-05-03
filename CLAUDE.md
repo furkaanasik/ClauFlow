@@ -28,26 +28,6 @@ Related skills (use directly when only one phase is needed):
 - `/multi-backend <task>` — backend-focused full pipeline (Codex-led)
 - `/multi-frontend <task>` — frontend-focused full pipeline (Gemini-led)
 
-### Prerequisites
-
-`/multi-workflow` requires both CLIs to be installed and authenticated:
-```bash
-which codex gemini       # both must resolve
-codex --version          # sanity check
-gemini --version         # sanity check
-```
-If either is missing, install and authenticate before invoking the skill.
-
-### Settings
-
-The committed `.claude/settings.json` keeps `bypassPermissions` on so iterative workflow steps don't block on prompts:
-```json
-{
-  "permissions": { "defaultMode": "bypassPermissions" }
-}
-```
-Personal overrides (extra plugins, per-user allow rules) belong in `.claude/settings.local.json`, which stays gitignored.
-
 > **Note:** This guidance is for working *on this repo*. The runtime agents inside `core/src/agents/` (executor, commentRunner) are part of the ClauFlow product itself and are unrelated to this workflow.
 
 ## Command Cheatsheet
@@ -123,65 +103,6 @@ cd core && npm run build
 cd gui && pnpm build
 ```
 
-## Architecture
-
-```
-kanban/
-├── core/          # Express + WebSocket backend (Node.js / tsx)
-│   ├── src/
-│   │   ├── agents/
-│   │   │   ├── executor.ts      # Git + claude CLI orchestrator
-│   │   │   └── commentRunner.ts # Comment → branch checkout → claude CLI → commit/push
-│   │   ├── routes/              # REST: /api/tasks, /api/projects, /api/auth, /api/tasks/:id/comments, /github/prs*
-│   │   ├── services/
-│   │   │   ├── taskService.ts    # SQLite CRUD (better-sqlite3, WAL mode)
-│   │   │   ├── commentService.ts # comments table CRUD
-│   │   │   ├── wsService.ts      # WebSocket broadcast helpers
-│   │   │   ├── gitService.ts     # git/gh shell helpers
-│   │   │   └── claudeService.ts  # claude CLI runner (spawn)
-│   │   └── types/index.ts        # Shared types (Task, Project, WsMessage…)
-│   ├── .claude/
-│   │   ├── settings.json         # bypassPermissions — runs without prompts
-│   │   └── agents/               # planner, frontend, backend, reviewer (for vibe coding)
-│   ├── CLAUDE.md                 # core-specific agent team instructions
-│   └── data/tasks.db             # SQLite database (tasks + projects + comments tables)
-└── gui/           # Next.js 15 + Tailwind CSS 4 + dnd-kit frontend
-    └── src/
-        ├── app/
-        │   ├── page.tsx           # Landing page (/)
-        │   ├── board/page.tsx     # Kanban board (/board)
-        │   ├── github/page.tsx    # GitHub PR list (/github?projectId=xxx)
-        │   ├── icon.tsx           # Favicon (Next.js OG image)
-        │   └── layout.tsx         # Root layout, metadata, theme init
-        ├── components/
-        │   ├── Board/             # Board.tsx, BoardColumn.tsx — dnd-kit
-        │   ├── Card/              # TaskCard, TaskDetailDrawer, AgentBadge, CommentsTab
-        │   ├── Github/            # PRDetailDrawer (full-screen modal, side-by-side diff)
-        │   ├── Modals/            # AddTaskModal, NewProjectModal
-        │   ├── Sidebar/           # ProjectSidebar (includes project search)
-        │   ├── Layout/            # Header (logo, TR/EN toggle, theme, WS status, GitHub)
-        │   ├── Auth/              # GithubConnectModal
-        │   └── ui/                # Badge, ConfirmDialog, Modal, Toast
-        ├── hooks/
-        │   ├── useAgentSocket.ts  # WS connection + event dispatch
-        │   ├── useBoard.ts        # Board load, optimistic update
-        │   ├── useGithubAuth.ts   # GitHub connection status
-        │   ├── useKeyboardShortcuts.ts
-        │   ├── useToast.ts
-        │   └── useTranslation.ts  # TR/EN language hook
-        ├── lib/
-        │   ├── api.ts             # fetch wrapper → NEXT_PUBLIC_API_BASE
-        │   ├── githubConstants.ts
-        │   └── i18n/
-        │       ├── types.ts       # Translations interface
-        │       ├── tr.ts          # Turkish translations
-        │       └── en.ts          # English translations
-        ├── store/
-        │   └── boardStore.ts      # Zustand global state (tasks, projects, lang, theme…)
-        └── types/
-            └── index.ts
-```
-
 ## Core Data Flow
 
 1. User drags a card from `todo → doing`
@@ -203,20 +124,13 @@ kanban/
 
 ## Important Details
 
-- The data layer is SQLite (`better-sqlite3`, WAL mode) — no write queue needed, transaction-safe
-- Migration: an existing `tasks.json` is auto-imported on first launch and archived as `tasks.json.migrated`
-- GitHub auth uses the `gh auth login` device flow (no custom OAuth app required); `gh auth setup-git` is called on every executor run to refresh git credentials
-- Dragging Review → Done triggers `gh pr merge --merge` (the branch is not deleted)
-- PRs can also be merged from the `/github` page — after a merge the task with the matching `prNumber` is automatically moved to `done`
-- The agent log is shown as a live stream in the GUI (`TaskDetailDrawer`)
-- If the executor fails, the task returns to `todo` and `agent.status: "error"` is set
-- GUI environment variables: `gui/.env.local` → `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_WS_URL`
-- `core/` uses `npm`, `gui/` uses `pnpm`
-- Agent definitions live in `.claude/agents/` — each agent knows which skills it can use
+- `core/` uses `npm`, `gui/` uses `pnpm` — never cross them
 - **Claude CLI invocation**: `-p <prompt>` must be the first argument; other flags (`--permission-mode`, etc.) come after
-- `window.confirm` is not used — use the `ConfirmDialog` component (`gui/src/components/ui/ConfirmDialog.tsx`)
-- Theme: in Tailwind v4, light mode is implemented via a `html.light { --color-zinc-* }` CSS variable override (not a class-name override)
-- Language preference (TR/EN): kept in the `lang` Zustand state, synced to `localStorage` — read via the `useTranslation()` hook
+- `window.confirm` is not used — use `ConfirmDialog` (`gui/src/components/ui/ConfirmDialog.tsx`)
+- Theme: Tailwind v4 light mode via `html.light { --color-zinc-* }` CSS variable override (not a class-name toggle)
+- Language preference: `lang` Zustand state → `useTranslation()` hook
+- `gh auth setup-git` is called on every executor run to refresh git credentials
+- Dragging Review → Done triggers `gh pr merge --merge` (branch not deleted)
+- Executor failure → task returns to `todo`, `agent.status: "error"`
 - `comments` table: `id, taskId, body, status (pending/running/done/error), agentLog, createdAt`
 - Comment WS event: `comment_updated` — `{ type, taskId, payload: Comment }`
-- Routing: `/` landing page, `/board` kanban board, `/github` PR list

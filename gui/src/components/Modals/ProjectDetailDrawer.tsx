@@ -45,6 +45,7 @@ function draftsEqual(a: DraftState, b: DraftState): boolean {
 const STATUS_INK: Record<TaskStatus, string> = {
   todo:   "var(--status-todo)",
   doing:  "var(--status-doing)",
+  ci:     "var(--status-ci, var(--status-review))",
   review: "var(--status-review)",
   done:   "var(--status-done)",
 };

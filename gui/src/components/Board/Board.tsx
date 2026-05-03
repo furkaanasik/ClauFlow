@@ -24,17 +24,19 @@ import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { TaskStatus } from "@/types";
 
-const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "review", "done"];
+const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "ci", "review", "done"];
 const COLUMN_NUMERALS: Record<TaskStatus, string> = {
-  todo: "01",
-  doing: "02",
-  review: "03",
-  done: "04",
+  todo:   "01",
+  doing:  "02",
+  ci:     "03",
+  review: "04",
+  done:   "05",
 };
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   todo:   ["doing"],
   doing:  [],
+  ci:     ["review"],
   review: ["done"],
   done:   [],
 };
@@ -95,7 +97,7 @@ export function Board() {
 
   const byStatus = useMemo(() => {
     const map: Record<TaskStatus, typeof tasks[string][]> = {
-      todo: [], doing: [], review: [], done: [],
+      todo: [], doing: [], ci: [], review: [], done: [],
     };
     const needle = filterText.trim().toLowerCase();
     for (const id of order) {
@@ -143,7 +145,7 @@ export function Board() {
     let target: TaskStatus | undefined = overData?.status;
     if (!target) {
       const maybeCol = String(over.id);
-      if (["todo", "doing", "review", "done"].includes(maybeCol)) {
+      if (["todo", "doing", "ci", "review", "done"].includes(maybeCol)) {
         target = maybeCol as TaskStatus;
       }
     }
@@ -284,7 +286,7 @@ export function Board() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
           {columns.map((col) => (
             <BoardColumn
               key={col.status}

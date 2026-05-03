@@ -81,12 +81,14 @@ export interface Translations {
     columns: {
       todo: string;
       doing: string;
+      ci: string;
       review: string;
       done: string;
     };
     emptyStates: {
       todo:   { title: string; hint: string };
       doing:  { title: string; hint: string };
+      ci:     { title: string; hint: string };
       review: { title: string; hint: string };
       done:   { title: string; hint: string };
     };

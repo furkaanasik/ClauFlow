@@ -1,4 +1,4 @@
-export type TaskStatus = "todo" | "doing" | "review" | "done";
+export type TaskStatus = "todo" | "doing" | "ci" | "review" | "done";
 
 export type AgentStatus =
   | "idle"
@@ -188,7 +188,22 @@ export type WsMessage =
         error?: string;
       };
     }
-  | { type: "hello"; payload: { serverVersion: string } };
+  | { type: "hello"; payload: { serverVersion: string } }
+  | {
+      type: "ci_check_status";
+      taskId: string;
+      payload: { prNumber: number; verdict: CiVerdict };
+    }
+  | {
+      type: "ci_iteration_started";
+      taskId: string;
+      payload: { iteration: number; maxIterations: number };
+    }
+  | {
+      type: "ci_iteration_result";
+      taskId: string;
+      payload: { iteration: number; outcome: "pass" | "fail" | "exhausted" };
+    };
 
 export interface AvailablePluginSource {
   source: string;
@@ -255,6 +270,27 @@ export interface AgentGraph {
   nodes: AgentGraphNode[];
   edges: AgentGraphEdge[];
 }
+
+export interface CiFailure {
+  jobName: string;
+  conclusion: "FAILURE" | "CANCELLED" | "TIMED_OUT" | "ACTION_REQUIRED";
+  link: string | null;
+  logTail: string | null;
+}
+
+export interface CiFailureArtifact {
+  prNumber: number;
+  iteration: number;
+  failures: CiFailure[];
+  capturedAt: string;
+}
+
+export type CiVerdict =
+  | { kind: "pending" }
+  | { kind: "pass" }
+  | { kind: "fail"; failures: CiFailure[] }
+  | { kind: "no_checks" }
+  | { kind: "timeout" };
 
 export function createEmptyAgentState(): AgentState {
   return {
