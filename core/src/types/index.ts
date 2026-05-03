@@ -44,6 +44,7 @@ export interface Task {
   updatedAt: string;
   agent: AgentState;
   usage?: TaskUsage;
+  budgetUsd?: number | null;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -60,6 +61,7 @@ export interface Project {
   planningStatus?: ProjectPlanningStatus;
   slug?: string | null;
   taskCounter?: number;
+  budgetUsd?: number | null;
 }
 
 export interface TasksFile {
@@ -203,6 +205,11 @@ export type WsMessage =
       type: "ci_iteration_result";
       taskId: string;
       payload: { iteration: number; outcome: "pass" | "fail" | "exhausted" };
+    }
+  | {
+      type: "budget_exceeded";
+      taskId: string;
+      payload: { spentUsd: number; budgetUsd: number };
     };
 
 export interface AvailablePluginSource {

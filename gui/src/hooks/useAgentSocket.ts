@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
+import { useToastStore } from "@/hooks/useToast";
 import type { WsMessage } from "@/types";
 
 const RECONNECT_DELAY_MS = 3000;
@@ -40,6 +41,7 @@ export function useAgentSocket(url?: string) {
       upsertNodeRun,
       appendNodeLog,
       setCiIteration,
+      setBudgetExceeded,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -70,9 +72,14 @@ export function useAgentSocket(url?: string) {
         try {
           const msg = JSON.parse(e.data) as WsMessage | { type: string };
           switch ((msg as { type: string }).type) {
-            case "task_updated":
-              upsertTask((msg as Extract<WsMessage, { type: "task_updated" }>).payload);
+            case "task_updated": {
+              const t = (msg as Extract<WsMessage, { type: "task_updated" }>).payload;
+              upsertTask(t);
+              if (t.agent.status === "idle" && t.status === "doing") {
+                useBoardStore.getState().clearBudgetExceeded(t.id);
+              }
               break;
+            }
             case "task_created":
               addTask((msg as Extract<WsMessage, { type: "task_created" }>).payload);
               break;
@@ -177,6 +184,12 @@ export function useAgentSocket(url?: string) {
             case "ci_iteration_started": {
               const m = msg as Extract<WsMessage, { type: "ci_iteration_started" }>;
               setCiIteration(m.taskId, m.payload.iteration, m.payload.maxIterations);
+              break;
+            }
+            case "budget_exceeded": {
+              const m = msg as Extract<WsMessage, { type: "budget_exceeded" }>;
+              setBudgetExceeded(m.taskId, m.payload);
+              useToastStore.getState().push("error", `Budget exceeded: $${m.payload.spentUsd.toFixed(4)} / $${m.payload.budgetUsd.toFixed(2)}`);
               break;
             }
             case "ci_check_status":

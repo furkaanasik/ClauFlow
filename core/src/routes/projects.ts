@@ -58,6 +58,7 @@ const createProjectSchema = z.object({
   aiPrompt: z.string().optional(),
   maxTasks: z.number().int().positive().max(20).optional(),
   slug: slugSchema.optional(),
+  budgetUsd: z.number().min(0.1).nullable().optional(),
 });
 
 router.get("/", async (_req: Request, res: Response) => {
@@ -148,6 +149,7 @@ router.post("/", async (req: Request, res: Response) => {
       defaultBranch: data.defaultBranch,
       remote,
       slug: data.slug,
+      budgetUsd: data.budgetUsd,
     });
 
     if (trimmedPrompt) {
@@ -221,6 +223,7 @@ const updateProjectSchema = z.object({
   repoPath: z.string().min(1).optional(),
   defaultBranch: z.string().min(1).optional(),
   slug: slugSchema.optional(),
+  budgetUsd: z.number().min(0.1).nullable().optional(),
 });
 
 router.patch("/:id", async (req: Request, res: Response) => {
@@ -252,7 +255,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       trimmedPrompt !== undefined &&
       trimmedPrompt.length > 0;
 
-    let project = await updateProject(id, data);
+    let project = await updateProject(id, { ...data, budgetUsd: data.budgetUsd });
 
     if (shouldRetryPlanning) {
       project = await updateProject(id, { planningStatus: "planning" });

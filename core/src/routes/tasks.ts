@@ -63,6 +63,7 @@ const updateTaskSchema = z.object({
   branch: z.string().nullable().optional(),
   prUrl: z.string().nullable().optional(),
   prNumber: z.number().nullable().optional(),
+  budgetUsd: z.number().min(0.1).nullable().optional(),
   agent: z
     .object({
       status: agentStatus.optional(),

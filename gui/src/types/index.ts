@@ -38,6 +38,7 @@ export interface Task {
   agent: AgentState;
   comments?: Comment[];
   usage?: TaskUsage;
+  budgetUsd?: number | null;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -55,10 +56,11 @@ export interface Project {
   createdAt?: string;
   planningStatus?: ProjectPlanningStatus;
   planningError?: string | null;
+  budgetUsd?: number | null;
 }
 
 export type ProjectPatch = Partial<
-  Pick<Project, "name" | "slug" | "description" | "aiPrompt" | "repoPath" | "defaultBranch" | "remote">
+  Pick<Project, "name" | "slug" | "description" | "aiPrompt" | "repoPath" | "defaultBranch" | "remote" | "budgetUsd">
 >;
 
 export type TaskPatch = Partial<
@@ -73,6 +75,7 @@ export type TaskPatch = Partial<
     | "branch"
     | "prUrl"
     | "prNumber"
+    | "budgetUsd"
   >
 > & { agent?: Partial<AgentState> };
 
@@ -268,4 +271,9 @@ export type WsMessage =
       type: "ci_iteration_result";
       taskId: string;
       payload: { iteration: number; outcome: "pass" | "fail" | "exhausted" };
+    }
+  | {
+      type: "budget_exceeded";
+      taskId: string;
+      payload: { spentUsd: number; budgetUsd: number };
     };

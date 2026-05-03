@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { run as gitRun } from "../services/gitService.js";
 import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
+import { calculateCostUsd, DEFAULT_MODEL } from "../services/pricingService.js";
 import {
   loadAgentDefinition,
   type AgentDefinition,
 } from "../services/graphService.js";
 import {
   appendAgentLog,
+  getTaskEffectiveBudget,
   insertAgentText,
   insertNodeRun,
   insertToolCall,
@@ -17,6 +19,7 @@ import {
 } from "../services/taskService.js";
 import {
   broadcastAgentText,
+  broadcastBudgetExceeded,
   broadcastLog,
   broadcastNodeFinished,
   broadcastNodeLog,
@@ -389,10 +392,19 @@ export async function runGraph(
       cacheWriteTokens: 0,
     };
 
+    const effectiveBudget = getTaskEffectiveBudget(task.id);
+
     const onClaudeResult = (raw: unknown): void => {
       const usage = parseUsageFromResult(raw);
       if (!usage) return;
       cumulativeUsage = usage;
+      if (effectiveBudget != null) {
+        const spentUsd = calculateCostUsd(usage, agent.frontmatter.model ?? DEFAULT_MODEL);
+        if (spentUsd >= effectiveBudget) {
+          broadcastBudgetExceeded(task.id, spentUsd, effectiveBudget);
+          controller.abort();
+        }
+      }
       updateTaskUsage(task.id, usage)
         .then((t) => {
           if (t) broadcastTaskUpdated(t);
