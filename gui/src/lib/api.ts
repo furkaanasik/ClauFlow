@@ -46,6 +46,7 @@ export interface CreateProjectInput {
   createGithubRepo?: boolean;
   repoName?: string;
   isPrivate?: boolean;
+  budgetUsd?: number | null;
 }
 
 export const api = {

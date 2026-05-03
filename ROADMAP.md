@@ -20,6 +20,12 @@
 
 ---
 
+## Planned
+
+- 🗓 **Streaming token events (mid-run budget enforcement)** — currently `onResult` fires once after the full claude CLI run, so a $0.01 budget can't stop a $0.42 run mid-flight. Real enforcement requires parsing streaming JSON events during the run to accumulate token counts, compare against effective budget, and call `controller.abort()` before the run finishes. This enables tight per-task spending caps without relying on post-run detection.
+
+---
+
 ## Working rule
 
 Only **one** item should be active at a time. Finish it, use it, and if you like it move on. Do not start them all in parallel.

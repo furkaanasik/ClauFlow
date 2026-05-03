@@ -34,6 +34,7 @@ interface BoardState {
   nodeLogs: Record<string, Record<string, string[]>>;
   /** CI iteration progress per task */
   ciIterations: Record<string, { iteration: number; maxIterations: number }>;
+  budgetExceeded: Record<string, { spentUsd: number; budgetUsd: number }>;
   /** Open-Studio intent. ProjectSidebar opens the project drawer when non-null;
    *  ClaudeConfigTab forces the Studio segment; StudioCanvas binds to taskId. */
   studioRequest: { projectId: string; taskId: string } | null;
@@ -98,6 +99,8 @@ interface BoardState {
   clearNodeRuns: (taskId: string) => void;
 
   setCiIteration: (taskId: string, iteration: number, maxIterations: number) => void;
+  setBudgetExceeded: (taskId: string, payload: { spentUsd: number; budgetUsd: number }) => void;
+  clearBudgetExceeded: (taskId: string) => void;
 
   openStudio: (projectId: string, taskId: string) => void;
   closeStudio: () => void;
@@ -125,6 +128,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   nodeRuns: {},
   nodeLogs: {},
   ciIterations: {},
+  budgetExceeded: {},
   studioRequest: null,
 
   studioGeneration: {
@@ -457,6 +461,18 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         [taskId]: { iteration, maxIterations },
       },
     })),
+
+  setBudgetExceeded: (taskId, payload) =>
+    set((state) => ({
+      budgetExceeded: { ...state.budgetExceeded, [taskId]: payload },
+    })),
+
+  clearBudgetExceeded: (taskId) =>
+    set((state) => {
+      const { [taskId]: _, ...rest } = state.budgetExceeded;
+      void _;
+      return { budgetExceeded: rest };
+    }),
 
   openStudio: (projectId, taskId) =>
     set(() => ({ studioRequest: { projectId, taskId } })),

@@ -8,16 +8,19 @@ import {
   run as gitRun,
 } from "../services/gitService.js";
 import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
+import { calculateCostUsd, DEFAULT_MODEL } from "../services/pricingService.js";
 import { loadGraph } from "../services/graphService.js";
 import { runGraph, GraphValidationError } from "./graphRunner.js";
 import {
   appendAgentLog,
   getProject,
   getTask,
+  getTaskEffectiveBudget,
   insertAgentText,
   insertNodeRun,
   insertToolCall,
   listTasks,
+  resetTaskUsage,
   updateNodeRun,
   updateTask,
   updateTaskUsage,
@@ -26,6 +29,7 @@ import {
 import { slugify } from "../services/slug.js";
 import {
   broadcastAgentText,
+  broadcastBudgetExceeded,
   broadcastLog,
   broadcastNodeFinished,
   broadcastNodeStarted,
@@ -211,6 +215,8 @@ export async function run(
 
     await pushLog(task.id, `▸ Feature: ${ref}`);
 
+    resetTaskUsage(task.id);
+
     // ── Step 0: refresh git credential helper ─────────────────────────────
     // Ensures gh's git credential helper is registered even if auth was
     // already completed in a previous session.
@@ -361,9 +367,18 @@ export async function run(
       }
     };
 
+    const effectiveBudget = getTaskEffectiveBudget(task.id);
+
     const onClaudeResult = (raw: unknown): void => {
       const usage = parseUsageFromResult(raw);
       if (!usage) return;
+      if (effectiveBudget != null) {
+        const spentUsd = calculateCostUsd(usage, DEFAULT_MODEL);
+        if (spentUsd >= effectiveBudget) {
+          broadcastBudgetExceeded(task.id, spentUsd, effectiveBudget);
+          controller.abort();
+        }
+      }
       // Fire-and-forget — we don't want to block run() on a usage write.
       updateTaskUsage(task.id, usage)
         .then((t) => {
@@ -427,6 +442,9 @@ export async function run(
         `claude CLI exited ${claudeResult.code}:\n` +
           claudeResult.stderr.slice(0, 500),
       );
+    }
+    if (controller.signal.aborted) {
+      throw new Error("aborted");
     }
     } // end else (legacy single-claude branch)
 

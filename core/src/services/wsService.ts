@@ -205,6 +205,14 @@ export function broadcastCiIterationResult(
   });
 }
 
+export function broadcastBudgetExceeded(
+  taskId: string,
+  spentUsd: number,
+  budgetUsd: number,
+): void {
+  broadcast({ type: "budget_exceeded", taskId, payload: { spentUsd, budgetUsd } });
+}
+
 export function closeWebSocket(): Promise<void> {
   return new Promise((resolve) => {
     if (!wss) return resolve();

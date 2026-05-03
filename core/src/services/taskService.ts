@@ -20,6 +20,7 @@ import {
   type ToolCallStatus,
 } from "../types/index.js";
 import { ensureUniqueSlug, slugify } from "./slug.js";
+import { DEFAULT_TASK_BUDGET_USD } from "./pricingService.js";
 
 // ─── DB Setup ─────────────────────────────────────────────────────────────
 
@@ -322,6 +323,17 @@ db.exec(
   }
 }
 
+{
+  const projectCols = db.prepare(`PRAGMA table_info(projects)`).all() as { name: string }[];
+  if (!projectCols.some((c) => c.name === "budgetUsd"))
+    db.exec(`ALTER TABLE projects ADD COLUMN budgetUsd REAL`);
+}
+{
+  const taskCols = db.prepare(`PRAGMA table_info(tasks)`).all() as { name: string }[];
+  if (!taskCols.some((c) => c.name === "budgetUsd"))
+    db.exec(`ALTER TABLE tasks ADD COLUMN budgetUsd REAL`);
+}
+
 // Unique indexes (idempotent — also created above for fresh installs).
 // Per-project composite enforces team spec; global partial keeps an extra
 // defensive layer because slug uniqueness already implies global uniqueness.
@@ -348,6 +360,7 @@ interface ProjectRow {
   planningStatus: string | null;
   slug: string | null;
   taskCounter: number | null;
+  budgetUsd: number | null;
 }
 
 interface TaskRow {
@@ -375,6 +388,7 @@ interface TaskRow {
   outputTokens: number | null;
   cacheReadTokens: number | null;
   cacheWriteTokens: number | null;
+  budgetUsd: number | null;
 }
 
 function rowToProject(row: ProjectRow): Project {
@@ -391,6 +405,7 @@ function rowToProject(row: ProjectRow): Project {
       (row.planningStatus as ProjectPlanningStatus | null) ?? "idle",
     slug: row.slug ?? null,
     taskCounter: row.taskCounter ?? 0,
+    budgetUsd: row.budgetUsd ?? null,
   };
 }
 
@@ -446,6 +461,7 @@ function rowToTask(row: TaskRow): Task {
     updatedAt: row.updatedAt,
     agent,
     usage,
+    budgetUsd: row.budgetUsd ?? null,
   };
 }
 
@@ -456,8 +472,8 @@ const stmtListProjects = db.prepare(
 );
 const stmtGetProject = db.prepare(`SELECT * FROM projects WHERE id = ?`);
 const stmtInsertProject = db.prepare(
-  `INSERT INTO projects (id, name, description, aiPrompt, repoPath, defaultBranch, remote, createdAt, planningStatus, slug, taskCounter)
-   VALUES (@id, @name, @description, @aiPrompt, @repoPath, @defaultBranch, @remote, @createdAt, @planningStatus, @slug, @taskCounter)`,
+  `INSERT INTO projects (id, name, description, aiPrompt, repoPath, defaultBranch, remote, createdAt, planningStatus, slug, taskCounter, budgetUsd)
+   VALUES (@id, @name, @description, @aiPrompt, @repoPath, @defaultBranch, @remote, @createdAt, @planningStatus, @slug, @taskCounter, @budgetUsd)`,
 );
 
 const stmtListTasks = db.prepare(`SELECT * FROM tasks ORDER BY createdAt ASC`);
@@ -496,6 +512,7 @@ const stmtUpdateTaskWithLog = db.prepare(
     prUrl = @prUrl,
     prNumber = @prNumber,
     displayId = @displayId,
+    budgetUsd = @budgetUsd,
     updatedAt = @updatedAt,
     agentStatus = @agentStatus,
     agentCurrentStep = @agentCurrentStep,
@@ -518,6 +535,7 @@ const stmtUpdateTaskWithoutLog = db.prepare(
     prUrl = @prUrl,
     prNumber = @prNumber,
     displayId = @displayId,
+    budgetUsd = @budgetUsd,
     updatedAt = @updatedAt,
     agentStatus = @agentStatus,
     agentCurrentStep = @agentCurrentStep,
@@ -820,6 +838,7 @@ export type TaskPatch = Partial<
     | "prUrl"
     | "prNumber"
     | "displayId"
+    | "budgetUsd"
   >
 > & { agent?: Partial<AgentState> };
 
@@ -848,6 +867,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     prUrl: next.prUrl ?? null,
     prNumber: next.prNumber ?? null,
     displayId: next.displayId ?? null,
+    budgetUsd: next.budgetUsd ?? null,
     updatedAt: next.updatedAt,
     agentStatus: next.agent.status,
     agentCurrentStep: next.agent.currentStep ?? null,
@@ -901,6 +921,7 @@ export interface CreateProjectInput {
   defaultBranch?: string;
   remote?: string | null;
   slug?: string | null;
+  budgetUsd?: number | null;
 }
 
 export async function createProject(
@@ -930,6 +951,7 @@ export async function createProject(
     planningStatus: "idle",
     slug,
     taskCounter: 0,
+    budgetUsd: input.budgetUsd ?? null,
   };
 
   stmtInsertProject.run({
@@ -944,6 +966,7 @@ export async function createProject(
     planningStatus: project.planningStatus ?? "idle",
     slug: project.slug ?? null,
     taskCounter: project.taskCounter ?? 0,
+    budgetUsd: project.budgetUsd ?? null,
   });
 
   return project;
@@ -960,6 +983,7 @@ export type ProjectPatch = Partial<
     | "remote"
     | "planningStatus"
     | "slug"
+    | "budgetUsd"
   >
 >;
 
@@ -1011,7 +1035,8 @@ export async function updateProject(
       defaultBranch = @defaultBranch,
       remote = @remote,
       planningStatus = @planningStatus,
-      slug = @slug
+      slug = @slug,
+      budgetUsd = @budgetUsd
      WHERE id = @id`,
   ).run({
     id,
@@ -1023,9 +1048,19 @@ export async function updateProject(
     remote: next.remote ?? null,
     planningStatus: next.planningStatus ?? "idle",
     slug: next.slug ?? null,
+    budgetUsd: next.budgetUsd ?? null,
   });
 
   return next;
+}
+
+export function getTaskEffectiveBudget(taskId: string): number | null {
+  const task = stmtGetTask.get(taskId) as TaskRow | undefined;
+  if (!task) return null;
+  if (task.budgetUsd != null) return task.budgetUsd;
+  const project = stmtGetProject.get(task.projectId) as ProjectRow | undefined;
+  if (!project) return null;
+  return project.budgetUsd ?? DEFAULT_TASK_BUDGET_USD;
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -1263,6 +1298,20 @@ export function getAgentTexts(taskId: string): AgentText[] {
 }
 
 // ─── Task Usage ───────────────────────────────────────────────────────────
+
+const stmtResetTaskUsage = db.prepare(
+  `UPDATE tasks SET
+     inputTokens = 0,
+     outputTokens = 0,
+     cacheReadTokens = 0,
+     cacheWriteTokens = 0,
+     updatedAt = @updatedAt
+   WHERE id = @id`,
+);
+
+export function resetTaskUsage(id: string): void {
+  stmtResetTaskUsage.run({ id, updatedAt: new Date().toISOString() });
+}
 
 const stmtUpdateTaskUsage = db.prepare(
   `UPDATE tasks SET

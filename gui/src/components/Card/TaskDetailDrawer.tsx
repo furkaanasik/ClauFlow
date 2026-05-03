@@ -37,6 +37,7 @@ interface DraftState {
   description: string;
   analysis: string;
   priority: EditPriority;
+  budgetUsd: string;
 }
 
 function normalizePriority(p?: string | null): EditPriority {
@@ -51,6 +52,7 @@ function makeDraft(task: Task): DraftState {
     description: task.description ?? "",
     analysis:    task.analysis ?? "",
     priority:    normalizePriority(task.priority),
+    budgetUsd:   task.budgetUsd != null ? String(task.budgetUsd) : "",
   };
 }
 
@@ -137,6 +139,7 @@ export function TaskDetailDrawer() {
         description: draft.description,
         analysis:    draft.analysis,
         priority:    draft.priority,
+        budgetUsd:   draft.budgetUsd ? parseFloat(draft.budgetUsd) : null,
       };
       const updated = await api.updateTask(task.id, patch);
       upsertTask(updated);
@@ -197,8 +200,9 @@ export function TaskDetailDrawer() {
   const commentCount = task?.comments?.length ?? 0;
   const projectName  = task ? (projects.find((p) => p.id === task.projectId)?.name ?? "") : "";
 
-  const toolCalls   = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
-  const agentTexts  = useBoardStore((s) => task ? (s.agentTexts[task.id] ?? EMPTY_AGENT_TEXTS) : EMPTY_AGENT_TEXTS);
+  const toolCalls      = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
+  const agentTexts     = useBoardStore((s) => task ? (s.agentTexts[task.id] ?? EMPTY_AGENT_TEXTS) : EMPTY_AGENT_TEXTS);
+  const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
   const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
 
   const costPill = useMemo(() => {
@@ -211,6 +215,13 @@ export function TaskDetailDrawer() {
       cost: cost.toFixed(2),
     };
   }, [task?.usage]);
+
+  const budgetInfo = useMemo(() => {
+    const exceeded = budgetExceeded[task?.id ?? ""];
+    if (!exceeded) return null;
+    const pct = Math.min((exceeded.spentUsd / exceeded.budgetUsd) * 100, 100);
+    return { spentUsd: exceeded.spentUsd, budgetUsd: exceeded.budgetUsd, pct };
+  }, [task?.id, budgetExceeded]);
 
   if (!open) return null;
 
@@ -515,6 +526,46 @@ export function TaskDetailDrawer() {
                       </div>
                     </Section>
                   )}
+
+                  {/* Budget */}
+                  <Section label="Budget" numeral="06">
+                    {editing && draft ? (
+                      <div className="flex flex-col gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          placeholder={`${task.budgetUsd != null ? String(task.budgetUsd) : "2.00 (project default)"}`}
+                          value={draft.budgetUsd}
+                          onChange={(e) => setDraft({ ...draft, budgetUsd: e.target.value })}
+                          className="w-full rounded border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 font-mono text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)]"
+                        />
+                        <p className="text-[11px] text-[var(--text-faint)]">Leave blank to inherit project budget ($2.00 default)</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <p className="font-mono text-sm text-[var(--text-secondary)]">
+                          {task.budgetUsd != null ? `$${task.budgetUsd.toFixed(2)} / task` : "Project default"}
+                        </p>
+                        {budgetInfo && (
+                          <div>
+                            <div className="flex justify-between text-xs text-[var(--text-muted)] mb-1">
+                              <span>Spent</span>
+                              <span className={budgetInfo.pct >= 100 ? "text-[var(--status-error)] font-medium" : ""}>
+                                ${budgetInfo.spentUsd.toFixed(4)} / ${budgetInfo.budgetUsd.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-[var(--bg-elevated)]">
+                              <div
+                                className={`h-1.5 rounded-full transition-all ${budgetInfo.pct >= 100 ? "bg-[var(--status-error)]" : budgetInfo.pct >= 90 ? "bg-amber-400" : "bg-[var(--accent-primary)]"}`}
+                                style={{ width: `${budgetInfo.pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Section>
                 </div>
               ) : (
                 /* Log tab */

@@ -20,6 +20,7 @@ interface DraftState {
   aiPrompt: string;
   repoPath: string;
   defaultBranch: string;
+  budgetUsd: string;
 }
 
 function makeDraft(p: Project): DraftState {
@@ -29,6 +30,7 @@ function makeDraft(p: Project): DraftState {
     aiPrompt:      p.aiPrompt ?? "",
     repoPath:      p.repoPath,
     defaultBranch: p.defaultBranch,
+    budgetUsd:     p.budgetUsd != null ? String(p.budgetUsd) : "",
   };
 }
 
@@ -38,7 +40,8 @@ function draftsEqual(a: DraftState, b: DraftState): boolean {
     a.description === b.description &&
     a.aiPrompt === b.aiPrompt &&
     a.repoPath === b.repoPath &&
-    a.defaultBranch === b.defaultBranch
+    a.defaultBranch === b.defaultBranch &&
+    a.budgetUsd === b.budgetUsd
   );
 }
 
@@ -141,6 +144,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
         aiPrompt:      draft.aiPrompt || undefined,
         repoPath:      draft.repoPath.trim(),
         defaultBranch: draft.defaultBranch.trim(),
+        budgetUsd:     draft.budgetUsd ? parseFloat(draft.budgetUsd) : null,
       };
       const updated = await api.updateProject(project.id, patch);
       updateProject(project.id, updated);
@@ -391,6 +395,17 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                         {pd.activeTasksBlockPath}
                       </p>
                     )}
+                  </Field>
+                  <Field label="Task budget (USD)">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      placeholder="2.00 (default)"
+                      value={draft.budgetUsd}
+                      onChange={(e) => setDraft({ ...draft, budgetUsd: e.target.value })}
+                      className="w-full rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+                    />
                   </Field>
                 </div>
               </Section>

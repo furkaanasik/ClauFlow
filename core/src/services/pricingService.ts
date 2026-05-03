@@ -48,6 +48,7 @@ export const MODEL_PRICING: ModelPricing[] = [
 ];
 
 export const DEFAULT_MODEL = "claude-sonnet-4-5";
+export const DEFAULT_TASK_BUDGET_USD = 2.0;
 
 export interface UsageInput {
   inputTokens: number;
