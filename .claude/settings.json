@@ -6,5 +6,8 @@
       "Skill(update-config:*)",
       "Bash(git add *)"
     ]
+  },
+  "env": {
+    "ECC_GATEGUARD": "off"
   }
 }

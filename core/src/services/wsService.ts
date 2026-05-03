@@ -173,6 +173,38 @@ export function broadcastNodeLog(
   });
 }
 
+export function broadcastCiCheckStatus(
+  taskId: string,
+  prNumber: number,
+  verdict: import("../types/index.js").CiVerdict,
+): void {
+  broadcast({ type: "ci_check_status", taskId, payload: { prNumber, verdict } });
+}
+
+export function broadcastCiIterationStarted(
+  taskId: string,
+  iteration: number,
+  maxIterations: number,
+): void {
+  broadcast({
+    type: "ci_iteration_started",
+    taskId,
+    payload: { iteration, maxIterations },
+  });
+}
+
+export function broadcastCiIterationResult(
+  taskId: string,
+  iteration: number,
+  outcome: "pass" | "fail" | "exhausted",
+): void {
+  broadcast({
+    type: "ci_iteration_result",
+    taskId,
+    payload: { iteration, outcome },
+  });
+}
+
 export function closeWebSocket(): Promise<void> {
   return new Promise((resolve) => {
     if (!wss) return resolve();

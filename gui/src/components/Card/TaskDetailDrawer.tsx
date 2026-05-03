@@ -20,6 +20,7 @@ const EMPTY_AGENT_TEXTS: AgentText[] = [];
 const STATUS_COLOR: Record<Task["status"], string> = {
   todo:   "var(--status-todo)",
   doing:  "var(--status-doing)",
+  ci:     "var(--status-ci, var(--status-review))",
   review: "var(--status-review)",
   done:   "var(--status-done)",
 };

@@ -33,6 +33,7 @@ import {
   broadcastTaskUpdated,
   broadcastToolCall,
 } from "../services/wsService.js";
+import { startCiWatch } from "../services/ciWatcher.js";
 import type { AgentStatus, Project, Task } from "../types/index.js";
 
 const ACTIVE: AgentStatus[] = ["branching", "running", "pushing", "pr_opening"];
@@ -536,8 +537,8 @@ export async function run(
     }
 
     // ── Done ──────────────────────────────────────────────────────────────
-    // Remote yoksa review'a değil done'a taşı (local-only repo)
-    const finalStatus = hasRemote ? "review" : "done";
+    // Remote yoksa done'a, PR varsa CI gate'e, remote-only ise review'a taşı
+    const finalStatus = hasRemote && prNumber ? "ci" : hasRemote ? "review" : "done";
     const final = await updateTask(task.id, {
       status: finalStatus,
       prUrl,
@@ -551,6 +552,10 @@ export async function run(
     broadcastStatus(task.id, "done", "completed");
     broadcastTaskUpdated(final);
     finalizeNodeRun(nodeRunId, "done");
+
+    if (finalStatus === "ci") {
+      startCiWatch(final, project);
+    }
   } catch (err) {
     const aborted = controller.signal.aborted;
     const baseMessage = err instanceof Error ? err.message : String(err);

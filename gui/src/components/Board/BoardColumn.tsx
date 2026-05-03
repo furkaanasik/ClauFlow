@@ -18,6 +18,7 @@ interface BoardColumnProps {
 const COLUMN_TONE: Record<TaskStatus, { dot: string; ink: string }> = {
   todo:   { dot: "var(--status-todo)",   ink: "var(--text-secondary)" },
   doing:  { dot: "var(--status-doing)",  ink: "var(--status-doing)" },
+  ci:     { dot: "var(--status-ci, var(--status-review))", ink: "var(--status-ci, var(--status-review))" },
   review: { dot: "var(--status-review)", ink: "var(--status-review)" },
   done:   { dot: "var(--status-done)",   ink: "var(--status-done)" },
 };

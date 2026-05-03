@@ -32,6 +32,8 @@ interface BoardState {
   nodeRuns: Record<string, Record<string, NodeRun>>;
   /** Node logs per task, keyed by taskId then nodeId — capped ring buffer */
   nodeLogs: Record<string, Record<string, string[]>>;
+  /** CI iteration progress per task */
+  ciIterations: Record<string, { iteration: number; maxIterations: number }>;
   /** Open-Studio intent. ProjectSidebar opens the project drawer when non-null;
    *  ClaudeConfigTab forces the Studio segment; StudioCanvas binds to taskId. */
   studioRequest: { projectId: string; taskId: string } | null;
@@ -95,6 +97,8 @@ interface BoardState {
   appendNodeLog: (taskId: string, nodeId: string, line: string) => void;
   clearNodeRuns: (taskId: string) => void;
 
+  setCiIteration: (taskId: string, iteration: number, maxIterations: number) => void;
+
   openStudio: (projectId: string, taskId: string) => void;
   closeStudio: () => void;
 
@@ -120,6 +124,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   skillProgress: {},
   nodeRuns: {},
   nodeLogs: {},
+  ciIterations: {},
   studioRequest: null,
 
   studioGeneration: {
@@ -444,6 +449,14 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       void _logs;
       return { nodeRuns: restRuns, nodeLogs: restLogs };
     }),
+
+  setCiIteration: (taskId, iteration, maxIterations) =>
+    set((state) => ({
+      ciIterations: {
+        ...state.ciIterations,
+        [taskId]: { iteration, maxIterations },
+      },
+    })),
 
   openStudio: (projectId, taskId) =>
     set(() => ({ studioRequest: { projectId, taskId } })),

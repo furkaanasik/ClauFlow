@@ -1,4 +1,4 @@
-export type TaskStatus = "todo" | "doing" | "review" | "done";
+export type TaskStatus = "todo" | "doing" | "ci" | "review" | "done";
 
 export type TaskPriority = "low" | "medium" | "high" | "critical";
 
@@ -186,6 +186,27 @@ export interface AgentGraph {
   edges: AgentGraphEdge[];
 }
 
+export interface CiFailure {
+  jobName: string;
+  conclusion: "FAILURE" | "CANCELLED" | "TIMED_OUT" | "ACTION_REQUIRED";
+  link: string | null;
+  logTail: string | null;
+}
+
+export interface CiFailureArtifact {
+  prNumber: number;
+  iteration: number;
+  failures: CiFailure[];
+  capturedAt: string;
+}
+
+export type CiVerdict =
+  | { kind: "pending" }
+  | { kind: "pass" }
+  | { kind: "fail"; failures: CiFailure[] }
+  | { kind: "no_checks" }
+  | { kind: "timeout" };
+
 export type WsMessage =
   | { type: "agent_log"; taskId: string; payload: { line: string } }
   | {
@@ -232,4 +253,19 @@ export type WsMessage =
         chunk?: string;
         error?: string;
       };
+    }
+  | {
+      type: "ci_check_status";
+      taskId: string;
+      payload: { prNumber: number; verdict: CiVerdict };
+    }
+  | {
+      type: "ci_iteration_started";
+      taskId: string;
+      payload: { iteration: number; maxIterations: number };
+    }
+  | {
+      type: "ci_iteration_result";
+      taskId: string;
+      payload: { iteration: number; outcome: "pass" | "fail" | "exhausted" };
     };

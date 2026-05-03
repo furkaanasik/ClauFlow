@@ -39,6 +39,7 @@ export function useAgentSocket(url?: string) {
       studioError,
       upsertNodeRun,
       appendNodeLog,
+      setCiIteration,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -173,6 +174,13 @@ export function useAgentSocket(url?: string) {
               }
               break;
             }
+            case "ci_iteration_started": {
+              const m = msg as Extract<WsMessage, { type: "ci_iteration_started" }>;
+              setCiIteration(m.taskId, m.payload.iteration, m.payload.maxIterations);
+              break;
+            }
+            case "ci_check_status":
+            case "ci_iteration_result":
             case "hello":
             default:
               break;

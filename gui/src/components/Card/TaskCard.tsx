@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AgentBadge } from "@/components/Card/AgentBadge";
+import { CiBadge } from "@/components/Card/CiBadge";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Task } from "@/types";
@@ -43,6 +44,7 @@ export function TaskCard({ task }: TaskCardProps) {
   const selectTask = useBoardStore((s) => s.selectTask);
   const selectPRTask = useBoardStore((s) => s.selectPRTask);
   const newTaskIds = useBoardStore((s) => s.newTaskIds);
+  const ciIterations = useBoardStore((s) => s.ciIterations);
   const clearNewTaskId = useBoardStore((s) => s.clearNewTaskId);
   const t = useTranslation();
 
@@ -176,7 +178,7 @@ export function TaskCard({ task }: TaskCardProps) {
         )}
 
         {/* footer with hairline */}
-        {(isQueued(task) || showAgentBadge(task) || (task.prNumber && task.status !== "done")) && (
+        {(isQueued(task) || showAgentBadge(task) || task.status === "ci" || (task.prNumber && task.status !== "done")) && (
           <footer className="mt-3 flex items-center justify-end gap-2 border-t border-[var(--border)] pt-2.5">
             {isQueued(task) && (
               <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
@@ -184,7 +186,14 @@ export function TaskCard({ task }: TaskCardProps) {
                 Queued
               </span>
             )}
-            {showAgentBadge(task) && (
+            {task.status === "ci" && (
+              <CiBadge
+                iteration={ciIterations[task.id]?.iteration ?? 0}
+                maxIterations={ciIterations[task.id]?.maxIterations ?? 3}
+                lastConclusion="pending"
+              />
+            )}
+            {showAgentBadge(task) && task.status !== "ci" && (
               <AgentBadge agent={task.agent} taskTitle={task.title} />
             )}
             {task.prNumber && task.status !== "done" && (

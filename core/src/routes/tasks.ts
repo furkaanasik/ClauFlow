@@ -27,10 +27,11 @@ import {
 import { loadGraph } from "../services/graphService.js";
 import { planGraph } from "../agents/graphRunner.js";
 import { mergePr } from "../services/gitService.js";
+import { stopCiWatch } from "../services/ciWatcher.js";
 
 const router = Router();
 
-const taskStatus = z.enum(["todo", "doing", "review", "done"]);
+const taskStatus = z.enum(["todo", "doing", "ci", "review", "done"]);
 const taskPriority = z.enum(["low", "medium", "high", "critical"]);
 const agentStatus = z.enum([
   "idle",
@@ -159,6 +160,11 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const task = await updateTask(req.params.id!, updateData);
     broadcastTaskUpdated(task);
     res.json({ task });
+
+    // Stop CI watcher if task is being manually moved away from "ci"
+    if (parsed.data.status && parsed.data.status !== "ci") {
+      stopCiWatch(req.params.id!);
+    }
 
     // Fire-and-forget: trigger executor when task moves to "doing"
     if (parsed.data.status === "doing") {

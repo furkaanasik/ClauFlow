@@ -37,3 +37,4 @@ Thumbs.db
 graphify-out/
 .claude/settings.local.json
 *.pre-graphify.bak
+.ace-tool/
