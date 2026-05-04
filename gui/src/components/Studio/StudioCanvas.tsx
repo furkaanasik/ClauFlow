@@ -45,12 +45,17 @@ function buildNodes(
   onAddSkill: (slug: string, skillId: string) => void,
 ): Node[] {
   return agents.map((agent, i) => {
+    const isMain = agent.slug === "main";
     const saved = graphNodes.find((n) => n.data.slug === agent.slug);
+    const position = isMain
+      ? { x: 20, y: 20 }
+      : saved?.position ?? { x: 60 + (i % 4) * 260, y: 60 + Math.floor(i / 4) * 160 };
     return {
       id: agent.slug,
       type: "agent",
-      position: saved?.position ?? { x: 60 + (i % 4) * 260, y: 60 + Math.floor(i / 4) * 160 },
-      data: { agent, onEdit, onRemoveSkill, onAddSkill } as unknown as Record<string, unknown>,
+      position,
+      draggable: !isMain,
+      data: { agent, onEdit, onRemoveSkill, onAddSkill, isMain } as unknown as Record<string, unknown>,
     };
   });
 }
@@ -265,8 +270,12 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
 
   const handleNodesChange = useCallback(
     (changes: Parameters<typeof onNodesChange>[0]) => {
-      onNodesChange(changes);
-      const hasMoved = changes.some((c) => c.type === "position" && !c.dragging);
+      const filtered = changes.filter((c) => {
+        if (c.type === "remove") return c.id !== "main";
+        return true;
+      });
+      onNodesChange(filtered);
+      const hasMoved = filtered.some((c) => c.type === "position" && !c.dragging);
       if (hasMoved) setIsDirty(true);
     },
     [onNodesChange],
@@ -521,7 +530,17 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onConnect={handleConnect}
-            onNodeDragStop={() => setIsDirty(true)}
+            zoomOnDoubleClick={false}
+            onNodeDoubleClick={(_, node) => onEdit(node.id)}
+            onNodeDragStop={(_, node) => {
+              if (node.id === "main") {
+                setNodes((prev) =>
+                  prev.map((n) => (n.id === "main" ? { ...n, position: { x: 20, y: 20 } } : n)),
+                );
+              } else {
+                setIsDirty(true);
+              }
+            }}
             deleteKeyCode={["Delete", "Backspace"]}
             edgesFocusable
             onEdgeClick={(_, edge) => {

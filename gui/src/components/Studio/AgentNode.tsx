@@ -32,7 +32,7 @@ const STATUS_RING: Record<NodeRunStatus, string> = {
   aborted: "ring-2 ring-amber-500",
 };
 
-type NodeKind = "planner" | "coder" | "reviewer" | "tester" | "ci" | "fix" | "custom";
+type NodeKind = "main" | "planner" | "coder" | "reviewer" | "tester" | "ci" | "fix" | "custom";
 
 interface NodeAccent {
   border: string;
@@ -42,6 +42,12 @@ interface NodeAccent {
 }
 
 const NODE_ACCENT: Record<NodeKind, NodeAccent> = {
+  main: {
+    border: "border-2 border-amber-400 shadow-[0_0_0_3px_rgba(251,191,36,0.15)]",
+    header: "bg-amber-400/15",
+    badge: "bg-amber-400/20 text-amber-300 border-amber-400/60",
+    label: "★ entry",
+  },
   planner: {
     border: "border-l-4 border-l-indigo-500",
     header: "bg-indigo-500/10",
@@ -89,6 +95,7 @@ const NODE_ACCENT: Record<NodeKind, NodeAccent> = {
 const KNOWN_KINDS: NodeKind[] = ["planner", "coder", "reviewer", "tester", "ci", "fix"];
 
 function deriveNodeKind(slug: string): NodeKind {
+  if (slug === "main") return "main";
   const lower = slug.toLowerCase();
   for (const k of KNOWN_KINDS) {
     if (lower === k || lower.startsWith(`${k}-`) || lower.endsWith(`-${k}`)) {
@@ -141,7 +148,6 @@ function AgentNodeComponent({ data }: NodeProps) {
     <div
       className={`min-w-[180px] max-w-[240px] border border-[var(--border)] bg-[var(--bg-base)] shadow-sm ${accent.border} ${ringClass} ${invalidClass}`.trim()}
       onClick={() => onSelectNode?.(agent.slug)}
-      onDoubleClick={() => onEdit(agent.slug)}
       onDragOver={(e) => {
         const dragged = skillDragState.skillId;
         if (!dragged) return;

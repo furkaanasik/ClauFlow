@@ -22,6 +22,8 @@
 
 ## Planned
 
+- 🗓 **Studio skill injection** — Agent node'una sürüklenen skill'lerin SKILL.md içeriğini `buildNodePrompt` içinde otomatik olarak agent prompt'una enjekte et. Şu an `## Available Skills` tablosu sadece metin olarak prompt'a giriyor; `claude -p` headless modunda slash command çalışmadığından drag-drop'un execution'da hiçbir etkisi yok. Çözüm: agent body parse edilir, listelenen her skill için `~/.claude/skills/<skill>/SKILL.md` okunur, içerik prompt'a blok olarak eklenir. Kullanıcı davranışı aynı kalır, arka planda gerçek skill talimatları agent'a aktarılmış olur.
+
 - 🗓 **Studio main node** — Canvas'ta her zaman bir `main` agent node olsun. Proje Studio'su ilk açıldığında `main.md` agent yoksa otomatik oluşturulsun; canvas'ta entry point olarak sol üste sabit konumlansın, görsel olarak diğer node'lardan ayrışsın (özel border/badge). Diğer agent'lar bu node'a edge ile bağlanır. Silinirse bir sonraki yüklemede yeniden oluşsun. Mevcut Studio bug'ları da bu fazda giderilecek.
 
 - 🗓 **Streaming token events (mid-run budget enforcement)** — currently `onResult` fires once after the full claude CLI run, so a $0.01 budget can't stop a $0.42 run mid-flight. Real enforcement requires parsing streaming JSON events during the run to accumulate token counts, compare against effective budget, and call `controller.abort()` before the run finishes. This enables tight per-task spending caps without relying on post-run detection.
