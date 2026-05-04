@@ -60,7 +60,11 @@ const updateTaskSchema = z.object({
   priority: taskPriority.nullable().optional(),
   tags: z.array(z.string()).optional(),
   status: taskStatus.optional(),
-  branch: z.string().nullable().optional(),
+  branch: z
+    .string()
+    .regex(/^[a-zA-Z0-9._\/-]+$/, "invalid branch name")
+    .nullable()
+    .optional(),
   prUrl: z.string().nullable().optional(),
   prNumber: z.number().nullable().optional(),
   budgetUsd: z.number().min(0.1).nullable().optional(),
@@ -79,6 +83,9 @@ const updateTaskSchema = z.object({
 router.get("/", async (req: Request, res: Response) => {
   try {
     const { projectId } = req.query as { projectId?: string };
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId query param required" });
+    }
     const tasks = await listTasks(projectId);
     res.json({ tasks });
   } catch (err) {
@@ -168,7 +175,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
     }
 
     // Fire-and-forget: trigger executor when task moves to "doing"
-    if (parsed.data.status === "doing") {
+    if (parsed.data.status === "doing" && !isExecutorRunning(task.id)) {
       const project = await getProject(task.projectId);
       if (project) {
         enqueueExecutor(task, project);

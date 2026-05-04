@@ -93,6 +93,11 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
+    if (path.resolve(data.repoPath).split(path.sep).filter(Boolean).length < 2) {
+      res.status(400).json({ error: "repoPath çok sığ — en az /a/b derinliğinde olmalı" });
+      return;
+    }
+
     if (data.repoName && !/^[a-zA-Z0-9_.-]+$/.test(data.repoName)) {
       res
         .status(400)
@@ -170,7 +175,13 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 const cloneProjectSchema = z.object({
-  repoUrl: z.string().min(1),
+  repoUrl: z
+    .string()
+    .min(1)
+    .regex(
+      /^(https?:\/\/|git@)/,
+      "repoUrl must start with https:// or git@ (SSH)",
+    ),
   targetPath: z.string().min(1),
   name: z.string().min(1),
 });

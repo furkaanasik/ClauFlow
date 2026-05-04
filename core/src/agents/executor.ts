@@ -48,7 +48,10 @@ async function acquireSlot(projectId: string, taskId: string): Promise<void> {
   for (let i = 0; i < 120; i++) {
     const tasks = await listTasks(projectId);
     const busy = tasks.some(
-      (t) => t.id !== taskId && t.status === "doing" && ACTIVE.includes(t.agent.status),
+      (t) =>
+        t.id !== taskId &&
+        t.status === "doing" &&
+        (ACTIVE.includes(t.agent.status) || t.agent.status === "idle"),
     );
     if (!busy) return;
     await new Promise((r) => setTimeout(r, 2000));
@@ -281,13 +284,13 @@ export async function run(
 
     const prompt = background
       ? `Project background (reference only — do NOT implement features beyond the current task's scope):\n` +
-        `${background}\n\n` +
-        `Current task — implement exactly what this describes, nothing more:\n\n` +
-        `${taskBrief}\n\n` +
+        `<project_background>\n${background}\n</project_background>\n\n` +
+        `Current task — implement exactly what this describes, nothing more:\n` +
+        `<task>\n${taskBrief}\n</task>\n\n` +
         `${testingInstructions}\n\n` +
         `When done, exit the terminal.`
       : `Aşağıdaki analize göre kodu yaz ve bitince terminalden çık:\n\n` +
-        `${taskBrief}\n\n` +
+        `<task>\n${taskBrief}\n</task>\n\n` +
         testingInstructions;
 
     await pushBlock(task.id, [

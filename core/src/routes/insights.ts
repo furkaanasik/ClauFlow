@@ -274,13 +274,15 @@ router.get("/export", (req: Request, res: Response) => {
       .all(projectId) as ExportRow[];
 
     if (format === "csv") {
+      const safeCsvStr = (v: string) =>
+        `"${v.replace(/^[=+\-@|%]/, "'$&").replace(/"/g, '""')}"`;
       const header =
         "id,title,status,agentStatus,createdAt,inputTokens,outputTokens,cacheReadTokens,cacheWriteTokens,agentStartedAt,agentFinishedAt,prNumber\n";
       const lines = rows
         .map((r) =>
           [
             r.id,
-            `"${r.title.replace(/"/g, '""')}"`,
+            safeCsvStr(r.title),
             r.status,
             r.agentStatus,
             r.createdAt,

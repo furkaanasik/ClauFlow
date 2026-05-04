@@ -184,7 +184,7 @@ export async function commitAll(repoPath: string, message: string): Promise<RunR
 }
 
 export function pushBranch(repoPath: string, branch: string): Promise<RunResult> {
-  return run("git", ["push", "-u", "origin", branch], repoPath);
+  return run("git", ["push", "-u", "origin", "--", branch], repoPath);
 }
 
 export interface CreatePrInput {

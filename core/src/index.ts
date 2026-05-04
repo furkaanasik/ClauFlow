@@ -15,9 +15,16 @@ import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
 import { recoverOrphanedTasks } from "./services/taskService.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
+const HOST = process.env.HOST ?? "127.0.0.1";
+
+const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ?? "http://localhost:3000,http://127.0.0.1:3000"
+)
+  .split(",")
+  .map((s) => s.trim());
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (_req, res) => {
@@ -42,8 +49,8 @@ app.use((req, res) => {
 const server = http.createServer(app);
 attachWebSocket(server);
 
-server.listen(PORT, async () => {
-  console.log(`[core] listening on http://localhost:${PORT}`);
+server.listen(PORT, HOST, async () => {
+  console.log(`[core] listening on http://${HOST}:${PORT}`);
   console.log(`[core] websocket on ws://localhost:${PORT}/ws`);
   try {
     const recovered = await recoverOrphanedTasks();

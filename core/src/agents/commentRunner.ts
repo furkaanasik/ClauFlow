@@ -68,6 +68,9 @@ async function runCommentInner(
     await gitRun("gh", ["auth", "setup-git"], projectRepoPath);
 
     // ── Step 4: git checkout <branch> ─────────────────────────────────────
+    if (!/^[a-zA-Z0-9._\/-]+$/.test(branch)) {
+      throw new Error(`Invalid branch name: ${branch}`);
+    }
     const coResult = await gitRun(
       "git",
       ["checkout", branch],
@@ -81,7 +84,7 @@ async function runCommentInner(
 
     // ── Step 5: run claude CLI with the comment as feedback ───────────────
     const prompt =
-      `Kullanıcı şu geri bildirimi verdi: ${comment.body}\n\n` +
+      `Kullanıcı şu geri bildirimi verdi:\n<user_feedback>\n${comment.body}\n</user_feedback>\n\n` +
       `Gerekli düzeltmeleri yap.`;
 
     const onLogLine = async (

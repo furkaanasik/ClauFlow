@@ -13,10 +13,21 @@ import type {
 
 let wss: WebSocketServer | null = null;
 
+const ALLOWED_WS_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ?? "http://localhost:3000,http://127.0.0.1:3000"
+)
+  .split(",")
+  .map((s) => s.trim());
+
 export function attachWebSocket(server: HttpServer): WebSocketServer {
   if (wss) return wss;
   wss = new WebSocketServer({ server, path: "/ws" });
-  wss.on("connection", (socket) => {
+  wss.on("connection", (socket, req) => {
+    const origin = req.headers.origin ?? "";
+    if (origin && !ALLOWED_WS_ORIGINS.includes(origin)) {
+      socket.close(1008, "Forbidden origin");
+      return;
+    }
     const hello: WsMessage = {
       type: "hello",
       payload: { serverVersion: "0.1.0" },
