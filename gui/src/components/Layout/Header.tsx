@@ -122,6 +122,15 @@ export function Header() {
             </Link>
           )}
 
+          <Link
+            href={selectedProjectId ? `/insights?projectId=${selectedProjectId}` : "/insights"}
+            className="flex h-9 items-center gap-2 px-3 text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+            title={t.insights.navInsights}
+          >
+            <InsightsIcon className="h-4 w-4" />
+            <span className="hidden text-[12px] md:inline">{t.insights.navInsights}</span>
+          </Link>
+
           <button
             type="button"
             onClick={toggleLang}
@@ -206,6 +215,22 @@ function MoonIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
+function InsightsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      aria-hidden="true"
+    >
+      <path d="M2 12 L5 8 L8 10 L11 5 L14 7" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="1" y="1" width="14" height="14" rx="1" />
     </svg>
   );
 }

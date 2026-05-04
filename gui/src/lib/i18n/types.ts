@@ -341,6 +341,33 @@ export interface Translations {
     noDescription: string;
     noModel: string;
   };
+  insights: {
+    title: string;
+    subtitle: string;
+    loading: string;
+    noProject: string;
+    exportButton: string;
+    exportJson: string;
+    exportCsv: string;
+    statTasks: string;
+    statTasksSub: string;
+    statCost: string;
+    statCompletion: string;
+    statCompletionSub: string;
+    statCiPassRate: string;
+    statAvgTimeToGreen: string;
+    sectionByNodeType: string;
+    colNodeType: string;
+    colRuns: string;
+    colDone: string;
+    colTokens: string;
+    colUsd: string;
+    colSuccess: string;
+    sectionRecentTasks: string;
+    emptyTasks: string;
+    emptyTasksHint: string;
+    navInsights: string;
+  };
   projectDetail: {
     title: string;
     editProject: string;
