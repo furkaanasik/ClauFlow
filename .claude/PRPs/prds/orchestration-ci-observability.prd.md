@@ -189,8 +189,8 @@ Phase B inserts a `ci` node between coder and reviewer; Phase C surfaces the run
 | 2 | Graph Runner MVP (Bet 1) | Linear `planner → coder → reviewer` execution, per-node prompts/tools, artifact passing | complete | - | 1 | [.claude/PRPs/plans/completed/graph-runner-mvp.plan.md](../plans/completed/graph-runner-mvp.plan.md) → [report](../reports/graph-runner-mvp-report.md) |
 | 3 | Studio Runtime UX | Run-trace overlay, per-node abort/retry, graph validation on save | complete | with 4 | 2 | [.claude/PRPs/plans/completed/studio-runtime-ux.plan.md](../plans/completed/studio-runtime-ux.plan.md) → [report](../reports/studio-runtime-ux-report.md) |
 | 4 | CI Gate + Fix Loop (Bet 2) | `ci` column + node, structured failure parsing, fix sub-node, cycle iteration cap | complete | with 3 | 2 | [.claude/PRPs/plans/completed/ci-gate-fix-loop.plan.md](../plans/completed/ci-gate-fix-loop.plan.md) |
-| 5 | Cost Guardrails | Per-task USD budget, pause-and-escalate, model-aware accounting end-to-end | in-progress | - | 1, 4 | [.claude/PRPs/plans/cost-guardrails.plan.md](../plans/cost-guardrails.plan.md) |
-| 6 | Fleet Dashboard (Bet 3) | `/insights` page, aggregation queries/views, export | pending | - | 2, 4, 5 | - |
+| 5 | Cost Guardrails | Per-task USD budget, pause-and-escalate, model-aware accounting end-to-end | complete | - | 1, 4 | [.claude/PRPs/plans/cost-guardrails.plan.md](../plans/cost-guardrails.plan.md) |
+| 6 | Fleet Dashboard (Bet 3) | `/insights` page, aggregation queries/views, export | in-progress | - | 2, 4, 5 | [.claude/PRPs/plans/fleet-dashboard.plan.md](../plans/fleet-dashboard.plan.md) |
 | 7 | Hardening | Migration safety, abort cascade tests, pricing-staleness warnings, docs | pending | - | 6 | - |
 
 ### Phase Details

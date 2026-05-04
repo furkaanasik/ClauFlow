@@ -49,6 +49,49 @@ export interface CreateProjectInput {
   budgetUsd?: number | null;
 }
 
+export interface InsightsByNodeType {
+  nodeType: string;
+  runCount: number;
+  doneCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  estimatedUsd: number;
+}
+
+export interface InsightsRecentTask {
+  id: string;
+  title: string;
+  status: string;
+  agentStatus: string;
+  createdAt: string;
+  estimatedUsd: number;
+  timeToGreenMs: number | null;
+  nodeRunCount: number;
+}
+
+export interface InsightsSummary {
+  totalTasks: number;
+  doneTasks: number;
+  errorTasks: number;
+  prCount: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheReadTokens: number;
+  totalCacheWriteTokens: number;
+  estimatedUsd: number;
+  avgTimeToGreenMs: number | null;
+  ciPassRate: number | null;
+}
+
+export interface InsightsData {
+  projectId: string;
+  summary: InsightsSummary;
+  byNodeType: InsightsByNodeType[];
+  recentTasks: InsightsRecentTask[];
+}
+
 export const api = {
   getTasks: async (projectId?: string): Promise<Task[]> => {
     const url = projectId
@@ -348,6 +391,14 @@ export const api = {
     const res = await fetch(`${BASE}/pricing`, { cache: "no-store" });
     return handle<PricingResponse>(res);
   },
+
+  getInsights: (projectId: string): Promise<InsightsData> =>
+    fetch(`${BASE}/insights?projectId=${encodeURIComponent(projectId)}`, {
+      cache: "no-store",
+    }).then((r) => handle<InsightsData>(r)),
+
+  getInsightsExportUrl: (projectId: string, format: "csv" | "json"): string =>
+    `${BASE}/insights/export?projectId=${encodeURIComponent(projectId)}&format=${format}`,
 };
 
 export interface ModelPricing {
