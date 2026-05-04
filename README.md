@@ -11,6 +11,8 @@
 An open-source agentic kanban board.<br/>
 Move a card to **DOING** — Claude Code branches, writes, commits, and opens a pull request. Comment in **REVIEW** — Claude re-runs against the same branch.
 
+[![CI](https://github.com/furkaanasik/ClauFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/furkaanasik/ClauFlow/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/furkaanasik/ClauFlow?style=flat)](https://github.com/furkaanasik/ClauFlow/releases)
 [![Stack](https://img.shields.io/badge/stack-Next.js%2015%20·%20Express%20·%20SQLite-1e1e1e?style=flat)](#stack)
 [![AI](https://img.shields.io/badge/agent-Claude%20Code%20CLI-d4ff3d?style=flat&labelColor=0a0908)](https://docs.claude.com/en/docs/claude-code/overview)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](#license)
