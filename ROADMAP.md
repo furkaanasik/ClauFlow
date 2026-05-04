@@ -28,6 +28,24 @@
 
 - 🗓 **Docker distribution** — `docker.yml` GitHub Actions workflow: build multi-arch image (amd64 + arm64) on every `v*.*.*` tag, push to GitHub Container Registry (`ghcr.io/furkaanasik/clauflow`). Compose file (`docker-compose.yml`) at repo root: core + gui services, port mapping, volume for SQLite data. Goal: `docker compose up` → running ClauFlow, no Node install needed.
 
+- 🗓 **GitHub Issues → Task import** — Repo'daki açık issue'ları tek tıkla kanban'a çek. `gh issue list` çıktısını parse et, seçilen issue'ları task olarak oluştur. Hedef: ClauFlow'u mevcut iş akışına entegre et, paralel sistem olmasın.
+
+- 🗓 **PR auto-review** — Task REVIEW kolonuna gelince Claude otomatik bir code review pass'i çalıştırsın, çıktısını PR'a comment olarak bıraksın. Şu an kullanıcı manuel review yapıyor; bu adımı executor pipeline'ına ekle.
+
+- 🗓 **Task breakdown AI** — Task drawer'da "Break down" butonu: büyük bir feature açıklaması gir, Claude 5-8 alt task'a böler ve bunları aynı projeye ekler. Mevcut project planner proje seviyesinde çalışıyor; bu task seviyesinde.
+
+- 🗓 **Notification system** — Agent iş bitince veya hata alınca bildirim: browser Notification API (izin istenirse) + opsiyonel webhook URL (Discord / Slack / custom). Şu an terminali izlemek gerekiyor.
+
+- 🗓 **Claude model selector per-task** — Her task için hangi modelin çalışacağını seç (Haiku hızlı/ucuz, Sonnet dengeli, Opus derin iş). Şu an executor hardcoded model kullanıyor; task schema'ya `model` alanı ekle, executor'a ilet.
+
+- 🗓 **Task dependencies** — "Bu task bitmeden şunu başlatma" bağlantısı. Task'lar arası `dependsOn` ilişkisi; bağımlı task'lar DOING'e taşınınca otomatik bekler, bağımlılık DONE olunca serbest kalır. Project planner ile de entegre olmalı: prompt'tan oluşturulan task'lar arası sıralama dependency olarak modellenmeli.
+
+- 🗓 **Rollback button** — DONE kolonundaki bir task'ı tek tıkla geri al: `gh pr revert` veya `git revert` ile branch'i geri döndür, PR'ı kapat. Şu an manuel git işi.
+
+- 🗓 **GitHub Issues two-way sync** — Task oluşturunca GitHub issue da açılsın (`gh issue create`), task DONE'a taşınınca issue kapansın. Mevcut `displayId` ve `prNumber` alanlarına `issueNumber` eklenir.
+
+- 🗓 **Custom workflow columns** — TODO/DOING/REVIEW/DONE sabit seti genişletilsin. Önceden tanımlı ekstra kolonlar: `BLOCKED`, `QA`, `STAGING`. Kullanıcı serbest isim giremez; tipler sabit kalır, her tipin executor davranışı (agent çalıştır / manuel / deploy hook) ayrı tanımlanır.
+
 ---
 
 ## Working rule
