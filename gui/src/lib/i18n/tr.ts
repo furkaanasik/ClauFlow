@@ -374,6 +374,8 @@ export const tr: Translations = {
     emptyTasks: "Henüz task yok",
     emptyTasksHint: "Board'a git ve bir task başlat",
     navInsights: "İstatistikler",
+    pricingStaleBanner: "Fiyatlandırma verisi güncel olmayabilir.",
+    pricingStaleDate: "Son güncelleme: {date}",
   },
   projectDetail: {
     title: "Proje Detayları",

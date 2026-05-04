@@ -367,6 +367,8 @@ export interface Translations {
     emptyTasks: string;
     emptyTasksHint: string;
     navInsights: string;
+    pricingStaleBanner: string;
+    pricingStaleDate: string;
   };
   projectDetail: {
     title: string;

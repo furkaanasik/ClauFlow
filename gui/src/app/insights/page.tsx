@@ -176,6 +176,17 @@ function InsightsContent() {
 
         {!loading && !error && data && (
           <>
+            {data.summary.pricingStale === true && (
+              <div className="mb-4 flex items-center gap-2 border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <span>⚠</span>
+                <span>
+                  {t.insights.pricingStaleBanner}{" "}
+                  <span className="opacity-70">
+                    {t.insights.pricingStaleDate.replace("{date}", "2026-05-04")}
+                  </span>
+                </span>
+              </div>
+            )}
             <div className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
               <StatCard
                 label={t.insights.statTasks}

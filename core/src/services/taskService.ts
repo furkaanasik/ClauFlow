@@ -268,6 +268,11 @@ db.exec(
      ON task_node_runs(taskId, startedAt);`,
 );
 
+db.exec(
+  `CREATE INDEX IF NOT EXISTS idx_tasks_projectId
+     ON tasks(projectId);`,
+);
+
 // Idempotent migrations for projects table.
 {
   const projectColumns = db

@@ -4,6 +4,7 @@ import {
   buildNodePrompt,
   deriveNodeType,
   planGraph,
+  runGraph,
   type NodeArtifact,
 } from "./graphRunner.js";
 import type {
@@ -273,5 +274,69 @@ describe("buildNodePrompt", () => {
     const p: Project = { ...baseProject, aiPrompt: "" };
     const prompt = buildNodePrompt(planner, baseTask, p, null);
     expect(prompt).not.toContain("Project background");
+  });
+});
+
+describe("runGraph abort cascade", () => {
+  const abortTask: Task = {
+    id: "task_abort_test",
+    projectId: "proj_abort",
+    title: "abort test",
+    description: "",
+    analysis: "",
+    status: "doing",
+    priority: "medium",
+    tags: [],
+    branch: null,
+    prUrl: null,
+    prNumber: null,
+    displayId: null,
+    createdAt: "2026-05-04T00:00:00.000Z",
+    updatedAt: "2026-05-04T00:00:00.000Z",
+    agent: {
+      status: "running",
+      currentStep: undefined,
+      log: [],
+      error: null,
+      startedAt: null,
+      finishedAt: null,
+    },
+  };
+
+  const abortProject: Project = {
+    id: "proj_abort",
+    name: "Abort Test",
+    description: "",
+    aiPrompt: "",
+    repoPath: "/tmp/abort-test",
+    defaultBranch: "main",
+    remote: null,
+    createdAt: "2026-05-04T00:00:00.000Z",
+    planningStatus: "idle",
+    slug: "abort-test",
+    taskCounter: 0,
+  };
+
+  it("throws 'aborted' immediately when controller is pre-aborted", async () => {
+    const graph: AgentGraph = {
+      nodes: [node("a", "planner"), node("b", "coder")],
+      edges: [edge("a", "b")],
+    };
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      runGraph(abortTask, abortProject, graph, controller, "main"),
+    ).rejects.toThrow("aborted");
+  });
+
+  it("throws 'aborted' for a single-node graph when pre-aborted", async () => {
+    const graph: AgentGraph = { nodes: [node("a", "planner")], edges: [] };
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      runGraph(abortTask, abortProject, graph, controller, "main"),
+    ).rejects.toThrow("aborted");
   });
 });
