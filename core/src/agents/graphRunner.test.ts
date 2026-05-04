@@ -78,18 +78,14 @@ describe("planGraph", () => {
     }
   });
 
-  it("attaches offendingNodeIds for branching", () => {
-    try {
-      planGraph({
-        nodes: [node("a"), node("b"), node("c")],
-        edges: [edge("a", "b"), edge("a", "c")],
-      });
-      throw new Error("expected throw");
-    } catch (err) {
-      expect(err).toBeInstanceOf(GraphValidationError);
-      expect((err as GraphValidationError).reason).toBe("branching");
-      expect((err as GraphValidationError).offendingNodeIds).toContain("a");
-    }
+  it("allows fan-out (a→b and a→c) and returns topological order", () => {
+    const plan = planGraph({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("a", "b"), edge("a", "c")],
+    });
+    expect(plan.order[0]).toBe("a");
+    expect(plan.order).toContain("b");
+    expect(plan.order).toContain("c");
   });
 
   it("attaches offendingNodeIds for cycle", () => {
@@ -139,13 +135,15 @@ describe("planGraph", () => {
     ).toThrow(/cycle/);
   });
 
-  it("rejects branching (out-degree > 1)", () => {
-    expect(() =>
-      planGraph({
-        nodes: [node("a"), node("b"), node("c")],
-        edges: [edge("a", "b"), edge("a", "c")],
-      }),
-    ).toThrow(/branching/);
+  it("allows fan-out with fan-in (diamond: a→b, a→c, b→d, c→d)", () => {
+    const plan = planGraph({
+      nodes: [node("a"), node("b"), node("c"), node("d")],
+      edges: [edge("a", "b"), edge("a", "c"), edge("b", "d"), edge("c", "d")],
+    });
+    expect(plan.order[0]).toBe("a");
+    expect(plan.order[plan.order.length - 1]).toBe("d");
+    expect(plan.order).toContain("b");
+    expect(plan.order).toContain("c");
   });
 
   it("rejects disconnected nodes", () => {

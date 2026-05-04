@@ -328,6 +328,23 @@ router.get("/:id/claude/agents", async (req: Request, res: Response) => {
       .filter((f) => f.endsWith(".md"))
       .sort();
 
+    const mainFile = agentFilePath(project.repoPath, "main");
+    if (!files.includes("main.md") && !fs.existsSync(mainFile)) {
+      fs.mkdirSync(dir, { recursive: true });
+      const mainFm: AgentFrontmatter = {
+        name: "Main",
+        description: "Entry point for this project's agent graph",
+      };
+      const mainBody = "\nYou are the main orchestrator for this project. Coordinate with other agents as needed.";
+      fs.writeFileSync(mainFile, serializeAgentFile(mainFm, mainBody), "utf8");
+      await commitAgentChange(
+        project.repoPath,
+        path.relative(project.repoPath, mainFile),
+        "chore(agents): bootstrap main entry-point agent",
+      );
+      files.unshift("main.md");
+    }
+
     if (files.length > 0 && fs.existsSync(project.repoPath)) {
       const settings = ensureClaudeSettings(project.repoPath);
       if (settings.changed) {

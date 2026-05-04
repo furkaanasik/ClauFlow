@@ -65,7 +65,6 @@ export type GraphValidationReason =
   | "no_entry"
   | "multiple_entries"
   | "cycle"
-  | "branching"
   | "disconnected";
 
 export class GraphValidationError extends Error {
@@ -106,33 +105,25 @@ export function planGraph(graph: AgentGraph): GraphPlan {
     arr.push(e.target);
     outBySource.set(e.source, arr);
   }
-  const branchingSources: string[] = [];
-  for (const [src, targets] of outBySource) {
-    if (targets.length > 1) branchingSources.push(src);
-  }
-  if (branchingSources.length > 0) {
-    throw new GraphValidationError("branching", branchingSources);
-  }
 
+  // Kahn's topological sort — supports fan-out (branching) and fan-in
+  const inDegree = new Map<string, number>(incoming);
   const order: string[] = [];
-  const seen = new Set<string>();
-  let cur: string | undefined = entries[0];
-  while (cur) {
-    if (seen.has(cur)) {
-      const cycleStart = order.indexOf(cur);
-      const cycleIds =
-        cycleStart >= 0 ? [...order.slice(cycleStart), cur] : [cur];
-      throw new GraphValidationError("cycle", cycleIds);
-    }
-    seen.add(cur);
+  const queue = entries.slice();
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
     order.push(cur);
-    cur = outBySource.get(cur)?.[0];
+    for (const next of outBySource.get(cur) ?? []) {
+      const deg = (inDegree.get(next) ?? 0) - 1;
+      inDegree.set(next, deg);
+      if (deg === 0) queue.push(next);
+    }
   }
   if (order.length !== graph.nodes.length) {
-    const unreached = graph.nodes
-      .filter((n) => !seen.has(n.id))
+    const inCycle = graph.nodes
+      .filter((n) => !order.includes(n.id))
       .map((n) => n.id);
-    throw new GraphValidationError("disconnected", unreached);
+    throw new GraphValidationError("cycle", inCycle);
   }
 
   const slugById: Record<string, string> = {};
@@ -207,8 +198,15 @@ export async function runGraph(
   options: RunGraphOptions = {},
 ): Promise<RunGraphResult> {
   const plan = planGraph(graph);
-  let prior: NodeArtifact | null = null;
   let completedNodes = 0;
+
+  // For each node, which nodes point to it
+  const predecessorsOf = new Map<string, string[]>();
+  for (const n of graph.nodes) predecessorsOf.set(n.id, []);
+  for (const e of graph.edges) predecessorsOf.get(e.target)!.push(e.source);
+
+  // Per-node artifact storage (supports fan-out / fan-in)
+  const artifactByNode = new Map<string, NodeArtifact>();
 
   let startIdx = 0;
   if (options.resumeFromNodeId) {
@@ -219,25 +217,26 @@ export async function runGraph(
       );
     }
     if (startIdx > 0) {
-      const priorNodeId = plan.order[startIdx - 1]!;
       const rows = listNodeRunsByTask(task.id);
-      const lastDone = [...rows]
-        .reverse()
-        .find((r) => r.nodeId === priorNodeId && r.status === "done");
-      if (!lastDone || !lastDone.outputArtifact) {
+      for (let j = 0; j < startIdx; j++) {
+        const nid = plan.order[j]!;
+        const lastDone = [...rows].reverse().find((r) => r.nodeId === nid && r.status === "done");
+        if (lastDone?.outputArtifact) {
+          const art = lastDone.outputArtifact as Record<string, unknown>;
+          artifactByNode.set(nid, {
+            text: typeof art.text === "string" ? art.text : "",
+            diff: typeof art.diff === "string" ? art.diff : null,
+            extra: art.extra && typeof art.extra === "object" ? (art.extra as Record<string, unknown>) : {},
+          });
+        }
+      }
+      const directPreds = predecessorsOf.get(options.resumeFromNodeId) ?? [];
+      const missingPred = directPreds.find((pid) => !artifactByNode.has(pid));
+      if (missingPred) {
         throw new Error(
-          `Cannot resume at '${options.resumeFromNodeId}': prior node '${priorNodeId}' has no done row`,
+          `Cannot resume at '${options.resumeFromNodeId}': prior node '${missingPred}' has no done row`,
         );
       }
-      const art = lastDone.outputArtifact as Record<string, unknown>;
-      prior = {
-        text: typeof art.text === "string" ? art.text : "",
-        diff: typeof art.diff === "string" ? art.diff : null,
-        extra:
-          art.extra && typeof art.extra === "object"
-            ? (art.extra as Record<string, unknown>)
-            : {},
-      };
     }
   }
 
@@ -246,6 +245,18 @@ export async function runGraph(
     if (controller.signal.aborted) {
       throw new Error("aborted");
     }
+
+    // Resolve prior artifact — merge if multiple predecessors
+    const preds = predecessorsOf.get(nodeId) ?? [];
+    const predArtifacts = preds
+      .map((pid) => artifactByNode.get(pid))
+      .filter((a): a is NodeArtifact => a != null);
+    const prior: NodeArtifact | null =
+      predArtifacts.length === 0
+        ? null
+        : predArtifacts.length === 1
+          ? predArtifacts[0]!
+          : mergeArtifacts(predArtifacts);
 
     const slug = plan.slugById[nodeId];
     if (!slug) {
@@ -482,15 +493,31 @@ export async function runGraph(
       console.error(`[graphRunner] updateNodeRun(done) failed:`, e);
     }
 
-    prior = artifact;
+    artifactByNode.set(nodeId, artifact);
     completedNodes += 1;
   }
 
-  if (!prior) {
+  const lastId = plan.order[plan.order.length - 1];
+  const finalArtifact = lastId ? artifactByNode.get(lastId) : undefined;
+  if (!finalArtifact) {
     throw new Error("graph produced no artifact");
   }
 
-  return { finalArtifact: prior, completedNodes };
+  return { finalArtifact, completedNodes };
+}
+
+function mergeArtifacts(artifacts: NodeArtifact[]): NodeArtifact {
+  const texts = artifacts
+    .filter((a) => a.text.trim())
+    .map((a, i) => `[Branch ${i + 1}]\n${a.text.trim()}`);
+  const diffs = artifacts
+    .map((a) => a.diff)
+    .filter((d): d is string => d != null);
+  return {
+    text: texts.join("\n\n"),
+    diff: diffs.length > 0 ? diffs.join("\n") : null,
+    extra: {},
+  };
 }
 
 function finalizeNodeRunRow(
