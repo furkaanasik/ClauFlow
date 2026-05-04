@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_MODEL,
   MODEL_PRICING,
+  PRICING_UPDATED_AT,
   calculateCostUsd,
   getActivePricing,
+  isPricingStale,
 } from "./pricingService.js";
 
 describe("calculateCostUsd", () => {
@@ -100,6 +102,29 @@ describe("calculateCostUsd", () => {
       "claude-opus-4-7",
     );
     expect(cost).toBeCloseTo(opus.inputPerM, 6);
+  });
+});
+
+describe("isPricingStale", () => {
+  it("returns false on the day it was updated", () => {
+    const updated = new Date(PRICING_UPDATED_AT);
+    expect(isPricingStale(updated)).toBe(false);
+  });
+
+  it("returns false 89 days after update", () => {
+    const d = new Date(PRICING_UPDATED_AT);
+    d.setDate(d.getDate() + 89);
+    expect(isPricingStale(d)).toBe(false);
+  });
+
+  it("returns true 91 days after update", () => {
+    const d = new Date(PRICING_UPDATED_AT);
+    d.setDate(d.getDate() + 91);
+    expect(isPricingStale(d)).toBe(true);
+  });
+
+  it("uses current date when no arg passed (smoke test only)", () => {
+    expect(typeof isPricingStale()).toBe("boolean");
   });
 });
 

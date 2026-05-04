@@ -83,6 +83,7 @@ export interface InsightsSummary {
   estimatedUsd: number;
   avgTimeToGreenMs: number | null;
   ciPassRate: number | null;
+  pricingStale?: boolean;
 }
 
 export interface InsightsData {

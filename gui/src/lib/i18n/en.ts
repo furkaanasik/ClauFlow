@@ -374,6 +374,8 @@ export const en: Translations = {
     emptyTasks: "No tasks yet",
     emptyTasksHint: "Open the board and start a task",
     navInsights: "Insights",
+    pricingStaleBanner: "Pricing data may be out of date.",
+    pricingStaleDate: "Last updated {date}",
   },
   projectDetail: {
     title: "Project Details",

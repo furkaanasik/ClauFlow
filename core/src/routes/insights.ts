@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db } from "../services/taskService.js";
-import { calculateCostUsd, DEFAULT_MODEL } from "../services/pricingService.js";
+import { calculateCostUsd, DEFAULT_MODEL, isPricingStale } from "../services/pricingService.js";
 import { errorMessage } from "../utils/error.js";
 
 interface SummaryRow {
@@ -240,6 +240,7 @@ router.get("/", (req: Request, res: Response) => {
         avgTimeToGreenMs: summaryRow.avgTimeToGreenMs ?? null,
         ciPassRate:
           ciRow.ciTotal > 0 ? ciRow.ciDone / ciRow.ciTotal : null,
+        pricingStale: isPricingStale(),
       },
       byNodeType,
       recentTasks,

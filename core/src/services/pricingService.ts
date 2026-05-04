@@ -1,5 +1,12 @@
 // Source: https://docs.anthropic.com/en/docs/about-claude/models  (per 1M tokens, USD)
-// Phase 7 will add a staleness warning when this table is older than 90 days.
+
+export const PRICING_UPDATED_AT = "2025-01-01";
+
+export function isPricingStale(now: Date = new Date()): boolean {
+  const updated = new Date(PRICING_UPDATED_AT);
+  const diffMs = now.getTime() - updated.getTime();
+  return diffMs > 90 * 24 * 60 * 60 * 1000;
+}
 
 export interface ModelPricing {
   model: string;

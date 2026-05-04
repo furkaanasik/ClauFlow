@@ -191,7 +191,7 @@ Phase B inserts a `ci` node between coder and reviewer; Phase C surfaces the run
 | 4 | CI Gate + Fix Loop (Bet 2) | `ci` column + node, structured failure parsing, fix sub-node, cycle iteration cap | complete | with 3 | 2 | [.claude/PRPs/plans/completed/ci-gate-fix-loop.plan.md](../plans/completed/ci-gate-fix-loop.plan.md) |
 | 5 | Cost Guardrails | Per-task USD budget, pause-and-escalate, model-aware accounting end-to-end | complete | - | 1, 4 | [.claude/PRPs/plans/cost-guardrails.plan.md](../plans/cost-guardrails.plan.md) |
 | 6 | Fleet Dashboard (Bet 3) | `/insights` page, aggregation queries/views, export | in-progress | - | 2, 4, 5 | [.claude/PRPs/plans/fleet-dashboard.plan.md](../plans/fleet-dashboard.plan.md) |
-| 7 | Hardening | Migration safety, abort cascade tests, pricing-staleness warnings, docs | pending | - | 6 | - |
+| 7 | Hardening | Migration safety, abort cascade tests, pricing-staleness warnings, docs | complete | - | 6 | [.claude/PRPs/reports/hardening-report.md](../reports/hardening-report.md) |
 
 ### Phase Details
 
