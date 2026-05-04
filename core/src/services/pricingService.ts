@@ -1,6 +1,6 @@
 // Source: https://docs.anthropic.com/en/docs/about-claude/models  (per 1M tokens, USD)
 
-export const PRICING_UPDATED_AT = "2025-01-01";
+export const PRICING_UPDATED_AT = "2026-05-04";
 
 export function isPricingStale(now: Date = new Date()): boolean {
   const updated = new Date(PRICING_UPDATED_AT);
