@@ -26,6 +26,8 @@
 
 - 🗓 **Streaming token events (mid-run budget enforcement)** — currently `onResult` fires once after the full claude CLI run, so a $0.01 budget can't stop a $0.42 run mid-flight. Real enforcement requires parsing streaming JSON events during the run to accumulate token counts, compare against effective budget, and call `controller.abort()` before the run finishes. This enables tight per-task spending caps without relying on post-run detection.
 
+- 🗓 **Docker distribution** — `docker.yml` GitHub Actions workflow: build multi-arch image (amd64 + arm64) on every `v*.*.*` tag, push to GitHub Container Registry (`ghcr.io/furkaanasik/clauflow`). Compose file (`docker-compose.yml`) at repo root: core + gui services, port mapping, volume for SQLite data. Goal: `docker compose up` → running ClauFlow, no Node install needed.
+
 ---
 
 ## Working rule
