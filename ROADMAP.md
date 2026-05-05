@@ -22,31 +22,31 @@
 
 ## Planned
 
-- 🗓 **Studio skill injection** — Agent node'una sürüklenen skill'lerin SKILL.md içeriğini `buildNodePrompt` içinde otomatik olarak agent prompt'una enjekte et. Şu an `## Available Skills` tablosu sadece metin olarak prompt'a giriyor; `claude -p` headless modunda slash command çalışmadığından drag-drop'un execution'da hiçbir etkisi yok. Çözüm: agent body parse edilir, listelenen her skill için `~/.claude/skills/<skill>/SKILL.md` okunur, içerik prompt'a blok olarak eklenir. Kullanıcı davranışı aynı kalır, arka planda gerçek skill talimatları agent'a aktarılmış olur.
+- 🗓 **Studio skill injection** — Automatically inject the SKILL.md content of skills dragged onto an agent node into the agent prompt inside `buildNodePrompt`. Currently the `## Available Skills` table only enters the prompt as plain text; since slash commands don't work in `claude -p` headless mode, drag-and-drop has no effect at execution time. Solution: parse the agent body, read `~/.claude/skills/<skill>/SKILL.md` for each listed skill, and append the content as a block in the prompt. User behavior stays the same; real skill instructions are silently forwarded to the agent in the background.
 
-- 🗓 **Studio main node** — Canvas'ta her zaman bir `main` agent node olsun. Proje Studio'su ilk açıldığında `main.md` agent yoksa otomatik oluşturulsun; canvas'ta entry point olarak sol üste sabit konumlansın, görsel olarak diğer node'lardan ayrışsın (özel border/badge). Diğer agent'lar bu node'a edge ile bağlanır. Silinirse bir sonraki yüklemede yeniden oluşsun. Mevcut Studio bug'ları da bu fazda giderilecek.
+- 🗓 **Studio main node** — Always keep a `main` agent node on the canvas. If no `main.md` agent exists when the project Studio opens, create one automatically; pin it to the top-left as the entry point, visually distinct from other nodes (custom border/badge). Other agents connect to this node via edges. If deleted, recreate it on the next load. Existing Studio bugs will also be fixed in this phase.
 
 - 🗓 **Streaming token events (mid-run budget enforcement)** — currently `onResult` fires once after the full claude CLI run, so a $0.01 budget can't stop a $0.42 run mid-flight. Real enforcement requires parsing streaming JSON events during the run to accumulate token counts, compare against effective budget, and call `controller.abort()` before the run finishes. This enables tight per-task spending caps without relying on post-run detection.
 
 - 🗓 **Docker distribution** — `docker.yml` GitHub Actions workflow: build multi-arch image (amd64 + arm64) on every `v*.*.*` tag, push to GitHub Container Registry (`ghcr.io/furkaanasik/clauflow`). Compose file (`docker-compose.yml`) at repo root: core + gui services, port mapping, volume for SQLite data. Goal: `docker compose up` → running ClauFlow, no Node install needed.
 
-- 🗓 **GitHub Issues → Task import** — Repo'daki açık issue'ları tek tıkla kanban'a çek. `gh issue list` çıktısını parse et, seçilen issue'ları task olarak oluştur. Hedef: ClauFlow'u mevcut iş akışına entegre et, paralel sistem olmasın.
+- 🗓 **GitHub Issues → Task import** — Pull open issues from a repo into the kanban with a single click. Parse `gh issue list` output, create selected issues as tasks. Goal: integrate ClauFlow into the existing workflow instead of running as a parallel system.
 
-- 🗓 **PR auto-review** — Task REVIEW kolonuna gelince Claude otomatik bir code review pass'i çalıştırsın, çıktısını PR'a comment olarak bıraksın. Şu an kullanıcı manuel review yapıyor; bu adımı executor pipeline'ına ekle.
+- 🗓 **PR auto-review** — When a task reaches the REVIEW column, Claude automatically runs a code review pass and posts the output as a comment on the PR. Currently the user reviews manually; add this step to the executor pipeline.
 
-- 🗓 **Task breakdown AI** — Task drawer'da "Break down" butonu: büyük bir feature açıklaması gir, Claude 5-8 alt task'a böler ve bunları aynı projeye ekler. Mevcut project planner proje seviyesinde çalışıyor; bu task seviyesinde.
+- 🗓 **Task breakdown AI** — "Break down" button in the task drawer: enter a large feature description, Claude splits it into 5-8 subtasks and adds them to the same project. The existing project planner operates at the project level; this operates at the task level.
 
-- 🗓 **Notification system** — Agent iş bitince veya hata alınca bildirim: browser Notification API (izin istenirse) + opsiyonel webhook URL (Discord / Slack / custom). Şu an terminali izlemek gerekiyor.
+- 🗓 **Notification system** — Notify when an agent finishes or errors: browser Notification API (ask for permission if needed) + optional webhook URL (Discord / Slack / custom). Currently requires watching the terminal.
 
-- 🗓 **Claude model selector per-task** — Her task için hangi modelin çalışacağını seç (Haiku hızlı/ucuz, Sonnet dengeli, Opus derin iş). Şu an executor hardcoded model kullanıyor; task schema'ya `model` alanı ekle, executor'a ilet.
+- 🗓 **Claude model selector per-task** — Choose which model runs for each task (Haiku: fast/cheap, Sonnet: balanced, Opus: deep work). The executor currently uses a hardcoded model; add a `model` field to the task schema and pass it through to the executor.
 
-- 🗓 **Task dependencies** — "Bu task bitmeden şunu başlatma" bağlantısı. Task'lar arası `dependsOn` ilişkisi; bağımlı task'lar DOING'e taşınınca otomatik bekler, bağımlılık DONE olunca serbest kalır. Project planner ile de entegre olmalı: prompt'tan oluşturulan task'lar arası sıralama dependency olarak modellenmeli.
+- 🗓 **Task dependencies** — "Don't start this until that task is done" links. `dependsOn` relationship between tasks; dependent tasks automatically wait when moved to DOING, and are released when the dependency reaches DONE. Should integrate with the project planner: ordering between tasks generated from a prompt should be modeled as dependencies.
 
-- 🗓 **Rollback button** — DONE kolonundaki bir task'ı tek tıkla geri al: `gh pr revert` veya `git revert` ile branch'i geri döndür, PR'ı kapat. Şu an manuel git işi.
+- 🗓 **Rollback button** — Revert a task in the DONE column with a single click: revert the branch via `gh pr revert` or `git revert` and close the PR. Currently manual git work.
 
-- 🗓 **GitHub Issues two-way sync** — Task oluşturunca GitHub issue da açılsın (`gh issue create`), task DONE'a taşınınca issue kapansın. Mevcut `displayId` ve `prNumber` alanlarına `issueNumber` eklenir.
+- 🗓 **GitHub Issues two-way sync** — When a task is created, open a GitHub issue (`gh issue create`); when the task moves to DONE, close the issue. Add `issueNumber` to the existing `displayId` and `prNumber` fields.
 
-- 🗓 **Custom workflow columns** — TODO/DOING/REVIEW/DONE sabit seti genişletilsin. Önceden tanımlı ekstra kolonlar: `BLOCKED`, `QA`, `STAGING`. Kullanıcı serbest isim giremez; tipler sabit kalır, her tipin executor davranışı (agent çalıştır / manuel / deploy hook) ayrı tanımlanır.
+- 🗓 **Custom workflow columns** — Extend the fixed TODO/DOING/REVIEW/DONE set. Pre-defined extra columns: `BLOCKED`, `QA`, `STAGING`. Users cannot enter free-form names; types stay fixed, each type's executor behavior (run agent / manual / deploy hook) defined separately.
 
 ---
 

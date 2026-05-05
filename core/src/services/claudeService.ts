@@ -205,6 +205,8 @@ export interface ClaudeRunOptions {
   maxOutputTokens?: number;
   /** Number of automatic retries on transient API errors. Defaults to 2. */
   maxRetries?: number;
+  /** Skip project hooks, CLAUDE.md auto-discovery, and LSP. Use in graph mode to prevent project config from overriding graph flow. */
+  bare?: boolean;
 }
 
 export interface ClaudeRunResult {
@@ -268,6 +270,7 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
   // -p must be immediately followed by the prompt string.
   // Other flags come after so the CLI parser picks up the prompt correctly.
   const args = ["-p", options.prompt, "--permission-mode", "bypassPermissions"];
+  if (options.bare) args.push("--bare");
   if (options.allowedTools && options.allowedTools.length > 0) {
     args.push("--allowedTools", options.allowedTools.join(","));
   }

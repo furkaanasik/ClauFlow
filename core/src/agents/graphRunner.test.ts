@@ -1,8 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    existsSync: vi.fn(actual.existsSync),
+    readFileSync: vi.fn(actual.readFileSync),
+  };
+});
+
 import {
   GraphValidationError,
   buildNodePrompt,
   deriveNodeType,
+  loadSkillContent,
+  parseSkillsFromBody,
   planGraph,
   runGraph,
   type NodeArtifact,
@@ -272,6 +285,75 @@ describe("buildNodePrompt", () => {
     const p: Project = { ...baseProject, aiPrompt: "" };
     const prompt = buildNodePrompt(planner, baseTask, p, null);
     expect(prompt).not.toContain("Project background");
+  });
+
+  it("injects skill content for skills listed in body", () => {
+    const agentWithSkill = {
+      ...planner,
+      body: "Do work.\n\n## Available Skills\n\n| Skill | Description |\n|-------|-------------|\n| my-skill | does stuff |\n",
+    };
+    vi.mocked(existsSync).mockReturnValueOnce(true);
+    vi.mocked(readFileSync).mockReturnValueOnce("# My Skill\nDo X." as ReturnType<typeof readFileSync>);
+    const prompt = buildNodePrompt(agentWithSkill, baseTask, baseProject, null);
+    expect(prompt).toContain("Skill: my-skill");
+    expect(prompt).toContain("Do X.");
+    vi.clearAllMocks();
+  });
+
+  it("skips skills with no SKILL.md", () => {
+    const agentWithSkill = {
+      ...planner,
+      body: "Do work.\n\n## Available Skills\n\n| Skill | Description |\n|-------|-------------|\n| missing | |\n",
+    };
+    vi.mocked(existsSync).mockReturnValueOnce(false);
+    const prompt = buildNodePrompt(agentWithSkill, baseTask, baseProject, null);
+    expect(prompt).not.toContain("Skill: missing");
+    vi.clearAllMocks();
+  });
+
+  it("skips skills with unsafe IDs (path traversal guard)", () => {
+    const agentWithSkill = {
+      ...planner,
+      body: "Do work.\n\n## Available Skills\n\n| Skill | Description |\n|-------|-------------|\n| ../secret | |\n",
+    };
+    const prompt = buildNodePrompt(agentWithSkill, baseTask, baseProject, null);
+    expect(prompt).not.toContain("Skill: ../secret");
+  });
+
+  it("does not inject when no Available Skills section", () => {
+    const prompt = buildNodePrompt(planner, baseTask, baseProject, null);
+    expect(prompt).not.toContain("Skill:");
+  });
+});
+
+describe("parseSkillsFromBody", () => {
+  it("parses skill ids from Available Skills table", () => {
+    const body = "## Available Skills\n\n| Skill | Description |\n|-------|-------------|\n| ccg | does stuff |\n| plan | plans |\n";
+    expect(parseSkillsFromBody(body)).toEqual(["ccg", "plan"]);
+  });
+
+  it("returns empty array when section absent", () => {
+    expect(parseSkillsFromBody("No skills here.")).toEqual([]);
+  });
+});
+
+describe("loadSkillContent", () => {
+  it("returns null for unsafe skill IDs", () => {
+    expect(loadSkillContent("../etc/passwd")).toBeNull();
+    expect(loadSkillContent("../../secret")).toBeNull();
+  });
+
+  it("returns null when file does not exist", () => {
+    vi.mocked(existsSync).mockReturnValueOnce(false);
+    expect(loadSkillContent("nonexistent-skill")).toBeNull();
+    vi.clearAllMocks();
+  });
+
+  it("returns file content when file exists", () => {
+    vi.mocked(existsSync).mockReturnValueOnce(true);
+    vi.mocked(readFileSync).mockReturnValueOnce("# Skill content" as ReturnType<typeof readFileSync>);
+    expect(loadSkillContent("valid-skill")).toBe("# Skill content");
+    vi.clearAllMocks();
   });
 });
 

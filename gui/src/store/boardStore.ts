@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, CloneStatus, Comment, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, CloneStatus, Comment, GraphRecord, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
 import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
 
 type Lang = "tr" | "en";
@@ -35,6 +35,8 @@ interface BoardState {
   /** CI iteration progress per task */
   ciIterations: Record<string, { iteration: number; maxIterations: number }>;
   budgetExceeded: Record<string, { spentUsd: number; budgetUsd: number }>;
+  /** Graphs per project, keyed by projectId */
+  graphs: Record<string, GraphRecord[]>;
   /** Open-Studio intent. ProjectSidebar opens the project drawer when non-null;
    *  ClaudeConfigTab forces the Studio segment; StudioCanvas binds to taskId. */
   studioRequest: { projectId: string; taskId: string } | null;
@@ -102,6 +104,8 @@ interface BoardState {
   setBudgetExceeded: (taskId: string, payload: { spentUsd: number; budgetUsd: number }) => void;
   clearBudgetExceeded: (taskId: string) => void;
 
+  setGraphs: (projectId: string, graphs: GraphRecord[]) => void;
+
   openStudio: (projectId: string, taskId: string) => void;
   closeStudio: () => void;
 
@@ -129,6 +133,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   nodeLogs: {},
   ciIterations: {},
   budgetExceeded: {},
+  graphs: {},
   studioRequest: null,
 
   studioGeneration: {
@@ -473,6 +478,9 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       void _;
       return { budgetExceeded: rest };
     }),
+
+  setGraphs: (projectId, graphs) =>
+    set((s) => ({ graphs: { ...s.graphs, [projectId]: graphs } })),
 
   openStudio: (projectId, taskId) =>
     set(() => ({ studioRequest: { projectId, taskId } })),

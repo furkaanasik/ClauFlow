@@ -1,9 +1,10 @@
 "use client";
 
 import clsx from "clsx";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
+import type { GraphRecord } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
 import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -30,15 +31,30 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const toast             = useToast();
   const t                 = useTranslation();
 
-  const [title,       setTitle]       = useState("");
-  const [description, setDescription] = useState("");
-  const [analysis,    setAnalysis]    = useState("");
-  const [priority,    setPriority]    = useState<Priority>("medium");
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState<string | null>(null);
+  const [title,         setTitle]         = useState("");
+  const [description,   setDescription]   = useState("");
+  const [analysis,      setAnalysis]      = useState("");
+  const [priority,      setPriority]      = useState<Priority>("medium");
+  const [budgetUsd,     setBudgetUsd]     = useState<string>("");
+  const [executionMode, setExecutionMode] = useState<"simple" | "graph">("simple");
+  const [graphId,       setGraphId]       = useState<string | null>(null);
+  const [graphs,        setGraphs]        = useState<GraphRecord[]>([]);
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !selectedProjectId) return;
+    api.listGraphs(selectedProjectId)
+      .then((r) => {
+        setGraphs(r.graphs);
+        setGraphId(r.graphs[0]?.id ?? null);
+      })
+      .catch(() => {});
+  }, [open, selectedProjectId]);
 
   const reset = () => {
-    setTitle(""); setDescription(""); setAnalysis(""); setPriority("medium"); setError(null);
+    setTitle(""); setDescription(""); setAnalysis(""); setPriority("medium");
+    setBudgetUsd(""); setExecutionMode("simple"); setGraphId(null); setError(null);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -50,12 +66,16 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
     setLoading(true);
     setError(null);
     try {
+      const parsedBudget = budgetUsd.trim() ? parseFloat(budgetUsd) : undefined;
       const task = await api.createTask({
         projectId: selectedProjectId,
         title:       title.trim(),
         description: description.trim() || undefined,
         analysis:    analysis.trim()    || undefined,
         priority,
+        budgetUsd:     parsedBudget && !isNaN(parsedBudget) ? parsedBudget : null,
+        executionMode,
+        graphId: executionMode === "graph" ? graphId : null,
       });
       upsertTask(task);
       toast.success(t.addTask.successToast);
@@ -94,20 +114,70 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
                     ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
                     : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
                 )}
-                style={
-                  priority === value
-                    ? { boxShadow: `inset 0 -2px 0 ${PRIO_COLOR[value]}` }
-                    : {}
-                }
+                style={priority === value ? { boxShadow: `inset 0 -2px 0 ${PRIO_COLOR[value]}` } : {}}
               >
-                <span
-                  className="h-1.5 w-1.5"
-                  style={{ background: PRIO_COLOR[value] }}
-                />
+                <span className="h-1.5 w-1.5" style={{ background: PRIO_COLOR[value] }} />
                 {t.addTask.priorities[value]}
               </button>
             ))}
           </div>
+        </Field>
+
+        {/* Execution mode */}
+        <Field label="Execution mode">
+          <div className="flex gap-px border border-[var(--border)] bg-[var(--border)]">
+            {(["simple", "graph"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setExecutionMode(mode)}
+                className={clsx(
+                  "flex flex-1 items-center justify-center px-3 py-2.5 font-mono text-[11px] uppercase tracking-widest transition",
+                  executionMode === mode
+                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                    : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+                )}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {/* Graph picker — only when graph mode */}
+        {executionMode === "graph" && graphs.length > 0 && (
+          <Field label="Graph">
+            <div className="flex flex-col gap-1">
+              {graphs.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setGraphId(g.id)}
+                  className={clsx(
+                    "w-full border px-3 py-2 text-left font-mono text-[12px] transition",
+                    graphId === g.id
+                      ? "border-[var(--text-secondary)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
+                      : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                  )}
+                >
+                  {g.name}
+                </button>
+              ))}
+            </div>
+          </Field>
+        )}
+
+        {/* Budget */}
+        <Field label="Budget (USD)" hint="optional">
+          <input
+            type="number"
+            min="0.1"
+            step="0.1"
+            value={budgetUsd}
+            onChange={(e) => setBudgetUsd(e.target.value)}
+            placeholder="e.g. 2.00"
+            className={inputCls}
+          />
         </Field>
 
         <Field label={t.addTask.descriptionLabel}>

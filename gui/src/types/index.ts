@@ -39,6 +39,8 @@ export interface Task {
   comments?: Comment[];
   usage?: TaskUsage;
   budgetUsd?: number | null;
+  executionMode?: "simple" | "graph";
+  graphId?: string | null;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -76,8 +78,18 @@ export type TaskPatch = Partial<
     | "prUrl"
     | "prNumber"
     | "budgetUsd"
+    | "executionMode"
+    | "graphId"
   >
 > & { agent?: Partial<AgentState> };
+
+export interface GraphRecord {
+  id: string;
+  projectId: string;
+  name: string;
+  data: AgentGraph;
+  createdAt: string;
+}
 
 export type CommentStatus = "pending" | "running" | "done" | "error";
 

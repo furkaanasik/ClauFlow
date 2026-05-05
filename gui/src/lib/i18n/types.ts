@@ -162,6 +162,11 @@ export interface Translations {
       confirm: string;
       cancel: string;
     };
+    tabFlow: string;
+    flowLabel: string;
+    flowNoNodes: string;
+    flowNodeLogsTitle: string;
+    flowNodeNoLog: string;
     errors: {
       titleRequired: string;
       updateFailed: string;

@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { run as gitRun } from "../services/gitService.js";
 import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
 import { calculateCostUsd, DEFAULT_MODEL } from "../services/pricingService.js";
@@ -131,6 +134,82 @@ export function planGraph(graph: AgentGraph): GraphPlan {
   return { order, slugById };
 }
 
+export function parseSkillsFromBody(body: string): string[] {
+  const sectionMatch = body.match(/##\s+Available Skills\s*\n([\s\S]*?)(?=\n##|$)/i);
+  if (!sectionMatch) return [];
+  const skills: string[] = [];
+  for (const line of sectionMatch[1]!.split("\n")) {
+    const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+    if (cells.length >= 1 && cells[0] && !/^-+$/.test(cells[0]) && !/^Skill$/i.test(cells[0])) {
+      skills.push(cells[0]);
+    }
+  }
+  return skills;
+}
+
+export function loadSkillContent(skillId: string): string | null {
+  if (!/^[A-Za-z0-9_.-]+$/.test(skillId)) return null;
+  const userSkillPath = join(homedir(), ".claude", "skills", skillId, "SKILL.md");
+  if (existsSync(userSkillPath)) {
+    try {
+      return readFileSync(userSkillPath, "utf8");
+    } catch {
+      return null;
+    }
+  }
+  const commandPath = join(homedir(), ".claude", "commands", `${skillId}.md`);
+  if (existsSync(commandPath)) {
+    try {
+      return readFileSync(commandPath, "utf8");
+    } catch {
+      return null;
+    }
+  }
+  const pluginCacheRoot = join(homedir(), ".claude", "plugins", "cache");
+  try {
+    const marketplaces = readdirSync(pluginCacheRoot);
+    for (const marketplace of marketplaces) {
+      const marketplacePath = join(pluginCacheRoot, marketplace);
+      let plugins: string[];
+      try {
+        plugins = readdirSync(marketplacePath);
+      } catch {
+        continue;
+      }
+      for (const plugin of plugins) {
+        const pluginPath = join(marketplacePath, plugin);
+        let versions: string[];
+        try {
+          versions = readdirSync(pluginPath);
+        } catch {
+          continue;
+        }
+        for (const version of versions) {
+          const skillCandidate = join(pluginPath, version, "skills", skillId, "SKILL.md");
+          if (existsSync(skillCandidate)) {
+            try {
+              return readFileSync(skillCandidate, "utf8");
+            } catch {
+              continue;
+            }
+          }
+          const cmdCandidate = join(pluginPath, version, "commands", `${skillId}.md`);
+          if (existsSync(cmdCandidate)) {
+            try {
+              return readFileSync(cmdCandidate, "utf8");
+            } catch {
+              continue;
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // plugin cache dir may not exist
+  }
+  return null;
+}
+
 export function deriveNodeType(slug: string): NodeType {
   const lower = slug.toLowerCase();
   for (const t of KNOWN_NODE_TYPES) {
@@ -176,6 +255,13 @@ export function buildNodePrompt(
     sections.push(priorBlock);
   }
 
+  const skillIds = parseSkillsFromBody(agent.body);
+  for (const skillId of skillIds) {
+    const content = loadSkillContent(skillId);
+    if (content) {
+      sections.push(`Skill: ${skillId}\n\n${content.trim()}`);
+    }
+  }
   sections.push("When done, exit the terminal.");
   return sections.join("\n\n");
 }
@@ -323,6 +409,13 @@ export async function runGraph(
     }
 
     const prompt = buildNodePrompt(agent, task, project, prior, pipelineContext);
+    const injectedSkills = parseSkillsFromBody(agent.body).filter((id) => loadSkillContent(id) !== null);
+    if (injectedSkills.length > 0) {
+      const line = `⚡ Skills injected: ${injectedSkills.join(", ")}`;
+      await appendAgentLog(task.id, line);
+      broadcastLog(task.id, line);
+      broadcastNodeLog(task.id, nodeId, line);
+    }
     const allowedTools = agent.allowedTools ?? DEFAULT_TOOLS;
 
     let textBuffer = "";
@@ -346,12 +439,6 @@ export async function runGraph(
         broadcastAgentText(stored);
       } catch (e) {
         console.error(`[graphRunner] insertAgentText failed:`, e);
-      }
-      for (const ln of text.split(/\r?\n/)) {
-        if (ln.trim()) {
-          broadcastNodeLog(task.id, nodeId, ln);
-          pushLogBuffer(ln);
-        }
       }
     };
 
