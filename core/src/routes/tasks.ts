@@ -68,6 +68,8 @@ const updateTaskSchema = z.object({
   prUrl: z.string().nullable().optional(),
   prNumber: z.number().nullable().optional(),
   budgetUsd: z.number().min(0.1).nullable().optional(),
+  executionMode: z.enum(['simple', 'graph']).optional(),
+  graphId: z.string().nullable().optional(),
   agent: z
     .object({
       status: agentStatus.optional(),

@@ -45,6 +45,8 @@ export interface Task {
   agent: AgentState;
   usage?: TaskUsage;
   budgetUsd?: number | null;
+  executionMode?: 'simple' | 'graph';
+  graphId?: string | null;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";

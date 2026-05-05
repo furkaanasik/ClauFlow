@@ -320,6 +320,11 @@ export const tr: Translations = {
       confirm: "Sil",
       cancel: "İptal",
     },
+    tabFlow: "Akış",
+    flowLabel: "Agent Akışı",
+    flowNoNodes: "Bu task için henüz node çalışması yok.",
+    flowNodeLogsTitle: "Node logları",
+    flowNodeNoLog: "Henüz log satırı yok.",
     errors: {
       titleRequired: "Başlık zorunludur.",
       updateFailed: "Güncelleme başarısız.",

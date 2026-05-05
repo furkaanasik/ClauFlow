@@ -320,6 +320,11 @@ export const en: Translations = {
       confirm: "Delete",
       cancel: "Cancel",
     },
+    tabFlow: "Flow",
+    flowLabel: "Agent Flow",
+    flowNoNodes: "No node runs yet for this task.",
+    flowNodeLogsTitle: "Node logs",
+    flowNodeNoLog: "No log lines yet.",
     errors: {
       titleRequired: "Title is required.",
       updateFailed: "Update failed.",

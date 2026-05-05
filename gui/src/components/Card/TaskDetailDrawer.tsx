@@ -4,15 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CommentsTab } from "@/components/Card/CommentsTab";
+import { MiniDagView } from "@/components/Card/MiniDagView";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
 import { calculateCost, formatTokens, totalTokens } from "@/lib/cost";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { AgentText, Task, TaskPatch, ToolCall } from "@/types";
+import type { AgentText, GraphRecord, Task, TaskPatch, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
-type DrawerTab = "details" | "log" | "comments";
+type DrawerTab = "details" | "log" | "comments" | "flow";
 
 const EMPTY_TOOL_CALLS: ToolCall[] = [];
 const EMPTY_AGENT_TEXTS: AgentText[] = [];
@@ -73,6 +74,8 @@ export function TaskDetailDrawer() {
   const setToolCalls   = useBoardStore((s) => s.setToolCalls);
   const setAgentTexts  = useBoardStore((s) => s.setAgentTexts);
   const openStudio     = useBoardStore((s) => s.openStudio);
+  const upsertNodeRun  = useBoardStore((s) => s.upsertNodeRun);
+  const appendNodeLog  = useBoardStore((s) => s.appendNodeLog);
 
   const [editing,       setEditing]       = useState(false);
   const [draft,         setDraft]         = useState<DraftState | null>(null);
@@ -84,6 +87,10 @@ export function TaskDetailDrawer() {
   const [error,         setError]         = useState<string | null>(null);
   const [tab,           setTab]           = useState<DrawerTab>("details");
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Execution mode state
+  const [graphs,        setGraphs]        = useState<GraphRecord[]>([]);
+  const [graphsLoading, setGraphsLoading] = useState(false);
 
   const open = Boolean(selectedTaskId);
 
@@ -107,8 +114,46 @@ export function TaskDetailDrawer() {
     api.getAgentTexts(selectedTaskId).then((list) => {
       setAgentTexts(selectedTaskId, list);
     }).catch(() => {});
+    api.getNodeRuns(selectedTaskId).then((runs) => {
+      for (const run of runs) {
+        upsertNodeRun(run);
+        const buffered = run.outputArtifact?.logLines;
+        if (Array.isArray(buffered)) {
+          for (const line of buffered) {
+            appendNodeLog(selectedTaskId, run.nodeId, line as string);
+          }
+        }
+      }
+    }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
+
+  // Load graphs when task is open and execution mode section is visible
+  useEffect(() => {
+    if (!task?.projectId) return;
+    setGraphsLoading(true);
+    api.listGraphs(task.projectId)
+      .then((resp) => setGraphs(resp.graphs))
+      .catch(() => {})
+      .finally(() => setGraphsLoading(false));
+  }, [task?.projectId]);
+
+  const handleExecutionModeChange = async (
+    mode: "simple" | "graph",
+    graphId?: string | null,
+  ) => {
+    if (!task) return;
+    const patch: TaskPatch = {
+      executionMode: mode,
+      graphId: mode === "graph" ? (graphId ?? null) : null,
+    };
+    try {
+      const updated = await api.updateTask(task.id, patch);
+      upsertTask(updated);
+    } catch {
+      // silently ignore — optimistic update not needed, server is source of truth
+    }
+  };
 
   const close = () => selectTask(null);
 
@@ -203,6 +248,7 @@ export function TaskDetailDrawer() {
   const toolCalls      = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
   const agentTexts     = useBoardStore((s) => task ? (s.agentTexts[task.id] ?? EMPTY_AGENT_TEXTS) : EMPTY_AGENT_TEXTS);
   const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
+  const nodeRunCount   = useBoardStore((s) => task ? Object.keys(s.nodeRuns[task.id] ?? {}).length : 0);
   const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
 
   const costPill = useMemo(() => {
@@ -315,6 +361,7 @@ export function TaskDetailDrawer() {
               {([
                 { id: "details" as const,  label: td.tabDetails,  count: 0 },
                 { id: "log" as const,      label: td.tabLog,      count: logs.length },
+                { id: "flow" as const,     label: td.tabFlow,     count: nodeRunCount },
                 { id: "comments" as const, label: td.tabComments, count: commentCount },
               ]).map(({ id, label, count }) => (
                 <button
@@ -345,6 +392,15 @@ export function TaskDetailDrawer() {
             <div className="flex-1 overflow-y-auto">
               {tab === "comments" ? (
                 <CommentsTab task={task} />
+              ) : tab === "flow" ? (
+                <div className="flex h-full flex-col p-4">
+                  <MiniDagView
+                    taskId={task.id}
+                    noNodesLabel={td.flowNoNodes}
+                    nodeLogsTitle={td.flowNodeLogsTitle}
+                    nodeNoLogLabel={td.flowNodeNoLog}
+                  />
+                </div>
               ) : tab === "details" ? (
                 <div className="px-6 py-5">
                   {error && (
@@ -390,6 +446,78 @@ export function TaskDetailDrawer() {
                       <p className="t-quote text-sm text-[var(--text-faint)]">{td.analysisEmpty}</p>
                     )}
                   </Section>
+
+                  {/* Execution Mode */}
+                  {!editing && (
+                    <Section label="Execution Mode" numeral="03">
+                      <div className="flex flex-col gap-3">
+                        {/* Simple | Graph toggle */}
+                        <div className="inline-flex border border-[var(--border)] bg-[var(--border)]" style={{ gap: "1px" }}>
+                          <button
+                            type="button"
+                            onClick={() => void handleExecutionModeChange("simple", null)}
+                            className={clsx(
+                              "flex-1 px-4 py-2 font-mono text-[11px] uppercase tracking-widest transition",
+                              (!task.executionMode || task.executionMode === "simple")
+                                ? "bg-[var(--bg-surface)] text-[var(--text-primary)]"
+                                : "bg-[var(--bg-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+                            )}
+                          >
+                            Simple
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleExecutionModeChange("graph", task.graphId ?? graphs[0]?.id ?? null)}
+                            className={clsx(
+                              "flex-1 px-4 py-2 font-mono text-[11px] uppercase tracking-widest transition",
+                              task.executionMode === "graph"
+                                ? "bg-[var(--bg-surface)] text-[var(--text-primary)]"
+                                : "bg-[var(--bg-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+                            )}
+                          >
+                            Graph
+                          </button>
+                        </div>
+
+                        {/* Graph picker — only shown in graph mode */}
+                        {task.executionMode === "graph" && (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                              Select graph
+                            </label>
+                            {graphsLoading ? (
+                              <p className="font-mono text-[12px] text-[var(--text-faint)]">Loading...</p>
+                            ) : graphs.length === 0 ? (
+                              <p className="text-[12px] text-[var(--text-faint)]">
+                                No graphs found. Create one in Studio.
+                              </p>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                {graphs.map((g) => {
+                                  const active = (task.graphId ?? graphs[0]?.id) === g.id;
+                                  return (
+                                    <button
+                                      key={g.id}
+                                      type="button"
+                                      onClick={() => void handleExecutionModeChange("graph", g.id)}
+                                      className={clsx(
+                                        "w-full px-3 py-2 text-left font-mono text-[12px] border transition",
+                                        active
+                                          ? "border-[var(--text-secondary)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
+                                          : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                                      )}
+                                    >
+                                      {g.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </Section>
+                  )}
 
                   {/* Priority (edit mode) */}
                   {editing && draft && (

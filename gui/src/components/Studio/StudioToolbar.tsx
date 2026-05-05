@@ -10,9 +10,9 @@ import { slugify } from "@/lib/slug";
 interface StudioToolbarProps {
   projectId: string;
   installedSkills: InstalledPlugin[];
-  agentCount: number;
-  onNewAgent: () => void;
   onAgentCreated: (slug: string) => void;
+  genOpen: boolean;
+  onSetGenOpen: (v: boolean) => void;
 }
 
 const RECOMMENDED_MAX_AGENTS = 5;
@@ -25,9 +25,8 @@ function extractFrontmatterField(markdown: string, field: string): string {
   return m ? m[1].trim() : "";
 }
 
-export function StudioToolbar({ projectId, installedSkills, agentCount, onNewAgent, onAgentCreated }: StudioToolbarProps) {
-  const overLimit = agentCount > RECOMMENDED_MAX_AGENTS;
-  const [genOpen, setGenOpen] = useState(false);
+export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genOpen, onSetGenOpen }: StudioToolbarProps) {
+  const setGenOpen = onSetGenOpen;
   const [prompt, setPrompt] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -88,44 +87,6 @@ export function StudioToolbar({ projectId, installedSkills, agentCount, onNewAge
 
   return (
     <>
-      <div className="flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2">
-        <button
-          type="button"
-          onClick={onNewAgent}
-          className="btn-ink px-3 py-1.5 text-[11px]"
-        >
-          + New agent
-        </button>
-        <button
-          type="button"
-          onClick={() => setGenOpen(true)}
-          className="border border-[var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-        >
-          Generate from prompt
-        </button>
-
-        <div className="ml-auto">
-          <span
-            title={
-              overLimit
-                ? `Recommended max is ${RECOMMENDED_MAX_AGENTS} agents — beyond this, coordinator overhead grows quickly.`
-                : `Recommended max for Claude orchestration: ${RECOMMENDED_MAX_AGENTS} agents.`
-            }
-            className={clsx(
-              "inline-flex items-center gap-1.5 border px-2 py-1 font-mono text-[10px]",
-              overLimit
-                ? "border-[var(--status-warning)] bg-[var(--status-warning-ink,transparent)] text-[var(--status-warning)]"
-                : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)]",
-            )}
-          >
-            <span>{agentCount}</span>
-            <span className="text-[var(--text-faint)]">/</span>
-            <span>{RECOMMENDED_MAX_AGENTS}</span>
-            <span className="text-[var(--text-faint)]">agents</span>
-          </span>
-        </div>
-      </div>
-
       {/* Generate modal */}
       {genOpen && (
         <div

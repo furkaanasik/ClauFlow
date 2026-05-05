@@ -15,12 +15,14 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { api, ApiError, type ClaudeAgent, type InstalledPlugin } from "@/lib/api";
-import type { AgentGraph, NodeRun } from "@/types";
+import type { AgentGraph, GraphRecord, NodeRun } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AgentNode, type AgentNodeData } from "./AgentNode";
 
 const EMPTY_NODE_RUNS: Record<string, NodeRun> = Object.freeze({}) as Record<string, NodeRun>;
 import { AgentEditDrawer } from "./AgentEditDrawer";
+import { AgentsSidebar } from "./AgentsSidebar";
 import { NodeRunPanel } from "./NodeRunPanel";
 import { SkillsSidebar } from "./SkillsSidebar";
 import { StudioToolbar } from "./StudioToolbar";
@@ -44,20 +46,23 @@ function buildNodes(
   onRemoveSkill: (slug: string, skillId: string) => void,
   onAddSkill: (slug: string, skillId: string) => void,
 ): Node[] {
-  return agents.map((agent, i) => {
-    const isMain = agent.slug === "main";
-    const saved = graphNodes.find((n) => n.data.slug === agent.slug);
-    const position = isMain
-      ? { x: 20, y: 20 }
-      : saved?.position ?? { x: 60 + (i % 4) * 260, y: 60 + Math.floor(i / 4) * 160 };
-    return {
-      id: agent.slug,
-      type: "agent",
-      position,
-      draggable: !isMain,
-      data: { agent, onEdit, onRemoveSkill, onAddSkill, isMain } as unknown as Record<string, unknown>,
-    };
-  });
+  const graphSlugs = new Set(graphNodes.map((n) => n.data.slug));
+  return agents
+    .filter((agent) => agent.slug === "main" || graphSlugs.has(agent.slug))
+    .map((agent, i) => {
+      const isMain = agent.slug === "main";
+      const saved = graphNodes.find((n) => n.data.slug === agent.slug);
+      const position = isMain
+        ? { x: 20, y: 20 }
+        : saved?.position ?? { x: 60 + (i % 4) * 260, y: 60 + Math.floor(i / 4) * 160 };
+      return {
+        id: agent.slug,
+        type: "agent",
+        position,
+        draggable: !isMain,
+        data: { agent, onEdit, onRemoveSkill, onAddSkill, isMain } as unknown as Record<string, unknown>,
+      };
+    });
 }
 
 export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvasProps) {
@@ -74,6 +79,16 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
   const [validation, setValidation] = useState<ValidationState | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
+  // Multi-graph state
+  const [graphRecords, setGraphRecords] = useState<GraphRecord[]>([]);
+  const [activeGraphId, setActiveGraphId] = useState<string | null>(null);
+  const [newGraphName, setNewGraphName] = useState("");
+  const [showNewGraphInput, setShowNewGraphInput] = useState(false);
+  const [creatingGraph, setCreatingGraph] = useState(false);
+  const [confirmDeleteGraph, setConfirmDeleteGraph] = useState(false);
+  const [deletingGraph, setDeletingGraph] = useState(false);
+  const [genOpen, setGenOpen] = useState(false);
+
   // Auto-bind: if no explicit ?taskId=, fall back to a "doing" task in this project.
   // Lets the user open Studio normally and still see live overlay.
   const autoBoundTaskId = useBoardStore((s) => {
@@ -87,6 +102,10 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
 
   const taskRef = useBoardStore((s) =>
     taskId ? s.tasks[taskId]?.displayId ?? taskId : undefined,
+  );
+
+  const boundTaskGraphId = useBoardStore((s) =>
+    taskId ? (s.tasks[taskId]?.graphId ?? null) : null,
   );
 
   const upsertNodeRun = useBoardStore((s) => s.upsertNodeRun);
@@ -158,6 +177,8 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
     setDrawerOpen(true);
   }, []);
 
+  const screenToFlowPositionRef = useRef<((pos: { x: number; y: number }) => { x: number; y: number }) | null>(null);
+
   const removeSkillRef = useRef<(slug: string, skillId: string) => void>(() => {});
   const onRemoveSkill = useCallback((slug: string, skillId: string) => {
     removeSkillRef.current(slug, skillId);
@@ -178,7 +199,43 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
     graph.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
   );
 
+  const canvasNodeIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
+
+  const handleAddAgentToCanvas = useCallback(
+    (slug: string, pos: { x: number; y: number }) => {
+      if (slug === "main") return;
+      if (nodes.some((n) => n.id === slug)) return;
+      const agent = agents.find((a) => a.slug === slug);
+      if (!agent) return;
+      const newNode: Node = {
+        id: slug,
+        type: "agent",
+        position: pos,
+        draggable: true,
+        data: { agent, onEdit, onRemoveSkill, onAddSkill, isMain: false } as unknown as Record<string, unknown>,
+      };
+      setNodes((prev) => [...prev, newNode]);
+      setIsDirty(true);
+    },
+    [agents, nodes, onEdit, onRemoveSkill, onAddSkill, setNodes],
+  );
+
   const prevProjectId = useRef<string | null>(null);
+
+  // Load graph records for the multi-graph selector
+  const loadGraphRecords = useCallback(async () => {
+    try {
+      const resp = await api.listGraphs(projectId);
+      const unique = resp.graphs.filter((g, i, arr) => arr.findIndex((x) => x.id === g.id) === i);
+      setGraphRecords(unique);
+      setActiveGraphId((prev) => {
+        if (prev) return prev;
+        return resp.graphs[0]?.id ?? null;
+      });
+    } catch {
+      // non-fatal; legacy single-graph still works
+    }
+  }, [projectId]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -211,7 +268,9 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
       setLoading(false);
       setIsDirty(false);
     }
-  }, [projectId, onEdit, onRemoveSkill, onAddSkill, setNodes, setEdges]);
+    // Also refresh graph records
+    void loadGraphRecords();
+  }, [projectId, onEdit, onRemoveSkill, onAddSkill, setNodes, setEdges, loadGraphRecords]);
 
   useEffect(() => {
     // Fires on initial mount (prev=null !== projectId) AND on projectId
@@ -223,6 +282,19 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
       void loadAll();
     }
   }, [projectId, loadAll]);
+
+  // When a task binds (or its graphId changes) and graphRecords are loaded,
+  // switch the canvas to the task's graph automatically.
+  useEffect(() => {
+    if (!boundTaskGraphId || !graphRecords.length) return;
+    if (boundTaskGraphId === activeGraphId) return;
+    const record = graphRecords.find((g) => g.id === boundTaskGraphId);
+    if (record) {
+      setActiveGraphId(record.id);
+      loadGraphData(record.data);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId, graphRecords.length]);
 
   // Sync runState/validation into node.data via setNodes (instead of a useMemo
   // that builds a new Node[] each render). New Node[] refs cause ReactFlow to
@@ -297,16 +369,11 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
     [setEdges],
   );
 
-  const handleSave = async () => {
-    // Guard: refuse to write a multi-node graph with zero edges.
-    // Without this, a transient empty-edges state (mid-load, ReactFlow remount,
-    // accidental delete-all) would overwrite a previously-saved topology.
-    if (nodes.length > 1 && edges.length === 0) {
-      const ok = window.confirm(
-        "Bu graph'ta birden fazla node var ama hiç edge yok. Kaydedersen mevcut bağlantılar diskten silinir. Devam edilsin mi?",
-      );
-      if (!ok) return;
-    }
+  // Confirm dialog state for empty-edges guard
+  const [confirmSaveEmpty, setConfirmSaveEmpty] = useState(false);
+  const pendingSaveRef = useRef(false);
+
+  const doSave = useCallback(async () => {
     setSaving(true);
     try {
       const payload: AgentGraph = {
@@ -318,7 +385,16 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
         })),
         edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
       };
-      await api.putProjectGraph(projectId, payload);
+      if (activeGraphId) {
+        // Save to the selected named graph record
+        const updated = await api.updateGraph(projectId, activeGraphId, { data: payload });
+        setGraphRecords((prev) =>
+          prev.map((g) => (g.id === activeGraphId ? updated : g)),
+        );
+      } else {
+        // Save to the legacy single project graph
+        await api.putProjectGraph(projectId, payload);
+      }
       setIsDirty(false);
       setValidation(null);
     } catch (err) {
@@ -337,7 +413,109 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
     } finally {
       setSaving(false);
     }
+  }, [nodes, edges, activeGraphId, projectId]);
+
+  const handleSave = async () => {
+    // Guard: refuse to write a multi-node graph with zero edges.
+    if (nodes.length > 1 && edges.length === 0) {
+      pendingSaveRef.current = true;
+      setConfirmSaveEmpty(true);
+      return;
+    }
+    await doSave();
   };
+
+  // Load a selected GraphRecord's data into the canvas
+  const loadGraphData = useCallback(
+    (graphData: AgentGraph) => {
+      setGraph(graphData);
+      setNodes(buildNodes(agents, graphData.nodes, onEdit, onRemoveSkill, onAddSkill));
+      setEdges(graphData.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })));
+      setIsDirty(false);
+      setValidation(null);
+    },
+    [agents, onEdit, onRemoveSkill, onAddSkill, setNodes, setEdges],
+  );
+
+  const handleSelectGraph = useCallback(
+    (graphId: string | null) => {
+      setActiveGraphId(graphId);
+      if (!graphId) {
+        // Revert to default project graph
+        void api.getProjectGraph(projectId).then(loadGraphData).catch(() => {});
+        return;
+      }
+      const record = graphRecords.find((g) => g.id === graphId);
+      if (record) loadGraphData(record.data);
+    },
+    [graphRecords, projectId, loadGraphData],
+  );
+
+  const handleCreateGraph = useCallback(async () => {
+    const name = newGraphName.trim();
+    if (!name) return;
+    setCreatingGraph(true);
+    try {
+      const record = await api.createGraph(projectId, { name, data: { nodes: [], edges: [] } });
+      const fresh = await api.listGraphs(projectId);
+      const unique = fresh.graphs.filter((g, i, arr) => arr.findIndex((x) => x.id === g.id) === i);
+      setGraphRecords(unique);
+      setActiveGraphId(record.id);
+      loadGraphData({ nodes: [], edges: [] });
+      setNewGraphName("");
+      setShowNewGraphInput(false);
+    } catch {
+      // ignore; user can retry
+    } finally {
+      setCreatingGraph(false);
+    }
+  }, [newGraphName, projectId, loadGraphData]);
+
+  const handleSaveCurrentGraph = useCallback(async () => {
+    const currentGraphData: AgentGraph = {
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        type: "agent" as const,
+        position: n.position,
+        data: { slug: n.id },
+      })),
+      edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+    };
+    if (activeGraphId) {
+      try {
+        const updated = await api.updateGraph(projectId, activeGraphId, {
+          data: currentGraphData,
+        });
+        setGraphRecords((prev) =>
+          prev.map((g) => (g.id === activeGraphId ? updated : g)),
+        );
+        setIsDirty(false);
+        setValidation(null);
+      } catch {
+        // leave dirty
+      }
+    }
+  }, [activeGraphId, projectId, nodes, edges]);
+
+  const handleDeleteGraph = useCallback(async () => {
+    if (!activeGraphId) return;
+    setDeletingGraph(true);
+    try {
+      await api.deleteGraph(projectId, activeGraphId);
+      const fresh = await api.listGraphs(projectId);
+      const unique = fresh.graphs.filter((g, i, arr) => arr.findIndex((x) => x.id === g.id) === i);
+      setGraphRecords(unique);
+      const next = unique[0] ?? null;
+      setActiveGraphId(next?.id ?? null);
+      if (next) loadGraphData(next.data);
+      else loadGraphData({ nodes: [], edges: [] });
+    } catch {
+      // ignore
+    } finally {
+      setDeletingGraph(false);
+      setConfirmDeleteGraph(false);
+    }
+  }, [activeGraphId, projectId, loadGraphData]);
 
   const handleRemoveSkill = useCallback(
     async (nodeId: string, skillId: string) => {
@@ -477,15 +655,98 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
     );
   }
 
+  const activeGraphName =
+    activeGraphId
+      ? (graphRecords.find((g) => g.id === activeGraphId)?.name ?? "Graph")
+      : "Default";
+
   return (
     <div className="flex h-full flex-col">
       <StudioToolbar
         projectId={projectId}
         installedSkills={installedSkills}
-        agentCount={agents.length}
-        onNewAgent={() => { setEditSlug(null); setDrawerOpen(true); }}
         onAgentCreated={async () => { await loadAll(); }}
+        genOpen={genOpen}
+        onSetGenOpen={setGenOpen}
       />
+
+      {/* Graph selector toolbar */}
+      <div className="flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-base)] px-4 py-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
+          Graph:
+        </span>
+        <select
+          value={activeGraphId ?? graphRecords[0]?.id ?? ""}
+          onChange={(e) => handleSelectGraph(e.target.value || null)}
+          className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)] focus:border-[var(--text-secondary)] focus:outline-none"
+          title="Select graph"
+        >
+          {graphRecords.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+
+        {/* New graph inline input */}
+        {showNewGraphInput ? (
+          <>
+            <input
+              type="text"
+              value={newGraphName}
+              onChange={(e) => setNewGraphName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleCreateGraph();
+                if (e.key === "Escape") { setShowNewGraphInput(false); setNewGraphName(""); }
+              }}
+              placeholder="Graph name..."
+              autoFocus
+              className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--text-secondary)] focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => void handleCreateGraph()}
+              disabled={creatingGraph || !newGraphName.trim()}
+              className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            >
+              {creatingGraph ? "..." : "Create"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowNewGraphInput(false); setNewGraphName(""); }}
+              className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowNewGraphInput(true)}
+            title="Create new graph"
+            className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            + New
+          </button>
+        )}
+
+        {/* Delete current graph — disabled for default */}
+        {(() => {
+          const activeRecord = graphRecords.find((g) => g.id === activeGraphId);
+          const isDefault = !activeGraphId || activeRecord?.name === "default";
+          return (
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteGraph(true)}
+              disabled={isDefault || deletingGraph}
+              title={isDefault ? "Cannot delete the default graph" : "Delete this graph"}
+              className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-muted)] transition hover:border-[var(--status-error)] hover:text-[var(--status-error)] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Del
+            </button>
+          );
+        })()}
+      </div>
 
       <div className="flex min-h-0 flex-1">
         <SkillsSidebar
@@ -511,8 +772,20 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
             </div>
           )}
 
-          {/* Save button */}
-          <div className="absolute right-4 top-4 z-10">
+          {/* Agent count + Save button */}
+          <div className="absolute right-4 top-4 z-10 flex flex-col items-end gap-1.5">
+            <span
+              title={nodes.length > 5 ? "Recommended max is 5 agents — coordinator overhead grows beyond this." : "Recommended max for Claude orchestration: 5 agents."}
+              className={[
+                "inline-flex items-center gap-1 border px-2 py-0.5 font-mono text-[10px]",
+                nodes.length > 5
+                  ? "border-[var(--status-warning)] text-[var(--status-warning)]"
+                  : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)]",
+              ].join(" ")}
+            >
+              {nodes.length}<span className="text-[var(--text-faint)]">/5</span>
+              <span className="text-[var(--text-faint)]">agents</span>
+            </span>
             <button
               type="button"
               onClick={() => void handleSave()}
@@ -547,9 +820,16 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
               setEdges((eds) => eds.filter((e) => e.id !== edge.id));
               setIsDirty(true);
             }}
+            onInit={(instance) => { screenToFlowPositionRef.current = instance.screenToFlowPosition; }}
             onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
             onDrop={(e) => {
               e.preventDefault();
+              const agentSlug = e.dataTransfer.getData("application/x-agent-slug");
+              if (agentSlug && screenToFlowPositionRef.current) {
+                const pos = screenToFlowPositionRef.current({ x: e.clientX, y: e.clientY });
+                handleAddAgentToCanvas(agentSlug, pos);
+                return;
+              }
               const skillId = e.dataTransfer.getData("application/x-skill-id");
               if (!skillId) return;
               const el = document.elementFromPoint(e.clientX, e.clientY);
@@ -577,6 +857,13 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
           )}
         </div>
 
+        <AgentsSidebar
+          agents={agents}
+          canvasNodeIds={canvasNodeIds}
+          onNewAgent={() => { setEditSlug(null); setDrawerOpen(true); }}
+          onGenerate={() => setGenOpen(true)}
+        />
+
         {taskId && (
           <NodeRunPanel
             taskId={taskId}
@@ -584,6 +871,13 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
             onClose={() => setSelectedNodeId(null)}
           />
         )}
+      </div>
+
+      <div className="flex items-center gap-1.5 border-t border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--text-muted)]"><circle cx="8" cy="8" r="7"/><path d="M8 7v4M8 5h.01"/></svg>
+        <span className="font-mono text-[10px] text-[var(--text-faint)]">
+          Project CLAUDE.md and hooks remain active during graph execution — they may influence node behavior.
+        </span>
       </div>
 
       <AgentEditDrawer
@@ -600,6 +894,35 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
           await loadAll();
         }}
         existingSlugs={existingSlugs}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteGraph}
+        title="Delete graph?"
+        description={`"${activeGraphName}" will be permanently deleted. This cannot be undone.`}
+        confirmLabel={deletingGraph ? "Deleting..." : "Delete"}
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => void handleDeleteGraph()}
+        onCancel={() => setConfirmDeleteGraph(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmSaveEmpty}
+        title="Save graph with no edges?"
+        description="This graph has multiple nodes but no edges. Saving will overwrite the existing connections on disk. Continue?"
+        confirmLabel="Save anyway"
+        cancelLabel="Cancel"
+        variant="warning"
+        onConfirm={() => {
+          setConfirmSaveEmpty(false);
+          pendingSaveRef.current = false;
+          void doSave();
+        }}
+        onCancel={() => {
+          setConfirmSaveEmpty(false);
+          pendingSaveRef.current = false;
+        }}
       />
     </div>
   );

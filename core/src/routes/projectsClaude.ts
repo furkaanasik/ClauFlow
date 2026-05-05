@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
+import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { getProject } from "../services/taskService.js";
 import { run } from "../services/gitService.js";
@@ -22,7 +23,6 @@ import {
   broadcastStudioGeneration,
 } from "../services/wsService.js";
 import { runClaude } from "../services/claudeService.js";
-import { syncTopologyToClaudeMd } from "../services/claudeTopologySyncService.js";
 import {
   agentFilePath as gsAgentFilePath,
   agentsDir as gsAgentsDir,
@@ -724,14 +724,10 @@ router.put("/:id/claude/graph", async (req: Request, res: Response) => {
     fs.writeFileSync(tmp, json, "utf8");
     fs.renameSync(tmp, file);
 
-    const slugs = listAgentSlugs(project.repoPath);
-    const agentMeta = loadAgentMeta(project.repoPath, slugs);
-    await syncTopologyToClaudeMd(project.repoPath, parsed.data, agentMeta);
-
-    // Auto-commit graph + CLAUDE.md so executor's checkoutBase doesn't
+    // Auto-commit graph so executor's checkoutBase doesn't
     // auto-stash these files into oblivion when a task is dragged to doing.
     try {
-      await run("git", ["add", ".claude/agents/_graph.json", "CLAUDE.md"], project.repoPath);
+      await run("git", ["add", ".claude/agents/_graph.json"], project.repoPath);
       const commit = await run(
         "git",
         ["commit", "-m", "chore(agents): update graph layout"],
@@ -798,6 +794,91 @@ router.get("/:id/claude/skills", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[skills.list]", err);
     res.status(500).json({ error: "installed_list_failed" });
+  }
+});
+
+interface SkillItem {
+  id: string;
+  source: "user" | "plugin" | "command";
+  pluginId?: string;
+}
+
+router.get("/:id/claude/skills/installed-skills", async (req: Request, res: Response) => {
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+
+    const skillMap = new Map<string, SkillItem>();
+
+    const userSkillsDir = path.join(homedir(), ".claude", "skills");
+    try {
+      const entries = fs.readdirSync(userSkillsDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          skillMap.set(entry.name, { id: entry.name, source: "user" });
+        }
+      }
+    } catch {
+      // ~/.claude/skills may not exist
+    }
+
+    let installed: Awaited<ReturnType<typeof cliListInstalled>> = [];
+    try {
+      installed = await cliListInstalled(project.repoPath);
+    } catch {
+      // ignore: plugin CLI may not be available
+    }
+
+    for (const plugin of installed) {
+      const skillsDir = path.join(plugin.installPath, "skills");
+      try {
+        const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory() && !skillMap.has(entry.name)) {
+            skillMap.set(entry.name, { id: entry.name, source: "plugin", pluginId: plugin.id });
+          }
+        }
+      } catch {
+        // plugin may not have a skills/ directory
+      }
+    }
+
+    const commandsDir = path.join(homedir(), ".claude", "commands");
+    try {
+      const entries = fs.readdirSync(commandsDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isFile() && entry.name.endsWith(".md")) {
+          const id = entry.name.slice(0, -3);
+          if (!skillMap.has(id)) {
+            skillMap.set(id, { id, source: "command" });
+          }
+        }
+      }
+    } catch {
+      // ~/.claude/commands may not exist
+    }
+
+    for (const plugin of installed) {
+      const commandsPluginDir = path.join(plugin.installPath, "commands");
+      try {
+        const entries = fs.readdirSync(commandsPluginDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isFile() && entry.name.endsWith(".md")) {
+            const id = entry.name.slice(0, -3);
+            if (!skillMap.has(id)) {
+              skillMap.set(id, { id, source: "command", pluginId: plugin.id });
+            }
+          }
+        }
+      } catch {
+        // plugin may not have a commands/ directory
+      }
+    }
+
+    res.json({ skills: Array.from(skillMap.values()) });
+  } catch (err) {
+    console.error("[skills.installed-skills]", err);
+    res.status(500).json({ error: "installed_skills_failed" });
   }
 });
 

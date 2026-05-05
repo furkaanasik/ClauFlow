@@ -339,6 +339,42 @@ db.exec(
     db.exec(`ALTER TABLE tasks ADD COLUMN budgetUsd REAL`);
 }
 
+// Migration: executionMode + graphId columns on tasks
+{
+  const taskColNames = (db.prepare(`PRAGMA table_info(tasks)`).all() as { name: string }[]).map(c => c.name);
+  if (!taskColNames.includes('executionMode')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN executionMode TEXT NOT NULL DEFAULT 'simple'`);
+  }
+  if (!taskColNames.includes('graphId')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN graphId TEXT`);
+  }
+}
+
+// Migration: graphs table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS graphs (
+    id TEXT PRIMARY KEY,
+    projectId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '{"nodes":[],"edges":[]}',
+    createdAt TEXT NOT NULL,
+    FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE
+  )
+`);
+
+// Migration: file-based graphs → DB
+{
+  const projects = db.prepare(`SELECT id, repoPath FROM projects`).all() as { id: string; repoPath: string }[];
+  for (const proj of projects) {
+    const existing = db.prepare(`SELECT id FROM graphs WHERE projectId = ? AND name = 'default'`).get(proj.id);
+    if (existing) continue;
+    const graphFile = path.join(proj.repoPath, ".claude", "agents", "_graph.json");
+    const data = existsSync(graphFile) ? readFileSync(graphFile, "utf8") : '{"nodes":[],"edges":[]}';
+    db.prepare(`INSERT INTO graphs (id, projectId, name, data, createdAt) VALUES (?, ?, 'default', ?, ?)`)
+      .run(`graph_${randomUUID().slice(0, 8)}`, proj.id, data, new Date().toISOString());
+  }
+}
+
 // Unique indexes (idempotent — also created above for fresh installs).
 // Per-project composite enforces team spec; global partial keeps an extra
 // defensive layer because slug uniqueness already implies global uniqueness.
@@ -394,6 +430,8 @@ interface TaskRow {
   cacheReadTokens: number | null;
   cacheWriteTokens: number | null;
   budgetUsd: number | null;
+  executionMode: string | null;
+  graphId: string | null;
 }
 
 function rowToProject(row: ProjectRow): Project {
@@ -467,6 +505,8 @@ function rowToTask(row: TaskRow): Task {
     agent,
     usage,
     budgetUsd: row.budgetUsd ?? null,
+    executionMode: (row.executionMode as 'simple' | 'graph' | null) ?? 'simple',
+    graphId: row.graphId ?? null,
   };
 }
 
@@ -487,11 +527,13 @@ const stmtInsertTask = db.prepare(
   `INSERT INTO tasks (
     id, projectId, title, description, analysis, status, priority, tags,
     branch, prUrl, prNumber, displayId, createdAt, updatedAt,
-    agentStatus, agentCurrentStep, agentLog, agentError, agentStartedAt, agentFinishedAt
+    agentStatus, agentCurrentStep, agentLog, agentError, agentStartedAt, agentFinishedAt,
+    executionMode, graphId
   ) VALUES (
     @id, @projectId, @title, @description, @analysis, @status, @priority, @tags,
     @branch, @prUrl, @prNumber, @displayId, @createdAt, @updatedAt,
-    @agentStatus, @agentCurrentStep, @agentLog, @agentError, @agentStartedAt, @agentFinishedAt
+    @agentStatus, @agentCurrentStep, @agentLog, @agentError, @agentStartedAt, @agentFinishedAt,
+    @executionMode, @graphId
   )`,
 );
 const stmtBumpTaskCounter = db.prepare(
@@ -518,6 +560,8 @@ const stmtUpdateTaskWithLog = db.prepare(
     prNumber = @prNumber,
     displayId = @displayId,
     budgetUsd = @budgetUsd,
+    executionMode = @executionMode,
+    graphId = @graphId,
     updatedAt = @updatedAt,
     agentStatus = @agentStatus,
     agentCurrentStep = @agentCurrentStep,
@@ -541,6 +585,8 @@ const stmtUpdateTaskWithoutLog = db.prepare(
     prNumber = @prNumber,
     displayId = @displayId,
     budgetUsd = @budgetUsd,
+    executionMode = @executionMode,
+    graphId = @graphId,
     updatedAt = @updatedAt,
     agentStatus = @agentStatus,
     agentCurrentStep = @agentCurrentStep,
@@ -756,6 +802,8 @@ export interface CreateTaskInput {
   priority?: TaskPriority | null;
   tags?: string[];
   status?: TaskStatus;
+  executionMode?: "simple" | "graph";
+  graphId?: string | null;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -803,6 +851,8 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       agentError: emptyAgent.error ?? null,
       agentStartedAt: emptyAgent.startedAt ?? null,
       agentFinishedAt: emptyAgent.finishedAt ?? null,
+      executionMode: input.executionMode ?? "simple",
+      graphId: input.graphId ?? null,
     });
     return displayId;
   });
@@ -844,6 +894,8 @@ export type TaskPatch = Partial<
     | "prNumber"
     | "displayId"
     | "budgetUsd"
+    | "executionMode"
+    | "graphId"
   >
 > & { agent?: Partial<AgentState> };
 
@@ -873,6 +925,8 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     prNumber: next.prNumber ?? null,
     displayId: next.displayId ?? null,
     budgetUsd: next.budgetUsd ?? null,
+    executionMode: next.executionMode ?? 'simple',
+    graphId: next.graphId ?? null,
     updatedAt: next.updatedAt,
     agentStatus: next.agent.status,
     agentCurrentStep: next.agent.currentStep ?? null,
@@ -1556,4 +1610,80 @@ export function getNodeRun(id: string): NodeRun | null {
 export function listNodeRunsByTask(taskId: string): NodeRun[] {
   const rows = stmtListNodeRunsByTask.all(taskId) as NodeRunRow[];
   return rows.map(rowToNodeRun);
+}
+
+// ─── Graph DB Service ─────────────────────────────────────────────────────
+
+interface GraphRow {
+  id: string;
+  projectId: string;
+  name: string;
+  data: string;
+  createdAt: string;
+}
+
+export interface GraphRecord {
+  id: string;
+  projectId: string;
+  name: string;
+  data: import("../types/index.js").AgentGraph;
+  createdAt: string;
+}
+
+function rowToGraphRecord(row: GraphRow): GraphRecord {
+  let data: import("../types/index.js").AgentGraph;
+  try {
+    data = JSON.parse(row.data) as import("../types/index.js").AgentGraph;
+  } catch {
+    data = { nodes: [], edges: [] };
+  }
+  return { id: row.id, projectId: row.projectId, name: row.name, data, createdAt: row.createdAt };
+}
+
+export function listGraphs(projectId: string): GraphRecord[] {
+  const rows = db.prepare(`SELECT * FROM graphs WHERE projectId = ? ORDER BY createdAt ASC`).all(projectId) as GraphRow[];
+  return rows.map(rowToGraphRecord);
+}
+
+export function getGraph(id: string): GraphRecord | null {
+  const row = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow | undefined;
+  return row ? rowToGraphRecord(row) : null;
+}
+
+export interface CreateGraphInput {
+  projectId: string;
+  name: string;
+  data?: import("../types/index.js").AgentGraph;
+}
+
+export function createGraph(input: CreateGraphInput): GraphRecord {
+  const id = `graph_${randomUUID().slice(0, 8)}`;
+  const createdAt = new Date().toISOString();
+  const data = JSON.stringify(input.data ?? { nodes: [], edges: [] });
+  db.prepare(`INSERT INTO graphs (id, projectId, name, data, createdAt) VALUES (?, ?, ?, ?, ?)`)
+    .run(id, input.projectId, input.name, data, createdAt);
+  const row = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow;
+  return rowToGraphRecord(row);
+}
+
+export interface UpdateGraphPatch {
+  name?: string;
+  data?: import("../types/index.js").AgentGraph;
+}
+
+export function updateGraph(id: string, patch: UpdateGraphPatch): GraphRecord {
+  const row = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow | undefined;
+  if (!row) throw new Error(`Graph not found: ${id}`);
+  const nextName = patch.name ?? row.name;
+  const nextData = patch.data !== undefined ? JSON.stringify(patch.data) : row.data;
+  db.prepare(`UPDATE graphs SET name = ?, data = ? WHERE id = ?`).run(nextName, nextData, id);
+  const next = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow;
+  return rowToGraphRecord(next);
+}
+
+export function deleteGraph(id: string): void {
+  const row = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow | undefined;
+  if (!row) throw new Error(`Graph not found: ${id}`);
+  if (row.name === 'default') throw new Error(`Cannot delete the default graph`);
+  db.prepare(`DELETE FROM graphs WHERE id = ?`).run(id);
 }

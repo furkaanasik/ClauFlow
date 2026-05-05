@@ -9,10 +9,10 @@ import {
 } from "../services/gitService.js";
 import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
 import { calculateCostUsd, DEFAULT_MODEL } from "../services/pricingService.js";
-import { loadGraph } from "../services/graphService.js";
 import { runGraph, GraphValidationError } from "./graphRunner.js";
 import {
   appendAgentLog,
+  getGraph,
   getProject,
   getTask,
   getTaskEffectiveBudget,
@@ -32,6 +32,7 @@ import {
   broadcastBudgetExceeded,
   broadcastLog,
   broadcastNodeFinished,
+  broadcastNodeLog,
   broadcastNodeStarted,
   broadcastStatus,
   broadcastTaskUpdated,
@@ -48,10 +49,7 @@ async function acquireSlot(projectId: string, taskId: string): Promise<void> {
   for (let i = 0; i < 120; i++) {
     const tasks = await listTasks(projectId);
     const busy = tasks.some(
-      (t) =>
-        t.id !== taskId &&
-        t.status === "doing" &&
-        (ACTIVE.includes(t.agent.status) || t.agent.status === "idle"),
+      (t) => t.id !== taskId && t.status === "doing" && RUNNING.has(t.id),
     );
     if (!busy) return;
     await new Promise((r) => setTimeout(r, 2000));
@@ -164,48 +162,29 @@ function taskRef(task: Task): string {
   return task.displayId ?? task.id;
 }
 
+
 export async function run(
   task: Task,
   project: Project,
   options: EnqueueOptions = {},
 ): Promise<void> {
-  const branch = buildBranchName(task);
-  const ref = taskRef(task);
   const controller = new AbortController();
   RUNNING.set(task.id, controller);
 
-  // Phase 2: route to graphRunner when the project has a real multi-node graph.
-  // 0 or 1 nodes → legacy single-claude path (preserves Phase 1 behavior byte-for-byte).
-  const graph = loadGraph(project.repoPath);
-  const useGraphRunner = !!graph && graph.nodes.length >= 2;
+  const branch = buildBranchName(task);
+  const ref = taskRef(task);
 
-  // Legacy adapter: only inserted on the legacy path so graphRunner doesn't
-  // produce a phantom row alongside its real per-node rows.
-  const nodeRunId = `noderun_${randomUUID().slice(0, 8)}`;
-  if (!useGraphRunner) {
-    try {
-      const initialNodeRun = insertNodeRun({
-        id: nodeRunId,
-        taskId: task.id,
-        nodeId: "legacy:coder",
-        nodeType: "coder",
-        status: "running",
-        startedAt: new Date().toISOString(),
-        model: process.env.CLAUFLOW_DEFAULT_MODEL ?? null,
-      });
-      broadcastNodeStarted(initialNodeRun);
-    } catch (e) {
-      // Node-run telemetry must never break the executor.
-      console.error(`[executor] insertNodeRun failed for ${task.id}:`, e);
-    }
-  }
+  // Graph mode: load graph from DB. Simple mode or missing/empty graph → null (single CLI path)
+  const isGraphMode = task.executionMode === 'graph' && !!task.graphId;
+  let graph = isGraphMode ? (getGraph(task.graphId!)?.data ?? null) : null;
+  if (graph && graph.nodes.length === 0) graph = null;
 
   try {
     // Wait until no other executor is active for this project (DB-level, survives restarts)
     await acquireSlot(project.id, task.id);
 
     // Stamp start time
-    await updateTask(task.id, {
+    const startTask = await updateTask(task.id, {
       agent: {
         status: "branching",
         currentStep: "start",
@@ -215,6 +194,8 @@ export async function run(
         finishedAt: null,
       },
     });
+    broadcastStatus(task.id, "branching", "start");
+    broadcastTaskUpdated(startTask);
 
     await pushLog(task.id, `▸ Feature: ${ref}`);
 
@@ -253,7 +234,7 @@ export async function run(
     const acceptanceCriteria = extractAcceptanceCriteria(task.analysis);
 
     // ── Step 3: run agent work ────────────────────────────────────────────
-    if (useGraphRunner && graph) {
+    if (graph) {
       await setAgentStep(task.id, "running", "graph_run");
       await pushBlock(task.id, [
         "",
@@ -271,6 +252,22 @@ export async function run(
       }
     } else {
     await setAgentStep(task.id, "running", "claude_cli");
+
+    const mainNodeRunId = `noderun_${randomUUID().slice(0, 8)}`;
+    try {
+      const nr = insertNodeRun({
+        id: mainNodeRunId,
+        taskId: task.id,
+        nodeId: "main",
+        nodeType: "coder",
+        status: "running",
+        startedAt: new Date().toISOString(),
+        model: process.env.CLAUFLOW_DEFAULT_MODEL ?? null,
+      });
+      broadcastNodeStarted(nr);
+    } catch (e) {
+      console.error(`[executor] insertNodeRun(main) failed:`, e);
+    }
 
     const taskBrief = task.analysis || task.description || task.title;
     const background = project.aiPrompt?.trim();
@@ -295,16 +292,6 @@ export async function run(
 
     await pushBlock(task.id, [
       "",
-      "▸ Test guidance (agent'a verildi):",
-      ...testingInstructions.split("\n").map((l) => `  ${l}`),
-      ...(acceptanceCriteria
-        ? [
-            "",
-            "▸ Acceptance criteria (test'lerle karşılanmalı):",
-            ...acceptanceCriteria.split("\n").map((l) => `  ${l}`),
-          ]
-        : []),
-      "",
       "▸ Running claude CLI…",
     ]);
 
@@ -315,6 +302,7 @@ export async function run(
       const entry = stream === "stderr" ? `[stderr] ${line}` : line;
       await appendAgentLog(task.id, entry);
       broadcastLog(task.id, entry);
+      broadcastNodeLog(task.id, "main", entry);
     };
 
     const onToolCallStart = (tc: {
@@ -390,19 +378,6 @@ export async function run(
         .catch((e) => {
           console.error(`[executor] updateTaskUsage failed:`, e);
         });
-      // Mirror per-run usage onto the legacy node-run row. SET semantics
-      // (not increment) — the stream-json result event reports cumulative
-      // usage for the run, so the latest value is canonical.
-      try {
-        updateNodeRun(nodeRunId, {
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          cacheReadTokens: usage.cacheReadTokens,
-          cacheWriteTokens: usage.cacheWriteTokens,
-        });
-      } catch (e) {
-        console.error(`[executor] updateNodeRun(usage) failed:`, e);
-      }
     };
 
     let claudeResult = await runClaude({
@@ -441,15 +416,24 @@ export async function run(
     }
 
     if (claudeResult.code !== 0) {
+      try { updateNodeRun(mainNodeRunId, { status: "error", finishedAt: new Date().toISOString(), errorMessage: `exit ${claudeResult.code}` }); } catch {}
       throw new Error(
         `claude CLI exited ${claudeResult.code}:\n` +
           claudeResult.stderr.slice(0, 500),
       );
     }
     if (controller.signal.aborted) {
+      try { updateNodeRun(mainNodeRunId, { status: "aborted", finishedAt: new Date().toISOString() }); } catch {}
       throw new Error("aborted");
     }
-    } // end else (legacy single-claude branch)
+
+    try {
+      const finished = updateNodeRun(mainNodeRunId, { status: "done", finishedAt: new Date().toISOString() });
+      if (finished) broadcastNodeFinished(finished);
+    } catch (e) {
+      console.error(`[executor] finalizeNodeRun(main) failed:`, e);
+    }
+    } // end else (single-claude branch)
 
     // ── Step 4: git add . && commit ───────────────────────────────────────
     await setAgentStep(task.id, "pushing", "git_commit");
@@ -491,7 +475,6 @@ export async function run(
       });
       broadcastStatus(task.id, "done", "completed");
       broadcastTaskUpdated(final);
-      if (!useGraphRunner) finalizeNodeRun(nodeRunId, "done");
       return;
     }
 
@@ -572,7 +555,6 @@ export async function run(
     });
     broadcastStatus(task.id, "done", "completed");
     broadcastTaskUpdated(final);
-    finalizeNodeRun(nodeRunId, "done");
 
     if (finalStatus === "ci") {
       startCiWatch(final, project);
@@ -598,9 +580,6 @@ export async function run(
     });
     broadcastStatus(task.id, "error");
     broadcastTaskUpdated(errTask);
-    if (!useGraphRunner) {
-      finalizeNodeRun(nodeRunId, aborted ? "aborted" : "error", message);
-    }
 
     // Cleanup: discard claude's uncommitted edits, return to base branch,
     // delete the failed feature branch. Best-effort — git failures must not
@@ -629,22 +608,5 @@ export async function run(
     }
   } finally {
     RUNNING.delete(task.id);
-  }
-}
-
-function finalizeNodeRun(
-  nodeRunId: string,
-  status: "done" | "error" | "aborted",
-  errorMessage?: string,
-): void {
-  try {
-    const updated = updateNodeRun(nodeRunId, {
-      status,
-      finishedAt: new Date().toISOString(),
-      errorMessage: errorMessage ?? null,
-    });
-    if (updated) broadcastNodeFinished(updated);
-  } catch (e) {
-    console.error(`[executor] finalizeNodeRun(${status}) failed:`, e);
   }
 }

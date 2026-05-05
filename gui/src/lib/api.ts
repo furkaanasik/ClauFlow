@@ -1,4 +1,4 @@
-import type { AgentGraph, AgentText, Comment, GithubRepo, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
+import type { AgentGraph, AgentText, Comment, GithubRepo, GraphRecord, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -35,6 +35,9 @@ export interface CreateTaskInput {
   analysis?: string;
   priority?: TaskPriority | string;
   status?: Task["status"];
+  budgetUsd?: number | null;
+  executionMode?: "simple" | "graph";
+  graphId?: string | null;
 }
 
 export interface CreateProjectInput {
@@ -294,6 +297,10 @@ export const api = {
     fetch(`${BASE}/projects/${id}/claude/skills`, { cache: "no-store" })
       .then((r) => handle<{ installed: InstalledPlugin[] }>(r)),
 
+  listSkillItems: (id: string): Promise<{ skills: SkillItem[] }> =>
+    fetch(`${BASE}/projects/${id}/claude/skills/installed-skills`, { cache: "no-store" })
+      .then((r) => handle<{ skills: SkillItem[] }>(r)),
+
   installSkill: (
     id: string,
     pluginId: string,
@@ -364,6 +371,35 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then((r) => handle<AgentGraph>(r)),
+
+  listGraphs: (projectId: string): Promise<{ graphs: GraphRecord[] }> =>
+    fetch(`${BASE}/projects/${projectId}/graphs`, { cache: "no-store" })
+      .then((r) => handle<{ graphs: GraphRecord[] }>(r)),
+
+  createGraph: (projectId: string, body: { name: string; data?: AgentGraph }): Promise<GraphRecord> =>
+    fetch(`${BASE}/projects/${projectId}/graphs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => handle<{ graph: GraphRecord }>(r)).then((b) => b.graph),
+
+  updateGraph: (
+    projectId: string,
+    graphId: string,
+    body: { name?: string; data?: AgentGraph },
+  ): Promise<GraphRecord> =>
+    fetch(`${BASE}/projects/${projectId}/graphs/${encodeURIComponent(graphId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => handle<{ graph: GraphRecord }>(r)).then((b) => b.graph),
+
+  deleteGraph: (projectId: string, graphId: string): Promise<void> =>
+    fetch(`${BASE}/projects/${projectId}/graphs/${encodeURIComponent(graphId)}`, {
+      method: "DELETE",
+    }).then((r) => {
+      if (!r.ok) return handle<void>(r);
+    }),
 
   getNodeRuns: (taskId: string): Promise<NodeRun[]> =>
     fetch(`${BASE}/tasks/${taskId}/node-runs`, { cache: "no-store" })
@@ -444,6 +480,12 @@ export interface InstalledPlugin {
   installedAt: string;
   lastUpdated: string | null;
   projectPath?: string;
+}
+
+export interface SkillItem {
+  id: string;
+  source: "user" | "plugin" | "command";
+  pluginId?: string;
 }
 
 export interface ClaudeMarketplace {
