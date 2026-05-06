@@ -174,16 +174,16 @@ export function AgentEditDrawer({
       />
       {/* Modal */}
       <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-        <div className="relative flex h-[85vh] w-full max-w-[60rem] flex-col overflow-hidden border border-[var(--border)] bg-[var(--bg-base)] shadow-2xl">
+        <div className="relative flex h-[85vh] w-full max-w-[60rem] flex-col overflow-hidden border border-[var(--cf-border)] bg-[var(--cf-bg)] shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-          <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
+        <div className="flex items-center justify-between border-b border-[var(--cf-border)] px-4 py-3">
+          <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--cf-text)]">
             {isEdit ? ca.save : ca.create}
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="border border-[var(--border)] p-1.5 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+            className="border border-[var(--cf-border)] p-1.5 text-[var(--cf-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--cf-text)]"
             aria-label="Close"
           >
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -195,7 +195,7 @@ export function AgentEditDrawer({
         {/* Body */}
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           {error && (
-            <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-[12px] text-[var(--status-error)]">
+            <div className="border border-[#ef4444] bg-[var(--status-error-ink)] px-3 py-2 text-[12px] text-[#ef4444]">
               {error}
             </div>
           )}
@@ -209,37 +209,37 @@ export function AgentEditDrawer({
           {/* Slug + Name */}
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.slugLabel}</span>
+              <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--cf-muted)]">{ca.slugLabel}</span>
               <input
                 value={newSlug}
                 onChange={(e) => setNewSlug(e.target.value)}
                 disabled={isEdit || loading || saving}
                 placeholder={ca.slugPlaceholder}
                 spellCheck={false}
-                className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)] disabled:opacity-60"
+                className="border border-[var(--cf-border)] bg-[var(--cf-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--cf-text)] outline-none transition focus:border-[var(--cf-muted)] disabled:opacity-60"
               />
               {!isEdit && newSlug && !slugValid && (
-                <span className="text-[11px] text-[var(--status-error)]">{ca.slugError}</span>
+                <span className="text-[11px] text-[#ef4444]">{ca.slugError}</span>
               )}
               {!isEdit && slugValid && slugDuplicate && (
-                <span className="text-[11px] text-[var(--status-error)]">{ca.duplicate}</span>
+                <span className="text-[11px] text-[#ef4444]">{ca.duplicate}</span>
               )}
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.nameLabel}</span>
+              <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--cf-muted)]">{ca.nameLabel}</span>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={loading || saving}
                 placeholder={ca.namePlaceholder}
-                className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)]"
+                className="border border-[var(--cf-border)] bg-[var(--cf-surface)] px-2 py-1.5 text-[12px] text-[var(--cf-text)] outline-none transition focus:border-[var(--cf-muted)]"
               />
             </label>
           </div>
 
           {/* Model */}
           <div className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.modelLabel}</span>
+            <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--cf-muted)]">{ca.modelLabel}</span>
             <div className="flex gap-2">
               <select
                 value={modelSelectValue}
@@ -250,7 +250,7 @@ export function AgentEditDrawer({
                   else setModel(v);
                 }}
                 disabled={loading || saving}
-                className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)]"
+                className="border border-[var(--cf-border)] bg-[var(--cf-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--cf-text)] outline-none transition focus:border-[var(--cf-muted)]"
               >
                 <option value="">{ca.modelInherit}</option>
                 {MODEL_PRESETS.filter((m) => m.value !== "inherit").map((m) => (
@@ -266,7 +266,7 @@ export function AgentEditDrawer({
                   placeholder={ca.modelCustomPlaceholder}
                   spellCheck={false}
                   autoFocus
-                  className="flex-1 border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)]"
+                  className="flex-1 border border-[var(--cf-border)] bg-[var(--cf-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--cf-text)] outline-none transition focus:border-[var(--cf-muted)]"
                 />
               )}
             </div>
@@ -274,19 +274,19 @@ export function AgentEditDrawer({
 
           {/* Description */}
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.descriptionLabel}</span>
+            <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--cf-muted)]">{ca.descriptionLabel}</span>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={loading || saving}
               placeholder={ca.descriptionPlaceholder}
-              className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)]"
+              className="border border-[var(--cf-border)] bg-[var(--cf-surface)] px-2 py-1.5 text-[12px] text-[var(--cf-text)] outline-none transition focus:border-[var(--cf-muted)]"
             />
           </label>
 
           {/* Body */}
           <div className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.bodyLabel}</span>
+            <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--cf-muted)]">{ca.bodyLabel}</span>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -294,20 +294,20 @@ export function AgentEditDrawer({
               rows={16}
               spellCheck={false}
               placeholder={ca.bodyPlaceholder}
-              className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-[12px] leading-relaxed text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)]"
+              className="w-full resize-y border border-[var(--cf-border)] bg-[var(--cf-surface)] px-3 py-2 font-mono text-[12px] leading-relaxed text-[var(--cf-text)] placeholder:text-[var(--cf-muted)] outline-none transition focus:border-[var(--cf-muted)]"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-3">
+        <div className="flex items-center justify-between border-t border-[var(--cf-border)] px-4 py-3">
           <div>
             {isEdit && slug !== "main" && (
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
                 disabled={deleting || saving}
-                className="border border-[var(--status-error)] bg-transparent px-3 py-1.5 text-[12px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-40"
+                className="border border-[#ef4444] bg-transparent px-3 py-1.5 text-[12px] text-[#ef4444] transition hover:bg-[var(--status-error-ink)] disabled:opacity-40"
               >
                 {deleting ? ca.deleting : ca.delete}
               </button>
@@ -326,7 +326,7 @@ export function AgentEditDrawer({
               type="button"
               onClick={() => void submit()}
               disabled={!canSave}
-              className="btn-ink px-4 py-1.5 text-[12px] disabled:opacity-50"
+              style={{ background: "#6366f1", color: "#fff", border: "none", borderRadius: 5, padding: "6px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
             >
               {saving
                 ? (isEdit ? ca.saving : ca.creating)

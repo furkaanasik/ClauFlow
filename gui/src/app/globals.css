@@ -489,6 +489,66 @@ html.light .analysis-block {
 .prose-claude strong { color: var(--text-primary); font-weight: 600; }
 .prose-claude em { font-style: italic; }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ClauFlow App Shell — CF Design Tokens
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --cf-bg:         #0d0d14;
+  --cf-surface:    #13131e;
+  --cf-card:       #181825;
+  --cf-card-hover: #1e1e2e;
+  --cf-drawer:     rgba(18, 18, 28, 0.96);
+  --cf-border:     rgba(255, 255, 255, 0.08);
+  --cf-text:       #e2e8f0;
+  --cf-muted:      #64748b;
+  --cf-tag-bg:     rgba(255, 255, 255, 0.04);
+  --cf-canvas-bg:  #0a0a12;
+  --cf-grid-dot:   rgba(255, 255, 255, 0.04);
+  --cf-accent:     #6366f1;
+  --cf-accentL:    #818cf8;
+  --cf-accentD:    #4f46e5;
+  --cf-yellow:     #f59e0b;
+  --cf-green:      #22c55e;
+  --cf-red:        #ef4444;
+  --cf-blue:       #3b82f6;
+  --cf-orange:     #f97316;
+}
+
+/* CF Animations */
+@keyframes cf-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes cf-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.25; }
+  50%       { transform: scale(2); opacity: 0; }
+}
+@keyframes cf-blink {
+  50% { opacity: 0; }
+}
+@keyframes cf-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes cf-slide-in-left {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+@keyframes cf-fade-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+
+.animate-cf-spin      { animation: cf-spin 0.7s linear infinite; }
+.animate-cf-pulse     { animation: cf-pulse 1.5s ease-in-out infinite; }
+.animate-cf-blink     { animation: cf-blink 1s step-end infinite; }
+.animate-cf-slide-in  { animation: cf-slide-in 0.2s cubic-bezier(0.16,1,0.3,1); }
+.animate-cf-fade-up   { animation: cf-fade-up 0.18s ease; }
+
+/* CF Scrollbar */
+.cf-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.cf-scroll::-webkit-scrollbar-track { background: transparent; }
+.cf-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
 /* ─── React Flow theming ────────────────────────────────────────────────── */
 .react-flow {
   --xy-background-color: var(--bg-surface);

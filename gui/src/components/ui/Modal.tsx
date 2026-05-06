@@ -11,18 +11,16 @@ interface ModalProps {
   size?: "md" | "lg" | "xl";
 }
 
-const SIZE_CLS: Record<string, string> = {
-  md: "max-w-2xl",
-  lg: "max-w-2xl",
-  xl: "max-w-4xl",
+const SIZE_W: Record<string, number> = {
+  md: 400,
+  lg: 480,
+  xl: 640,
 };
 
 export function Modal({ open, onClose, title, children, size = "md" }: ModalProps) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
@@ -31,31 +29,49 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      style={{
+        position: "fixed", inset: 0, zIndex: 50,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", padding: 16,
+      }}
       onClick={onClose}
     >
       <div
-        className={`max-h-[85vh] w-full overflow-hidden border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl ${SIZE_CLS[size]}`}
+        style={{
+          width: "100%", maxWidth: SIZE_W[size], maxHeight: "85vh",
+          background: "var(--cf-surface)", border: "1px solid var(--cf-border)",
+          borderRadius: 10, overflow: "hidden",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+          animation: "cf-fade-up 0.18s ease-out",
+          fontFamily: "var(--font-inter, Inter, sans-serif)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <header className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
-            <h2 className="t-display text-xl text-[var(--text-primary)]">
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "14px 20px", borderBottom: "1px solid var(--cf-border)",
+          }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--cf-text)", margin: 0 }}>
               {title}
             </h2>
             <button
               type="button"
-              className="border border-[var(--border)] p-1.5 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
               onClick={onClose}
               aria-label="Close"
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "var(--cf-muted)", fontSize: 16, padding: "2px 4px",
+                display: "flex", alignItems: "center",
+              }}
             >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <path d="M1 1l12 12M13 1L1 13" />
-              </svg>
+              ✕
             </button>
-          </header>
+          </div>
         )}
-        <div className="max-h-[70vh] overflow-auto p-5">{children}</div>
+        <div style={{ maxHeight: "70vh", overflowY: "auto", padding: 20 }} className="cf-scroll">
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -2,12 +2,14 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { api, type InsightsData } from "@/lib/api";
 import { formatTokens } from "@/lib/cost";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useBoardStore } from "@/store/boardStore";
 import { TaskDetailDrawer } from "@/components/Card/TaskDetailDrawer";
+import { Header } from "@/components/Layout/Header";
+import { IconSidebar } from "@/components/Layout/IconSidebar";
+import { ToastContainer } from "@/components/ui/Toast";
 
 function formatTimeToGreen(ms: number | null): string {
   if (ms === null) return "—";
@@ -16,24 +18,25 @@ function formatTimeToGreen(ms: number | null): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-function StatCard({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
+const STAT_ACCENT: Record<string, string> = {
+  cost: "#818cf8",
+  success: "#22c55e",
+};
+
+function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className="flex flex-col gap-1 border border-[var(--border)] bg-[var(--bg-surface)] px-5 py-4">
-      <span className="text-[11px] uppercase tracking-widest text-[var(--text-muted)]">
+    <div style={{
+      display: "flex", flexDirection: "column", gap: 4,
+      padding: "14px 16px", borderRadius: 8,
+      background: "var(--cf-card)", border: "1px solid var(--cf-border)",
+    }}>
+      <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cf-muted)" }}>
         {label}
       </span>
-      <span className="t-display text-3xl text-[var(--text-primary)]">{value}</span>
-      {sub && (
-        <span className="text-[12px] text-[var(--text-faint)]">{sub}</span>
-      )}
+      <span style={{ fontSize: 26, fontWeight: 700, color: accent ?? "var(--cf-text)", fontFamily: "monospace", lineHeight: 1.1 }}>
+        {value}
+      </span>
+      {sub && <span style={{ fontSize: 11, color: "var(--cf-muted)" }}>{sub}</span>}
     </div>
   );
 }
@@ -55,121 +58,89 @@ function InsightsContent() {
       const task = await api.getTask(taskId);
       upsertTask(task);
       selectTask(taskId);
-    } catch {
-      // silently ignore — task may have been deleted
-    }
+    } catch { /* task may have been deleted */ }
   };
 
   useEffect(() => {
-    if (!projectId) {
-      setError(t.insights.noProject);
-      setLoading(false);
-      return;
-    }
+    if (!projectId) { setError(t.insights.noProject); setLoading(false); return; }
     setLoading(true);
-    api
-      .getInsights(projectId)
-      .then((d) => {
-        setData(d);
-        setError(null);
-      })
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : String(e)),
-      )
+    api.getInsights(projectId)
+      .then((d) => { setData(d); setError(null); })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }, [projectId, t.insights.noProject]);
 
   const s = data?.summary;
-  const completionRate =
-    s && s.totalTasks > 0
-      ? `${Math.round((s.doneTasks / s.totalTasks) * 100)}%`
-      : "—";
-  const ciPassRate =
-    s?.ciPassRate !== null && s?.ciPassRate !== undefined
-      ? `${Math.round(s.ciPassRate * 100)}%`
-      : "—";
+  const completionRate = s && s.totalTasks > 0 ? `${Math.round((s.doneTasks / s.totalTasks) * 100)}%` : "—";
+  const ciPassRate     = s?.ciPassRate != null ? `${Math.round(s.ciPassRate * 100)}%` : "—";
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
-      <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-base)]">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-4">
-          <Link
-            href="/board"
-            className="btn-ghost inline-flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium"
-          >
-            <span aria-hidden>←</span>
-            Board
-          </Link>
-
-          <span className="text-[13px] text-[var(--text-muted)]">Fleet</span>
-
-          {data && (
-            <span className="text-[13px] text-[var(--text-faint)]">·</span>
-          )}
-
-          <div className="relative ml-auto">
-            <button
-              type="button"
-              onClick={() => setExportOpen((v) => !v)}
-              className="btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium"
-              disabled={!projectId}
-            >
-              {t.insights.exportButton}
-              <span aria-hidden>▾</span>
-            </button>
-            {exportOpen && projectId && (
-              <div className="absolute right-0 top-full mt-1 flex w-32 flex-col border border-[var(--border)] bg-[var(--bg-elevated)] shadow-lg">
-                <button
-                  type="button"
-                  className="px-4 py-2 text-left text-[12px] text-[var(--text-primary)] transition hover:bg-[var(--bg-surface)]"
-                  onClick={() => {
-                    window.open(api.getInsightsExportUrl(projectId, "json"));
-                    setExportOpen(false);
-                  }}
-                >
-                  {t.insights.exportJson}
-                </button>
-                <button
-                  type="button"
-                  className="px-4 py-2 text-left text-[12px] text-[var(--text-primary)] transition hover:bg-[var(--bg-surface)]"
-                  onClick={() => {
-                    window.open(api.getInsightsExportUrl(projectId, "csv"));
-                    setExportOpen(false);
-                  }}
-                >
-                  {t.insights.exportCsv}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <section className="mx-auto max-w-5xl px-6 py-12">
-        <div className="mb-10">
-          <h1 className="t-display text-4xl leading-tight text-[var(--text-primary)] md:text-5xl">
+    <div style={{ flex: 1, overflowY: "auto", background: "var(--cf-bg)" }} className="cf-scroll">
+      {/* Page header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px 0", marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--cf-text)", margin: 0 }}>
             {t.insights.title}
           </h1>
-          <p className="mt-3 max-w-md text-base text-[var(--text-secondary)]">
+          <p style={{ fontSize: 12, color: "var(--cf-muted)", marginTop: 4 }}>
             {t.insights.subtitle}
           </p>
         </div>
-
-        {loading && (
-          <div className="flex flex-col items-center gap-4 border border-dashed border-[var(--border)] py-16">
-            <div className="flex gap-1">
-              <span className="animate-dot-1 h-1.5 w-1.5 bg-[var(--text-muted)]" />
-              <span className="animate-dot-2 h-1.5 w-1.5 bg-[var(--text-muted)]" />
-              <span className="animate-dot-3 h-1.5 w-1.5 bg-[var(--text-muted)]" />
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={() => setExportOpen((v) => !v)}
+            disabled={!projectId}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "6px 14px", fontSize: 12, fontWeight: 500,
+              background: "var(--cf-card)", border: "1px solid var(--cf-border)",
+              borderRadius: 6, color: "var(--cf-text)", cursor: "pointer",
+            }}
+          >
+            {t.insights.exportButton} <span>▾</span>
+          </button>
+          {exportOpen && projectId && (
+            <div style={{
+              position: "absolute", top: 36, right: 0, zIndex: 20,
+              background: "var(--cf-drawer)", border: "1px solid var(--cf-border)",
+              borderRadius: 8, overflow: "hidden", minWidth: 120,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            }}>
+              {["json", "csv"].map((fmt) => (
+                <button
+                  key={fmt}
+                  type="button"
+                  style={{
+                    width: "100%", textAlign: "left", padding: "8px 14px",
+                    background: "transparent", border: "none", cursor: "pointer",
+                    color: "var(--cf-text)", fontSize: 12,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(99,102,241,0.08)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  onClick={() => { window.open(api.getInsightsExportUrl(projectId, fmt as "json" | "csv")); setExportOpen(false); }}
+                >
+                  {fmt === "json" ? t.insights.exportJson : t.insights.exportCsv}
+                </button>
+              ))}
             </div>
-            <span className="text-[12px] text-[var(--text-muted)]">
-              {t.insights.loading}
-            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ padding: "0 28px 32px" }}>
+        {loading && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "64px 0", color: "var(--cf-muted)", fontSize: 13 }}>
+            {t.insights.loading}
           </div>
         )}
 
         {error && (
-          <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-4 py-3 text-sm text-[var(--status-error)]">
+          <div style={{
+            padding: "10px 14px", borderRadius: 6,
+            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
+            color: "#ef4444", fontSize: 13,
+          }}>
             {error}
           </div>
         )}
@@ -177,177 +148,133 @@ function InsightsContent() {
         {!loading && !error && data && (
           <>
             {data.summary.pricingStale === true && (
-              <div className="mb-4 flex items-center gap-2 border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div style={{
+                marginBottom: 16, padding: "10px 14px", borderRadius: 6,
+                background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)",
+                color: "#f59e0b", fontSize: 12, display: "flex", gap: 8,
+              }}>
                 <span>⚠</span>
                 <span>
                   {t.insights.pricingStaleBanner}{" "}
-                  <span className="opacity-70">
-                    {t.insights.pricingStaleDate.replace("{date}", "2026-05-04")}
-                  </span>
+                  <span style={{ opacity: 0.7 }}>{t.insights.pricingStaleDate.replace("{date}", "2026-05-04")}</span>
                 </span>
               </div>
             )}
-            <div className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
+
+            {/* Stat cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
               <StatCard
                 label={t.insights.statTasks}
                 value={String(s?.totalTasks ?? 0)}
-                sub={t.insights.statTasksSub
-                  .replace("{done}", String(s?.doneTasks ?? 0))
-                  .replace("{errors}", String(s?.errorTasks ?? 0))}
+                sub={t.insights.statTasksSub.replace("{done}", String(s?.doneTasks ?? 0)).replace("{errors}", String(s?.errorTasks ?? 0))}
               />
               <StatCard
                 label={t.insights.statCost}
                 value={`$${(s?.estimatedUsd ?? 0).toFixed(2)}`}
-                sub={
-                  formatTokens(
-                    (s?.totalInputTokens ?? 0) +
-                      (s?.totalOutputTokens ?? 0) +
-                      (s?.totalCacheReadTokens ?? 0) +
-                      (s?.totalCacheWriteTokens ?? 0),
-                  ) + " tokens"
-                }
+                accent={STAT_ACCENT.cost}
+                sub={formatTokens((s?.totalInputTokens ?? 0) + (s?.totalOutputTokens ?? 0) + (s?.totalCacheReadTokens ?? 0) + (s?.totalCacheWriteTokens ?? 0)) + " tokens"}
               />
               <StatCard
                 label={t.insights.statCompletion}
                 value={completionRate}
-                sub={t.insights.statCompletionSub.replace(
-                  "{prs}",
-                  String(s?.prCount ?? 0),
-                )}
+                accent={STAT_ACCENT.success}
+                sub={t.insights.statCompletionSub.replace("{prs}", String(s?.prCount ?? 0))}
               />
               <StatCard
                 label={t.insights.statCiPassRate}
                 value={ciPassRate}
-                sub={
-                  s?.avgTimeToGreenMs !== null &&
-                  s?.avgTimeToGreenMs !== undefined
-                    ? t.insights.statAvgTimeToGreen.replace(
-                        "{time}",
-                        formatTimeToGreen(s.avgTimeToGreenMs),
-                      )
-                    : undefined
-                }
+                sub={s?.avgTimeToGreenMs != null ? t.insights.statAvgTimeToGreen.replace("{time}", formatTimeToGreen(s.avgTimeToGreenMs)) : undefined}
               />
             </div>
 
+            {/* By node type table */}
             {data.byNodeType.length > 0 && (
-              <div className="mb-10">
-                <h2 className="mb-3 text-[11px] uppercase tracking-widest text-[var(--text-muted)]">
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cf-muted)", marginBottom: 10 }}>
                   {t.insights.sectionByNodeType}
-                </h2>
-                <div className="border border-[var(--border)]">
-                  <table className="w-full text-[13px]">
+                </div>
+                <div style={{ borderRadius: 8, border: "1px solid var(--cf-border)", overflow: "hidden" }}>
+                  <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
                     <thead>
-                      <tr className="border-b border-[var(--border)] bg-[var(--bg-surface)]">
-                        <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)]">
-                          {t.insights.colNodeType}
-                        </th>
-                        <th className="px-4 py-2 text-right font-medium text-[var(--text-muted)]">
-                          {t.insights.colRuns}
-                        </th>
-                        <th className="px-4 py-2 text-right font-medium text-[var(--text-muted)]">
-                          {t.insights.colDone}
-                        </th>
-                        <th className="px-4 py-2 text-right font-medium text-[var(--text-muted)]">
-                          {t.insights.colTokens}
-                        </th>
-                        <th className="px-4 py-2 text-right font-medium text-[var(--text-muted)]">
-                          {t.insights.colUsd}
-                        </th>
-                        <th className="px-4 py-2 text-right font-medium text-[var(--text-muted)]">
-                          {t.insights.colSuccess}
-                        </th>
+                      <tr style={{ background: "var(--cf-card)", borderBottom: "1px solid var(--cf-border)" }}>
+                        {[t.insights.colNodeType, t.insights.colRuns, t.insights.colDone, t.insights.colTokens, t.insights.colUsd, t.insights.colSuccess].map((col, i) => (
+                          <th key={i} style={{ padding: "8px 14px", textAlign: i === 0 ? "left" : "right", color: "var(--cf-muted)", fontWeight: 600, fontSize: 11 }}>
+                            {col}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {data.byNodeType.map((n) => (
-                        <tr
-                          key={n.nodeType}
-                          className="border-b border-[var(--border)] bg-[var(--bg-base)] last:border-b-0 hover:bg-[var(--bg-elevated)]"
-                        >
-                          <td className="px-4 py-3 font-mono text-[var(--text-primary)]">
-                            {n.nodeType}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                            {n.runCount}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                            {n.doneCount}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                            {n.inputTokens +
-                              n.outputTokens +
-                              n.cacheReadTokens +
-                              n.cacheWriteTokens >
-                            0
-                              ? formatTokens(
-                                  n.inputTokens +
-                                    n.outputTokens +
-                                    n.cacheReadTokens +
-                                    n.cacheWriteTokens,
-                                )
-                              : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                            ${n.estimatedUsd.toFixed(3)}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                            {n.runCount > 0
-                              ? `${Math.round((n.doneCount / n.runCount) * 100)}%`
-                              : "—"}
-                          </td>
-                        </tr>
-                      ))}
+                      {data.byNodeType.map((n) => {
+                        const totalTok = n.inputTokens + n.outputTokens + n.cacheReadTokens + n.cacheWriteTokens;
+                        return (
+                          <tr key={n.nodeType} style={{ borderBottom: "1px solid var(--cf-border)" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--cf-card-hover)"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
+                          >
+                            <td style={{ padding: "10px 14px", fontFamily: "monospace", color: "var(--cf-text)" }}>{n.nodeType}</td>
+                            <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--cf-muted)", fontFamily: "monospace" }}>{n.runCount}</td>
+                            <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--cf-muted)", fontFamily: "monospace" }}>{n.doneCount}</td>
+                            <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--cf-muted)", fontFamily: "monospace" }}>{totalTok > 0 ? formatTokens(totalTok) : "—"}</td>
+                            <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--cf-muted)", fontFamily: "monospace" }}>${n.estimatedUsd.toFixed(3)}</td>
+                            <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--cf-muted)", fontFamily: "monospace" }}>
+                              {n.runCount > 0 ? `${Math.round((n.doneCount / n.runCount) * 100)}%` : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
             )}
 
+            {/* Recent tasks */}
             <div>
-              <h2 className="mb-3 text-[11px] uppercase tracking-widest text-[var(--text-muted)]">
+              <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cf-muted)", marginBottom: 10 }}>
                 {t.insights.sectionRecentTasks}
-              </h2>
+              </div>
               {data.recentTasks.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 border border-dashed border-[var(--border)] py-16">
-                  <p className="t-display text-2xl text-[var(--text-secondary)]">
-                    {t.insights.emptyTasks}
-                  </p>
-                  <p className="text-[12px] text-[var(--text-faint)]">
-                    {t.insights.emptyTasksHint}
-                  </p>
+                <div style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  padding: "48px 0", borderRadius: 8, border: "1px dashed var(--cf-border)",
+                  color: "var(--cf-muted)", fontSize: 13, gap: 8,
+                }}>
+                  <div style={{ fontSize: 28, opacity: 0.3 }}>◻</div>
+                  <p style={{ margin: 0 }}>{t.insights.emptyTasks}</p>
+                  <p style={{ margin: 0, fontSize: 11 }}>{t.insights.emptyTasksHint}</p>
                 </div>
               ) : (
-                <div className="border border-[var(--border)]">
+                <div style={{ borderRadius: 8, border: "1px solid var(--cf-border)", overflow: "hidden" }}>
                   {data.recentTasks.map((task) => (
                     <div
                       key={task.id}
                       onClick={() => void openTask(task.id)}
-                      className="flex cursor-pointer items-center gap-4 border-b border-[var(--border)] bg-[var(--bg-surface)] px-5 py-3 last:border-b-0 hover:bg-[var(--bg-elevated)]"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "10px 14px", cursor: "pointer",
+                        borderBottom: "1px solid var(--cf-border)",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--cf-card-hover)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
                     >
-                      <span className="shrink-0 font-mono text-[11px] text-[var(--text-faint)]">
+                      <span style={{ fontSize: 11, fontFamily: "monospace", color: "var(--cf-muted)", flexShrink: 0 }}>
                         #{task.id.slice(0, 7)}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-primary)]">
+                      <span style={{ flex: 1, fontSize: 13, color: "var(--cf-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {task.title}
                       </span>
-                      <span
-                        className="shrink-0 text-[11px]"
-                        style={{
-                          color:
-                            task.agentStatus === "error"
-                              ? "var(--status-error)"
-                              : task.status === "done"
-                                ? "var(--accent-primary)"
-                                : "var(--text-muted)",
-                        }}
-                      >
+                      <span style={{
+                        fontSize: 11, flexShrink: 0,
+                        color: task.agentStatus === "error" ? "#ef4444" : task.status === "done" ? "#22c55e" : "var(--cf-muted)",
+                      }}>
                         {task.agentStatus === "error" ? "error" : task.status}
                       </span>
-                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--text-faint)]">
+                      <span style={{ fontSize: 11, fontFamily: "monospace", color: "var(--cf-muted)", flexShrink: 0 }}>
                         ${task.estimatedUsd.toFixed(4)}
                       </span>
-                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--text-faint)]">
+                      <span style={{ fontSize: 11, fontFamily: "monospace", color: "var(--cf-muted)", flexShrink: 0 }}>
                         {formatTimeToGreen(task.timeToGreenMs)}
                       </span>
                     </div>
@@ -357,7 +284,7 @@ function InsightsContent() {
             </div>
           </>
         )}
-      </section>
+      </div>
 
       <TaskDetailDrawer />
     </div>
@@ -366,16 +293,26 @@ function InsightsContent() {
 
 export default function InsightsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[var(--bg-base)]">
-          <span className="font-mono text-xs uppercase tracking-widest text-[var(--text-muted)]">
-            loading…
-          </span>
-        </div>
-      }
-    >
-      <InsightsContent />
-    </Suspense>
+    <div style={{
+      display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden",
+      background: "var(--cf-bg)", fontFamily: "var(--font-inter, Inter, sans-serif)",
+    }}>
+      <Header />
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <IconSidebar />
+        <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--cf-bg)" }}>
+          <Suspense
+            fallback={
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: "var(--cf-muted)", fontSize: 12 }}>
+                loading…
+              </div>
+            }
+          >
+            <InsightsContent />
+          </Suspense>
+        </main>
+      </div>
+      <ToastContainer />
+    </div>
   );
 }

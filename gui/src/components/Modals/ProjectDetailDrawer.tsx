@@ -196,16 +196,17 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <aside
-          className="relative flex h-[92vh] w-full max-w-[96rem] flex-col overflow-hidden border border-[var(--border)] bg-[var(--bg-base)] shadow-2xl"
+          style={{ background: "var(--cf-surface)", border: "1px solid var(--cf-border)", boxShadow: "0 24px 64px rgba(0,0,0,0.6)", fontFamily: "var(--font-inter, Inter, sans-serif)" }}
+          className="relative flex h-[92vh] w-full max-w-[96rem] flex-col overflow-hidden"
           role="dialog"
           aria-modal="true"
         >
         {project && draft ? (
           <>
-            <header className="border-b border-[var(--border)] px-6 py-5">
+            <header style={{ borderBottom: "1px solid var(--cf-border)", padding: "16px 24px" }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <h2 className="t-display text-3xl leading-[1.1] text-[var(--text-primary)]">
+                  <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--cf-text)", margin: 0 }}>
                     {project.name}
                   </h2>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -234,17 +235,15 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                 <button
                   type="button"
                   onClick={onClose}
-                  className="shrink-0 border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cf-muted)", fontSize: 16, padding: "2px 4px" }}
                   aria-label="Close"
                 >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <path d="M1 1l12 12M13 1L1 13" />
-                  </svg>
+                  ✕
                 </button>
               </div>
             </header>
 
-            <div className="flex border-b border-[var(--border)] px-6">
+            <div style={{ display: "flex", borderBottom: "1px solid var(--cf-border)", padding: "0 24px" }}>
               {([
                 { key: "overview", label: pd.details },
                 { key: "claude",   label: t.claudeConfig.tabLabel },
@@ -253,19 +252,20 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={clsx(
-                    "px-3 py-2.5 text-[12px] font-medium transition border-b-2 -mb-px",
-                    activeTab === tab.key
-                      ? "border-[var(--text-primary)] text-[var(--text-primary)]"
-                      : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                  )}
+                  style={{
+                    padding: "10px 14px", background: "transparent", border: "none",
+                    borderBottom: activeTab === tab.key ? "2px solid #818cf8" : "2px solid transparent",
+                    color: activeTab === tab.key ? "#818cf8" : "var(--cf-muted)",
+                    fontSize: 12, fontWeight: 500, cursor: "pointer", marginBottom: -1,
+                    transition: "color 0.12s",
+                  }}
                 >
                   {tab.label}
                 </button>
               ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex-1 cf-scroll" style={{ overflowY: "auto", padding: "20px 24px" }}>
               {activeTab === "claude" ? (
                 <ClaudeConfigTab projectId={project.id} hasRemote={Boolean(project.remote)} />
               ) : (
@@ -404,7 +404,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                       placeholder="2.00 (default)"
                       value={draft.budgetUsd}
                       onChange={(e) => setDraft({ ...draft, budgetUsd: e.target.value })}
-                      className="w-full rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+                      className={inputCls}
                     />
                   </Field>
                 </div>
@@ -454,12 +454,12 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
             </div>
 
             {activeTab === "overview" && (
-            <footer className="flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--bg-surface)] px-6 py-4">
+            <footer style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, padding: "12px 24px", borderTop: "1px solid var(--cf-border)", background: "var(--cf-surface)" }}>
               <button
                 type="button"
                 onClick={onClose}
                 disabled={saving}
-                className="btn-ghost px-4 py-2 text-[12px] font-medium"
+                style={{ padding: "7px 18px", fontSize: 12, fontWeight: 500, background: "transparent", border: "1px solid var(--cf-border)", borderRadius: 6, color: "var(--cf-muted)", cursor: "pointer" }}
               >
                 {pd.cancel}
               </button>
@@ -467,7 +467,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                 type="button"
                 onClick={handleSave}
                 disabled={saving || !isDirty}
-                className="btn-ink px-4 py-2 text-[12px] font-medium disabled:opacity-50"
+                style={{ padding: "7px 20px", fontSize: 12, fontWeight: 600, background: saving || !isDirty ? "rgba(99,102,241,0.4)" : "#6366f1", border: "1px solid transparent", borderRadius: 6, color: "#fff", cursor: saving || !isDirty ? "not-allowed" : "pointer" }}
               >
                 {saving ? pd.saving : pd.saveChanges}
               </button>
@@ -504,7 +504,8 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
 }
 
 const inputCls =
-  "w-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)]";
+  "w-full border border-[var(--cf-border)] bg-[var(--cf-card)] rounded-md px-3 py-1.5 text-sm text-[var(--cf-text)] outline-none transition focus:border-[#818cf8]"
+  + " [&::placeholder]:text-[var(--cf-muted)]";
 
 function Section({
   label,
@@ -519,8 +520,8 @@ function Section({
     <section className="mb-7">
       <header className="mb-3">
         <span
-          className="text-[12px] font-semibold uppercase tracking-[0.08em]"
-          style={{ color: tone ?? "var(--text-muted)" }}
+          className="text-[10px] font-semibold uppercase tracking-[0.06em]"
+          style={{ color: tone ?? "var(--cf-muted)" }}
         >
           {label}
         </span>
@@ -539,7 +540,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cf-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
         {label}
       </span>
       {children}

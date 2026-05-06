@@ -1,10 +1,8 @@
 "use client";
 
-import clsx from "clsx";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { TaskCard } from "@/components/Card/TaskCard";
-import { useTranslation } from "@/hooks/useTranslation";
 import type { Task, TaskStatus } from "@/types";
 
 interface BoardColumnProps {
@@ -15,99 +13,140 @@ interface BoardColumnProps {
   onAddTask?: () => void;
 }
 
-const COLUMN_TONE: Record<TaskStatus, { dot: string; ink: string }> = {
-  todo:   { dot: "var(--status-todo)",   ink: "var(--text-secondary)" },
-  doing:  { dot: "var(--status-doing)",  ink: "var(--status-doing)" },
-  ci:     { dot: "var(--status-ci, var(--status-review))", ink: "var(--status-ci, var(--status-review))" },
-  review: { dot: "var(--status-review)", ink: "var(--status-review)" },
-  done:   { dot: "var(--status-done)",   ink: "var(--status-done)" },
+const COL_META: Record<TaskStatus, { dot: string; label: string }> = {
+  todo:   { dot: "var(--cf-muted)",   label: "Todo"   },
+  doing:  { dot: "#f59e0b",           label: "Doing"  },
+  ci:     { dot: "#3b82f6",           label: "CI"     },
+  review: { dot: "#f97316",           label: "Review" },
+  done:   { dot: "#22c55e",           label: "Done"   },
 };
 
-export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProps) {
+export function BoardColumn({ status, tasks, onAddTask }: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { status } });
-  const t = useTranslation();
-  const emptyState = t.board.emptyStates[status];
-  const tone = COLUMN_TONE[status];
-
-  const hasActiveAgent =
-    status === "doing" &&
-    tasks.some(
-      (t) =>
-        t.agent.status !== "idle" &&
-        t.agent.status !== "done" &&
-        t.agent.status !== "error",
-    );
+  const meta = COL_META[status];
 
   return (
-    <section
-      ref={setNodeRef}
-      className={clsx(
-        "kanban-column relative flex min-h-[60vh] w-full flex-col border border-[var(--border)] transition-all",
-        isOver && "border-[var(--accent-primary)]",
-      )}
+    <div
+      style={{
+        width: 264,
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 0,
+      }}
     >
-      {/* header */}
-      <header className="relative flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <span
-            className={clsx(
-              "h-1.5 w-1.5",
-              hasActiveAgent && "animate-pulse",
-            )}
-            style={{ backgroundColor: tone.dot }}
-            aria-hidden
-          />
-          <h2
-            className="text-[13px] font-semibold"
-            style={{ color: tone.ink }}
-          >
-            {title}
-          </h2>
-          <span className="font-mono text-[11px] tabular-nums text-[var(--text-muted)]">
-            {tasks.length}
-          </span>
-        </div>
-        {status === "todo" && (
-          <button
-            type="button"
-            onClick={onAddTask}
-            className="text-[12px] text-[var(--text-muted)] transition hover:text-[var(--accent-primary)]"
-          >
-            + Add
-          </button>
-        )}
-
-        {hasActiveAgent && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-px overflow-hidden"
-          >
-            <span className="absolute inset-y-0 left-0 w-1/3 animate-scan bg-[var(--accent-primary)]" />
-          </span>
-        )}
-      </header>
-
-      <SortableContext
-        id={status}
-        items={tasks.map((t) => t.id)}
-        strategy={verticalListSortingStrategy}
+      {/* Column header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "0 2px 10px 2px",
+        }}
       >
-        <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-3">
-          {tasks.length === 0 && (
-            <div className="flex flex-col items-start gap-2 border border-dashed border-[var(--border)] bg-[var(--bg-sunken)] p-5 text-left">
-              <p className="t-display text-xl text-[var(--text-secondary)]">
-                {emptyState.title}
-              </p>
-              <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                {emptyState.hint}
-              </p>
+        <span
+          style={{ width: 8, height: 8, borderRadius: "50%", background: meta.dot, flexShrink: 0 }}
+          aria-hidden
+        />
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--cf-text)",
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+          }}
+        >
+          {meta.label}
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--cf-muted)",
+            background: "var(--cf-tag-bg)",
+            border: "1px solid var(--cf-border)",
+            borderRadius: 4,
+            padding: "0 6px",
+            marginLeft: 2,
+          }}
+        >
+          {tasks.length}
+        </span>
+        <span style={{ flex: 1 }} />
+      </div>
+
+      {/* Drop zone */}
+      <div
+        ref={setNodeRef}
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          minHeight: 80,
+          padding: "8px 0",
+          borderRadius: 8,
+          border: isOver ? "2px dashed #6366f1" : "2px dashed transparent",
+          background: isOver ? "rgba(99,102,241,0.05)" : "transparent",
+          transition: "border-color 0.15s, background 0.15s",
+        }}
+      >
+        <SortableContext
+          id={status}
+          items={tasks.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {tasks.length === 0 && !isOver && (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "32px 16px",
+                color: "var(--cf-muted)",
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontSize: 22, marginBottom: 8, opacity: 0.4 }}>◻</div>
+              Drop tasks here
             </div>
           )}
           {tasks.map((task) => (
             <TaskCard key={task.id} task={task} />
           ))}
-        </div>
-      </SortableContext>
-    </section>
+        </SortableContext>
+      </div>
+
+      {/* Add task button */}
+      <button
+        type="button"
+        onClick={onAddTask}
+        style={{
+          marginTop: 8,
+          width: "100%",
+          padding: "7px",
+          background: "transparent",
+          border: "1px dashed var(--cf-border)",
+          borderRadius: 7,
+          color: "var(--cf-muted)",
+          fontSize: 12,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 5,
+          transition: "border-color 0.12s, color 0.12s",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "#818cf8";
+          e.currentTarget.style.color = "#818cf8";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "var(--cf-border)";
+          e.currentTarget.style.color = "var(--cf-muted)";
+        }}
+      >
+        + Add task
+      </button>
+    </div>
   );
 }

@@ -93,15 +93,15 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onClick={(e) => { if (e.target === e.currentTarget) { studioReset(); setGenOpen(false); } }}
         >
-          <div className="flex w-full max-w-xl flex-col gap-4 border border-[var(--border)] bg-[var(--bg-base)] p-5 shadow-xl">
+          <div className="flex w-full max-w-xl flex-col gap-4 border border-[var(--cf-border)] bg-[var(--cf-bg)] p-5 shadow-xl">
             <div className="flex items-center justify-between">
-              <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
+              <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--cf-text)]">
                 Generate from prompt
               </span>
               <button
                 type="button"
                 onClick={() => { studioReset(); setGenOpen(false); }}
-                className="border border-[var(--border)] p-1.5 text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+                className="border border-[var(--cf-border)] p-1.5 text-[var(--cf-muted)] transition hover:text-[var(--cf-text)]"
                 aria-label="Close"
               >
                 <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -111,7 +111,7 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              <label className="text-[11px] uppercase tracking-[0.08em] text-[var(--cf-muted)]">
                 Describe the agent
               </label>
               <textarea
@@ -121,13 +121,13 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
                 rows={4}
                 spellCheck={false}
                 placeholder="e.g. A backend agent that reviews API routes for security issues..."
-                className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-[12px] leading-relaxed text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)] disabled:opacity-60"
+                className="w-full resize-y border border-[var(--cf-border)] bg-[var(--cf-surface)] px-3 py-2 text-[12px] leading-relaxed text-[var(--cf-text)] placeholder:text-[var(--cf-muted)] outline-none transition focus:border-[var(--cf-muted)] disabled:opacity-60"
               />
             </div>
 
             {installedSkills.length > 0 && (
               <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--cf-muted)]">
                   Skills to include
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -140,8 +140,8 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
                       className={clsx(
                         "border px-2 py-0.5 font-mono text-[10px] transition disabled:opacity-50",
                         selectedSkills.has(sk.id)
-                          ? "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-base)]"
-                          : "border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                          ? "border-[var(--cf-text)] bg-[var(--cf-text)] text-[var(--cf-bg)]"
+                          : "border-[var(--cf-border)] bg-[var(--cf-surface)] text-[var(--cf-muted)] hover:border-[var(--cf-muted)] hover:text-[var(--cf-text)]",
                       )}
                     >
                       {sk.id}
@@ -156,12 +156,12 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
                 type="button"
                 onClick={() => void handleGenerate()}
                 disabled={!prompt.trim() || isRunning}
-                className="btn-ink px-4 py-2 text-[12px] disabled:opacity-50"
+                style={{ background: "#6366f1", color: "#fff", border: "none", borderRadius: 5, padding: "7px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
               >
                 {isRunning ? "Generating..." : "Generate"}
               </button>
               {isError && studioGeneration.error && (
-                <span className="text-[12px] text-[var(--status-error)]">
+                <span className="text-[12px] text-[#ef4444]">
                   {studioGeneration.error}
                 </span>
               )}
@@ -169,12 +169,12 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
 
             {(isRunning || isDone) && (
               <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--cf-muted)]">
                   Generated agent
                 </span>
-                <pre className="max-h-48 w-full overflow-auto border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
+                <pre className="max-h-48 w-full overflow-auto border border-[var(--cf-border)] bg-[var(--cf-surface)] px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--cf-text)] whitespace-pre-wrap">
                   {studioGeneration.text || (
-                    <span className="italic text-[var(--text-faint)]">Writing...</span>
+                    <span className="italic text-[var(--cf-muted)]">Writing...</span>
                   )}
                 </pre>
               </div>
@@ -186,7 +186,7 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
                   type="button"
                   onClick={() => void handleSave()}
                   disabled={saving || !studioGeneration.text.trim()}
-                  className="btn-ink px-4 py-2 text-[12px] disabled:opacity-50"
+                  style={{ background: "#6366f1", color: "#fff", border: "none", borderRadius: 5, padding: "7px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                 >
                   {saving ? "Saving..." : "Save agent"}
                 </button>

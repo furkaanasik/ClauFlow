@@ -634,7 +634,7 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-[12px] text-[var(--text-muted)]">
+      <div className="flex h-full items-center justify-center text-[12px] text-[var(--cf-muted)]">
         Loading canvas...
       </div>
     );
@@ -643,11 +643,11 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <div className="text-[12px] text-[var(--status-error)]">{error}</div>
+        <div className="text-[12px] text-[#ef4444]">{error}</div>
         <button
           type="button"
           onClick={() => void loadAll()}
-          className="border border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+          className="border border-[var(--cf-border)] px-3 py-1.5 text-[11px] text-[var(--cf-muted)] transition hover:text-[var(--cf-text)]"
         >
           Retry
         </button>
@@ -671,14 +671,14 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
       />
 
       {/* Graph selector toolbar */}
-      <div className="flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-base)] px-4 py-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
+      <div className="flex items-center gap-2 border-b border-[var(--cf-border)] bg-[var(--cf-bg)] px-4 py-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--cf-muted)]">
           Graph:
         </span>
         <select
           value={activeGraphId ?? graphRecords[0]?.id ?? ""}
           onChange={(e) => handleSelectGraph(e.target.value || null)}
-          className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)] focus:border-[var(--text-secondary)] focus:outline-none"
+          className="border border-[var(--cf-border)] bg-[var(--cf-surface)] px-2 py-1 font-mono text-[11px] text-[var(--cf-muted)] focus:border-[var(--cf-muted)] focus:outline-none"
           title="Select graph"
         >
           {graphRecords.map((g) => (
@@ -701,20 +701,20 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
               }}
               placeholder="Graph name..."
               autoFocus
-              className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--text-secondary)] focus:outline-none"
+              className="border border-[var(--cf-border)] bg-[var(--cf-surface)] px-2 py-1 font-mono text-[11px] text-[var(--cf-text)] placeholder:text-[var(--cf-muted)] focus:border-[var(--cf-muted)] focus:outline-none"
             />
             <button
               type="button"
               onClick={() => void handleCreateGraph()}
               disabled={creatingGraph || !newGraphName.trim()}
-              className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
+              className="border border-[var(--cf-border)] px-2 py-1 font-mono text-[10px] text-[var(--cf-muted)] transition hover:border-[var(--cf-muted)] hover:text-[var(--cf-text)] disabled:opacity-40"
             >
               {creatingGraph ? "..." : "Create"}
             </button>
             <button
               type="button"
               onClick={() => { setShowNewGraphInput(false); setNewGraphName(""); }}
-              className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              className="border border-[var(--cf-border)] px-2 py-1 font-mono text-[10px] text-[var(--cf-muted)] transition hover:text-[var(--cf-text)]"
             >
               Cancel
             </button>
@@ -724,7 +724,7 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
             type="button"
             onClick={() => setShowNewGraphInput(true)}
             title="Create new graph"
-            className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="border border-[var(--cf-border)] px-2 py-1 font-mono text-[10px] text-[var(--cf-muted)] transition hover:border-[var(--cf-muted)] hover:text-[var(--cf-text)]"
           >
             + New
           </button>
@@ -740,7 +740,7 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
               onClick={() => setConfirmDeleteGraph(true)}
               disabled={isDefault || deletingGraph}
               title={isDefault ? "Cannot delete the default graph" : "Delete this graph"}
-              className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-muted)] transition hover:border-[var(--status-error)] hover:text-[var(--status-error)] disabled:opacity-30 disabled:cursor-not-allowed"
+              className="border border-[var(--cf-border)] px-2 py-1 font-mono text-[10px] text-[var(--cf-muted)] transition hover:border-[#ef4444] hover:text-[#ef4444] disabled:opacity-30 disabled:cursor-not-allowed"
             >
               Del
             </button>
@@ -779,18 +779,18 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
               className={[
                 "inline-flex items-center gap-1 border px-2 py-0.5 font-mono text-[10px]",
                 nodes.length > 5
-                  ? "border-[var(--status-warning)] text-[var(--status-warning)]"
-                  : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)]",
+                  ? "border-[#f59e0b] text-[#f59e0b]"
+                  : "border-[var(--cf-border)] bg-[var(--cf-bg)] text-[var(--cf-muted)]",
               ].join(" ")}
             >
-              {nodes.length}<span className="text-[var(--text-faint)]">/5</span>
-              <span className="text-[var(--text-faint)]">agents</span>
+              {nodes.length}<span className="text-[var(--cf-muted)]">/5</span>
+              <span className="text-[var(--cf-muted)]">agents</span>
             </span>
             <button
               type="button"
               onClick={() => void handleSave()}
               disabled={!isDirty || saving}
-              className="border border-[var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] shadow transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
+              className="border border-[var(--cf-border)] bg-[var(--cf-bg)] px-3 py-1.5 text-[11px] text-[var(--cf-muted)] shadow transition hover:border-[var(--cf-muted)] hover:text-[var(--cf-text)] disabled:opacity-40"
             >
               {saving ? "Saving..." : "Save layout"}
             </button>
@@ -839,17 +839,17 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
             }}
             fitView
             proOptions={{ hideAttribution: true }}
-            className="bg-[var(--bg-surface)]"
+            className="bg-[var(--cf-canvas-bg)]"
           >
-            <Background color="var(--border)" gap={20} />
+            <Background color="var(--cf-grid-dot)" gap={20} size={1} variant={"dots" as any} />
             <Controls />
           </ReactFlow>
 
           {validation && (
-            <div className="absolute left-4 top-4 z-10 max-w-[400px] rounded border border-rose-500 bg-[var(--bg-base)] px-3 py-2 text-[11px] text-rose-500 shadow">
+            <div className="absolute left-4 top-4 z-10 max-w-[400px] rounded border border-rose-500 bg-[var(--cf-bg)] px-3 py-2 text-[11px] text-rose-500 shadow">
               Graph invalid: <span className="font-mono">{validation.reason}</span>
               {validation.ids.size > 0 && (
-                <span className="ml-1 font-mono text-[10px] text-[var(--text-muted)]">
+                <span className="ml-1 font-mono text-[10px] text-[var(--cf-muted)]">
                   ({[...validation.ids].join(", ")})
                 </span>
               )}
@@ -873,9 +873,9 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
         )}
       </div>
 
-      <div className="flex items-center gap-1.5 border-t border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5">
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--text-muted)]"><circle cx="8" cy="8" r="7"/><path d="M8 7v4M8 5h.01"/></svg>
-        <span className="font-mono text-[10px] text-[var(--text-faint)]">
+      <div className="flex items-center gap-1.5 border-t border-[var(--cf-border)] bg-[var(--cf-surface)] px-3 py-1.5">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--cf-muted)]"><circle cx="8" cy="8" r="7"/><path d="M8 7v4M8 5h.01"/></svg>
+        <span className="font-mono text-[10px] text-[var(--cf-muted)]">
           Project CLAUDE.md and hooks remain active during graph execution — they may influence node behavior.
         </span>
       </div>

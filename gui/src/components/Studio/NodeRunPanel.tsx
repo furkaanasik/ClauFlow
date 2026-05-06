@@ -29,15 +29,15 @@ export function NodeRunPanel({ taskId, nodeId, onClose }: NodeRunPanelProps) {
   if (!taskId || !nodeId) return null;
 
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-l border-[var(--border)] bg-[var(--bg-base)]">
-      <header className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
-        <span className="font-mono text-[12px] text-[var(--text-primary)]">
+    <aside className="flex w-[360px] shrink-0 flex-col border-l border-[var(--cf-border)] bg-[var(--cf-bg)]">
+      <header className="flex items-center justify-between border-b border-[var(--cf-border)] px-3 py-2">
+        <span className="font-mono text-[12px] text-[var(--cf-text)]">
           {nodeId}
         </span>
         <button
           type="button"
           onClick={onClose}
-          className="text-[14px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          className="text-[14px] text-[var(--cf-muted)] hover:text-[var(--cf-text)]"
           aria-label="Close panel"
         >
           ×
@@ -45,7 +45,7 @@ export function NodeRunPanel({ taskId, nodeId, onClose }: NodeRunPanelProps) {
       </header>
 
       {run ? (
-        <div className="grid grid-cols-2 gap-x-2 gap-y-1 border-b border-[var(--border)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 border-b border-[var(--cf-border)] px-3 py-2 text-[11px] text-[var(--cf-muted)]">
           <div>Status</div>
           <div className="font-mono">{run.status}</div>
           <div>Model</div>
@@ -72,12 +72,12 @@ export function NodeRunPanel({ taskId, nodeId, onClose }: NodeRunPanelProps) {
           )}
         </div>
       ) : (
-        <div className="border-b border-[var(--border)] px-3 py-2 text-[11px] text-[var(--text-faint)]">
+        <div className="border-b border-[var(--cf-border)] px-3 py-2 text-[11px] text-[var(--cf-muted)]">
           No run yet for this node.
         </div>
       )}
 
-      <pre className="flex-1 overflow-auto whitespace-pre-wrap px-3 py-2 font-mono text-[11px] text-[var(--text-secondary)]">
+      <pre className="flex-1 overflow-auto whitespace-pre-wrap px-3 py-2 font-mono text-[11px] text-[var(--cf-muted)]">
         {log.length > 0 ? log.join("\n") : "(no log lines yet)"}
       </pre>
     </aside>

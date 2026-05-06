@@ -2,190 +2,179 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { PRDetailDrawer } from "@/components/Github/PRDetailDrawer";
 import { githubApi, type PRListItem } from "@/lib/api";
 import { PR_STATE_STYLES } from "@/lib/githubConstants";
+import { Header } from "@/components/Layout/Header";
+import { IconSidebar } from "@/components/Layout/IconSidebar";
+import { ToastContainer } from "@/components/ui/Toast";
 
 function formatDate(iso: string) {
   try {
     const d = new Date(iso);
     const pad = (n: number) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  } catch {
-    return iso;
-  }
+  } catch { return iso; }
 }
 
 function GithubPRsContent() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get("projectId");
 
-  const [prs, setPrs] = useState<PRListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [prs, setPrs]           = useState<PRListItem[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
   const [selectedPR, setSelectedPR] = useState<PRListItem | null>(null);
 
   const fetchPrs = useCallback(() => {
     if (!projectId) {
-      setError(
-        "No project selected. Open the board, pick a project, then click the PR icon.",
-      );
+      setError("No project selected. Open the board, pick a project, then click the PR icon.");
       setLoading(false);
       return;
     }
     setLoading(true);
     githubApi.listPRs(projectId)
-      .then((data) => {
-        setPrs(data);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
-      })
+      .then((data) => { setPrs(data); setError(null); })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  useEffect(() => {
-    fetchPrs();
-  }, [fetchPrs]);
+  useEffect(() => { fetchPrs(); }, [fetchPrs]);
 
   const counts = {
-    OPEN: prs.filter((p) => p.state === "OPEN").length,
+    OPEN:   prs.filter((p) => p.state === "OPEN").length,
     MERGED: prs.filter((p) => p.state === "MERGED").length,
     CLOSED: prs.filter((p) => p.state === "CLOSED").length,
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
-      {/* Top bar */}
-      <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-base)]">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-4">
-          <Link
-            href="/board"
-            className="btn-ghost inline-flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium"
-          >
-            <span aria-hidden>←</span>
-            Board
-          </Link>
-          {!loading && !error && (
-            <span className="ml-auto inline-flex items-center gap-3">
-              <Counter label="Open"   value={counts.OPEN}   ink="var(--accent-primary)" />
-              <Counter label="Merged" value={counts.MERGED} ink="var(--status-review)" />
-              <Counter label="Closed" value={counts.CLOSED} ink="var(--status-error)" />
-            </span>
-          )}
+    <div style={{ flex: 1, overflowY: "auto", background: "var(--cf-bg)" }} className="cf-scroll">
+      {/* Page header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px", borderBottom: "1px solid var(--cf-border)" }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--cf-text)", margin: 0 }}>
+            Pull Requests
+          </h1>
+          <p style={{ fontSize: 12, color: "var(--cf-muted)", marginTop: 4 }}>
+            Review, merge, or send the agent back for changes.
+          </p>
         </div>
-      </header>
-
-      {/* Body */}
-      <section className="mx-auto max-w-5xl px-6 py-12">
-        <div className="mb-10 flex items-end justify-between gap-6">
-          <div>
-            <h1 className="t-display text-4xl leading-tight text-[var(--text-primary)] md:text-5xl">
-              Pull requests
-            </h1>
-            <p className="mt-3 max-w-md text-base text-[var(--text-secondary)]">
-              Read the diff. Merge what ships. Comment to send the agent back.
-            </p>
+        {!loading && !error && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {[
+              { label: "Open",   count: counts.OPEN,   color: "#818cf8" },
+              { label: "Merged", count: counts.MERGED, color: "#22c55e" },
+              { label: "Closed", count: counts.CLOSED, color: "#6b7280" },
+            ].map(({ label, count, color }) => (
+              <span key={label} style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "3px 10px", borderRadius: 20,
+                background: `${color}18`, border: `1px solid ${color}44`,
+                color, fontSize: 11, fontWeight: 600,
+              }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: color }} />
+                {label} <span style={{ fontFamily: "monospace" }}>{count}</span>
+              </span>
+            ))}
           </div>
-        </div>
+        )}
+      </div>
 
+      <div style={{ padding: "20px 28px" }}>
         {loading && (
-          <div className="flex flex-col items-center gap-4 border border-dashed border-[var(--border)] py-16">
-            <div className="flex gap-1">
-              <span className="animate-dot-1 h-1.5 w-1.5 bg-[var(--text-muted)]" />
-              <span className="animate-dot-2 h-1.5 w-1.5 bg-[var(--text-muted)]" />
-              <span className="animate-dot-3 h-1.5 w-1.5 bg-[var(--text-muted)]" />
-            </div>
-            <span className="text-[12px] text-[var(--text-muted)]">
-              Loading pull requests…
-            </span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "64px 0", color: "var(--cf-muted)", fontSize: 13 }}>
+            Loading pull requests…
           </div>
         )}
 
         {error && (
-          <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-4 py-3 text-sm text-[var(--status-error)]">
+          <div style={{
+            padding: "10px 14px", borderRadius: 6,
+            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
+            color: "#ef4444", fontSize: 13,
+          }}>
             {error}
           </div>
         )}
 
         {!loading && !error && prs.length === 0 && (
-          <div className="flex flex-col items-center gap-2 border border-dashed border-[var(--border)] py-16">
-            <p className="t-display text-2xl text-[var(--text-secondary)]">
-              No pull requests
-            </p>
-            <p className="text-[12px] text-[var(--text-faint)]">
-              Open a task and let the agent push the first one
-            </p>
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            padding: "64px 0", borderRadius: 8, border: "1px dashed var(--cf-border)",
+            color: "var(--cf-muted)", gap: 8,
+          }}>
+            <div style={{ fontSize: 28, opacity: 0.3 }}>⑂</div>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: "var(--cf-text)" }}>No pull requests</p>
+            <p style={{ margin: 0, fontSize: 12 }}>Open a task and let the agent push the first one</p>
           </div>
         )}
 
         {!loading && !error && prs.length > 0 && (
-          <div className="border border-[var(--border)]">
-            {prs.map((pr) => {
+          <div style={{ borderRadius: 8, border: "1px solid var(--cf-border)", overflow: "hidden" }}>
+            {prs.map((pr, idx) => {
               const stateStyle = PR_STATE_STYLES[pr.state] ?? PR_STATE_STYLES["OPEN"];
               return (
                 <div
                   key={pr.number}
                   onClick={() => setSelectedPR(pr)}
-                  className="group relative flex cursor-pointer items-center gap-5 overflow-hidden border-b border-[var(--border)] bg-[var(--bg-surface)] px-5 py-4 transition last:border-b-0 hover:bg-[var(--bg-elevated)]"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 14,
+                    padding: "12px 16px", cursor: "pointer",
+                    borderBottom: idx < prs.length - 1 ? "1px solid var(--cf-border)" : "none",
+                    transition: "background 0.1s",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--cf-card-hover)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
                 >
                   {/* PR number */}
-                  <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-[var(--text-muted)]">
+                  <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 600, color: "var(--cf-muted)", flexShrink: 0 }}>
                     #{pr.number}
                   </span>
 
                   {/* Title + meta */}
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="t-display truncate text-xl text-[var(--text-primary)] transition group-hover:text-[var(--accent-primary)]">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--cf-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: 3 }}>
                       {pr.title}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-muted)]">
-                      {pr.repository && (
-                        <>
-                          <span>{pr.repository.nameWithOwner}</span>
-                          <span className="text-[var(--text-faint)]">·</span>
-                        </>
-                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, fontSize: 11, color: "var(--cf-muted)" }}>
+                      {pr.repository && <><span>{pr.repository.nameWithOwner}</span><span>·</span></>}
                       <span>@{pr.author?.login ?? "unknown"}</span>
-                      <span className="text-[var(--text-faint)]">·</span>
-                      <span className="font-mono tabular-nums">{formatDate(pr.createdAt)}</span>
+                      <span>·</span>
+                      <span style={{ fontFamily: "monospace" }}>{formatDate(pr.createdAt)}</span>
                     </div>
                   </div>
 
-                  {/* State */}
-                  <span
-                    className="inline-flex shrink-0 items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium capitalize"
-                    style={{ borderColor: stateStyle.ink, color: stateStyle.ink }}
-                  >
-                    <span className="h-1 w-1" style={{ background: stateStyle.ink }} />
+                  {/* State badge */}
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "2px 8px", borderRadius: 4,
+                    background: `${stateStyle.ink}18`, border: `1px solid ${stateStyle.ink}44`,
+                    color: stateStyle.ink, fontSize: 10, fontWeight: 600,
+                    textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+                  }}>
+                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: stateStyle.ink }} />
                     {stateStyle.label}
                   </span>
 
-                  {/* External */}
+                  {/* External link */}
                   <a
                     href={pr.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="shrink-0 px-2 font-mono text-xs text-[var(--text-faint)] transition hover:text-[var(--text-primary)]"
+                    style={{ color: "var(--cf-muted)", fontSize: 13, flexShrink: 0, textDecoration: "none" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#818cf8"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--cf-muted)"; }}
                     title="Open on GitHub"
                   >
                     ↗
                   </a>
-
-                  {/* hover line */}
-                  <span
-                    aria-hidden
-                    className="pointer-events-none absolute bottom-0 left-0 h-px w-0 bg-[var(--accent-primary)] transition-all duration-500 group-hover:w-full"
-                  />
                 </div>
               );
             })}
           </div>
         )}
-      </section>
+      </div>
 
       {selectedPR && (
         <PRDetailDrawer
@@ -199,30 +188,28 @@ function GithubPRsContent() {
   );
 }
 
-function Counter({ label, value, ink }: { label: string; value: number; ink: string }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium"
-      style={{ borderColor: ink, color: ink }}
-    >
-      <span className="h-1 w-1" style={{ background: ink }} />
-      {label} <span className="font-mono tabular-nums">{value}</span>
-    </span>
-  );
-}
-
 export default function GithubPRsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[var(--bg-base)]">
-          <span className="font-mono text-xs uppercase tracking-widest text-[var(--text-muted)]">
-            loading…
-          </span>
-        </div>
-      }
-    >
-      <GithubPRsContent />
-    </Suspense>
+    <div style={{
+      display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden",
+      background: "var(--cf-bg)", fontFamily: "var(--font-inter, Inter, sans-serif)",
+    }}>
+      <Header />
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <IconSidebar />
+        <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--cf-bg)" }}>
+          <Suspense
+            fallback={
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: "var(--cf-muted)", fontSize: 12 }}>
+                loading…
+              </div>
+            }
+          >
+            <GithubPRsContent />
+          </Suspense>
+        </main>
+      </div>
+      <ToastContainer />
+    </div>
   );
 }

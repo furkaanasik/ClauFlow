@@ -1,6 +1,5 @@
 "use client";
 
-import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
@@ -16,14 +15,20 @@ interface AddTaskModalProps {
 
 type Priority = "low" | "medium" | "high" | "critical";
 
-const PRIO_COLOR: Record<Priority, string> = {
-  low:      "var(--prio-low)",
-  medium:   "var(--prio-medium)",
-  high:     "var(--prio-high)",
-  critical: "var(--prio-critical)",
+const PRIO_META: Record<Priority, { color: string; bg: string }> = {
+  low:      { color: "#6b7280", bg: "rgba(107,114,128,0.12)" },
+  medium:   { color: "#f59e0b", bg: "rgba(245,158,11,0.15)"  },
+  high:     { color: "#ef4444", bg: "rgba(239,68,68,0.15)"   },
+  critical: { color: "#ef4444", bg: "rgba(239,68,68,0.15)"   },
 };
 
 const PRIO_LIST: Priority[] = ["low", "medium", "high", "critical"];
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", background: "var(--cf-card)", border: "1px solid var(--cf-border)",
+  borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--cf-text)",
+  outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+};
 
 export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const selectedProjectId = useBoardStore((s) => s.selectedProjectId);
@@ -45,10 +50,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   useEffect(() => {
     if (!open || !selectedProjectId) return;
     api.listGraphs(selectedProjectId)
-      .then((r) => {
-        setGraphs(r.graphs);
-        setGraphId(r.graphs[0]?.id ?? null);
-      })
+      .then((r) => { setGraphs(r.graphs); setGraphId(r.graphs[0]?.id ?? null); })
       .catch(() => {});
   }, [open, selectedProjectId]);
 
@@ -63,17 +65,16 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
     e.preventDefault();
     if (!selectedProjectId) { setError(t.addTask.errorNoProject); return; }
     if (!title.trim())       { setError(t.addTask.errorNoTitle);    return; }
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const parsedBudget = budgetUsd.trim() ? parseFloat(budgetUsd) : undefined;
       const task = await api.createTask({
         projectId: selectedProjectId,
-        title:       title.trim(),
+        title: title.trim(),
         description: description.trim() || undefined,
-        analysis:    analysis.trim()    || undefined,
+        analysis: analysis.trim() || undefined,
         priority,
-        budgetUsd:     parsedBudget && !isNaN(parsedBudget) ? parsedBudget : null,
+        budgetUsd: parsedBudget && !isNaN(parsedBudget) ? parsedBudget : null,
         executionMode,
         graphId: executionMode === "graph" ? graphId : null,
       });
@@ -89,86 +90,145 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
 
   return (
     <Modal open={open} onClose={handleClose} title={t.addTask.modalTitle} size="lg">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <Field label={t.addTask.titleLabel} required>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {/* Title */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--cf-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            {t.addTask.titleLabel} <span style={{ color: "#ef4444" }}>*</span>
+          </label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={t.addTask.titlePlaceholder}
-            className={inputCls}
+            style={inputStyle}
             autoFocus
           />
-        </Field>
+        </div>
 
-        <Field label={t.addTask.priorityLabel}>
-          <div className="flex gap-px border border-[var(--border)] bg-[var(--border)]">
-            {PRIO_LIST.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setPriority(value)}
-                className={clsx(
-                  "flex flex-1 items-center justify-center gap-2 px-3 py-2.5 text-[12px] font-medium capitalize transition",
-                  priority === value
-                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                    : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                )}
-                style={priority === value ? { boxShadow: `inset 0 -2px 0 ${PRIO_COLOR[value]}` } : {}}
-              >
-                <span className="h-1.5 w-1.5" style={{ background: PRIO_COLOR[value] }} />
-                {t.addTask.priorities[value]}
-              </button>
-            ))}
+        {/* Priority */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--cf-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            {t.addTask.priorityLabel}
+          </label>
+          <div style={{ display: "flex", gap: 4 }}>
+            {PRIO_LIST.map((value) => {
+              const m = PRIO_META[value];
+              const active = priority === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setPriority(value)}
+                  style={{
+                    flex: 1, padding: "6px 4px", borderRadius: 5,
+                    background: active ? m.bg : "transparent",
+                    border: `1px solid ${active ? m.color : "var(--cf-border)"}`,
+                    color: active ? m.color : "var(--cf-muted)",
+                    fontSize: 10, fontWeight: 600, letterSpacing: "0.04em",
+                    textTransform: "uppercase", cursor: "pointer",
+                    transition: "all 0.12s",
+                  }}
+                >
+                  {t.addTask.priorities[value]}
+                </button>
+              );
+            })}
           </div>
-        </Field>
+        </div>
 
         {/* Execution mode */}
-        <Field label="Execution mode">
-          <div className="flex gap-px border border-[var(--border)] bg-[var(--border)]">
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--cf-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Execution Mode
+          </label>
+          <div style={{ display: "flex", gap: 1, background: "var(--cf-border)", borderRadius: 6, overflow: "hidden", border: "1px solid var(--cf-border)" }}>
             {(["simple", "graph"] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
                 onClick={() => setExecutionMode(mode)}
-                className={clsx(
-                  "flex flex-1 items-center justify-center px-3 py-2.5 font-mono text-[11px] uppercase tracking-widest transition",
-                  executionMode === mode
-                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                    : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                )}
+                style={{
+                  flex: 1, padding: "7px 0", border: "none", cursor: "pointer",
+                  background: executionMode === mode ? "var(--cf-card)" : "transparent",
+                  color: executionMode === mode ? "var(--cf-text)" : "var(--cf-muted)",
+                  fontSize: 11, fontWeight: 600, letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                }}
               >
                 {mode}
               </button>
             ))}
           </div>
-        </Field>
+        </div>
 
-        {/* Graph picker — only when graph mode */}
+        {/* Graph picker */}
         {executionMode === "graph" && graphs.length > 0 && (
-          <Field label="Graph">
-            <div className="flex flex-col gap-1">
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--cf-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Graph
+            </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {graphs.map((g) => (
                 <button
                   key={g.id}
                   type="button"
                   onClick={() => setGraphId(g.id)}
-                  className={clsx(
-                    "w-full border px-3 py-2 text-left font-mono text-[12px] transition",
-                    graphId === g.id
-                      ? "border-[var(--text-secondary)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
-                      : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-                  )}
+                  style={{
+                    textAlign: "left", padding: "7px 10px",
+                    background: graphId === g.id ? "rgba(99,102,241,0.1)" : "transparent",
+                    border: `1px solid ${graphId === g.id ? "#6366f1" : "var(--cf-border)"}`,
+                    borderRadius: 5, color: graphId === g.id ? "#818cf8" : "var(--cf-muted)",
+                    fontSize: 12, fontFamily: "monospace", cursor: "pointer",
+                  }}
                 >
                   {g.name}
                 </button>
               ))}
             </div>
-          </Field>
+          </div>
         )}
 
+        {/* Description */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--cf-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            {t.addTask.descriptionLabel}
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={t.addTask.descriptionPlaceholder}
+            rows={2}
+            style={{ ...inputStyle, resize: "none", lineHeight: 1.5 }}
+          />
+        </div>
+
+        {/* Analysis */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--cf-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {t.addTask.analysisLabel}
+            </label>
+            <span style={{ fontSize: 11, color: "var(--cf-muted)", fontStyle: "italic" }}>{t.addTask.analysisHint}</span>
+          </div>
+          <textarea
+            value={analysis}
+            onChange={(e) => setAnalysis(e.target.value)}
+            placeholder={t.addTask.analysisPlaceholder}
+            rows={6}
+            style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 }}
+          />
+        </div>
+
         {/* Budget */}
-        <Field label="Budget (USD)" hint="optional">
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--cf-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Budget (USD)
+            </label>
+            <span style={{ fontSize: 11, color: "var(--cf-muted)", fontStyle: "italic" }}>optional</span>
+          </div>
           <input
             type="number"
             min="0.1"
@@ -176,86 +236,48 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
             value={budgetUsd}
             onChange={(e) => setBudgetUsd(e.target.value)}
             placeholder="e.g. 2.00"
-            className={inputCls}
+            style={{ ...inputStyle, fontFamily: "monospace" }}
           />
-        </Field>
-
-        <Field label={t.addTask.descriptionLabel}>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={t.addTask.descriptionPlaceholder}
-            rows={2}
-            className={clsx(inputCls, "resize-none")}
-          />
-        </Field>
-
-        <Field label={t.addTask.analysisLabel} hint={t.addTask.analysisHint}>
-          <textarea
-            value={analysis}
-            onChange={(e) => setAnalysis(e.target.value)}
-            placeholder={t.addTask.analysisPlaceholder}
-            rows={9}
-            className={clsx(inputCls, "resize-y font-mono text-xs")}
-          />
-        </Field>
+        </div>
 
         {error && (
-          <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-xs text-[var(--status-error)]">
+          <div style={{
+            padding: "8px 12px", borderRadius: 5,
+            background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+            color: "#ef4444", fontSize: 12,
+          }}>
             {error}
           </div>
         )}
 
-        <div className="flex justify-between gap-2 border-t border-[var(--border)] pt-4">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, paddingTop: 4, borderTop: "1px solid var(--cf-border)" }}>
           <button
             type="button"
             onClick={handleClose}
-            className="btn-ghost px-4 py-2 text-[12px] font-medium"
+            style={{
+              padding: "7px 18px", fontSize: 12, fontWeight: 500,
+              background: "transparent", border: "1px solid var(--cf-border)",
+              borderRadius: 6, color: "var(--cf-muted)", cursor: "pointer",
+            }}
           >
             {t.addTask.cancel}
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="btn-ink inline-flex items-center gap-2 px-5 py-2 text-[12px] font-medium disabled:opacity-50"
+            style={{
+              padding: "7px 20px", fontSize: 12, fontWeight: 600,
+              background: loading ? "rgba(99,102,241,0.5)" : "#6366f1",
+              border: "1px solid transparent",
+              borderRadius: 6, color: "#fff", cursor: loading ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", gap: 6,
+            }}
           >
             {loading ? t.addTask.submitting : t.addTask.submit}
-            <span aria-hidden>→</span>
+            {!loading && <span aria-hidden>→</span>}
           </button>
         </div>
       </form>
     </Modal>
-  );
-}
-
-const inputCls =
-  "w-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)]";
-
-function Field({
-  label,
-  required,
-  hint,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-baseline gap-2">
-        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
-          {label}
-          {required && (
-            <span className="ml-1 text-[var(--status-error)]">*</span>
-          )}
-        </span>
-        {hint && (
-          <span className="ml-auto text-[11px] italic text-[var(--text-muted)]">{hint}</span>
-        )}
-      </div>
-      {children}
-    </div>
   );
 }

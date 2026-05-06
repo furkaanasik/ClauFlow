@@ -2,16 +2,10 @@
 
 import { useToastStore, type Toast } from "@/hooks/useToast";
 
-const TYPE_INK: Record<Toast["type"], string> = {
-  success: "var(--accent-primary)",
-  error:   "var(--status-error)",
-  info:    "var(--status-review)",
-};
-
-const TYPE_LABEL: Record<Toast["type"], string> = {
-  success: "ok",
-  error:   "err",
-  info:    "log",
+const TYPE_META: Record<Toast["type"], { color: string; label: string }> = {
+  success: { color: "#22c55e", label: "ok"  },
+  error:   { color: "#ef4444", label: "err" },
+  info:    { color: "#818cf8", label: "log" },
 };
 
 export function ToastContainer() {
@@ -21,33 +15,33 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2">
+    <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 9999, display: "flex", flexDirection: "column", gap: 8 }}>
       {toasts.map((t) => {
-        const ink = TYPE_INK[t.type];
+        const m = TYPE_META[t.type];
         return (
           <div
             key={t.id}
-            className="animate-fade-up flex min-w-[260px] items-stretch border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl"
+            style={{
+              minWidth: 260, display: "flex", alignItems: "stretch",
+              background: "var(--cf-surface)", border: "1px solid var(--cf-border)",
+              borderRadius: 8, overflow: "hidden",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+              animation: "cf-fade-up 0.18s ease-out",
+              fontFamily: "var(--font-inter, Inter, sans-serif)",
+            }}
           >
-            <span
-              aria-hidden
-              className="w-1 shrink-0"
-              style={{ background: ink }}
-            />
-            <div className="flex flex-1 items-center gap-3 px-3 py-2.5">
-              <span
-                className="font-mono text-[10px] uppercase tracking-widest"
-                style={{ color: ink }}
-              >
-                {TYPE_LABEL[t.type]} ·
+            <span style={{ width: 3, flexShrink: 0, background: m.color }} />
+            <div style={{ display: "flex", flex: 1, alignItems: "center", gap: 10, padding: "10px 12px" }}>
+              <span style={{ fontFamily: "monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: m.color, flexShrink: 0 }}>
+                {m.label} ·
               </span>
-              <span className="flex-1 text-xs text-[var(--text-primary)]">
+              <span style={{ flex: 1, fontSize: 12, color: "var(--cf-text)", lineHeight: 1.4 }}>
                 {t.message}
               </span>
               <button
                 type="button"
                 onClick={() => dismiss(t.id)}
-                className="font-mono text-[11px] text-[var(--text-faint)] transition hover:text-[var(--text-primary)]"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cf-muted)", fontSize: 13, padding: "1px 2px", flexShrink: 0 }}
                 aria-label="Dismiss"
               >
                 ✕

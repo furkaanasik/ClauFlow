@@ -167,109 +167,67 @@ export function Board() {
 
   if (!selectedProjectId) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-6 px-6">
-        <div className="flex h-14 w-14 items-center justify-center border border-[var(--border)] text-[var(--text-muted)]">
-          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden>
-            <rect x="1" y="1" width="5" height="11" rx="0" fill="currentColor" opacity="0.4" />
-            <rect x="8" y="1" width="5" height="8"  rx="0" fill="currentColor" opacity="0.4" />
-            <rect x="15" y="1" width="4" height="15" rx="0" fill="currentColor" opacity="0.4" />
-          </svg>
-        </div>
-        <div className="text-center">
-          <p className="t-display text-3xl text-[var(--text-primary)]">No project selected</p>
-          <p className="mt-2 text-sm text-[var(--text-muted)]">Pick one from the left, or create a new project.</p>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "24px 28px" }}>
+        <div style={{ fontSize: 32, opacity: 0.3 }}>◻</div>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: "var(--cf-text)" }}>No project selected</p>
+          <p style={{ marginTop: 6, fontSize: 13, color: "var(--cf-muted)" }}>Pick one from the settings (⚙), or create a new project.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        padding: "24px 28px",
+        flex: 1,
+        overflowX: "auto",
+        overflowY: "auto",
+      }}
+    >
       {/* ── Board header ──────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-5 border-b border-[var(--border)] pb-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="t-display text-4xl leading-tight text-[var(--text-primary)] md:text-5xl">
-              Board
-            </h1>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Drag a task to <span className="text-[var(--accent-primary)]">DOING</span> — Claude opens a PR.
-            </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexShrink: 0 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cf-text)", margin: 0 }}>Board</h2>
+        <span style={{ fontSize: 12, color: "var(--cf-muted)" }}>·</span>
+        {columns.some((c) => c.status === "doing" && byStatus.doing.some((t) => t.agent?.status !== "idle" && t.agent?.status !== "done" && t.agent?.status !== "error")) && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            background: "rgba(245,158,11,0.1)",
+            border: "1px solid rgba(245,158,11,0.2)",
+            borderRadius: 20,
+            padding: "2px 10px",
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }} />
+            <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 500 }}>agents running</span>
           </div>
-          <div className="flex items-center gap-5">
-            <Stat label="Total" value={totalCount} />
-            <span className="h-9 w-px bg-[var(--border)]" />
-            <Stat label="Done" value={doneCount} accent />
-            <span className="h-9 w-px bg-[var(--border)]" />
-            <div className="w-40">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[11px] text-[var(--text-muted)]">Progress</span>
-                <span className="font-mono text-xs tabular-nums text-[var(--text-secondary)]">
-                  {progressPct}%
-                </span>
-              </div>
-              <div className="mt-1.5 h-1 w-full overflow-hidden bg-[var(--bg-sunken)]">
-                <div
-                  className="h-full bg-[var(--accent-primary)] transition-all duration-500"
-                  style={{ width: `${progressPct}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Stat strip + search */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {columns.map((col) => {
-              const count = Object.values(tasks).filter(
-                (t) => t?.projectId === selectedProjectId && t.status === col.status,
-              ).length;
-              return (
-                <span
-                  key={col.status}
-                  className="flex items-center gap-2 border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5"
-                >
-                  <span className="text-[12px] text-[var(--text-secondary)]">{col.title}</span>
-                  <span className="font-mono text-xs font-semibold tabular-nums text-[var(--text-primary)]">
-                    {count}
-                  </span>
-                </span>
-              );
-            })}
-          </div>
-
-          {/* Search */}
-          <div className="relative ml-auto">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--text-faint)]">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" />
-              </svg>
-            </span>
-            <input
-              ref={searchRef}
-              type="text"
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-              placeholder={t.board.searchPlaceholder}
-              className="kanban-search w-64 border border-[var(--border)] bg-[var(--bg-surface)] py-2 pl-9 pr-9 text-[13px] outline-none transition focus:border-[var(--text-secondary)]"
-            />
-            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center font-mono text-[10px] text-[var(--text-faint)]">
-              {filterText ? (
-                <button
-                  type="button"
-                  onClick={() => setFilterText("")}
-                  className="pointer-events-auto px-1 hover:text-[var(--text-primary)]"
-                  aria-label="Clear"
-                >
-                  ✕
-                </button>
-              ) : (
-                "/"
-              )}
-            </span>
-          </div>
-        </div>
+        )}
+        <span style={{ flex: 1 }} />
+        <input
+          ref={searchRef}
+          type="text"
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          placeholder={t.board.searchPlaceholder}
+          style={{
+            background: "var(--cf-card)",
+            border: "1px solid var(--cf-border)",
+            borderRadius: 7,
+            padding: "5px 12px",
+            fontSize: 12,
+            color: "var(--cf-text)",
+            outline: "none",
+            width: 180,
+            fontFamily: "monospace",
+          }}
+          onFocus={(e) => { e.target.style.borderColor = "#6366f1"; }}
+          onBlur={(e) => { e.target.style.borderColor = "var(--cf-border)"; }}
+        />
       </div>
 
       {error && (
@@ -286,7 +244,7 @@ export function Board() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flex: 1 }}>
           {columns.map((col) => (
             <BoardColumn
               key={col.status}
@@ -303,8 +261,6 @@ export function Board() {
           {activeTask ? <TaskCard task={activeTask} /> : null}
         </DragOverlay>
       </DndContext>
-
-      <TaskDetailDrawer />
 
       {(() => {
         const prTask = selectedPRTaskId ? tasks[selectedPRTaskId] : null;

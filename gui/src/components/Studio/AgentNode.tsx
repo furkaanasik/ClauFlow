@@ -139,14 +139,14 @@ function AgentNodeComponent({ data }: NodeProps) {
 
   const ringClass = runState ? STATUS_RING[runState.status] : "";
   const invalidClass = validationError
-    ? "ring-2 ring-rose-500 ring-offset-1 ring-offset-[var(--bg-surface)]"
+    ? "ring-2 ring-rose-500 ring-offset-1 ring-offset-[var(--cf-surface)]"
     : "";
   const kind = deriveNodeKind(agent.slug);
   const accent = NODE_ACCENT[kind];
 
   return (
     <div
-      className={`min-w-[180px] max-w-[240px] border border-[var(--border)] bg-[var(--bg-base)] shadow-sm ${accent.border} ${ringClass} ${invalidClass}`.trim()}
+      className={`min-w-[180px] max-w-[240px] border border-[var(--cf-border)] bg-[var(--cf-bg)] shadow-sm ${accent.border} ${ringClass} ${invalidClass}`.trim()}
       onClick={() => onSelectNode?.(agent.slug)}
       onDragOver={(e) => {
         const dragged = skillDragState.skillId;
@@ -166,11 +166,11 @@ function AgentNodeComponent({ data }: NodeProps) {
         if (sk && !skills.includes(sk)) onAddSkill(agent.slug, sk);
       }}
     >
-      <Handle type="target" position={Position.Top} className="!border-[var(--border)] !bg-[var(--bg-surface)]" />
+      <Handle type="target" position={Position.Top} className="!border-[var(--cf-border)] !bg-[var(--cf-surface)]" />
 
       {/* Header */}
       <div
-        className={`flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2 ${accent.header}`}
+        className={`flex items-center justify-between gap-2 border-b border-[var(--cf-border)] px-3 py-2 ${accent.header}`}
       >
         <div className="flex min-w-0 items-center gap-2">
           <span
@@ -178,12 +178,12 @@ function AgentNodeComponent({ data }: NodeProps) {
           >
             {accent.label}
           </span>
-          <span className="truncate font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+          <span className="truncate font-mono text-[12px] font-semibold text-[var(--cf-text)]">
             {agent.name || agent.slug}
           </span>
         </div>
         {agent.model && (
-          <span className="shrink-0 rounded bg-[var(--bg-surface)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-faint)]">
+          <span className="shrink-0 rounded bg-[var(--cf-surface)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--cf-muted)]">
             {agent.model.replace("claude-", "").replace(/-\d{8}$/, "")}
           </span>
         )}
@@ -195,7 +195,7 @@ function AgentNodeComponent({ data }: NodeProps) {
           {skills.map((sk) => (
             <span
               key={sk}
-              className="group inline-flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-surface)] py-0.5 pl-1.5 pr-1 font-mono text-[9px] text-[var(--text-muted)]"
+              className="group inline-flex items-center gap-1 rounded border border-[var(--cf-border)] bg-[var(--cf-surface)] py-0.5 pl-1.5 pr-1 font-mono text-[9px] text-[var(--cf-muted)]"
             >
               {sk}
               <button
@@ -204,7 +204,7 @@ function AgentNodeComponent({ data }: NodeProps) {
                   e.stopPropagation();
                   onRemoveSkill(agent.slug, sk);
                 }}
-                className="flex h-3 w-3 items-center justify-center text-[var(--text-faint)] opacity-0 transition hover:text-[var(--status-error)] group-hover:opacity-100"
+                className="flex h-3 w-3 items-center justify-center text-[var(--cf-muted)] opacity-0 transition hover:text-[#ef4444] group-hover:opacity-100"
                 aria-label={`Remove ${sk}`}
               >
                 <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -216,7 +216,7 @@ function AgentNodeComponent({ data }: NodeProps) {
           {showGhost && (
             <span
               key={`ghost-${hoverSkill}`}
-              className="rounded border border-dashed border-[var(--text-secondary)] bg-[var(--bg-surface)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-faint)] opacity-60"
+              className="rounded border border-dashed border-[var(--cf-muted)] bg-[var(--cf-surface)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--cf-muted)] opacity-60"
             >
               {hoverSkill}
             </span>
@@ -225,9 +225,9 @@ function AgentNodeComponent({ data }: NodeProps) {
       )}
 
       {(runState || validationError) && (
-        <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] px-3 py-1.5 text-[10px]">
+        <div className="flex items-center justify-between gap-2 border-t border-[var(--cf-border)] px-3 py-1.5 text-[10px]">
           {runState && (
-            <span className="font-mono text-[var(--text-muted)]">
+            <span className="font-mono text-[var(--cf-muted)]">
               {runState.status}
             </span>
           )}
@@ -244,7 +244,7 @@ function AgentNodeComponent({ data }: NodeProps) {
                   e.stopPropagation();
                   onAbortNode(agent.slug);
                 }}
-                className="rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-muted)] hover:text-rose-500"
+                className="rounded border border-[var(--cf-border)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--cf-muted)] hover:text-rose-500"
               >
                 abort
               </button>
@@ -258,7 +258,7 @@ function AgentNodeComponent({ data }: NodeProps) {
                     e.stopPropagation();
                     onRetryNode(agent.slug);
                   }}
-                  className="rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-muted)] hover:text-emerald-500"
+                  className="rounded border border-[var(--cf-border)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--cf-muted)] hover:text-emerald-500"
                 >
                   retry
                 </button>
@@ -267,7 +267,7 @@ function AgentNodeComponent({ data }: NodeProps) {
         </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} className="!border-[var(--border)] !bg-[var(--bg-surface)]" />
+      <Handle type="source" position={Position.Bottom} className="!border-[var(--cf-border)] !bg-[var(--cf-surface)]" />
     </div>
   );
 }

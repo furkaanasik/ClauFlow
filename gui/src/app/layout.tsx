@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Fraunces, JetBrains_Mono } from "next/font/google";
+import { Geist, Fraunces, JetBrains_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import LangHydrator from "@/components/Layout/LangHydrator";
 
@@ -23,6 +23,13 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "ClauFlow — An Almanac for Agentic Engineering",
   description:
@@ -37,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
-      className={`${geistSans.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}
+      className={`${geistSans.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${inter.variable}`}
       suppressHydrationWarning
     >
       <head>

@@ -1,251 +1,201 @@
 "use client";
 
-import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AgentBadge } from "@/components/Card/AgentBadge";
-import { CiBadge } from "@/components/Card/CiBadge";
 import { useBoardStore } from "@/store/boardStore";
-import { useTranslation } from "@/hooks/useTranslation";
+import { calculateCost } from "@/lib/cost";
 import type { Task } from "@/types";
 
-function isQueued(task: Task): boolean {
-  return task.status === "doing" && task.agent.status === "idle";
-}
-
-function showAgentBadge(task: Task): boolean {
-  if (isQueued(task)) return false;
-  const { status: agentStatus } = task.agent;
-  if (agentStatus === "idle") return false;
-  if (task.status === "doing") return true;
-  return agentStatus === "done" || agentStatus === "error";
-}
-
-const PRIORITY_COLOR: Record<string, string> = {
-  critical: "var(--prio-critical)",
-  high:     "var(--prio-high)",
-  medium:   "var(--prio-medium)",
-  low:      "var(--prio-low)",
+/* ── Status dot ──────────────────────────────────────────────────────────── */
+const AGENT_STATUS_META: Record<string, { color: string; label: string; pulse: boolean }> = {
+  idle:        { color: "#6b7280", label: "Idle",       pulse: false },
+  branching:   { color: "#3b82f6", label: "Branching",  pulse: true  },
+  running:     { color: "#f59e0b", label: "Running",    pulse: true  },
+  pushing:     { color: "#f97316", label: "Pushing",    pulse: true  },
+  pr_opening:  { color: "#818cf8", label: "Opening PR", pulse: true  },
+  done:        { color: "#22c55e", label: "Done",       pulse: false },
+  error:       { color: "#ef4444", label: "Error",      pulse: false },
 };
 
-const PRIORITY_LABEL: Record<string, string> = {
-  critical: "p0",
-  high:     "p1",
-  medium:   "p2",
-  low:      "p3",
+function StatusDot({ agentStatus }: { agentStatus: string }) {
+  const meta = AGENT_STATUS_META[agentStatus] ?? AGENT_STATUS_META.idle;
+  return (
+    <span style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 7, height: 7 }}>
+      {meta.pulse && (
+        <span style={{
+          position: "absolute",
+          inset: -3,
+          borderRadius: "50%",
+          background: meta.color,
+          opacity: 0.25,
+          animation: "cf-pulse 1.5s ease-in-out infinite",
+        }} />
+      )}
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
+    </span>
+  );
+}
+
+/* ── Priority badge ──────────────────────────────────────────────────────── */
+const PRIORITY_META: Record<string, { color: string; bg: string; label: string }> = {
+  critical: { color: "#ef4444", bg: "rgba(239,68,68,0.15)",   label: "Critical" },
+  high:     { color: "#ef4444", bg: "rgba(239,68,68,0.15)",   label: "High"     },
+  medium:   { color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  label: "Med"      },
+  low:      { color: "#6b7280", bg: "rgba(107,114,128,0.12)", label: "Low"      },
 };
 
+function PriorityBadge({ priority }: { priority: string }) {
+  const m = PRIORITY_META[(priority ?? "").toLowerCase()] ?? PRIORITY_META.low;
+  return (
+    <span style={{
+      fontSize: 10,
+      fontWeight: 600,
+      letterSpacing: "0.04em",
+      color: m.color,
+      background: m.bg,
+      padding: "1px 6px",
+      borderRadius: 3,
+      textTransform: "uppercase",
+    }}>{m.label}</span>
+  );
+}
+
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+function Spinner({ color = "#818cf8" }: { color?: string }) {
+  return (
+    <span style={{
+      width: 10,
+      height: 10,
+      border: "2px solid rgba(99,102,241,0.2)",
+      borderTop: `2px solid ${color}`,
+      borderRadius: "50%",
+      display: "inline-block",
+      animation: "cf-spin 0.7s linear infinite",
+    }} />
+  );
+}
+
+/* ── Tag ─────────────────────────────────────────────────────────────────── */
+function Tag({ label }: { label: string }) {
+  return (
+    <span style={{
+      fontSize: 10,
+      color: "var(--cf-muted)",
+      background: "var(--cf-tag-bg)",
+      border: "1px solid var(--cf-border)",
+      padding: "1px 6px",
+      borderRadius: 3,
+      fontFamily: "monospace",
+    }}>{label}</span>
+  );
+}
+
+/* ── TaskCard ────────────────────────────────────────────────────────────── */
 interface TaskCardProps {
   task: Task;
 }
 
 export function TaskCard({ task }: TaskCardProps) {
-  const selectTask = useBoardStore((s) => s.selectTask);
+  const selectTask   = useBoardStore((s) => s.selectTask);
   const selectPRTask = useBoardStore((s) => s.selectPRTask);
-  const newTaskIds = useBoardStore((s) => s.newTaskIds);
-  const ciIterations = useBoardStore((s) => s.ciIterations);
+  const newTaskIds   = useBoardStore((s) => s.newTaskIds);
   const clearNewTaskId = useBoardStore((s) => s.clearNewTaskId);
-  const t = useTranslation();
 
   const isNew = newTaskIds.has(task.id);
   const [animated, setAnimated] = useState(false);
+  const [hovered, setHovered]   = useState(false);
 
   useEffect(() => {
     if (!isNew) return;
     const frame = requestAnimationFrame(() => setAnimated(true));
-    const timer = setTimeout(() => {
-      clearNewTaskId(task.id);
-    }, 500);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(timer);
-    };
+    const timer = setTimeout(() => { clearNewTaskId(task.id); }, 500);
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isAgentWorking =
-    task.agent &&
-    task.agent.status !== "idle" &&
-    task.agent.status !== "done" &&
-    task.agent.status !== "error";
+  const agentStatus = task.agent?.status ?? "idle";
+  const isWorking   = agentStatus !== "idle" && agentStatus !== "done" && agentStatus !== "error";
+  const statusMeta  = AGENT_STATUS_META[agentStatus] ?? AGENT_STATUS_META.idle;
 
-  const prio       = (task.priority ?? "").toLowerCase();
-  const prioColor  = PRIORITY_COLOR[prio];
-  const prioLabel  = PRIORITY_LABEL[prio];
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    data: { status: task.status },
+    disabled: isWorking,
+  });
 
-  const visibleTags = (task.tags ?? []).slice(0, 3);
-  const extraTags   = (task.tags ?? []).length - visibleTags.length;
-
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: task.id,
-      data: { status: task.status },
-      disabled: isAgentWorking,
-    });
-
-  const style = {
+  const cardStyle = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
 
-  const cardId = task.displayId ?? `#${task.id.slice(0, 7)}`;
+  const visibleTags = (task.tags ?? []).slice(0, 3);
 
   return (
     <article
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...cardStyle,
+        background: hovered ? "var(--cf-card-hover)" : "var(--cf-card)",
+        border: `1px solid ${isDragging ? "#6366f1" : "var(--cf-border)"}`,
+        borderRadius: 8,
+        padding: "10px 12px",
+        cursor: isWorking ? "not-allowed" : "grab",
+        opacity: isDragging ? 0.4 : (isNew && !animated ? 0 : 1),
+        transition: "background 0.12s, border-color 0.12s, box-shadow 0.12s, opacity 0.5s, transform 0.5s",
+        boxShadow: hovered ? "0 4px 16px rgba(0,0,0,0.25)" : "0 1px 3px rgba(0,0,0,0.12)",
+        userSelect: "none",
+      }}
       {...attributes}
       {...listeners}
       onClick={() => { if (!isDragging) selectTask(task.id); }}
-      className={clsx(
-        "group relative cursor-grab overflow-hidden border border-[var(--border)] bg-[var(--bg-base)] transition-all",
-        "hover:border-[var(--border-strong)]",
-        isDragging     && "opacity-40",
-        isAgentWorking && "cursor-not-allowed",
-        isNew && !animated && "opacity-0 -translate-y-2",
-        isNew && animated  && "opacity-100 translate-y-0",
-        isNew              && "duration-500 ease-out",
-      )}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      {/* queued progress strip */}
-      {isQueued(task) && (
-        <div className="absolute inset-x-0 top-0 h-px bg-[var(--border-strong)]" />
-      )}
-
-      {/* active scan line */}
-      {isAgentWorking && (
-        <div className="absolute inset-x-0 top-0 h-px overflow-hidden">
-          <span className="absolute inset-y-0 left-0 w-1/3 animate-scan bg-[var(--accent-primary)]" />
-        </div>
-      )}
-
-      {/* priority side wedge */}
-      {prioColor && (
-        <span
-          aria-hidden
-          className="absolute inset-y-0 left-0 w-[3px]"
-          style={{ background: prioColor }}
-        />
-      )}
-
-      <div className="px-4 py-3.5 pl-5">
-        {/* metadata row */}
-        <div className="mb-2 flex items-center justify-between">
-          <span className="font-mono text-[11px] text-[var(--text-faint)]">
-            {cardId}
-          </span>
-          {prioLabel && (
-            <span
-              className="font-mono text-[10px] uppercase tracking-widest"
-              style={{ color: prioColor }}
-              title={prio}
-            >
-              {prio}
-            </span>
-          )}
-        </div>
-
-        {/* title */}
-        <h3 className="t-display line-clamp-2 text-[1.25rem] leading-[1.2] text-[var(--text-primary)]">
-          {task.title}
-        </h3>
-
-        {/* description */}
-        {task.description && (
-          <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-[var(--text-muted)]">
-            {task.description}
-          </p>
-        )}
-
-        {/* tags */}
-        {visibleTags.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {visibleTags.map((tag) => (
-              <span
-                key={tag}
-                className="border border-[var(--border)] px-1.5 py-0.5 text-[11px] text-[var(--text-muted)]"
-              >
-                {tag}
-              </span>
-            ))}
-            {extraTags > 0 && (
-              <span className="text-[11px] text-[var(--text-faint)]">
-                +{extraTags}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* footer with hairline */}
-        {(isQueued(task) || showAgentBadge(task) || task.status === "ci" || (task.prNumber && task.status !== "done")) && (
-          <footer className="mt-3 flex items-center justify-end gap-2 border-t border-[var(--border)] pt-2.5">
-            {isQueued(task) && (
-              <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-                <span className="h-1 w-1 bg-[var(--text-faint)]" />
-                Queued
-              </span>
-            )}
-            {task.status === "ci" && (
-              <CiBadge
-                iteration={ciIterations[task.id]?.iteration ?? 0}
-                maxIterations={ciIterations[task.id]?.maxIterations ?? 3}
-                lastConclusion="pending"
-              />
-            )}
-            {showAgentBadge(task) && task.status !== "ci" && (
-              <AgentBadge agent={task.agent} taskTitle={task.title} />
-            )}
-            {task.prNumber && task.status !== "done" && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  selectPRTask(task.id);
-                }}
-                title={t.taskCard.openDiffTitle}
-                className="inline-flex items-center gap-1 border border-[var(--accent-primary)] bg-[var(--accent-muted)] px-2 py-1 text-[11px] text-[var(--accent-primary)] transition hover:bg-[var(--accent-primary)] hover:text-[var(--accent-ink)]"
-              >
-                {t.taskCard.diffButton} #{task.prNumber}
-              </button>
-            )}
-          </footer>
-        )}
-
-        {task.status === "done" && task.prNumber && (
-          <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2.5">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                selectPRTask(task.id);
-              }}
-              className="inline-flex items-center gap-1.5 text-[11px] text-[var(--accent-primary)] transition hover:opacity-80"
-            >
-              <span className="h-1 w-1 bg-[var(--accent-primary)]" />
-              PR #{task.prNumber} · Merged
-            </button>
-            {task.prUrl && (
-              <a
-                href={task.prUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                title={t.taskCard.openOnGithubTitle}
-                className="font-mono text-xs text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-              >
-                ↗
-              </a>
-            )}
-          </div>
-        )}
+      {/* Row 1: priority + status */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+        <PriorityBadge priority={task.priority ?? "low"} />
+        <span style={{ flex: 1 }} />
+        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: statusMeta.color }}>
+          <StatusDot agentStatus={agentStatus} />
+          {statusMeta.label}
+          {isWorking && <Spinner color={statusMeta.color} />}
+        </span>
       </div>
 
-      {/* hover accent line */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute bottom-0 left-0 h-px w-0 bg-[var(--accent-primary)] transition-all duration-500 group-hover:w-full"
-      />
+      {/* Title */}
+      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--cf-text)", lineHeight: 1.4, marginBottom: 8 }}>
+        {task.title}
+      </div>
+
+      {/* Tags */}
+      {visibleTags.length > 0 && (
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+          {visibleTags.map((t) => <Tag key={t} label={t} />)}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 11, color: "var(--cf-muted)", fontFamily: "monospace" }}>
+          {task.displayId ?? `#${task.id.slice(0, 7)}`}
+        </span>
+        <span style={{ flex: 1 }} />
+        {task.prNumber && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); selectPRTask(task.id); }}
+            style={{ fontSize: 11, color: "#818cf8", background: "none", border: "none", cursor: "pointer", fontFamily: "monospace", padding: 0 }}
+          >
+            PR #{task.prNumber}
+          </button>
+        )}
+        {task.usage && (
+          <span style={{ fontSize: 11, color: "var(--cf-muted)", fontFamily: "monospace", fontWeight: 600 }}>
+            ${calculateCost(task.usage).toFixed(4)}
+          </span>
+        )}
+      </div>
     </article>
   );
 }
