@@ -14,6 +14,7 @@ import { BoardColumn } from "@/components/Board/BoardColumn";
 import { TaskCard } from "@/components/Card/TaskCard";
 import { TaskDetailDrawer } from "@/components/Card/TaskDetailDrawer";
 import { AddTaskModal } from "@/components/Modals/AddTaskModal";
+import { ImportIssuesModal } from "@/components/Modals/ImportIssuesModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PRDetailDrawer, type PullRequest } from "@/components/Github/PRDetailDrawer";
 import { useBoardTasks, moveTaskOptimistic } from "@/hooks/useBoard";
@@ -98,8 +99,13 @@ export function Board() {
     });
   }, []);
 
+  const projects       = useBoardStore((s) => s.projects);
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const hasRemote       = Boolean(selectedProject?.remote);
+
   const [activeId, setActiveId]     = useState<string | null>(null);
   const [addOpen, setAddOpen]       = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [showHelp, setShowHelp]     = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [pendingMove, setPendingMove] = useState<{ taskId: string; from: TaskStatus; to: TaskStatus } | null>(null);
@@ -259,6 +265,17 @@ export function Board() {
             })}
           </div>
 
+          {/* Import Issues button */}
+          {hasRemote && (
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium"
+            >
+              ↓ {t.importIssues.buttonLabel}
+            </button>
+          )}
+
           {/* Search */}
           <div className="relative ml-auto">
             <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--text-faint)]">
@@ -357,6 +374,7 @@ export function Board() {
       })()}
 
       <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <ImportIssuesModal open={importOpen} onClose={() => setImportOpen(false)} />
 
       {/* Help overlay */}
       {showHelp && (

@@ -27,9 +27,17 @@ export function ProjectSidebar() {
 
   const studioRequest = useBoardStore((s) => s.studioRequest);
   const closeStudio = useBoardStore((s) => s.closeStudio);
+  const projectDetailRequest = useBoardStore((s) => s.projectDetailRequest);
+  const clearProjectDetailRequest = useBoardStore((s) => s.clearProjectDetailRequest);
   useEffect(() => {
     if (studioRequest) setDetailProjectId(studioRequest.projectId);
   }, [studioRequest]);
+  useEffect(() => {
+    if (projectDetailRequest) {
+      setDetailProjectId(projectDetailRequest);
+      clearProjectDetailRequest();
+    }
+  }, [projectDetailRequest]);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const t = useTranslation();

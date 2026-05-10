@@ -40,6 +40,7 @@ interface BoardState {
   /** Open-Studio intent. ProjectSidebar opens the project drawer when non-null;
    *  ClaudeConfigTab forces the Studio segment; StudioCanvas binds to taskId. */
   studioRequest: { projectId: string; taskId: string } | null;
+  projectDetailRequest: string | null;
 
   studioGeneration: {
     generationId: string | null;
@@ -108,6 +109,8 @@ interface BoardState {
 
   openStudio: (projectId: string, taskId: string) => void;
   closeStudio: () => void;
+  openProjectDetail: (projectId: string) => void;
+  clearProjectDetailRequest: () => void;
 
   getByStatus: (status: TaskStatus) => Task[];
 }
@@ -135,6 +138,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   budgetExceeded: {},
   graphs: {},
   studioRequest: null,
+  projectDetailRequest: null,
 
   studioGeneration: {
     generationId: null,
@@ -486,6 +490,9 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     set(() => ({ studioRequest: { projectId, taskId } })),
 
   closeStudio: () => set(() => ({ studioRequest: null })),
+
+  openProjectDetail: (projectId) => set(() => ({ projectDetailRequest: projectId })),
+  clearProjectDetailRequest: () => set(() => ({ projectDetailRequest: null })),
 
   setWsConnected: (connected) => set(() => ({ wsConnected: connected })),
   setFilterText: (text) => set(() => ({ filterText: text })),

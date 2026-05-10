@@ -535,6 +535,14 @@ export interface PrereqItem {
   docsUrl: string;
 }
 
+export interface GhIssue {
+  number: number;
+  title: string;
+  body: string;
+  labels: { name: string; color: string }[];
+  state: string;
+}
+
 export interface PRListItem {
   number: number;
   title: string;
@@ -577,6 +585,31 @@ export const githubApi = {
     fetch(`${GHBASE}/github/prs/${number}/merge?projectId=${encodeURIComponent(projectId)}`, {
       method: "POST",
     }).then((r) => handle<{ success: boolean }>(r)),
+
+  listIssues: (projectId: string): Promise<{ issues: GhIssue[] }> =>
+    fetch(`${GHBASE}/github/issues?projectId=${encodeURIComponent(projectId)}`)
+      .then((r) => handle<{ issues: GhIssue[] }>(r)),
+
+  importIssues: (
+    projectId: string,
+    issues: Pick<GhIssue, "number" | "title" | "body">[],
+  ): Promise<{ tasks: Task[] }> =>
+    fetch(`${GHBASE}/github/issues/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId, issues }),
+    }).then((r) => handle<{ tasks: Task[] }>(r)),
+
+  createIssue: (
+    projectId: string,
+    title: string,
+    body: string,
+  ): Promise<{ number: number; url: string }> =>
+    fetch(`${GHBASE}/github/issues/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId, title, body }),
+    }).then((r) => handle<{ number: number; url: string }>(r)),
 };
 
 export interface GithubAuthStart {

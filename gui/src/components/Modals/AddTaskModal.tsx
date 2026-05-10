@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { api } from "@/lib/api";
+import { api, githubApi } from "@/lib/api";
 import type { GraphRecord } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
 import { useToast } from "@/hooks/useToast";
@@ -27,9 +27,14 @@ const PRIO_LIST: Priority[] = ["low", "medium", "high", "critical"];
 
 export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const selectedProjectId = useBoardStore((s) => s.selectedProjectId);
+  const projects          = useBoardStore((s) => s.projects);
   const upsertTask        = useBoardStore((s) => s.upsertTask);
   const toast             = useToast();
   const t                 = useTranslation();
+
+  const openProjectDetail = useBoardStore((s) => s.openProjectDetail);
+  const selectedProject   = projects.find((p) => p.id === selectedProjectId);
+  const hasRemote         = Boolean(selectedProject?.remote);
 
   const [title,         setTitle]         = useState("");
   const [description,   setDescription]   = useState("");
@@ -41,6 +46,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const [graphs,        setGraphs]        = useState<GraphRecord[]>([]);
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState<string | null>(null);
+  const [createGhIssue, setCreateGhIssue] = useState(false);
 
   useEffect(() => {
     if (!open || !selectedProjectId) return;
@@ -55,6 +61,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const reset = () => {
     setTitle(""); setDescription(""); setAnalysis(""); setPriority("medium");
     setBudgetUsd(""); setExecutionMode("simple"); setGraphId(null); setError(null);
+    setCreateGhIssue(false);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -78,6 +85,11 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
         graphId: executionMode === "graph" ? graphId : null,
       });
       upsertTask(task);
+      if (createGhIssue && selectedProjectId) {
+        githubApi.createIssue(selectedProjectId, title.trim(), description.trim()).catch(() => {
+          // fire-and-forget — task creation already succeeded, don't fail for this
+        });
+      }
       toast.success(t.addTask.successToast);
       handleClose();
     } catch (err) {
@@ -199,6 +211,33 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
             className={clsx(inputCls, "resize-y font-mono text-xs")}
           />
         </Field>
+
+        {selectedProjectId && (
+          hasRemote ? (
+            <label className="flex cursor-pointer items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+              <input
+                type="checkbox"
+                checked={createGhIssue}
+                onChange={(e) => setCreateGhIssue(e.target.checked)}
+                className="accent-[var(--text-primary)]"
+              />
+              {t.importIssues.createIssueCheckbox}
+            </label>
+          ) : (
+            <div className="flex items-center gap-2 text-[12px] text-[var(--text-muted)]">
+              <input type="checkbox" disabled className="opacity-30" />
+              <span>{t.importIssues.createIssueCheckbox}</span>
+              <span className="text-[var(--text-muted)]">—</span>
+              <button
+                type="button"
+                onClick={() => { onClose(); if (selectedProjectId) openProjectDetail(selectedProjectId); }}
+                className="text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]"
+              >
+                {t.importIssues.noRemoteHint} {t.importIssues.configureLink}
+              </button>
+            </div>
+          )
+        )}
 
         {error && (
           <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-xs text-[var(--status-error)]">

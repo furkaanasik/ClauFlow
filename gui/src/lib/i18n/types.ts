@@ -377,6 +377,25 @@ export interface Translations {
     pricingStaleBanner: string;
     pricingStaleDate: string;
   };
+  importIssues: {
+    buttonLabel: string;
+    modalTitle: string;
+    loading: string;
+    loadError: string;
+    noRemote: string;
+    empty: string;
+    selectAll: string;
+    deselectAll: string;
+    importButton: (n: number) => string;
+    importing: string;
+    successToast: (n: number) => string;
+    errorGeneric: string;
+    issueNumber: string;
+    cancel: string;
+    createIssueCheckbox: string;
+    noRemoteHint: string;
+    configureLink: string;
+  };
   projectDetail: {
     title: string;
     editProject: string;
