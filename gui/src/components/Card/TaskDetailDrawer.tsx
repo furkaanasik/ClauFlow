@@ -19,11 +19,12 @@ const EMPTY_TOOL_CALLS: ToolCall[] = [];
 const EMPTY_AGENT_TEXTS: AgentText[] = [];
 
 const STATUS_COLOR: Record<Task["status"], string> = {
-  todo:   "var(--status-todo)",
-  doing:  "var(--status-doing)",
-  ci:     "var(--status-ci, var(--status-review))",
-  review: "var(--status-review)",
-  done:   "var(--status-done)",
+  todo:    "var(--status-todo)",
+  doing:   "var(--status-doing)",
+  ci:      "var(--status-ci, var(--status-review))",
+  review:  "var(--status-review)",
+  done:    "var(--status-done)",
+  nothing: "var(--text-faint, #94a3b8)",
 };
 
 const PRIO_COLOR: Record<EditPriority, string> = {

@@ -509,3 +509,53 @@ html.light .analysis-block {
   fill: var(--text-primary);
 }
 
+
+/* ─── Markdown in comments ──────────────────────────────────────────────── */
+.comment-markdown h1,.comment-markdown h2,.comment-markdown h3,
+.comment-markdown h4,.comment-markdown h5,.comment-markdown h6 {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0.75em 0 0.25em;
+  line-height: 1.3;
+}
+.comment-markdown h1 { font-size: 1.1em; }
+.comment-markdown h2 { font-size: 1.05em; }
+.comment-markdown h3,.comment-markdown h4 { font-size: 0.95em; }
+.comment-markdown p { margin: 0.4em 0; }
+.comment-markdown ul,.comment-markdown ol { padding-left: 1.25em; margin: 0.4em 0; }
+.comment-markdown li { margin: 0.15em 0; }
+.comment-markdown code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85em;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  padding: 0.1em 0.35em;
+  border-radius: 2px;
+}
+.comment-markdown pre {
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  padding: 0.75em 1em;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.comment-markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.82em;
+}
+.comment-markdown strong { font-weight: 600; color: var(--text-primary); }
+.comment-markdown em { font-style: italic; color: var(--text-secondary); }
+.comment-markdown blockquote {
+  border-left: 2px solid var(--border);
+  margin: 0.4em 0;
+  padding-left: 0.75em;
+  color: var(--text-muted);
+}
+.comment-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.75em 0;
+}
+.comment-markdown a { color: var(--accent-primary); text-decoration: underline; }

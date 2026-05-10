@@ -102,21 +102,37 @@ export function MiniDagView({
                 setSelectedNodeId((prev) => (prev === run.nodeId ? null : run.nodeId))
               }
               className={clsx(
-                "flex min-w-[120px] flex-col gap-1 border bg-[var(--bg-surface)] px-3 py-2 text-left transition hover:bg-[var(--bg-elevated)]",
+                "flex flex-col gap-1 border bg-[var(--bg-surface)] px-3 py-2 text-left transition hover:bg-[var(--bg-elevated)]",
+                run.nodeType === "subagent" ? "min-w-[180px] max-w-[260px]" : "min-w-[120px]",
                 isSelected
                   ? `${borderCls} bg-[var(--bg-elevated)]`
                   : "border-[var(--border)]",
               )}
             >
-              {/* index + node id */}
+              {/* index + label */}
               <div className="flex items-center gap-1.5">
                 <span className="font-mono text-[9px] text-[var(--text-faint)]">
                   {idx + 1}
                 </span>
-                <span className="truncate font-mono text-[11px] font-semibold text-[var(--text-primary)]">
-                  {run.nodeId}
-                </span>
+                {run.nodeType === "subagent" ? (
+                  <span className="truncate font-mono text-[11px] font-semibold text-[var(--accent-primary)]">
+                    {typeof run.inputArtifact?.subagent_type === "string"
+                      ? run.inputArtifact.subagent_type
+                      : "subagent"}
+                  </span>
+                ) : (
+                  <span className="truncate font-mono text-[11px] font-semibold text-[var(--text-primary)]">
+                    {run.nodeId}
+                  </span>
+                )}
               </div>
+
+              {/* description (subagent only) */}
+              {run.nodeType === "subagent" && typeof run.inputArtifact?.description === "string" && (
+                <span className="line-clamp-2 text-[10px] leading-snug text-[var(--text-secondary)]">
+                  {run.inputArtifact.description}
+                </span>
+              )}
 
               {/* status row */}
               <div className="flex items-center gap-1.5">
@@ -148,7 +164,12 @@ export function MiniDagView({
         <div className="flex min-h-0 flex-1 flex-col border border-[var(--border)] bg-[var(--bg-base)]">
           <header className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-2">
             <span className="font-mono text-[11px] text-[var(--text-secondary)]">
-              {nodeLogsTitle} — <span className="text-[var(--text-primary)]">{selectedNodeId}</span>
+              {nodeLogsTitle} —{" "}
+              <span className="text-[var(--text-primary)]">
+                {selectedRun?.nodeType === "subagent" && typeof selectedRun.inputArtifact?.subagent_type === "string"
+                  ? selectedRun.inputArtifact.subagent_type
+                  : selectedNodeId}
+              </span>
             </span>
             <button
               type="button"
@@ -162,6 +183,18 @@ export function MiniDagView({
 
           {selectedRun && (
             <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-1 border-b border-[var(--border)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+              {selectedRun.nodeType === "subagent" && typeof selectedRun.inputArtifact?.subagent_type === "string" && (
+                <>
+                  <div>Agent</div>
+                  <div className="font-mono text-[var(--accent-primary)]">{selectedRun.inputArtifact.subagent_type}</div>
+                </>
+              )}
+              {selectedRun.nodeType === "subagent" && typeof selectedRun.inputArtifact?.description === "string" && (
+                <>
+                  <div>Task</div>
+                  <div className="leading-snug">{selectedRun.inputArtifact.description}</div>
+                </>
+              )}
               <div>Status</div>
               <div className="font-mono">{selectedRun.status}</div>
               <div>Model</div>

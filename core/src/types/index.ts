@@ -1,4 +1,4 @@
-export type TaskStatus = "todo" | "doing" | "ci" | "review" | "done";
+export type TaskStatus = "todo" | "doing" | "ci" | "review" | "done" | "nothing";
 
 export type AgentStatus =
   | "idle"
@@ -101,7 +101,8 @@ export type NodeType =
   | "tester"
   | "ci"
   | "fix"
-  | "custom";
+  | "custom"
+  | "subagent";
 
 export interface NodeRun {
   id: string;

@@ -31,7 +31,7 @@ import { stopCiWatch } from "../services/ciWatcher.js";
 
 const router = Router();
 
-const taskStatus = z.enum(["todo", "doing", "ci", "review", "done"]);
+const taskStatus = z.enum(["todo", "doing", "ci", "review", "done", "nothing"]);
 const taskPriority = z.enum(["low", "medium", "high", "critical"]);
 const agentStatus = z.enum([
   "idle",

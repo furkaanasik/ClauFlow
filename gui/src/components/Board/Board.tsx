@@ -24,21 +24,23 @@ import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { TaskStatus } from "@/types";
 
-const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "ci", "review", "done"];
+const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "ci", "review", "done", "nothing"];
 const COLUMN_NUMERALS: Record<TaskStatus, string> = {
-  todo:   "01",
-  doing:  "02",
-  ci:     "03",
-  review: "04",
-  done:   "05",
+  todo:    "01",
+  doing:   "02",
+  ci:      "03",
+  review:  "04",
+  done:    "05",
+  nothing: "06",
 };
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  todo:   ["doing"],
-  doing:  [],
-  ci:     ["review"],
-  review: ["done"],
-  done:   [],
+  todo:    ["doing"],
+  doing:   [],
+  ci:      ["review"],
+  review:  ["done"],
+  done:    [],
+  nothing: [],
 };
 
 export function Board() {
@@ -78,6 +80,24 @@ export function Board() {
     );
   }, [selectedProjectId]);
 
+  const [collapsedCols, setCollapsedCols] = useState<Set<TaskStatus>>(() => {
+    try {
+      const s = localStorage.getItem("board-collapsed-cols");
+      return s ? new Set(JSON.parse(s) as TaskStatus[]) : new Set<TaskStatus>(["ci", "nothing"]);
+    } catch {
+      return new Set<TaskStatus>(["ci", "nothing"]);
+    }
+  });
+
+  const toggleCol = useCallback((status: TaskStatus) => {
+    setCollapsedCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status); else next.add(status);
+      try { localStorage.setItem("board-collapsed-cols", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+
   const [activeId, setActiveId]     = useState<string | null>(null);
   const [addOpen, setAddOpen]       = useState(false);
   const [showHelp, setShowHelp]     = useState(false);
@@ -97,7 +117,7 @@ export function Board() {
 
   const byStatus = useMemo(() => {
     const map: Record<TaskStatus, typeof tasks[string][]> = {
-      todo: [], doing: [], ci: [], review: [], done: [],
+      todo: [], doing: [], ci: [], review: [], done: [], nothing: [],
     };
     const needle = filterText.trim().toLowerCase();
     for (const id of order) {
@@ -145,7 +165,7 @@ export function Board() {
     let target: TaskStatus | undefined = overData?.status;
     if (!target) {
       const maybeCol = String(over.id);
-      if (["todo", "doing", "ci", "review", "done"].includes(maybeCol)) {
+      if ((COLUMN_STATUSES as string[]).includes(maybeCol)) {
         target = maybeCol as TaskStatus;
       }
     }
@@ -286,7 +306,7 @@ export function Board() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="flex gap-4 overflow-x-auto">
           {columns.map((col) => (
             <BoardColumn
               key={col.status}
@@ -295,6 +315,8 @@ export function Board() {
               numeral={col.numeral}
               tasks={byStatus[col.status]}
               onAddTask={col.status === "todo" ? () => setAddOpen(true) : undefined}
+              collapsed={collapsedCols.has(col.status)}
+              onToggleCollapse={() => toggleCol(col.status)}
             />
           ))}
         </div>
