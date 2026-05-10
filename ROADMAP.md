@@ -32,7 +32,7 @@
 
 ## Planned
 
-- 🗓 **GitHub Issues → Task import** — Pull open issues from a repo into the kanban with a single click. Parse `gh issue list` output, create selected issues as tasks. Goal: integrate ClauFlow into the existing workflow instead of running as a parallel system.
+- ✅ **GitHub Issues ↔ Task sync** — Import open issues from a repo into the kanban with a single click (board toolbar → "Import Issues", checkbox list, bulk create). Create new tasks as GitHub issues via checkbox in AddTaskModal; auto-adds to GitHub Projects board if one exists. Projects without a remote show a disabled checkbox with a configure link that opens project settings.
 
 - 🗓 **PR auto-review** — When a task reaches the REVIEW column, Claude automatically runs a code review pass and posts the output as a comment on the PR. Currently the user reviews manually; add this step to the executor pipeline.
 
@@ -46,7 +46,7 @@
 
 - 🗓 **Rollback button** — Revert a task in the DONE column with a single click: revert the branch via `gh pr revert` or `git revert` and close the PR. Currently manual git work.
 
-- 🗓 **GitHub Issues two-way sync** — When a task is created, open a GitHub issue (`gh issue create`); when the task moves to DONE, close the issue. Add `issueNumber` to the existing `displayId` and `prNumber` fields.
+- 🗓 **GitHub Issues two-way sync** — When a task moves to DONE, close the linked GitHub issue. Add `issueNumber` to the task schema to track the connection. (Issue creation on task add is already done.)
 
 - 🗓 **Custom workflow columns** — Extend the fixed TODO/DOING/REVIEW/DONE set. Pre-defined extra columns: `BLOCKED`, `QA`, `STAGING`. Users cannot enter free-form names; types stay fixed, each type's executor behavior (run agent / manual / deploy hook) defined separately.
 
