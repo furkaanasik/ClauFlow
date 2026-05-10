@@ -13,6 +13,7 @@ import {
   broadcastLog,
   broadcastTaskUpdated,
 } from "./wsService.js";
+import { enqueue as enqueueReview } from "../agents/prReviewRunner.js";
 import type { CiFailure, Project, Task } from "../types/index.js";
 
 const CI_POLL_INTERVAL_MS = Number(process.env.CI_POLL_INTERVAL_MS ?? 30_000);
@@ -103,7 +104,7 @@ async function poll(
       : "[ci] All checks passed ✓";
     await pushWatchLog(taskId, msg);
     broadcastCiIterationResult(taskId, state.iteration, "pass");
-    await moveToReview(taskId);
+    await moveToReview(taskId, project);
     WATCHERS.delete(taskId);
     return;
   }
@@ -121,7 +122,7 @@ async function poll(
       `[ci] Max fix iterations (${CI_MAX_FIX_ITERATIONS}) reached — moving to review`,
     );
     broadcastCiIterationResult(taskId, state.iteration, "exhausted");
-    await moveToReview(taskId);
+    await moveToReview(taskId, project);
     WATCHERS.delete(taskId);
     return;
   }
@@ -219,7 +220,7 @@ async function runFixIteration(
   }
 }
 
-async function moveToReview(taskId: string): Promise<void> {
+async function moveToReview(taskId: string, project: Project): Promise<void> {
   const updated = await updateTask(taskId, {
     status: "review",
     agent: {
@@ -229,4 +230,5 @@ async function moveToReview(taskId: string): Promise<void> {
     },
   });
   broadcastTaskUpdated(updated);
+  enqueueReview(updated, project);
 }

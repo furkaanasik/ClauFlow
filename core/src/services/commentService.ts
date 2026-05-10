@@ -54,6 +54,9 @@ const stmtUpdateCommentLog = db.prepare(
 const stmtAppendCommentLog = db.prepare(
   `UPDATE comments SET agentLog = json_insert(agentLog, '$[#]', ?) WHERE id = ?`,
 );
+const stmtUpdateCommentBody = db.prepare(
+  `UPDATE comments SET body = ? WHERE id = ?`,
+);
 
 // ─── Public API ───────────────────────────────────────────────────────────
 
@@ -90,13 +93,16 @@ export function getComment(id: string): Comment | null {
 
 export function updateComment(
   id: string,
-  patch: Partial<Pick<Comment, "status" | "agentLog">>,
+  patch: Partial<Pick<Comment, "status" | "agentLog" | "body">>,
 ): Comment {
   if (patch.status !== undefined) {
     stmtUpdateCommentStatus.run(patch.status, id);
   }
   if (patch.agentLog !== undefined) {
     stmtUpdateCommentLog.run(JSON.stringify(patch.agentLog), id);
+  }
+  if (patch.body !== undefined) {
+    stmtUpdateCommentBody.run(patch.body, id);
   }
   const row = stmtGetComment.get(id) as CommentRow | undefined;
   if (!row) throw new Error(`Comment not found: ${id}`);

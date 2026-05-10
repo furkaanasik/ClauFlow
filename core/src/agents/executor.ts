@@ -41,6 +41,7 @@ import {
 } from "../services/wsService.js";
 import { createComment, updateComment } from "../services/commentService.js";
 import { startCiWatch } from "../services/ciWatcher.js";
+import { enqueue as enqueueReview } from "./prReviewRunner.js";
 import type { AgentStatus, Project, Task } from "../types/index.js";
 
 const ACTIVE: AgentStatus[] = ["branching", "running", "pushing", "pr_opening"];
@@ -645,6 +646,9 @@ export async function run(
 
     if (finalStatus === "ci") {
       startCiWatch(final, project);
+    }
+    if (finalStatus === "review") {
+      enqueueReview(final, project);
     }
   } catch (err) {
     const aborted = controller.signal.aborted;
