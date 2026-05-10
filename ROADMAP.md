@@ -27,12 +27,11 @@
 - ✅ **Markdown rendering in comments** — `done`-status comments that contain markdown markers are rendered via `react-markdown` with project-styled prose (headers, code blocks, lists, blockquotes). Plain-text comments keep `whitespace-pre-wrap` behaviour.
 - ✅ **PR already-exists handling** — `createPr` now detects the "a pull request for branch … already exists" error from `gh pr create`, extracts the existing PR URL from stderr, and returns it as a success instead of failing the executor run.
 - ✅ **Docker distribution** — `docker.yml` GitHub Actions workflow: build multi-arch image (amd64 + arm64) on every `v*.*.*` tag, push to GitHub Container Registry (`ghcr.io/furkaanasik/clauflow`). `docker-compose.yml` at repo root: core + gui services, named volume for SQLite persistence. `docker compose up` → running ClauFlow, no Node install needed.
+- ✅ **GitHub Issues ↔ Task sync** — Import open issues from a repo into the kanban with a single click (board toolbar → "Import Issues", checkbox list, bulk create). Create new tasks as GitHub issues via checkbox in AddTaskModal; auto-adds to GitHub Projects board if one exists. Projects without a remote show a disabled checkbox with a configure link that opens project settings.
 
 ---
 
 ## Planned
-
-- ✅ **GitHub Issues ↔ Task sync** — Import open issues from a repo into the kanban with a single click (board toolbar → "Import Issues", checkbox list, bulk create). Create new tasks as GitHub issues via checkbox in AddTaskModal; auto-adds to GitHub Projects board if one exists. Projects without a remote show a disabled checkbox with a configure link that opens project settings.
 
 - 🗓 **PR auto-review** — When a task reaches the REVIEW column, Claude automatically runs a code review pass and posts the output as a comment on the PR. Currently the user reviews manually; add this step to the executor pipeline.
 
