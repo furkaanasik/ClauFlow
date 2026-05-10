@@ -17,12 +17,11 @@
 - ✅ Modern diff view (PR detail) — per-file collapsible block, sticky header, **Mark viewed** toggle + auto-scroll, sidebar tick mirror, lime/coral palette, hunk header humanized as `↳ line N + context`
 - ✅ Theme picker on the landing page — sun/moon toggle in the `/` header, synced with the existing `html.light` + `localStorage` plumbing
 - ✅ GitHub repos in the sidebar + click-to-clone — listing via `gh repo list`, local/remote split, two-column clone modal (left: form, right: scrollable repo info + GitHub link), WS progress, search filters the GitHub repo list too, the cloned repo becomes the active project automatically, partial-clone cleanup on failure
+- ✅ **Studio skill injection** — `buildNodePrompt` now parses `## Available Skills` table in agent body, reads each skill's `~/.claude/skills/<id>/SKILL.md`, and appends full content as inline blocks. Path traversal guard included. Skills with missing files silently skipped.
 
 ---
 
 ## Planned
-
-- 🗓 **Studio skill injection** — Automatically inject the SKILL.md content of skills dragged onto an agent node into the agent prompt inside `buildNodePrompt`. Currently the `## Available Skills` table only enters the prompt as plain text; since slash commands don't work in `claude -p` headless mode, drag-and-drop has no effect at execution time. Solution: parse the agent body, read `~/.claude/skills/<skill>/SKILL.md` for each listed skill, and append the content as a block in the prompt. User behavior stays the same; real skill instructions are silently forwarded to the agent in the background.
 
 - 🗓 **Studio main node** — Always keep a `main` agent node on the canvas. If no `main.md` agent exists when the project Studio opens, create one automatically; pin it to the top-left as the entry point, visually distinct from other nodes (custom border/badge). Other agents connect to this node via edges. If deleted, recreate it on the next load. Existing Studio bugs will also be fixed in this phase.
 
