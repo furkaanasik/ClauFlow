@@ -19,12 +19,17 @@
 - ✅ GitHub repos in the sidebar + click-to-clone — listing via `gh repo list`, local/remote split, two-column clone modal (left: form, right: scrollable repo info + GitHub link), WS progress, search filters the GitHub repo list too, the cloned repo becomes the active project automatically, partial-clone cleanup on failure
 - ✅ **Studio skill injection** — `buildNodePrompt` now parses `## Available Skills` table in agent body, reads each skill's `~/.claude/skills/<id>/SKILL.md`, and appends full content as inline blocks. Path traversal guard included. Skills with missing files silently skipped.
 - ✅ **Studio main node** — Permanent `main` entry-point node on canvas. Backend auto-creates `main.md` on `GET /agents` if missing. Frontend shows amber/gold border + "entry" badge, locked to `{ x: 20, y: 20 }`, drag disabled, delete guarded via keyboard/canvas and hidden in AgentEditDrawer.
+- ✅ **Streaming token events (mid-run budget enforcement)** — `onUsage` callback fires per assistant turn; cost accumulated mid-run and compared against effective budget. `controller.abort()` called before the run finishes. DB write happens before abort check so spend is always recorded. `onClaudeResult` kept as fallback for CLI versions that don't emit turn-level usage.
+- ✅ **"Nothing" kanban column** — When Claude runs successfully (exit 0) but makes zero new commits, task moves to a dedicated `nothing` column instead of `done`. Slate-grey styling, terminal state (no DnD transitions), numeral "06". Agent text buffer auto-saved as a comment so the explanation is visible on the task.
+- ✅ **Auto-comment from agent output** — After executor run, if the text buffer contains `## Code Review Report`, it is saved as a static `done`-status comment (no commentRunner triggered, `comment_updated` broadcast). Same auto-comment fires on `nothing` transitions with the full agent response.
+- ✅ **Subagent calls in Flow tab** — When the main agent invokes the `Agent` tool, a `NodeRun` with `nodeType: "subagent"` is created and broadcast via `node_started`. On completion the tool result is split into log lines and persisted as `outputArtifact.logLines`. MiniDagView renders subagent nodes with accent-coloured `subagent_type` label and description subtitle.
+- ✅ **Collapsible board columns** — CI and Nothing collapsed by default (narrow 40 px strip, vertical title, task count). Click to expand. State persisted in `localStorage`. Board layout switched from CSS grid to flex so collapsed columns take minimal width. Collapse button added to each column header.
+- ✅ **Markdown rendering in comments** — `done`-status comments that contain markdown markers are rendered via `react-markdown` with project-styled prose (headers, code blocks, lists, blockquotes). Plain-text comments keep `whitespace-pre-wrap` behaviour.
+- ✅ **PR already-exists handling** — `createPr` now detects the "a pull request for branch … already exists" error from `gh pr create`, extracts the existing PR URL from stderr, and returns it as a success instead of failing the executor run.
 
 ---
 
 ## Planned
-
-- 🗓 **Streaming token events (mid-run budget enforcement)** — currently `onResult` fires once after the full claude CLI run, so a $0.01 budget can't stop a $0.42 run mid-flight. Real enforcement requires parsing streaming JSON events during the run to accumulate token counts, compare against effective budget, and call `controller.abort()` before the run finishes. This enables tight per-task spending caps without relying on post-run detection.
 
 - 🗓 **Docker distribution** — `docker.yml` GitHub Actions workflow: build multi-arch image (amd64 + arm64) on every `v*.*.*` tag, push to GitHub Container Registry (`ghcr.io/furkaanasik/clauflow`). Compose file (`docker-compose.yml`) at repo root: core + gui services, port mapping, volume for SQLite data. Goal: `docker compose up` → running ClauFlow, no Node install needed.
 

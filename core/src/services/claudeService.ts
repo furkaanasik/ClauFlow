@@ -16,6 +16,7 @@ export interface StreamJsonParserHandlers {
   onToolCallStart?: (toolCall: ParsedToolCall) => void;
   onToolCallEnd?: (toolCall: ParsedToolCall) => void;
   onResult?: (raw: unknown) => void;
+  onUsage?: (usage: ClaudeUsage) => void;
 }
 
 interface InFlightToolCall {
@@ -58,7 +59,21 @@ export function createStreamJsonParser(handlers: StreamJsonParserHandlers = {}) 
     const e = evt as Record<string, unknown>;
 
     if (e.type === "assistant") {
-      const message = e.message as { content?: unknown } | undefined;
+      const message = e.message as { content?: unknown; usage?: unknown } | undefined;
+      const usageObj = message?.usage;
+      if (usageObj && typeof usageObj === "object") {
+        const u = usageObj as Record<string, unknown>;
+        const num = (k: string): number => {
+          const v = u[k];
+          return typeof v === "number" && Number.isFinite(v) ? v : 0;
+        };
+        handlers.onUsage?.({
+          inputTokens: num("input_tokens"),
+          outputTokens: num("output_tokens"),
+          cacheReadTokens: num("cache_read_input_tokens"),
+          cacheWriteTokens: num("cache_creation_input_tokens"),
+        });
+      }
       const items = Array.isArray(message?.content) ? message!.content : [];
       for (const item of items as Array<Record<string, unknown>>) {
         if (!item || typeof item !== "object") continue;
@@ -200,6 +215,7 @@ export interface ClaudeRunOptions {
   onToolCallEnd?: (toolCall: ParsedToolCall) => void;
   /** Fired once with the final stream-json `result` event. */
   onResult?: (raw: unknown) => void;
+  onUsage?: (usage: ClaudeUsage) => void;
   signal?: AbortSignal;
   outputFormat?: "text" | "json" | "stream-json";
   maxOutputTokens?: number;
@@ -304,6 +320,7 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
           onToolCallStart: (tc) => options.onToolCallStart?.(tc),
           onToolCallEnd: (tc) => options.onToolCallEnd?.(tc),
           onResult: (raw) => options.onResult?.(raw),
+          onUsage: (usage) => options.onUsage?.(usage),
         })
       : null;
 

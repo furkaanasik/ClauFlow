@@ -2,9 +2,14 @@
 
 import { useRef, useState } from "react";
 import clsx from "clsx";
+import ReactMarkdown from "react-markdown";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import type { Comment, CommentStatus, Task } from "@/types";
+
+function looksLikeMarkdown(text: string): boolean {
+  return /^#{1,6} |^\*\*|^- |^```|\*\*|\[.+\]\(|^>/m.test(text);
+}
 
 function formatDate(isoString: string): string {
   const date = new Date(isoString);
@@ -68,9 +73,15 @@ function CommentCard({ comment }: { comment: Comment }) {
 
   return (
     <div className="border border-[var(--border)] bg-[var(--bg-surface)] p-4">
-      <p className="mb-3 whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-primary)]">
-        {comment.body}
-      </p>
+      {comment.status === "done" && looksLikeMarkdown(comment.body) ? (
+        <div className="comment-markdown mb-3 text-sm leading-relaxed text-[var(--text-primary)]">
+          <ReactMarkdown>{comment.body}</ReactMarkdown>
+        </div>
+      ) : (
+        <p className="mb-3 whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-primary)]">
+          {comment.body}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] pt-2.5">
         <StatusIndicator status={comment.status} />
         <span className="font-mono text-[10px] text-[var(--text-faint)]">

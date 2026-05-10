@@ -79,18 +79,20 @@ export interface Translations {
     loadError: string;
     agentStarted: string;
     columns: {
-      todo: string;
-      doing: string;
-      ci: string;
-      review: string;
-      done: string;
+      todo:    string;
+      doing:   string;
+      ci:      string;
+      review:  string;
+      done:    string;
+      nothing: string;
     };
     emptyStates: {
-      todo:   { title: string; hint: string };
-      doing:  { title: string; hint: string };
-      ci:     { title: string; hint: string };
-      review: { title: string; hint: string };
-      done:   { title: string; hint: string };
+      todo:    { title: string; hint: string };
+      doing:   { title: string; hint: string };
+      ci:      { title: string; hint: string };
+      review:  { title: string; hint: string };
+      done:    { title: string; hint: string };
+      nothing: { title: string; hint: string };
     };
     searchPlaceholder: string;
     loadingTasks: string;

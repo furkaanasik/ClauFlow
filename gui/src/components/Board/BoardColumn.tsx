@@ -13,17 +13,20 @@ interface BoardColumnProps {
   numeral: string;
   tasks: Task[];
   onAddTask?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 const COLUMN_TONE: Record<TaskStatus, { dot: string; ink: string }> = {
-  todo:   { dot: "var(--status-todo)",   ink: "var(--text-secondary)" },
-  doing:  { dot: "var(--status-doing)",  ink: "var(--status-doing)" },
-  ci:     { dot: "var(--status-ci, var(--status-review))", ink: "var(--status-ci, var(--status-review))" },
-  review: { dot: "var(--status-review)", ink: "var(--status-review)" },
-  done:   { dot: "var(--status-done)",   ink: "var(--status-done)" },
+  todo:    { dot: "var(--status-todo)",   ink: "var(--text-secondary)" },
+  doing:   { dot: "var(--status-doing)",  ink: "var(--status-doing)" },
+  ci:      { dot: "var(--status-ci, var(--status-review))", ink: "var(--status-ci, var(--status-review))" },
+  review:  { dot: "var(--status-review)", ink: "var(--status-review)" },
+  done:    { dot: "var(--status-done)",   ink: "var(--status-done)" },
+  nothing: { dot: "var(--text-faint, #94a3b8)", ink: "var(--text-muted, #64748b)" },
 };
 
-export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProps) {
+export function BoardColumn({ status, title, tasks, onAddTask, collapsed, onToggleCollapse }: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { status } });
   const t = useTranslation();
   const emptyState = t.board.emptyStates[status];
@@ -38,11 +41,49 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
         t.agent.status !== "error",
     );
 
+  if (collapsed) {
+    return (
+      <section
+        ref={setNodeRef}
+        onClick={onToggleCollapse}
+        title={title}
+        className={clsx(
+          "kanban-column relative flex min-h-[60vh] w-10 shrink-0 cursor-pointer flex-col border border-[var(--border)] transition-all",
+          isOver && "border-[var(--accent-primary)] bg-[var(--bg-sunken)]",
+        )}
+      >
+        <SortableContext id={status} items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-1 flex-col items-center py-3">
+            <span
+              className={clsx("h-1.5 w-1.5 shrink-0", hasActiveAgent && "animate-pulse")}
+              style={{ backgroundColor: tone.dot }}
+              aria-hidden
+            />
+            <span className="mt-2 font-mono text-[11px] tabular-nums text-[var(--text-muted)]">
+              {tasks.length}
+            </span>
+            <span
+              className="mt-4 text-[11px] font-semibold"
+              style={{
+                color: tone.ink,
+                writingMode: "vertical-rl",
+                transform: "rotate(180deg)",
+                letterSpacing: "0.06em",
+              }}
+            >
+              {title}
+            </span>
+          </div>
+        </SortableContext>
+      </section>
+    );
+  }
+
   return (
     <section
       ref={setNodeRef}
       className={clsx(
-        "kanban-column relative flex min-h-[60vh] w-full flex-col border border-[var(--border)] transition-all",
+        "kanban-column relative flex min-h-[60vh] min-w-[200px] flex-1 flex-col border border-[var(--border)] transition-all",
         isOver && "border-[var(--accent-primary)]",
       )}
     >
@@ -67,15 +108,27 @@ export function BoardColumn({ status, title, tasks, onAddTask }: BoardColumnProp
             {tasks.length}
           </span>
         </div>
-        {status === "todo" && (
+        <div className="flex items-center gap-2">
+          {status === "todo" && (
+            <button
+              type="button"
+              onClick={onAddTask}
+              className="text-[12px] text-[var(--text-muted)] transition hover:text-[var(--accent-primary)]"
+            >
+              + Add
+            </button>
+          )}
           <button
             type="button"
-            onClick={onAddTask}
-            className="text-[12px] text-[var(--text-muted)] transition hover:text-[var(--accent-primary)]"
+            onClick={onToggleCollapse}
+            className="text-[var(--text-faint)] transition hover:text-[var(--text-secondary)]"
+            aria-label="Collapse column"
           >
-            + Add
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+              <path d="M2 4h8M2 6h6M2 8h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
           </button>
-        )}
+        </div>
 
         {hasActiveAgent && (
           <span

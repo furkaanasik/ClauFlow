@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { run as gitRun } from "../services/gitService.js";
-import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
+import { parseUsageFromResult, runClaude, type ClaudeUsage } from "../services/claudeService.js";
 import { calculateCostUsd, DEFAULT_MODEL } from "../services/pricingService.js";
 import {
   loadAgentDefinition,
@@ -483,14 +483,28 @@ export async function runGraph(
       }
     };
 
-    let cumulativeUsage = {
+    const effectiveBudget = getTaskEffectiveBudget(task.id);
+
+    let midRunCost = 0;
+    let usageTurnFired = false;
+    let cumulativeUsage: ClaudeUsage = {
       inputTokens: 0,
       outputTokens: 0,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
     };
 
-    const effectiveBudget = getTaskEffectiveBudget(task.id);
+    const onUsageTurn = (usage: ClaudeUsage): void => {
+      usageTurnFired = true;
+      midRunCost += calculateCostUsd(usage, agent.frontmatter.model ?? DEFAULT_MODEL);
+      updateTaskUsage(task.id, usage)
+        .then((t) => { if (t) broadcastTaskUpdated(t); })
+        .catch((e) => { console.error(`[graphRunner] mid-run updateTaskUsage failed:`, e); });
+      if (effectiveBudget != null && midRunCost >= effectiveBudget) {
+        broadcastBudgetExceeded(task.id, midRunCost, effectiveBudget);
+        controller.abort();
+      }
+    };
 
     const onClaudeResult = (raw: unknown): void => {
       const usage = parseUsageFromResult(raw);
@@ -503,6 +517,7 @@ export async function runGraph(
           controller.abort();
         }
       }
+      if (usageTurnFired) return;
       updateTaskUsage(task.id, usage)
         .then((t) => {
           if (t) broadcastTaskUpdated(t);
@@ -524,6 +539,7 @@ export async function runGraph(
         onText: onAgentText,
         onToolCallStart,
         onToolCallEnd,
+        onUsage: onUsageTurn,
         onResult: onClaudeResult,
       });
     } catch (err) {

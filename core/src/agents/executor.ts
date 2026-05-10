@@ -7,7 +7,7 @@ import {
   createPr,
   run as gitRun,
 } from "../services/gitService.js";
-import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
+import { parseUsageFromResult, runClaude, type ClaudeUsage } from "../services/claudeService.js";
 import { calculateCostUsd, DEFAULT_MODEL } from "../services/pricingService.js";
 import { runGraph, GraphValidationError } from "./graphRunner.js";
 import {
@@ -30,6 +30,7 @@ import { slugify } from "../services/slug.js";
 import {
   broadcastAgentText,
   broadcastBudgetExceeded,
+  broadcastCommentUpdated,
   broadcastLog,
   broadcastNodeFinished,
   broadcastNodeLog,
@@ -38,6 +39,7 @@ import {
   broadcastTaskUpdated,
   broadcastToolCall,
 } from "../services/wsService.js";
+import { createComment, updateComment } from "../services/commentService.js";
 import { startCiWatch } from "../services/ciWatcher.js";
 import type { AgentStatus, Project, Task } from "../types/index.js";
 
@@ -233,6 +235,8 @@ export async function run(
     // Acceptance criteria are needed by both branches' PR body building below.
     const acceptanceCriteria = extractAcceptanceCriteria(task.analysis);
 
+    let textBuffer = "";
+
     // ── Step 3: run agent work ────────────────────────────────────────────
     if (graph) {
       await setAgentStep(task.id, "running", "graph_run");
@@ -305,6 +309,8 @@ export async function run(
       broadcastNodeLog(task.id, "main", entry);
     };
 
+    const subagentRunIds = new Set<string>();
+
     const onToolCallStart = (tc: {
       id: string;
       toolName: string;
@@ -323,6 +329,32 @@ export async function run(
         broadcastToolCall(stored);
       } catch (e) {
         console.error(`[executor] insertToolCall failed for ${tc.id}:`, e);
+      }
+      if (tc.toolName === "Agent") {
+        const args = tc.args as Record<string, unknown> | null;
+        subagentRunIds.add(tc.id);
+        try {
+          const nr = insertNodeRun({
+            id: tc.id,
+            taskId: task.id,
+            nodeId: tc.id,
+            nodeType: "subagent",
+            status: "running",
+            startedAt: tc.startedAt,
+            inputArtifact: {
+              description: typeof args?.description === "string" ? args.description : null,
+              subagent_type: typeof args?.subagent_type === "string" ? args.subagent_type : "subagent",
+            },
+          });
+          broadcastNodeStarted(nr);
+          const subagentType = typeof args?.subagent_type === "string" ? args.subagent_type : "subagent";
+          const description = typeof args?.description === "string" ? args.description : "";
+          broadcastNodeLog(task.id, tc.id, `▸ Subagent started: ${subagentType}`);
+          if (description) broadcastNodeLog(task.id, tc.id, `  ${description}`);
+          broadcastNodeLog(task.id, tc.id, "  Running… (logs appear when subagent finishes)");
+        } catch (e) {
+          console.error(`[executor] insertNodeRun(subagent) failed for ${tc.id}:`, e);
+        }
       }
     };
 
@@ -344,12 +376,30 @@ export async function run(
       } catch (e) {
         console.error(`[executor] updateToolCall failed for ${tc.id}:`, e);
       }
+      if (subagentRunIds.has(tc.id)) {
+        subagentRunIds.delete(tc.id);
+        try {
+          const logLines = tc.result
+            ? tc.result.split(/\r?\n/).filter((l) => l.trim().length > 0)
+            : [];
+          const finished = updateNodeRun(tc.id, {
+            status: tc.status === "error" ? "error" : "done",
+            finishedAt: tc.finishedAt ?? new Date().toISOString(),
+            errorMessage: tc.status === "error" ? (tc.result?.slice(0, 300) ?? null) : null,
+            outputArtifact: logLines.length > 0 ? { logLines } : null,
+          });
+          if (finished) broadcastNodeFinished(finished);
+        } catch (e) {
+          console.error(`[executor] updateNodeRun(subagent) failed for ${tc.id}:`, e);
+        }
+      }
     };
 
     const onAgentText = (text: string): void => {
       // Skip empty/whitespace-only chunks — narrative meaning is zero and
       // they would just clutter the timeline.
       if (!text || !text.trim()) return;
+      textBuffer += text;
       try {
         const stored = insertAgentText({ taskId: task.id, text });
         broadcastAgentText(stored);
@@ -359,6 +409,22 @@ export async function run(
     };
 
     const effectiveBudget = getTaskEffectiveBudget(task.id);
+
+    let midRunCost = 0;
+    let usageTurnFired = false;
+
+    const onUsageTurn = (usage: ClaudeUsage): void => {
+      usageTurnFired = true;
+      midRunCost += calculateCostUsd(usage, DEFAULT_MODEL);
+      // Write delta first so DB reflects accurate spend even on abort turn.
+      updateTaskUsage(task.id, usage)
+        .then((t) => { if (t) broadcastTaskUpdated(t); })
+        .catch((e) => { console.error(`[executor] mid-run updateTaskUsage failed:`, e); });
+      if (effectiveBudget != null && midRunCost >= effectiveBudget) {
+        broadcastBudgetExceeded(task.id, midRunCost, effectiveBudget);
+        controller.abort();
+      }
+    };
 
     const onClaudeResult = (raw: unknown): void => {
       const usage = parseUsageFromResult(raw);
@@ -370,7 +436,8 @@ export async function run(
           controller.abort();
         }
       }
-      // Fire-and-forget — we don't want to block run() on a usage write.
+      // Only write to DB if onUsageTurn never fired — avoids double-count.
+      if (usageTurnFired) return;
       updateTaskUsage(task.id, usage)
         .then((t) => {
           if (t) broadcastTaskUpdated(t);
@@ -390,6 +457,7 @@ export async function run(
       onText: onAgentText,
       onToolCallStart,
       onToolCallEnd,
+      onUsage: onUsageTurn,
       onResult: onClaudeResult,
     });
 
@@ -433,6 +501,16 @@ export async function run(
     } catch (e) {
       console.error(`[executor] finalizeNodeRun(main) failed:`, e);
     }
+
+    if (textBuffer.includes("## Code Review Report")) {
+      try {
+        const comment = createComment(task.id, textBuffer);
+        const done = updateComment(comment.id, { status: "done" });
+        broadcastCommentUpdated(done);
+      } catch (e) {
+        console.error(`[executor] auto-comment failed:`, e);
+      }
+    }
     } // end else (single-claude branch)
 
     // ── Step 4: git add . && commit ───────────────────────────────────────
@@ -463,10 +541,19 @@ export async function run(
       await pushBlock(task.id, [
         "",
         "ℹ Hiçbir değişiklik yok ve branch base'in ilerisinde değil.",
-        "  Acceptance kriterleri zaten karşılanıyor → task otomatik olarak DONE'a alındı.",
+        "  Değişiklik gerekmiyordu → task 'nothing' olarak işaretlendi.",
       ]);
+      if (textBuffer.trim()) {
+        try {
+          const comment = createComment(task.id, textBuffer);
+          const done = updateComment(comment.id, { status: "done" });
+          broadcastCommentUpdated(done);
+        } catch (e) {
+          console.error(`[executor] auto-comment(nothing) failed:`, e);
+        }
+      }
       const final = await updateTask(task.id, {
-        status: "done",
+        status: "nothing",
         agent: {
           status: "done",
           currentStep: "completed",

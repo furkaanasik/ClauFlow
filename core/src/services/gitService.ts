@@ -307,7 +307,17 @@ export async function createPr(input: CreatePrInput): Promise<PrResult> {
     ],
     input.repoPath,
   );
-  if (raw.code !== 0) return { url: null, number: null, raw };
+  if (raw.code !== 0) {
+    // PR already exists — extract URL from the error message and treat as success.
+    const existing = (raw.stderr + raw.stdout).match(/already exists:\s*(https:\/\/\S+)/);
+    if (existing?.[1]) {
+      const url = existing[1];
+      const match = url.match(/\/pull\/(\d+)/);
+      const number = match?.[1] ? Number(match[1]) : null;
+      return { url, number, raw };
+    }
+    return { url: null, number: null, raw };
+  }
   const url = raw.stdout.trim().split(/\s+/).find((s) => s.startsWith("http")) ?? null;
   const match = url?.match(/\/pull\/(\d+)/);
   const number = match && match[1] ? Number(match[1]) : null;
