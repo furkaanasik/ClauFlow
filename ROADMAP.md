@@ -18,12 +18,11 @@
 - ✅ Theme picker on the landing page — sun/moon toggle in the `/` header, synced with the existing `html.light` + `localStorage` plumbing
 - ✅ GitHub repos in the sidebar + click-to-clone — listing via `gh repo list`, local/remote split, two-column clone modal (left: form, right: scrollable repo info + GitHub link), WS progress, search filters the GitHub repo list too, the cloned repo becomes the active project automatically, partial-clone cleanup on failure
 - ✅ **Studio skill injection** — `buildNodePrompt` now parses `## Available Skills` table in agent body, reads each skill's `~/.claude/skills/<id>/SKILL.md`, and appends full content as inline blocks. Path traversal guard included. Skills with missing files silently skipped.
+- ✅ **Studio main node** — Permanent `main` entry-point node on canvas. Backend auto-creates `main.md` on `GET /agents` if missing. Frontend shows amber/gold border + "entry" badge, locked to `{ x: 20, y: 20 }`, drag disabled, delete guarded via keyboard/canvas and hidden in AgentEditDrawer.
 
 ---
 
 ## Planned
-
-- 🗓 **Studio main node** — Always keep a `main` agent node on the canvas. If no `main.md` agent exists when the project Studio opens, create one automatically; pin it to the top-left as the entry point, visually distinct from other nodes (custom border/badge). Other agents connect to this node via edges. If deleted, recreate it on the next load. Existing Studio bugs will also be fixed in this phase.
 
 - 🗓 **Streaming token events (mid-run budget enforcement)** — currently `onResult` fires once after the full claude CLI run, so a $0.01 budget can't stop a $0.42 run mid-flight. Real enforcement requires parsing streaming JSON events during the run to accumulate token counts, compare against effective budget, and call `controller.abort()` before the run finishes. This enables tight per-task spending caps without relying on post-run detection.
 
