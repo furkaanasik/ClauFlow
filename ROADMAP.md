@@ -26,12 +26,11 @@
 - ✅ **Collapsible board columns** — CI and Nothing collapsed by default (narrow 40 px strip, vertical title, task count). Click to expand. State persisted in `localStorage`. Board layout switched from CSS grid to flex so collapsed columns take minimal width. Collapse button added to each column header.
 - ✅ **Markdown rendering in comments** — `done`-status comments that contain markdown markers are rendered via `react-markdown` with project-styled prose (headers, code blocks, lists, blockquotes). Plain-text comments keep `whitespace-pre-wrap` behaviour.
 - ✅ **PR already-exists handling** — `createPr` now detects the "a pull request for branch … already exists" error from `gh pr create`, extracts the existing PR URL from stderr, and returns it as a success instead of failing the executor run.
+- ✅ **Docker distribution** — `docker.yml` GitHub Actions workflow: build multi-arch image (amd64 + arm64) on every `v*.*.*` tag, push to GitHub Container Registry (`ghcr.io/furkaanasik/clauflow`). `docker-compose.yml` at repo root: core + gui services, named volume for SQLite persistence. `docker compose up` → running ClauFlow, no Node install needed.
 
 ---
 
 ## Planned
-
-- 🗓 **Docker distribution** — `docker.yml` GitHub Actions workflow: build multi-arch image (amd64 + arm64) on every `v*.*.*` tag, push to GitHub Container Registry (`ghcr.io/furkaanasik/clauflow`). Compose file (`docker-compose.yml`) at repo root: core + gui services, port mapping, volume for SQLite data. Goal: `docker compose up` → running ClauFlow, no Node install needed.
 
 - 🗓 **GitHub Issues → Task import** — Pull open issues from a repo into the kanban with a single click. Parse `gh issue list` output, create selected issues as tasks. Goal: integrate ClauFlow into the existing workflow instead of running as a parallel system.
 
