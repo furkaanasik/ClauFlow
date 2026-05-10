@@ -107,6 +107,45 @@ Open <http://localhost:3000>, connect a GitHub repo, drop a card on **DOING**, a
 
 ---
 
+## Docker
+
+Run the full stack with no Node install:
+
+```bash
+docker compose up
+# core → http://localhost:3001
+# gui  → http://localhost:3000
+```
+
+SQLite data persists in a named volume (`clauflow_data`). Upgrade by pulling new images:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+> **Important:** The Docker containers run the Express API and Next.js UI only. The `claude` and `gh` CLIs must still be installed and authenticated **on the host machine** — the executor spawns them from the host, not inside any container.
+
+### Remote deployment
+
+`NEXT_PUBLIC_API_BASE` and `NEXT_PUBLIC_WS_URL` are baked at build time. For a server other than localhost, pass them as build args:
+
+```bash
+docker compose build \
+  --build-arg NEXT_PUBLIC_API_BASE=https://api.example.com/api \
+  --build-arg NEXT_PUBLIC_WS_URL=wss://api.example.com/ws
+```
+
+### GHCR images
+
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published to GHCR on every `v*.*.*` release tag:
+
+```
+ghcr.io/furkaanasik/clauflow/core:latest
+ghcr.io/furkaanasik/clauflow/gui:latest
+```
+
+---
+
 ## How It Works
 
 ### Task execution

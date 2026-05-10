@@ -1,0 +1,31 @@
+services:
+  core:
+    build:
+      context: ./core
+    image: ghcr.io/furkaanasik/clauflow/core:latest
+    ports:
+      - "3001:3001"
+    volumes:
+      - clauflow_data:/app/data
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "3001"
+    restart: unless-stopped
+
+  gui:
+    build:
+      context: ./gui
+      args:
+        NEXT_PUBLIC_API_BASE: "http://localhost:3001/api"
+        NEXT_PUBLIC_WS_URL: "ws://localhost:3001/ws"
+    image: ghcr.io/furkaanasik/clauflow/gui:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - core
+    environment:
+      PORT: "3000"
+    restart: unless-stopped
+
+volumes:
+  clauflow_data:
