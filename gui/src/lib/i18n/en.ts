@@ -178,6 +178,7 @@ export const en: Translations = {
     diffButton: "Diff",
     openDiffTitle: "Open PR diff",
     openOnGithubTitle: "Open on GitHub",
+    cancelQueuedTitle: "Remove from queue",
   },
   addTask: {
     modalTitle: "Add New Task",
@@ -333,6 +334,13 @@ export const en: Translations = {
       retryFailed: "Retry failed.",
       deleteFailed: "Delete failed.",
     },
+    breakdownLabel: "Break down task",
+    breakdownPromptPlaceholder: "Describe what to break down...",
+    breakdownButton: "Generate subtasks",
+    breakdowning: "Generating...",
+    breakdownDone: "Subtasks created",
+    breakdownError: "Breakdown failed",
+    breakdownCancel: "Cancel",
   },
   cloneModal: {
     title: "Clone Repository",

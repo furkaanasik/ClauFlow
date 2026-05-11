@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useGitStatus } from "@/hooks/useGitStatus";
 import clsx from "clsx";
 import { useBoardStore } from "@/store/boardStore";
 import { useProjects } from "@/hooks/useBoard";
@@ -15,9 +16,11 @@ import type { GithubRepo } from "@/types";
 export function ProjectSidebar() {
   useProjects();
 
-  const projects          = useBoardStore((s) => s.projects);
-  const selectedProjectId = useBoardStore((s) => s.selectedProjectId);
-  const selectProject     = useBoardStore((s) => s.selectProject);
+  const projects            = useBoardStore((s) => s.projects);
+  const selectedProjectId   = useBoardStore((s) => s.selectedProjectId);
+  const selectProject       = useBoardStore((s) => s.selectProject);
+  const gitStatusByProject  = useBoardStore((s) => s.gitStatusByProject);
+  useGitStatus(selectedProjectId);
 
   const [modalOpen,       setModalOpen]       = useState(false);
   const [search,          setSearch]          = useState("");
@@ -132,6 +135,7 @@ export function ProjectSidebar() {
             const isPlanning     = p.planningStatus === "planning";
             const isPlannerError = p.planningStatus === "error";
             const isMenuOpen     = menuOpenId === p.id;
+            const gitStatus      = gitStatusByProject[p.id];
             return (
               <div
                 key={p.id}
@@ -170,6 +174,31 @@ export function ProjectSidebar() {
                         />
                       )}
                     </span>
+                    {gitStatus?.branch && (
+                      <span className="flex min-w-0 items-center gap-1 font-mono text-[11px] text-[var(--text-faint)]">
+                        <span aria-hidden className="shrink-0">⎇</span>
+                        {p.remote && !p.remote.startsWith("git@") ? (
+                          <a
+                            href={`${p.remote.replace(/\.git$/, "")}/tree/${gitStatus.branch}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="truncate hover:text-[var(--text-secondary)] hover:underline"
+                            title={gitStatus.branch}
+                          >
+                            {gitStatus.branch}
+                          </a>
+                        ) : (
+                          <span className="truncate" title={gitStatus.branch}>{gitStatus.branch}</span>
+                        )}
+                        <span
+                          aria-label={gitStatus.isDirty ? "dirty" : "clean"}
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            gitStatus.isDirty ? "bg-amber-400" : "bg-green-500"
+                          }`}
+                        />
+                      </span>
+                    )}
                     <span className="truncate font-mono text-[11px] text-[var(--text-faint)]">
                       {p.repoPath}
                     </span>

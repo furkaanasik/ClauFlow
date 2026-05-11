@@ -178,6 +178,7 @@ export const tr: Translations = {
     diffButton: "Diff",
     openDiffTitle: "PR diff'ini aç",
     openOnGithubTitle: "GitHub'da aç",
+    cancelQueuedTitle: "Kuyruktan kaldır",
   },
   addTask: {
     modalTitle: "Yeni Görev Ekle",
@@ -333,6 +334,13 @@ export const tr: Translations = {
       retryFailed: "Yeniden deneme başarısız.",
       deleteFailed: "Silme başarısız.",
     },
+    breakdownLabel: "Görevi parçala",
+    breakdownPromptPlaceholder: "Neye parçalanacağını açıkla...",
+    breakdownButton: "Alt görevler oluştur",
+    breakdowning: "Oluşturuluyor...",
+    breakdownDone: "Alt görevler oluşturuldu",
+    breakdownError: "Parçalama başarısız",
+    breakdownCancel: "İptal",
   },
   cloneModal: {
     title: "Repo Klonla",
