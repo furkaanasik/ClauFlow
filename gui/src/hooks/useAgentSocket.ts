@@ -42,6 +42,7 @@ export function useAgentSocket(url?: string) {
       appendNodeLog,
       setCiIteration,
       setBudgetExceeded,
+      setBreakdownStatus,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -141,6 +142,21 @@ export function useAgentSocket(url?: string) {
             case "project_planning_error": {
               const m = msg as Extract<WsMessage, { type: "project_planning_error" }>;
               updateProjectPlanningStatus(m.projectId, "error", m.error);
+              break;
+            }
+            case "task_breakdown_started": {
+              const m = msg as Extract<WsMessage, { type: "task_breakdown_started" }>;
+              setBreakdownStatus(m.taskId, "breaking");
+              break;
+            }
+            case "task_breakdown_done": {
+              const m = msg as Extract<WsMessage, { type: "task_breakdown_done" }>;
+              setBreakdownStatus(m.taskId, "done");
+              break;
+            }
+            case "task_breakdown_error": {
+              const m = msg as Extract<WsMessage, { type: "task_breakdown_error" }>;
+              setBreakdownStatus(m.taskId, "error");
               break;
             }
             case "clone_progress": {

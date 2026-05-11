@@ -121,6 +121,18 @@ export function broadcastProjectPlanningError(
   broadcast({ type: "project_planning_error", projectId, error });
 }
 
+export function broadcastTaskBreakdownStarted(taskId: string): void {
+  broadcast({ type: "task_breakdown_started", taskId });
+}
+
+export function broadcastTaskBreakdownDone(taskId: string, taskCount: number): void {
+  broadcast({ type: "task_breakdown_done", taskId, taskCount });
+}
+
+export function broadcastTaskBreakdownError(taskId: string, error: string): void {
+  broadcast({ type: "task_breakdown_error", taskId, error });
+}
+
 export function broadcastCloneProgress(
   targetPath: string,
   status: "cloning" | "done" | "error",

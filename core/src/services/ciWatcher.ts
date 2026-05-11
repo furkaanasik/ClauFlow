@@ -89,7 +89,10 @@ async function poll(
     project.repoPath,
   );
 
-  const verdict = parseChecksJson(checksResult.stdout);
+  const noChecksMsg = /no checks reported/i.test(checksResult.stdout + checksResult.stderr);
+  const verdict = (checksResult.code !== 0 && noChecksMsg)
+    ? ({ kind: "no_checks" } as const)
+    : parseChecksJson(checksResult.stdout);
   broadcastCiCheckStatus(taskId, prNumber, verdict);
 
   if (verdict.kind === "pending") {
