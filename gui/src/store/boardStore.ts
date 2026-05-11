@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, CloneStatus, Comment, GraphRecord, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, GraphRecord, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
 import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
 
 type Lang = "tr" | "en";
@@ -35,6 +35,7 @@ interface BoardState {
   /** CI iteration progress per task */
   ciIterations: Record<string, { iteration: number; maxIterations: number }>;
   budgetExceeded: Record<string, { spentUsd: number; budgetUsd: number }>;
+  gitStatusByProject: Record<string, GitStatus>;
   /** Graphs per project, keyed by projectId */
   graphs: Record<string, GraphRecord[]>;
   /** Open-Studio intent. ProjectSidebar opens the project drawer when non-null;
@@ -104,6 +105,10 @@ interface BoardState {
   setCiIteration: (taskId: string, iteration: number, maxIterations: number) => void;
   setBudgetExceeded: (taskId: string, payload: { spentUsd: number; budgetUsd: number }) => void;
   clearBudgetExceeded: (taskId: string) => void;
+  setProjectGitStatus: (projectId: string, status: GitStatus) => void;
+
+  breakdownStatus: Record<string, "breaking" | "done" | "error">;
+  setBreakdownStatus: (taskId: string, status: "breaking" | "done" | "error") => void;
 
   setGraphs: (projectId: string, graphs: GraphRecord[]) => void;
 
@@ -136,6 +141,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   nodeLogs: {},
   ciIterations: {},
   budgetExceeded: {},
+  gitStatusByProject: {},
+  breakdownStatus: {},
   graphs: {},
   studioRequest: null,
   projectDetailRequest: null,
@@ -482,6 +489,16 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       void _;
       return { budgetExceeded: rest };
     }),
+
+  setProjectGitStatus: (projectId, status) =>
+    set((state) => ({
+      gitStatusByProject: { ...state.gitStatusByProject, [projectId]: status },
+    })),
+
+  setBreakdownStatus: (taskId, status) =>
+    set((state) => ({
+      breakdownStatus: { ...state.breakdownStatus, [taskId]: status },
+    })),
 
   setGraphs: (projectId, graphs) =>
     set((s) => ({ graphs: { ...s.graphs, [projectId]: graphs } })),

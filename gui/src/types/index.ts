@@ -61,6 +61,11 @@ export interface Project {
   budgetUsd?: number | null;
 }
 
+export interface GitStatus {
+  branch: string | null;
+  isDirty: boolean;
+}
+
 export type ProjectPatch = Partial<
   Pick<Project, "name" | "slug" | "description" | "aiPrompt" | "repoPath" | "defaultBranch" | "remote" | "budgetUsd">
 >;
@@ -289,4 +294,7 @@ export type WsMessage =
       type: "budget_exceeded";
       taskId: string;
       payload: { spentUsd: number; budgetUsd: number };
-    };
+    }
+  | { type: "task_breakdown_started"; taskId: string }
+  | { type: "task_breakdown_done"; taskId: string; taskCount: number }
+  | { type: "task_breakdown_error"; taskId: string; error: string };

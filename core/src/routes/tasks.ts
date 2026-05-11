@@ -26,8 +26,9 @@ import {
 } from "../agents/executor.js";
 import { loadGraph } from "../services/graphService.js";
 import { planGraph } from "../agents/graphRunner.js";
-import { mergePr } from "../services/gitService.js";
+import { mergePr, checkoutBase } from "../services/gitService.js";
 import { stopCiWatch } from "../services/ciWatcher.js";
+import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
 
 const router = Router();
 
@@ -208,6 +209,9 @@ router.patch("/:id", async (req: Request, res: Response) => {
               console.log(
                 `[merger] merged PR #${task.prNumber} for task ${task.id}`,
               );
+              checkoutBase(project.repoPath, project.defaultBranch).catch(
+                (err: unknown) => console.warn("[merger] post-merge checkout failed:", err),
+              );
             }
           })
           .catch(async (err: unknown) => {
@@ -364,6 +368,26 @@ router.post("/:id/nodes/:nodeId/retry", async (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
+});
+
+const breakdownSchema = z.object({
+  prompt: z.string().min(1).max(6000),
+  maxTasks: z.number().int().min(1).max(20).optional(),
+});
+
+router.post("/:id/breakdown", async (req: Request, res: Response) => {
+  const task = await getTask(req.params.id!).catch(() => null);
+  if (!task) return res.status(404).json({ error: "task_not_found" });
+
+  const parsed = breakdownSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
+
+  runTaskBreakdown(task.id, parsed.data.prompt, parsed.data.maxTasks ?? 6)
+    .catch((err) => console.error("[tasks] breakdown failed:", err));
+
+  res.json({ status: "started" });
 });
 
 router.delete("/:id", async (req: Request, res: Response) => {

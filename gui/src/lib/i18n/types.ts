@@ -25,6 +25,7 @@ export interface Translations {
     diffButton: string;
     openDiffTitle: string;
     openOnGithubTitle: string;
+    cancelQueuedTitle: string;
   };
   addTask: {
     modalTitle: string;
@@ -175,6 +176,13 @@ export interface Translations {
       retryFailed: string;
       deleteFailed: string;
     };
+    breakdownLabel: string;
+    breakdownPromptPlaceholder: string;
+    breakdownButton: string;
+    breakdowning: string;
+    breakdownDone: string;
+    breakdownError: string;
+    breakdownCancel: string;
   };
   cloneModal: {
     title: string;

@@ -213,7 +213,10 @@ export type WsMessage =
       type: "budget_exceeded";
       taskId: string;
       payload: { spentUsd: number; budgetUsd: number };
-    };
+    }
+  | { type: "task_breakdown_started"; taskId: string }
+  | { type: "task_breakdown_done"; taskId: string; taskCount: number }
+  | { type: "task_breakdown_error"; taskId: string; error: string };
 
 export interface AvailablePluginSource {
   source: string;

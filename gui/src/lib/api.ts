@@ -1,4 +1,4 @@
-import type { AgentGraph, AgentText, Comment, GithubRepo, GraphRecord, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
+import type { AgentGraph, AgentText, Comment, GithubRepo, GitStatus, GraphRecord, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -145,6 +145,13 @@ export const api = {
       handle<{ aborted: boolean; source: string }>(r),
     ),
 
+  breakdownTask: (id: string, prompt: string, maxTasks?: number): Promise<{ status: string }> =>
+    fetch(`${BASE}/tasks/${id}/breakdown`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, maxTasks }),
+    }).then((r) => handle<{ status: string }>(r)),
+
   getProjects: (): Promise<Project[]> =>
     fetch(`${BASE}/projects`, { cache: "no-store" })
       .then((r) => handle<{ projects: Project[] }>(r))
@@ -154,6 +161,10 @@ export const api = {
     fetch(`${BASE}/projects/${id}`, { cache: "no-store" })
       .then((r) => handle<{ project: Project }>(r))
       .then((d) => d.project),
+
+  getProjectGitStatus: (id: string): Promise<GitStatus> =>
+    fetch(`${BASE}/projects/${id}/git-status`, { cache: "no-store" })
+      .then((r) => handle<GitStatus>(r)),
 
   getComments: (taskId: string): Promise<Comment[]> =>
     fetch(`${BASE}/tasks/${taskId}/comments`, { cache: "no-store" })

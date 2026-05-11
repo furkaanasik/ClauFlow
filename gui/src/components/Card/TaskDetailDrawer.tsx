@@ -77,17 +77,21 @@ export function TaskDetailDrawer() {
   const openStudio     = useBoardStore((s) => s.openStudio);
   const upsertNodeRun  = useBoardStore((s) => s.upsertNodeRun);
   const appendNodeLog  = useBoardStore((s) => s.appendNodeLog);
+  const breakdownStatus = useBoardStore((s) => task ? s.breakdownStatus[task.id] : undefined);
 
-  const [editing,       setEditing]       = useState(false);
-  const [draft,         setDraft]         = useState<DraftState | null>(null);
-  const [saving,        setSaving]        = useState(false);
-  const [deleting,      setDeleting]      = useState(false);
-  const [retrying,      setRetrying]      = useState(false);
-  const [aborting,      setAborting]      = useState(false);
-  const [confirmAbort,  setConfirmAbort]  = useState(false);
-  const [error,         setError]         = useState<string | null>(null);
-  const [tab,           setTab]           = useState<DrawerTab>("details");
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editing,         setEditing]         = useState(false);
+  const [draft,           setDraft]           = useState<DraftState | null>(null);
+  const [saving,          setSaving]          = useState(false);
+  const [deleting,        setDeleting]        = useState(false);
+  const [retrying,        setRetrying]        = useState(false);
+  const [aborting,        setAborting]        = useState(false);
+  const [confirmAbort,    setConfirmAbort]    = useState(false);
+  const [error,           setError]           = useState<string | null>(null);
+  const [tab,             setTab]             = useState<DrawerTab>("details");
+  const [confirmDelete,   setConfirmDelete]   = useState(false);
+  const [showBreakdown,   setShowBreakdown]   = useState(false);
+  const [breakdownPrompt, setBreakdownPrompt] = useState("");
+  const [breakdownError,  setBreakdownError]  = useState<string | null>(null);
 
   // Execution mode state
   const [graphs,        setGraphs]        = useState<GraphRecord[]>([]);
@@ -167,9 +171,24 @@ export function TaskDetailDrawer() {
   }, [open]);
 
   const logRef = useRef<HTMLPreElement | null>(null);
+  const [logAutoFollow, setLogAutoFollow] = useState(true);
+
   useEffect(() => {
+    if (!logAutoFollow) return;
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [task?.agent.log?.length]);
+  }, [task?.agent.log?.length, logAutoFollow]);
+
+  function handleLogScroll() {
+    const el = logRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    setLogAutoFollow(atBottom);
+  }
+
+  function scrollToBottom() {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+    setLogAutoFollow(true);
+  }
 
   const beginEdit  = () => { if (!task) return; setDraft(makeDraft(task)); setEditing(true); setError(null); };
   const cancelEdit = () => { setEditing(false); setDraft(null); setError(null); };
@@ -224,6 +243,16 @@ export function TaskDetailDrawer() {
       setError(err instanceof Error ? err.message : "Abort failed");
     } finally {
       setAborting(false);
+    }
+  };
+
+  const doBreakdown = async () => {
+    if (!task || !breakdownPrompt.trim()) return;
+    setBreakdownError(null);
+    try {
+      await api.breakdownTask(task.id, breakdownPrompt.trim(), 6);
+    } catch (err) {
+      setBreakdownError(err instanceof Error ? err.message : td.breakdownError);
     }
   };
 
@@ -656,6 +685,58 @@ export function TaskDetailDrawer() {
                     </Section>
                   )}
 
+                  {/* Break down task */}
+                  {!editing && (
+                    <div className="mt-4 mb-6">
+                      {!showBreakdown ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowBreakdown(true);
+                            setBreakdownPrompt([task.title, task.description, task.analysis].filter(Boolean).join("\n\n"));
+                          }}
+                          className="text-[12px] text-[var(--accent-primary)] border border-[var(--border)] px-3 py-1.5 hover:border-[var(--accent-primary)] transition"
+                        >
+                          {td.breakdownLabel}
+                        </button>
+                      ) : (
+                        <div className="flex flex-col gap-2 border border-[var(--border)] p-3">
+                          <textarea
+                            value={breakdownPrompt}
+                            onChange={(e) => setBreakdownPrompt(e.target.value)}
+                            rows={5}
+                            disabled={breakdownStatus === "breaking"}
+                            placeholder={td.breakdownPromptPlaceholder}
+                            className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-mono text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none"
+                          />
+                          {breakdownError && (
+                            <p className="text-[11px] text-[var(--status-error)]">{breakdownError}</p>
+                          )}
+                          {breakdownStatus === "done" && (
+                            <p className="text-[11px] text-[var(--accent-primary)]">{td.breakdownDone}</p>
+                          )}
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={doBreakdown}
+                              disabled={breakdownStatus === "breaking" || !breakdownPrompt.trim()}
+                              className="btn-ink px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
+                            >
+                              {breakdownStatus === "breaking" ? td.breakdowning : td.breakdownButton}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setShowBreakdown(false); setBreakdownError(null); }}
+                              className="btn-ghost px-3 py-1.5 text-[12px]"
+                            >
+                              {td.breakdownCancel}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Budget */}
                   <Section label="Budget" numeral="06">
                     {editing && draft ? (
@@ -770,12 +851,27 @@ export function TaskDetailDrawer() {
                         <span className="t-quote text-base">{td.queueWaiting}</span>
                       </div>
                     ) : logs.length > 0 ? (
-                      <pre
-                        ref={logRef}
-                        className="flex-1 overflow-auto border border-[var(--border)] bg-[var(--bg-sunken)] p-4 font-mono text-[12px] leading-relaxed text-[var(--accent-primary)]"
-                      >
-                        {logs.join("\n")}
-                      </pre>
+                      <div className="relative flex-1 overflow-hidden">
+                        <pre
+                          ref={logRef}
+                          onScroll={handleLogScroll}
+                          className="h-full overflow-auto border border-[var(--border)] bg-[var(--bg-sunken)] p-4 font-mono text-[12px] leading-relaxed text-[var(--accent-primary)]"
+                        >
+                          {logs.join("\n")}
+                        </pre>
+                        {!logAutoFollow && (
+                          <button
+                            type="button"
+                            onClick={scrollToBottom}
+                            className="absolute bottom-3 right-3 flex items-center gap-1.5 border border-[var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--text-secondary)] shadow-lg transition hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden>
+                              <path d="M5 7.5 L1 3 L9 3 Z" />
+                            </svg>
+                            Follow
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <div className="flex flex-1 items-center justify-center border border-dashed border-[var(--border)] text-sm text-[var(--text-faint)]">
                         {td.logsEmpty}

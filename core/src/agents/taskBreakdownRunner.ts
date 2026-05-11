@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import { runClaude } from "../services/claudeService.js";
-import { createTask, updateProject } from "../services/taskService.js";
+import { getTask, getProject, createTask, updateTask } from "../services/taskService.js";
 import type { TaskPriority } from "../types/index.js";
 import {
-  broadcastProjectPlanningDone,
-  broadcastProjectPlanningError,
-  broadcastProjectPlanningStarted,
   broadcastTaskCreated,
+  broadcastTaskUpdated,
+  broadcastTaskBreakdownStarted,
+  broadcastTaskBreakdownDone,
+  broadcastTaskBreakdownError,
 } from "../services/wsService.js";
 
 interface PlannedTaskItem {
@@ -82,7 +83,7 @@ function recoverArrayObjects(text: string): unknown[] {
       }
       i++;
     }
-    if (!closed) break; // truncation reached
+    if (!closed) break;
   }
   return objects;
 }
@@ -177,84 +178,50 @@ function normalizeTasks(parsed: unknown, maxTasks: number): PlannedTaskItem[] {
   return items;
 }
 
-export async function runProjectPlanner(
-  projectId: string,
-  aiPrompt: string,
-  maxTasks: number = 8,
+export async function runTaskBreakdown(
+  taskId: string,
+  prompt: string,
+  maxTasks: number = 6,
 ): Promise<void> {
-  const cap = Math.max(1, Math.min(Math.floor(maxTasks) || 8, 20));
-
+  const cap = Math.max(1, Math.min(Math.floor(maxTasks) || 6, 20));
   try {
-    const project = await updateProject(projectId, { planningStatus: "planning" });
-    broadcastProjectPlanningStarted(projectId);
-
-    const repoExists =
-      Boolean(project.repoPath) && fs.existsSync(project.repoPath);
-    const cwd = repoExists ? project.repoPath : process.cwd();
-
-    const codebaseHint = repoExists
-      ? `Before planning, explore the working directory ("${cwd}") with Read/Glob/Grep ` +
-        `to learn this project's actual conventions: list top-level files; peek at package.json/README; ` +
-        `scan src/services, src/agents, src/routes, src/types if they exist. ` +
-        `Plan tasks that REUSE the discovered services and patterns instead of inventing new ones, ` +
-        `and reference real file paths from your exploration. Do not write or edit files — read-only.\n\n`
-      : `The project has no existing repo on disk. Plan as a greenfield build, but apply the defensive defaults below.\n\n`;
-
-    const defensiveDefaults =
-      `Defensive defaults — apply automatically when relevant, no need to be told:\n` +
-      `- If a task calls a Claude/LLM CLI for STRUCTURED output, mandate \`--output-format json\` ` +
-      `and parsing the envelope's "result" field — never JSON.parse the raw stdout. ` +
-      `If the codebase already exposes a runner (e.g. \`claudeService.runClaude({ outputFormat: "json" })\`), reuse it.\n` +
-      `- Defend against truncated/partial LLM responses: prefer recovery-style parsers that extract complete top-level objects rather than strict full-document parses.\n` +
-      `- For prose/idea text inputs at API boundaries, default zod max-length to ≥6000 chars unless a stricter cap is clearly justified by the domain.\n` +
-      `- Reuse existing wrappers/services discovered during the repo scan; do not duplicate spawn/CLI/db plumbing.\n\n`;
+    broadcastTaskBreakdownStarted(taskId);
+    const task = await getTask(taskId);
+    if (!task) throw new Error(`task ${taskId} not found`);
+    const project = await getProject(task.projectId);
+    if (!project) throw new Error(`project ${task.projectId} not found`);
+    const cwd = project.repoPath && fs.existsSync(project.repoPath)
+      ? project.repoPath
+      : process.cwd();
 
     const systemPrompt =
-      codebaseHint +
-      defensiveDefaults +
-      `You are a project planner. Break the following project description into at most ${cap} small, actionable tasks.\n\n` +
-      `Project description:\n${aiPrompt}\n\n` +
+      `You are a task planner. Break the following task description into at most ${cap} ` +
+      `small, actionable subtasks.\n\nTask:\n${prompt}\n\n` +
       `Return ONLY a JSON array, no other text. Each item must be an object with these fields:\n` +
       `  - "title": string, max 80 chars, imperative ("Add login endpoint")\n` +
-      `  - "description": ONE short sentence (max ~160 chars) summarizing the task for a human skimming the board. No bullets, no acceptance criteria here. Example: "Add a JWT-backed login endpoint guarded against brute force."\n` +
-      `  - "analysis": markdown technical brief, KEEP UNDER ~180 WORDS PER TASK to fit the response budget. Structure:\n` +
-      `      1) 1-2 sentences of context (what/why)\n` +
-      `      2) **Implementation** bullets: files/modules, key signatures, libraries, edge cases — terse, no prose paragraphs\n` +
-      `      3) **Acceptance criteria** — 3-5 testable checkbox bullets ("- [ ] ...")\n` +
-      `      4) If depending on a prior task, name it in one line\n` +
-      `      Example (note brevity):\n` +
-      `      "Adds POST /api/auth/login with httpOnly JWT cookies.\\n\\n**Implementation**\\n- src/routes/auth.ts; zod body { email, password }\\n- bcrypt compare → JWT signed with JWT_SECRET\\n- Set-Cookie: HttpOnly; Secure; SameSite=Strict; 1h\\n- Reuse rateLimit middleware (5/min/IP)\\n\\n**Acceptance criteria**\\n- [ ] 200 + Set-Cookie on valid creds\\n- [ ] 401 on unknown email or wrong password\\n- [ ] 400 on malformed body\\n- [ ] 429 after 5 attempts/min"\n` +
-      `  - "priority": one of "low" | "medium" | "high" | "critical" (default "medium" if unsure)\n` +
-      `  - "tags": optional array of 1-4 short lowercase strings like ["backend","api"] or ["frontend","ui"]; omit if not relevant\n\n` +
-      `Order the tasks in strict execution sequence so they can be picked up one by one without rework: ` +
-      `shared contracts (schemas, types, DB models) first; backend endpoints before any frontend that consumes them; ` +
-      `parent UI/layout before child components; cross-cutting concerns (auth, rate limiting, persistence of prior outputs) last. ` +
-      `If task B depends on task A, A must appear before B in the array.\n\n` +
-      `If the project looks greenfield (no existing stack mentioned), include an early task that scaffolds a minimal test runner ` +
-      `appropriate for the stack (vitest for TS/JS, pytest for Python, go test for Go). Each behavior task's acceptance criteria ` +
-      `should already read as testable assertions so the executor can turn them into real tests.\n\n` +
-      `Output strictly valid JSON — no commentary, no code fences.`;
+      `  - "description": ONE short sentence (max ~160 chars) summarizing the subtask\n` +
+      `  - "analysis": markdown technical brief, KEEP UNDER ~180 WORDS to fit response budget\n` +
+      `  - "priority": one of "low" | "medium" | "high" | "critical" (default "medium")\n` +
+      `  - "tags": optional array of 1-4 short lowercase strings\n\n` +
+      `Order tasks in execution sequence. Output strictly valid JSON — no commentary, no code fences.`;
 
     const result = await runClaude({
       prompt: systemPrompt,
       cwd,
       outputFormat: "json",
       maxOutputTokens: 32000,
-      allowedTools: repoExists ? ["Read", "Glob", "Grep"] : undefined,
     });
 
     if (result.code !== 0) {
-      throw new Error(
-        `claude CLI exited ${result.code}: ${result.stderr.slice(0, 500)}`,
-      );
+      throw new Error(`claude CLI exited ${result.code}: ${result.stderr.slice(0, 500)}`);
     }
 
     const parsed = extractJsonArray(result.stdout);
     const items = normalizeTasks(parsed, cap);
 
     for (const item of items) {
-      const task = await createTask({
-        projectId,
+      const created = await createTask({
+        projectId: task.projectId,
         title: item.title,
         description: item.description,
         analysis: item.analysis,
@@ -262,23 +229,16 @@ export async function runProjectPlanner(
         priority: item.priority,
         tags: item.tags,
       });
-      broadcastTaskCreated(task);
+      broadcastTaskCreated(created);
       await new Promise((r) => setTimeout(r, 200));
     }
 
-    await updateProject(projectId, { planningStatus: "done" });
-    broadcastProjectPlanningDone(projectId, items.length);
+    const archived = await updateTask(taskId, { status: "nothing" });
+    broadcastTaskUpdated(archived);
+    broadcastTaskBreakdownDone(taskId, items.length);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[projectPlanner] project ${projectId} failed:`, message);
-    try {
-      await updateProject(projectId, { planningStatus: "error" });
-    } catch (updateErr) {
-      console.error(
-        `[projectPlanner] failed to mark project ${projectId} as error:`,
-        updateErr,
-      );
-    }
-    broadcastProjectPlanningError(projectId, message);
+    console.error(`[taskBreakdown] task ${taskId} failed:`, message);
+    broadcastTaskBreakdownError(taskId, message);
   }
 }

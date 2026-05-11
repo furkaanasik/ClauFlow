@@ -8,6 +8,7 @@ import { AgentBadge } from "@/components/Card/AgentBadge";
 import { CiBadge } from "@/components/Card/CiBadge";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
+import { api } from "@/lib/api";
 import type { Task } from "@/types";
 
 function isQueued(task: Task): boolean {
@@ -47,6 +48,7 @@ export function TaskCard({ task }: TaskCardProps) {
   const ciIterations = useBoardStore((s) => s.ciIterations);
   const clearNewTaskId = useBoardStore((s) => s.clearNewTaskId);
   const t = useTranslation();
+  const [cancelling, setCancelling] = useState(false);
 
   const isNew = newTaskIds.has(task.id);
   const [animated, setAnimated] = useState(false);
@@ -184,6 +186,20 @@ export function TaskCard({ task }: TaskCardProps) {
               <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
                 <span className="h-1 w-1 bg-[var(--text-faint)]" />
                 Queued
+                <button
+                  type="button"
+                  title={t.taskCard.cancelQueuedTitle}
+                  disabled={cancelling}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setCancelling(true);
+                    try { await api.abortTask(task.id); } catch { /* ignore */ }
+                    setCancelling(false);
+                  }}
+                  className="ml-1 flex h-4 w-4 items-center justify-center border border-[var(--border)] text-[var(--text-faint)] transition hover:border-[var(--status-error)] hover:text-[var(--status-error)] disabled:opacity-40"
+                >
+                  ✕
+                </button>
               </span>
             )}
             {task.status === "ci" && (

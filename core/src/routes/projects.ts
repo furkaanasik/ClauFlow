@@ -3,6 +3,7 @@ import { z } from "zod";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { errorMessage } from "../utils/error.js";
 
 function expandHome(p: string): string {
@@ -65,6 +66,30 @@ router.get("/", async (_req: Request, res: Response) => {
   try {
     const projects = await listProjects();
     res.json({ projects });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.get("/:id/git-status", async (req: Request, res: Response) => {
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+
+    const cwd = project.repoPath;
+    try {
+      execFileSync("git", ["-C", cwd, "rev-parse", "--git-dir"], { stdio: "ignore" });
+      const branch = execFileSync("git", ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"], {
+        encoding: "utf8",
+      }).trim();
+      const porcelain = execFileSync("git", ["-C", cwd, "status", "--porcelain"], {
+        encoding: "utf8",
+      });
+      const isDirty = porcelain.trim().length > 0;
+      res.json({ branch, isDirty });
+    } catch {
+      res.json({ branch: null, isDirty: false });
+    }
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
