@@ -1,6 +1,7 @@
 {
   "name": "kanban-gui",
   "version": "0.2.0",
+  "packageManager": "pnpm@11.0.9",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
