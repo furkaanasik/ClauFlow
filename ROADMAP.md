@@ -34,7 +34,9 @@
 
 ## Planned
 
-- 🗓 **Task breakdown AI** — "Break down" button in the task drawer: enter a large feature description, Claude splits it into 5-8 subtasks and adds them to the same project. The existing project planner operates at the project level; this operates at the task level.
+- 🗓 **Branch & git status indicator** — Show the active branch name (and optionally dirty/clean state) in the kanban header or project selector. When a project is selected, run `git branch --show-current` (+ `git status --short`) in the background and display the result next to the project name. Updates on task transitions so the branch always reflects the current HEAD. Nice-to-have: clickable to open the GitHub branch link.
+
+- 🗓 **Subtask linking** — After "Break down task" creates subtasks, link them back to the parent task so the relationship is visible in the drawer. Currently the parent task is moved to `nothing` automatically on breakdown success, but the connection between parent and children is not recorded. Needs a `parentTaskId` field in the task schema and a "Subtasks" section in the drawer.
 
 - 🗓 **Notification system** — Notify when an agent finishes or errors: browser Notification API (ask for permission if needed) + optional webhook URL (Discord / Slack / custom). Currently requires watching the terminal.
 
