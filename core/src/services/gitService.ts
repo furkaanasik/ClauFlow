@@ -81,11 +81,6 @@ export function runWithProgress(
   });
 }
 
-export function branchName(taskId: string, title: string): string {
-  const slug = slugify(title, 48) || "task";
-  return `feature/task-${taskId}-${slug}`;
-}
-
 export async function checkoutBase(repoPath: string, base: string): Promise<RunResult> {
   let co = await run("git", ["checkout", base], repoPath);
 
@@ -198,37 +193,6 @@ export interface PrResult {
   url: string | null;
   number: number | null;
   raw: RunResult;
-}
-
-export interface PushAndPrInput {
-  repoPath: string;
-  branch: string;
-  base: string;
-  prTitle: string;
-  prBody: string;
-  commitMessage: string;
-}
-
-export interface PushAndPrResult {
-  push: RunResult;
-  pr: PrResult | null;
-  commit: RunResult;
-}
-
-export async function pushAndPR(input: PushAndPrInput): Promise<PushAndPrResult> {
-  const commit = await commitAll(input.repoPath, input.commitMessage);
-  if (commit.code !== 0) {
-    return { commit, push: { code: -1, stdout: "", stderr: "commit failed" }, pr: null };
-  }
-  const push = await pushBranch(input.repoPath, input.branch);
-  if (push.code !== 0) return { commit, push, pr: null };
-  const pr = await createPr({
-    repoPath: input.repoPath,
-    title: input.prTitle,
-    body: input.prBody,
-    base: input.base,
-  });
-  return { commit, push, pr };
 }
 
 export async function initRepo(repoPath: string): Promise<RunResult> {

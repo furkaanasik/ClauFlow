@@ -46,8 +46,9 @@ import type { AgentStatus, Project, Task } from "../types/index.js";
 
 const ACTIVE: AgentStatus[] = ["branching", "running", "pushing", "pr_opening"];
 
-// Polls DB until no other task in this project has an active executor.
-// Survives server restarts and hot-reloads unlike an in-memory queue.
+// Polls until no other task in this project is actively running in this process.
+// Uses the in-memory RUNNING map — resets on server restart (orphaned tasks are
+// recovered separately by recoverOrphanedTasks on boot).
 async function acquireSlot(projectId: string, taskId: string): Promise<void> {
   for (let i = 0; i < 120; i++) {
     const tasks = await listTasks(projectId);
@@ -291,7 +292,7 @@ export async function run(
         `<task>\n${taskBrief}\n</task>\n\n` +
         `${testingInstructions}\n\n` +
         `When done, exit the terminal.`
-      : `Aşağıdaki analize göre kodu yaz ve bitince terminalden çık:\n\n` +
+      : `Implement the following task and exit the terminal when done:\n\n` +
         `<task>\n${taskBrief}\n</task>\n\n` +
         testingInstructions;
 
