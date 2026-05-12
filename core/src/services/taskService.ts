@@ -697,6 +697,14 @@ migrateLegacyJsonIfPresent();
 // ─── Backfill: slug + displayId for pre-existing rows ─────────────────────
 // Idempotent — only fills in NULLs. Safe to re-run on every boot.
 function backfillSlugsAndDisplayIds(): void {
+  const needsBackfill = db
+    .prepare(`SELECT 1 FROM projects WHERE slug IS NULL LIMIT 1`)
+    .get();
+  const needsTaskBackfill = db
+    .prepare(`SELECT 1 FROM tasks WHERE displayId IS NULL LIMIT 1`)
+    .get();
+  if (!needsBackfill && !needsTaskBackfill) return;
+
   const projectRows = db
     .prepare(
       `SELECT id, name, slug, taskCounter FROM projects ORDER BY createdAt ASC`,
@@ -868,26 +876,9 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
 
   const displayId = insertWithCounter();
 
-  const task: Task = {
-    id: taskId,
-    projectId: input.projectId,
-    title: input.title,
-    description: input.description ?? "",
-    analysis: input.analysis ?? "",
-    status: input.status ?? "todo",
-    priority: input.priority ?? null,
-    tags: input.tags ?? [],
-    branch: null,
-    prUrl: null,
-    prNumber: null,
-    displayId,
-    createdAt: now,
-    updatedAt: now,
-    agent: emptyAgent,
-    parentTaskId: input.parentTaskId ?? null,
-  };
-
-  return task;
+  const row = stmtGetTask.get(taskId) as TaskRow | undefined;
+  if (!row) throw new Error(`Task insert failed: ${taskId}`);
+  return rowToTask(row);
 }
 
 export type TaskPatch = Partial<
@@ -1626,6 +1617,18 @@ export function listNodeRunsByTask(taskId: string): NodeRun[] {
 
 // ─── Graph DB Service ─────────────────────────────────────────────────────
 
+const stmtListGraphsByProject = db.prepare(
+  `SELECT * FROM graphs WHERE projectId = ? ORDER BY createdAt ASC`,
+);
+const stmtGetGraph = db.prepare(`SELECT * FROM graphs WHERE id = ?`);
+const stmtInsertGraph = db.prepare(
+  `INSERT INTO graphs (id, projectId, name, data, createdAt) VALUES (?, ?, ?, ?, ?)`,
+);
+const stmtUpdateGraph = db.prepare(
+  `UPDATE graphs SET name = ?, data = ? WHERE id = ?`,
+);
+const stmtDeleteGraph = db.prepare(`DELETE FROM graphs WHERE id = ?`);
+
 interface GraphRow {
   id: string;
   projectId: string;
@@ -1653,12 +1656,12 @@ function rowToGraphRecord(row: GraphRow): GraphRecord {
 }
 
 export function listGraphs(projectId: string): GraphRecord[] {
-  const rows = db.prepare(`SELECT * FROM graphs WHERE projectId = ? ORDER BY createdAt ASC`).all(projectId) as GraphRow[];
+  const rows = stmtListGraphsByProject.all(projectId) as GraphRow[];
   return rows.map(rowToGraphRecord);
 }
 
 export function getGraph(id: string): GraphRecord | null {
-  const row = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow | undefined;
+  const row = stmtGetGraph.get(id) as GraphRow | undefined;
   return row ? rowToGraphRecord(row) : null;
 }
 
@@ -1672,9 +1675,8 @@ export function createGraph(input: CreateGraphInput): GraphRecord {
   const id = `graph_${randomUUID().slice(0, 8)}`;
   const createdAt = new Date().toISOString();
   const data = JSON.stringify(input.data ?? { nodes: [], edges: [] });
-  db.prepare(`INSERT INTO graphs (id, projectId, name, data, createdAt) VALUES (?, ?, ?, ?, ?)`)
-    .run(id, input.projectId, input.name, data, createdAt);
-  const row = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow;
+  stmtInsertGraph.run(id, input.projectId, input.name, data, createdAt);
+  const row = stmtGetGraph.get(id) as GraphRow;
   return rowToGraphRecord(row);
 }
 
@@ -1684,18 +1686,18 @@ export interface UpdateGraphPatch {
 }
 
 export function updateGraph(id: string, patch: UpdateGraphPatch): GraphRecord {
-  const row = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow | undefined;
+  const row = stmtGetGraph.get(id) as GraphRow | undefined;
   if (!row) throw new Error(`Graph not found: ${id}`);
   const nextName = patch.name ?? row.name;
   const nextData = patch.data !== undefined ? JSON.stringify(patch.data) : row.data;
-  db.prepare(`UPDATE graphs SET name = ?, data = ? WHERE id = ?`).run(nextName, nextData, id);
-  const next = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow;
+  stmtUpdateGraph.run(nextName, nextData, id);
+  const next = stmtGetGraph.get(id) as GraphRow;
   return rowToGraphRecord(next);
 }
 
 export function deleteGraph(id: string): void {
-  const row = db.prepare(`SELECT * FROM graphs WHERE id = ?`).get(id) as GraphRow | undefined;
+  const row = stmtGetGraph.get(id) as GraphRow | undefined;
   if (!row) throw new Error(`Graph not found: ${id}`);
   if (row.name === 'default') throw new Error(`Cannot delete the default graph`);
-  db.prepare(`DELETE FROM graphs WHERE id = ?`).run(id);
+  stmtDeleteGraph.run(id);
 }

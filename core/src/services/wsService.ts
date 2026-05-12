@@ -1,5 +1,10 @@
+import { createRequire } from "node:module";
 import type { Server as HttpServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
+
+const _require = createRequire(import.meta.url);
+const _pkg = _require("../../package.json") as { version: string };
+const SERVER_VERSION: string = _pkg.version ?? "0.0.0";
 import type {
   AgentStatus,
   AgentText,
@@ -30,7 +35,7 @@ export function attachWebSocket(server: HttpServer): WebSocketServer {
     }
     const hello: WsMessage = {
       type: "hello",
-      payload: { serverVersion: "0.1.0" },
+      payload: { serverVersion: SERVER_VERSION },
     };
     socket.send(JSON.stringify(hello));
   });
@@ -72,7 +77,8 @@ export function broadcastTaskUpdated(task: Task): void {
 }
 
 export function broadcastTaskCreated(task: Task): void {
-  broadcast({ type: "task_created", taskId: task.id, payload: task });
+  const stripped: Task = { ...task, agent: { ...task.agent, log: [] } };
+  broadcast({ type: "task_created", taskId: task.id, payload: stripped });
 }
 
 export function broadcastTaskDeleted(id: string): void {

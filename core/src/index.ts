@@ -14,6 +14,7 @@ import systemRouter from "./routes/system.js";
 import insightsRouter from "./routes/insights.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
 import { recoverOrphanedTasks } from "./services/taskService.js";
+import { apiKeyAuth } from "./middleware/auth.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1";
@@ -27,6 +28,7 @@ const ALLOWED_ORIGINS = (
 const app = express();
 app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
+app.use(apiKeyAuth);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "kanban-core", version: "0.1.0" });

@@ -12,6 +12,13 @@ function expandHome(p: string): string {
   return p;
 }
 
+function assertIsGitRepo(repoPath: string): void {
+  const resolved = path.resolve(expandHome(repoPath));
+  if (!fs.existsSync(path.join(resolved, ".git"))) {
+    throw new Error(`repoPath is not a git repository: ${resolved}`);
+  }
+}
+
 function normalizeClonePath(raw: string): string {
   const expanded = expandHome(raw.trim());
   if (!path.isAbsolute(expanded)) return expanded;
@@ -128,6 +135,10 @@ router.post("/", async (req: Request, res: Response) => {
         .status(400)
         .json({ error: "repoName sadece harf, rakam, _ . - içerebilir" });
       return;
+    }
+
+    if (!data.createGithubRepo) {
+      assertIsGitRepo(data.repoPath);
     }
 
     let remote = data.remote ?? null;
@@ -276,6 +287,10 @@ router.patch("/:id", async (req: Request, res: Response) => {
 
     if (data.repoPath !== undefined && !path.isAbsolute(data.repoPath)) {
       return res.status(400).json({ error: "repoPath mutlak bir yol olmalıdır" });
+    }
+
+    if (data.repoPath !== undefined) {
+      assertIsGitRepo(data.repoPath);
     }
 
     if (data.repoPath !== undefined || data.defaultBranch !== undefined) {

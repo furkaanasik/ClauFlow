@@ -156,20 +156,28 @@ async function runFixIteration(
     const logsByRunId = await fetchFailedLogs(project.repoPath, failures);
     const artifact = buildFailureArtifact(prNumber, state.iteration, failures, logsByRunId);
 
-    const failureSummary = artifact.failures
+    let failureSummary = artifact.failures
       .map((f) => {
         const parts = [`Job: ${f.jobName}`, `Conclusion: ${f.conclusion}`];
         if (f.link) parts.push(`Link: ${f.link}`);
-        if (f.logTail) parts.push(`Log tail:\n${f.logTail}`);
+        if (f.logTail) parts.push(`Log tail:\n${f.logTail.slice(0, 2000)}`);
         return parts.join("\n");
       })
       .join("\n\n---\n\n");
 
-    const prompt =
+    const promptPrefix =
       `CI checks failed for PR #${prNumber}. Fix the failing tests/checks.\n\n` +
-      `Failed jobs:\n\n${failureSummary}\n\n` +
+      `<ci_failure_data>\n`;
+    const promptSuffix =
+      `\n</ci_failure_data>\n\n` +
       `Fix the root cause. Do not weaken tests — fix the implementation. ` +
       `When done, exit the terminal.`;
+    const maxSummaryLen = 8000 - promptPrefix.length - promptSuffix.length;
+    if (failureSummary.length > maxSummaryLen) {
+      failureSummary = failureSummary.slice(0, maxSummaryLen);
+    }
+
+    const prompt = promptPrefix + failureSummary + promptSuffix;
 
     const claudeResult = await runClaude({
       prompt,
