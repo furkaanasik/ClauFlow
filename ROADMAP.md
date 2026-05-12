@@ -29,12 +29,11 @@
 - ✅ **Docker distribution** — `docker.yml` GitHub Actions workflow: build multi-arch image (amd64 + arm64) on every `v*.*.*` tag, push to GitHub Container Registry (`ghcr.io/furkaanasik/clauflow`). `docker-compose.yml` at repo root: core + gui services, named volume for SQLite persistence. `docker compose up` → running ClauFlow, no Node install needed.
 - ✅ **GitHub Issues ↔ Task sync** — Import open issues from a repo into the kanban with a single click (board toolbar → "Import Issues", checkbox list, bulk create). Create new tasks as GitHub issues via checkbox in AddTaskModal; auto-adds to GitHub Projects board if one exists. Projects without a remote show a disabled checkbox with a configure link that opens project settings.
 - ✅ **PR auto-review** — When a task reaches the REVIEW column (directly or via CI pass), Claude automatically runs a code review pass on the PR diff and posts the result as a comment on the task. Comment shows "running" spinner while Claude works, then renders full markdown review with Summary / Issues / Suggestions / Verdict.
+- ✅ **Branch & git status indicator** — Show the active branch name (and optionally dirty/clean state) in the kanban header or project selector. When a project is selected, run `git branch --show-current` (+ `git status --short`) in the background and display the result next to the project name. Updates on task transitions so the branch always reflects the current HEAD. Nice-to-have: clickable to open the GitHub branch link.
 
 ---
 
 ## Planned
-
-- 🗓 **Branch & git status indicator** — Show the active branch name (and optionally dirty/clean state) in the kanban header or project selector. When a project is selected, run `git branch --show-current` (+ `git status --short`) in the background and display the result next to the project name. Updates on task transitions so the branch always reflects the current HEAD. Nice-to-have: clickable to open the GitHub branch link.
 
 - 🗓 **Subtask linking** — After "Break down task" creates subtasks, link them back to the parent task so the relationship is visible in the drawer. Currently the parent task is moved to `nothing` automatically on breakdown success, but the connection between parent and children is not recorded. Needs a `parentTaskId` field in the task schema and a "Subtasks" section in the drawer.
 
