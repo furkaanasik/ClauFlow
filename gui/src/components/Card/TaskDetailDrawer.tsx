@@ -277,6 +277,15 @@ export function TaskDetailDrawer() {
 
   const toolCalls      = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
   const agentTexts     = useBoardStore((s) => task ? (s.agentTexts[task.id] ?? EMPTY_AGENT_TEXTS) : EMPTY_AGENT_TEXTS);
+  const allTasks       = useBoardStore((s) => s.tasks);
+  const subtasks       = useMemo(
+    () => task ? Object.values(allTasks).filter((t) => t.parentTaskId === task.id) : [],
+    [allTasks, task?.id],
+  );
+  const parentTask     = useMemo(
+    () => task?.parentTaskId ? (allTasks[task.parentTaskId] ?? null) : null,
+    [allTasks, task?.parentTaskId],
+  );
   const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
   const nodeRunCount   = useBoardStore((s) => task ? Object.keys(s.nodeRuns[task.id] ?? {}).length : 0);
   const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
@@ -439,6 +448,28 @@ export function TaskDetailDrawer() {
                     </div>
                   )}
 
+                  {/* Parent Task */}
+                  {parentTask && (
+                    <Section label="Parent Task" numeral="↑">
+                      <button
+                        type="button"
+                        onClick={() => selectTask(parentTask.id)}
+                        className="flex w-full items-center gap-3 rounded border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-left text-sm transition hover:border-[var(--border-strong)]"
+                      >
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ background: STATUS_COLOR[parentTask.status] }}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-[var(--text-primary)]">
+                          {parentTask.title}
+                        </span>
+                        <span className="shrink-0 font-mono text-[11px] text-[var(--text-faint)]">
+                          {parentTask.displayId ?? parentTask.status}
+                        </span>
+                      </button>
+                    </Section>
+                  )}
+
                   {/* Description */}
                   <Section label={td.descriptionLabel} numeral="01">
                     {editing && draft ? (
@@ -476,6 +507,34 @@ export function TaskDetailDrawer() {
                       <p className="t-quote text-sm text-[var(--text-faint)]">{td.analysisEmpty}</p>
                     )}
                   </Section>
+
+                  {/* Subtasks */}
+                  {!editing && subtasks.length > 0 && (
+                    <Section label="Subtasks" numeral="03">
+                      <ul className="space-y-1">
+                        {subtasks.map((sub) => (
+                          <li key={sub.id}>
+                            <button
+                              type="button"
+                              onClick={() => selectTask(sub.id)}
+                              className="flex w-full items-center gap-3 rounded border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-left text-sm transition hover:border-[var(--border-strong)]"
+                            >
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full"
+                                style={{ background: STATUS_COLOR[sub.status] }}
+                              />
+                              <span className="min-w-0 flex-1 truncate text-[var(--text-primary)]">
+                                {sub.title}
+                              </span>
+                              <span className="shrink-0 font-mono text-[11px] text-[var(--text-faint)]">
+                                {sub.displayId ?? sub.status}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </Section>
+                  )}
 
                   {/* Execution Mode */}
                   {!editing && (

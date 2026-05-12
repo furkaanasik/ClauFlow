@@ -228,6 +228,7 @@ export async function runTaskBreakdown(
         status: "todo",
         priority: item.priority,
         tags: item.tags,
+        parentTaskId: task.id,
       });
       broadcastTaskCreated(created);
       await new Promise((r) => setTimeout(r, 200));
