@@ -6,6 +6,7 @@ import { useBoardStore } from "@/store/boardStore";
 import { useGithubAuth } from "@/hooks/useGithubAuth";
 import { GithubConnectModal } from "@/components/Auth/GithubConnectModal";
 import { PrereqIndicator } from "@/components/Layout/PrereqIndicator";
+import { NotificationPopover } from "@/components/Layout/NotificationPopover";
 import { useTranslation } from "@/hooks/useTranslation";
 
 export function Header() {
@@ -108,6 +109,8 @@ export function Header() {
               {wsConnected ? "Live" : "Offline"}
             </span>
           </span>
+
+          <NotificationPopover />
 
           <PrereqIndicator />
 
