@@ -30,14 +30,12 @@
 - ✅ **GitHub Issues ↔ Task sync** — Import open issues from a repo into the kanban with a single click (board toolbar → "Import Issues", checkbox list, bulk create). Create new tasks as GitHub issues via checkbox in AddTaskModal; auto-adds to GitHub Projects board if one exists. Projects without a remote show a disabled checkbox with a configure link that opens project settings.
 - ✅ **PR auto-review** — When a task reaches the REVIEW column (directly or via CI pass), Claude automatically runs a code review pass on the PR diff and posts the result as a comment on the task. Comment shows "running" spinner while Claude works, then renders full markdown review with Summary / Issues / Suggestions / Verdict.
 - ✅ **Branch & git status indicator** — Show the active branch name (and optionally dirty/clean state) in the kanban header or project selector. When a project is selected, run `git branch --show-current` (+ `git status --short`) in the background and display the result next to the project name. Updates on task transitions so the branch always reflects the current HEAD. Nice-to-have: clickable to open the GitHub branch link.
+- ✅ **Subtask linking** — After "Break down task" creates subtasks, link them back to the parent task so the relationship is visible in the drawer. `parentTaskId` field added to task schema; "Subtasks" section in drawer shows children; subtask detail drawer shows parent link for bidirectional navigation.
+- ✅ **Notification system** — Browser Notification API (permission requested lazily) + optional webhook POST (Discord / Slack / custom) fire on agent `done` or `error`. Bell icon in header opens settings popover; config persists in localStorage.
 
 ---
 
 ## Planned
-
-- 🗓 **Subtask linking** — After "Break down task" creates subtasks, link them back to the parent task so the relationship is visible in the drawer. Currently the parent task is moved to `nothing` automatically on breakdown success, but the connection between parent and children is not recorded. Needs a `parentTaskId` field in the task schema and a "Subtasks" section in the drawer.
-
-- 🗓 **Notification system** — Notify when an agent finishes or errors: browser Notification API (ask for permission if needed) + optional webhook URL (Discord / Slack / custom). Currently requires watching the terminal.
 
 - 🗓 **Claude model selector per-task** — Choose which model runs for each task (Haiku: fast/cheap, Sonnet: balanced, Opus: deep work). The executor currently uses a hardcoded model; add a `model` field to the task schema and pass it through to the executor.
 

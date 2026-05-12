@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useToastStore } from "@/hooks/useToast";
+import { useNotificationStore } from "@/hooks/useNotification";
 import type { WsMessage } from "@/types";
 
 const RECONNECT_DELAY_MS = 3000;
@@ -78,6 +79,16 @@ export function useAgentSocket(url?: string) {
               upsertTask(t);
               if (t.agent.status === "idle" && t.status === "doing") {
                 useBoardStore.getState().clearBudgetExceeded(t.id);
+              }
+              if (t.agent.status === "done" || t.agent.status === "error") {
+                const isError = t.agent.status === "error";
+useNotificationStore.getState().notify(
+                  isError ? `Error: ${t.title}` : `Done: ${t.title}`,
+                  isError
+                    ? (t.agent.error ?? "Agent encountered an error")
+                    : "Agent finished successfully",
+                  isError,
+                );
               }
               break;
             }
