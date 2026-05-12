@@ -47,6 +47,7 @@ export interface Task {
   budgetUsd?: number | null;
   executionMode?: 'simple' | 'graph';
   graphId?: string | null;
+  parentTaskId?: string | null;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";

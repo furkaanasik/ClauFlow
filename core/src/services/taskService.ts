@@ -348,6 +348,9 @@ db.exec(
   if (!taskColNames.includes('graphId')) {
     db.exec(`ALTER TABLE tasks ADD COLUMN graphId TEXT`);
   }
+  if (!taskColNames.includes('parentTaskId')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN parentTaskId TEXT REFERENCES tasks(id)`);
+  }
 }
 
 // Migration: graphs table
@@ -432,6 +435,7 @@ interface TaskRow {
   budgetUsd: number | null;
   executionMode: string | null;
   graphId: string | null;
+  parentTaskId: string | null;
 }
 
 function rowToProject(row: ProjectRow): Project {
@@ -507,6 +511,7 @@ function rowToTask(row: TaskRow): Task {
     budgetUsd: row.budgetUsd ?? null,
     executionMode: (row.executionMode as 'simple' | 'graph' | null) ?? 'simple',
     graphId: row.graphId ?? null,
+    parentTaskId: row.parentTaskId ?? null,
   };
 }
 
@@ -528,12 +533,12 @@ const stmtInsertTask = db.prepare(
     id, projectId, title, description, analysis, status, priority, tags,
     branch, prUrl, prNumber, displayId, createdAt, updatedAt,
     agentStatus, agentCurrentStep, agentLog, agentError, agentStartedAt, agentFinishedAt,
-    executionMode, graphId
+    executionMode, graphId, parentTaskId
   ) VALUES (
     @id, @projectId, @title, @description, @analysis, @status, @priority, @tags,
     @branch, @prUrl, @prNumber, @displayId, @createdAt, @updatedAt,
     @agentStatus, @agentCurrentStep, @agentLog, @agentError, @agentStartedAt, @agentFinishedAt,
-    @executionMode, @graphId
+    @executionMode, @graphId, @parentTaskId
   )`,
 );
 const stmtBumpTaskCounter = db.prepare(
@@ -562,6 +567,7 @@ const stmtUpdateTaskWithLog = db.prepare(
     budgetUsd = @budgetUsd,
     executionMode = @executionMode,
     graphId = @graphId,
+    parentTaskId = @parentTaskId,
     updatedAt = @updatedAt,
     agentStatus = @agentStatus,
     agentCurrentStep = @agentCurrentStep,
@@ -587,6 +593,7 @@ const stmtUpdateTaskWithoutLog = db.prepare(
     budgetUsd = @budgetUsd,
     executionMode = @executionMode,
     graphId = @graphId,
+    parentTaskId = @parentTaskId,
     updatedAt = @updatedAt,
     agentStatus = @agentStatus,
     agentCurrentStep = @agentCurrentStep,
@@ -804,6 +811,7 @@ export interface CreateTaskInput {
   status?: TaskStatus;
   executionMode?: "simple" | "graph";
   graphId?: string | null;
+  parentTaskId?: string | null;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -853,6 +861,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       agentFinishedAt: emptyAgent.finishedAt ?? null,
       executionMode: input.executionMode ?? "simple",
       graphId: input.graphId ?? null,
+      parentTaskId: input.parentTaskId ?? null,
     });
     return displayId;
   });
@@ -875,6 +884,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     createdAt: now,
     updatedAt: now,
     agent: emptyAgent,
+    parentTaskId: input.parentTaskId ?? null,
   };
 
   return task;
@@ -896,6 +906,7 @@ export type TaskPatch = Partial<
     | "budgetUsd"
     | "executionMode"
     | "graphId"
+    | "parentTaskId"
   >
 > & { agent?: Partial<AgentState> };
 
@@ -927,6 +938,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     budgetUsd: next.budgetUsd ?? null,
     executionMode: next.executionMode ?? 'simple',
     graphId: next.graphId ?? null,
+    parentTaskId: next.parentTaskId ?? null,
     updatedAt: next.updatedAt,
     agentStatus: next.agent.status,
     agentCurrentStep: next.agent.currentStep ?? null,

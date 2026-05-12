@@ -52,6 +52,7 @@ const createTaskSchema = z.object({
   priority: taskPriority.optional(),
   tags: z.array(z.string()).optional(),
   status: taskStatus.optional(),
+  parentTaskId: z.string().nullable().optional(),
 });
 
 const updateTaskSchema = z.object({
@@ -71,6 +72,7 @@ const updateTaskSchema = z.object({
   budgetUsd: z.number().min(0.1).nullable().optional(),
   executionMode: z.enum(['simple', 'graph']).optional(),
   graphId: z.string().nullable().optional(),
+  parentTaskId: z.string().nullable().optional(),
   agent: z
     .object({
       status: agentStatus.optional(),
