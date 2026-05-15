@@ -17,7 +17,7 @@ Move a card to **DOING** — Claude Code branches, writes, commits, and opens a 
 [![AI](https://img.shields.io/badge/agent-Claude%20Code%20CLI-d4ff3d?style=flat&labelColor=0a0908)](https://docs.claude.com/en/docs/claude-code/overview)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](#license)
 
-[Roadmap](ROADMAP.md) · [Architecture](CLAUDE.md) · [Issues](https://github.com/furkaanasik/ClauFlow/issues)
+[Architecture](CLAUDE.md) · [Issues](https://github.com/furkaanasik/ClauFlow/issues)
 
 </div>
 
@@ -237,7 +237,7 @@ pnpm lint          # eslint
 PRs welcome. A few notes before you open one:
 
 - **Read [`CLAUDE.md`](CLAUDE.md) first** — it documents the data flow, WS event shape, and project conventions (no `window.confirm`, Tailwind v4 theming, comment runner contract).
-- **Roadmap** lives in [`ROADMAP.md`](ROADMAP.md). Pick something marked active or open an issue before tackling a larger change.
+- **Roadmap** lives in [GitHub Issues](https://github.com/furkaanasik/ClauFlow/issues). Open an issue before tackling a larger change.
 - Run `npm run typecheck` (in `core/`) and `pnpm typecheck && pnpm lint` (in `gui/`) before pushing.
 - Keep commits scoped, PR descriptions focused on the *why*.
 - ClauFlow is a kanban for Claude — feel free to use it on its own repo. Meta loops are encouraged.
