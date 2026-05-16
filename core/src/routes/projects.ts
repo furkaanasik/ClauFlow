@@ -39,6 +39,7 @@ import {
   createGithubRepo,
   getRemoteUrl,
   commitAll,
+  run,
 } from "../services/gitService.js";
 import { runProjectPlanner } from "../agents/projectPlanner.js";
 import { runCloneRepo } from "../agents/cloneRunner.js";
@@ -182,12 +183,20 @@ router.post("/", async (req: Request, res: Response) => {
 
     const trimmedPrompt = data.aiPrompt?.trim();
 
+    let detectedBranch = data.defaultBranch;
+    if (!detectedBranch) {
+      const headRef = await run("git", ["symbolic-ref", "--short", "HEAD"], data.repoPath);
+      if (headRef.code === 0 && headRef.stdout.trim().length > 0) {
+        detectedBranch = headRef.stdout.trim();
+      }
+    }
+
     let project = await createProject({
       name: data.name,
       description: data.description,
       aiPrompt: trimmedPrompt,
       repoPath: data.repoPath,
-      defaultBranch: data.defaultBranch,
+      defaultBranch: detectedBranch,
       remote,
       slug: data.slug,
       budgetUsd: data.budgetUsd,
