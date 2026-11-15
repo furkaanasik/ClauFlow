@@ -7,6 +7,8 @@ export type AgentStatus =
   | "pushing"
   | "pr_opening"
   | "awaiting_approval"
+  /** zincir: in Doing but not started; waits for its dependencies (holds no repo lock). */
+  | "waiting_deps"
   | "done"
   | "error";
 
@@ -283,7 +285,21 @@ export type WsMessage =
     }
   | { type: "task_breakdown_started"; taskId: string }
   | { type: "task_breakdown_done"; taskId: string; taskCount: number }
-  | { type: "task_breakdown_error"; taskId: string; error: string };
+  | { type: "task_breakdown_error"; taskId: string; error: string }
+  | {
+      /** zincir (plan §3/12, §5.7): `taskId` became done and these waiting tasks started. */
+      type: "chain_advanced";
+      taskId: string;
+      payload: ChainAdvancedPayload;
+    };
+
+export interface ChainAdvancedPayload {
+  projectId: string;
+  displayId: string | null;
+  /** true when the done transition came from review (a merge). */
+  merged: boolean;
+  started: Array<{ id: string; displayId: string | null }>;
+}
 
 export interface InstalledPlugin {
   id: string;

@@ -9,6 +9,7 @@ import type {
   AgentStatus,
   BudgetExceededPayload,
   AgentText,
+  ChainAdvancedPayload,
   Comment,
   NodeRun,
   Project,
@@ -181,6 +182,11 @@ export function broadcastTeamArtifact(artifact: TeamArtifact): void {
 
 export function broadcastBudgetExceeded(taskId: string, payload: BudgetExceededPayload): void {
   broadcast({ type: "budget_exceeded", taskId, payload });
+}
+
+/** zincir (plan §3/12): "CLF-2 merged → CLF-3 started" toast. */
+export function broadcastChainAdvanced(taskId: string, payload: ChainAdvancedPayload): void {
+  broadcast({ type: "chain_advanced", taskId, payload });
 }
 
 export function closeWebSocket(): Promise<void> {

@@ -15,6 +15,7 @@ import fsRouter from "./routes/fs.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
 import { recoverAndBroadcastOrphans } from "./services/orphanRecovery.js";
 import { auditProjectBaseBranches } from "./services/baseBranch.js";
+import { installChainHooks } from "./services/chainService.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1";
@@ -51,6 +52,8 @@ app.use((req, res) => {
 
 const server = http.createServer(app);
 attachWebSocket(server);
+// zincir (plan §3/3): a task becoming done starts its ready waiting dependents.
+installChainHooks();
 
 server.listen(PORT, HOST, async () => {
   console.log(`[core] listening on http://${HOST}:${PORT}`);

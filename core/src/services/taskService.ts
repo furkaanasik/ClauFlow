@@ -856,6 +856,12 @@ export async function getProject(id: string): Promise<Project | null> {
   return row ? rowToProject(row) : null;
 }
 
+/** Synchronous read, for zincir's start path (no await between claim and enqueue). */
+export function getProjectSync(id: string): Project | null {
+  const row = stmtGetProject.get(id) as ProjectRow | undefined;
+  return row ? rowToProject(row) : null;
+}
+
 interface CreateTaskInput {
   projectId: string;
   title: string;
@@ -973,6 +979,33 @@ export type TaskPatch = Partial<
   >
 > & { agent?: Partial<AgentState> };
 
+// zincir (plan §3/3): the one place that sees every "→ done" transition (merge,
+// approval dialog, PR drawer, no-change run, Explore, broken-down parent).
+// Listeners run on setImmediate so the caller's task_updated goes out first.
+type TaskDoneListener = (next: Task, prev: Task) => void;
+const doneListeners: TaskDoneListener[] = [];
+
+/** Registers a listener for "→ done"; returns a function that removes it. */
+export function onTaskBecameDone(cb: TaskDoneListener): () => void {
+  doneListeners.push(cb);
+  return () => {
+    const i = doneListeners.indexOf(cb);
+    if (i >= 0) doneListeners.splice(i, 1);
+  };
+}
+
+function emitTaskBecameDone(next: Task, prev: Task): void {
+  for (const cb of [...doneListeners]) {
+    setImmediate(() => {
+      try {
+        cb(next, prev);
+      } catch (err) {
+        console.error("[taskService] done listener failed:", err);
+      }
+    });
+  }
+}
+
 export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
   const row = stmtGetTask.get(id) as TaskRow | undefined;
   if (!row) throw new Error(`Task not found: ${id}`);
@@ -1018,6 +1051,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     stmtUpdateTaskWithoutLog.run(params);
   }
 
+  if (current.status !== "done" && next.status === "done") emitTaskBecameDone(next, current);
   return next;
 }
 
@@ -1037,8 +1071,9 @@ export interface OrphanRecovery {
 /**
  * Boot-time cleanup of state no live process owns any more (the executor's
  * maps are in memory). Tasks left in "doing" go back to todo + `server_restart`
- * — except tasks paused for spec approval, which wait for the user on
- * purpose — and running team runs / node runs become errors. Returns the ids
+ * — except tasks paused for spec approval and tasks waiting for their
+ * dependencies (zincir, `waiting_deps`), which wait on purpose and hold no
+ * process or lock — and running team runs / node runs become errors. Returns the ids
  * so the caller can broadcast them.
  */
 export function recoverOrphans(): OrphanRecovery {
@@ -1046,7 +1081,9 @@ export function recoverOrphans(): OrphanRecovery {
   return db.transaction((): OrphanRecovery => {
     const taskIds = (
       db
-        .prepare(`SELECT id FROM tasks WHERE status = 'doing' AND agentStatus != 'awaiting_approval'`)
+        .prepare(
+          `SELECT id FROM tasks WHERE status = 'doing' AND agentStatus NOT IN ('awaiting_approval', 'waiting_deps')`,
+        )
         .all() as { id: string }[]
     ).map((r) => r.id);
     db.prepare(
@@ -1056,7 +1093,7 @@ export function recoverOrphans(): OrphanRecovery {
              agentError = 'server_restart',
              agentFinishedAt = @now,
              updatedAt = @now
-       WHERE status = 'doing' AND agentStatus != 'awaiting_approval'`,
+       WHERE status = 'doing' AND agentStatus NOT IN ('awaiting_approval', 'waiting_deps')`,
     ).run({ now });
     const runIds = (
       db.prepare(`SELECT id FROM task_team_runs WHERE status = 'running'`).all() as { id: string }[]

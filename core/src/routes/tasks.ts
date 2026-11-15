@@ -42,7 +42,13 @@ import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
 import { getTaskDiff } from "../services/taskDiff.js";
 import { uiLangSchema } from "../agents/uiText.js";
 import { baseBranchExists, baseBranchHint } from "../services/baseBranch.js";
-import { DependencyError, MAX_DEPENDENCIES, setDependencies } from "../services/dependencyService.js";
+import {
+  DependencyError,
+  listDependents,
+  MAX_DEPENDENCIES,
+  setDependencies,
+} from "../services/dependencyService.js";
+import { abortWaiting, gateDoing, tryStartWaiting } from "../services/chainService.js";
 import { existsSync } from "node:fs";
 import type { Project } from "../types/index.js";
 
@@ -73,6 +79,7 @@ const agentStatus = z.enum([
   "pushing",
   "pr_opening",
   "awaiting_approval",
+  "waiting_deps",
   "done",
   "error",
 ]);
@@ -227,9 +234,11 @@ router.put("/:id/dependencies", async (req: Request, res: Response) => {
   try {
     const existing = await getTask(req.params.id!);
     if (!existing) return res.status(404).json({ error: "not_found" });
-    const task = setDependencies(existing.id, parsed.data.dependsOn);
-    broadcastTaskUpdated(task);
-    res.json({ task });
+    const updated = setDependencies(existing.id, parsed.data.dependsOn);
+    broadcastTaskUpdated(updated);
+    // A waiting task whose last unmet dependency was removed starts now (§3/8).
+    const started = updated.agent.status === "waiting_deps" ? tryStartWaiting(updated.id) : null;
+    res.json({ task: started ?? updated });
   } catch (err) {
     if (err instanceof DependencyError) return res.status(err.httpStatus).json(err.toBody());
     res.status(500).json({ error: errorMessage(err) });
@@ -257,14 +266,23 @@ router.patch("/:id", async (req: Request, res: Response) => {
       if (current !== null) return res.status(422).json({ error: "base_branch_missing", current });
     }
 
-    // Reset agent state immediately so queued tasks show "Sırada" instead of stale error
-    let updateData: TaskPatch =
-      patch.status === "doing"
-        ? {
-            ...patch,
-            agent: { status: "idle" as const, currentStep: undefined, log: [], error: null, startedAt: null, finishedAt: null },
-          }
-        : patch;
+    // zincir (plan §3/5): every entry into Doing passes the gate. With an
+    // unmet dependency the task waits (no run, no repo lock); otherwise the
+    // agent state is reset so a queued task shows "Sırada", and the run queues.
+    if (patch.status === "doing") {
+      const { status: _status, agent: _agent, ...rest } = patch;
+      if (Object.keys(rest).length > 0) await updateTask(existing.id, rest);
+      const gate = gateDoing(existing.id, uiLang);
+      broadcastTaskUpdated(gate.task);
+      res.json({ task: gate.task });
+      if (gate.kind === "start" && !isExecutorRunning(gate.task.id)) {
+        const project = await getProject(gate.task.projectId);
+        if (project) enqueueExecutor(gate.task, project, { uiLang });
+      }
+      return;
+    }
+
+    let updateData: TaskPatch = patch;
 
     // D1 / §3/5-6: only review → done merges, and it does so before answering.
     // A failed merge leaves the task where it was and returns 409 <code>.
@@ -312,14 +330,6 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const task = await updateTask(existing.id, updateData);
     broadcastTaskUpdated(task);
     res.json({ task });
-
-    // Fire-and-forget: trigger executor when task moves to "doing"
-    if (parsed.data.status === "doing" && !isExecutorRunning(task.id)) {
-      const project = await getProject(task.projectId);
-      if (project) {
-        enqueueExecutor(task, project, { uiLang });
-      }
-    }
   } catch (err) {
     if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
     const msg = errorMessage(err);
@@ -354,22 +364,16 @@ router.post("/:id/retry", async (req: Request, res: Response) => {
       await waitForExecutorIdle(task.id, 5000);
     }
 
-    const reset = await updateTask(task.id, {
-      status: "doing",
-      agent: {
-        status: "idle",
-        currentStep: undefined,
-        log: [],
-        error: null,
-        startedAt: null,
-        finishedAt: null,
-      },
-    });
-    broadcastTaskUpdated(reset);
-    res.json({ task: reset });
+    // zincir (plan §3/5): a retry passes the gate too; a task whose
+    // dependencies are not done goes (back) to waiting.
+    const gate = gateDoing(task.id, parsed.data.uiLang);
+    broadcastTaskUpdated(gate.task);
+    res.json({ task: gate.task });
 
-    const project = await getProject(task.projectId);
-    if (project) enqueueExecutor(reset, project, { uiLang: parsed.data.uiLang });
+    if (gate.kind === "start") {
+      const project = await getProject(task.projectId);
+      if (project) enqueueExecutor(gate.task, project, { uiLang: parsed.data.uiLang });
+    }
   } catch (err) {
     const msg = errorMessage(err);
     res.status(500).json({ error: msg });
@@ -386,6 +390,21 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
     if (phase) {
       abortExecutor(id);
       return res.json({ aborted: true, source: phase === "queued" ? "queued" : "in_memory" });
+    }
+
+    // zincir (plan §3/10): a task waiting for its dependencies has no run and
+    // no lock; it goes back to todo without touching git or team runs.
+    if (task.status === "doing" && task.agent.status === "waiting_deps") {
+      const rolled = abortWaiting(id);
+      if (rolled) {
+        broadcastTaskUpdated(rolled);
+        return res.json({ aborted: true, source: "waiting" });
+      }
+      // It started between the read and the write: abort the fresh run.
+      if (executorRunPhase(id)) {
+        abortExecutor(id);
+        return res.json({ aborted: true, source: "queued" });
+      }
     }
 
     // No live process for this task. A task paused for spec approval, or an
@@ -506,9 +525,18 @@ router.post("/:id/breakdown", async (req: Request, res: Response) => {
 router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id!;
+    const dependents = listDependents(id);
     await deleteTask(id);
     broadcastTaskDeleted(id);
     res.status(204).end();
+    // zincir (plan §5.3): a dependent waiting only on the deleted task starts.
+    // Its edge is gone (CASCADE), so the deps payload changed for all of them.
+    for (const depId of dependents) {
+      if (!tryStartWaiting(depId)) {
+        const fresh = await getTask(depId);
+        if (fresh) broadcastTaskUpdated(fresh);
+      }
+    }
   } catch (err) {
     const msg = errorMessage(err);
     if (msg.startsWith("Task not found")) return res.status(404).json({ error: "not_found" });
