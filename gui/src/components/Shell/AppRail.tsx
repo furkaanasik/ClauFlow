@@ -14,13 +14,14 @@ import {
   IconBoard,
   IconChart,
   IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
   IconDownload,
   IconFactory,
   IconGithub,
   IconList,
   IconPlus,
   IconPR,
-  IconRail,
 } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
 import { useViewStore, type BoardView } from "@/store/viewStore";
@@ -129,17 +130,21 @@ export function AppRail() {
             <Monogram />
             {!collapsed && <span className="text-[18px] font-extrabold tracking-[-0.03em] text-ink">ClauFlow</span>}
           </Link>
-          {!collapsed && (
-            <IconButton
-              label={t.shell.collapseRail}
-              size="sm"
-              variant="ghost"
-              className="ml-auto"
-              onClick={() => setCollapsed(true)}
+        </div>
+
+        {/* Edge handle on the header border: visible in both states and clear of bottom-corner overlays */}
+        <div className="absolute -right-[15px] top-[50px] z-30">
+          <Tooltip content={collapsed ? t.shell.expandRail : t.shell.collapseRail} side="right">
+            <button
+              type="button"
+              aria-label={collapsed ? t.shell.expandRail : t.shell.collapseRail}
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(!collapsed)}
+              className="ui-focus grid h-7 w-7 place-items-center rounded-full border-2 border-ink bg-panel text-ink shadow-hard transition-colors hover:bg-mustard"
             >
-              <IconRail size={16} />
-            </IconButton>
-          )}
+              {collapsed ? <IconChevronRight size={14} /> : <IconChevronLeft size={14} />}
+            </button>
+          </Tooltip>
         </div>
 
         {/* Project switcher sits outside the scroller so its popover is never clipped */}
@@ -249,18 +254,11 @@ export function AppRail() {
         {/* Footer */}
         <div className={clsx("flex w-full shrink-0 flex-col gap-2 border-t-2 border-line p-3", collapsed && "items-center")}>
           {collapsed ? (
-            <>
-              <Tooltip content={t.sidebar.newProject} side="right">
-                <IconButton label={t.sidebar.newProject} size="md" onClick={() => setNewProjectOpen(true)}>
-                  <IconPlus size={16} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip content={t.shell.expandRail} side="right">
-                <IconButton label={t.shell.expandRail} size="md" variant="ghost" onClick={() => setCollapsed(false)}>
-                  <IconRail size={16} />
-                </IconButton>
-              </Tooltip>
-            </>
+            <Tooltip content={t.sidebar.newProject} side="right">
+              <IconButton label={t.sidebar.newProject} size="md" onClick={() => setNewProjectOpen(true)}>
+                <IconPlus size={16} />
+              </IconButton>
+            </Tooltip>
           ) : (
             <button
               type="button"
