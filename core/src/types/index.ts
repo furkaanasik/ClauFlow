@@ -50,6 +50,8 @@ export interface Task {
   teamId?: string | null;
   /** Lifetime spend in USD: sum of every CLI call's `total_cost_usd` (roles, comments, breakdowns). */
   costUsd?: number;
+  /** zincir: ids of same-project tasks this task waits for (edges in `task_dependencies`). */
+  dependsOn: string[];
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
