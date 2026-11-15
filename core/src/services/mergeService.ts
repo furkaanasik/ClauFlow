@@ -12,9 +12,9 @@ import type { Project, Task } from "../types/index.js";
  * Every git write happens under the repo lock; HTTP callers never wait for it.
  */
 
-export type MergeFailCode = "repo_busy" | "merge_conflict" | "merge_failed" | "pr_merge_failed";
+type MergeFailCode = "repo_busy" | "merge_conflict" | "merge_failed" | "pr_merge_failed";
 
-export type MergeResult =
+type MergeResult =
   | {
       ok: true;
       mode: "pr" | "local" | "skipped";

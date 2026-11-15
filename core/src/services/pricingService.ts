@@ -8,7 +8,7 @@ export function isPricingStale(now: Date = new Date()): boolean {
   return diffMs > 90 * 24 * 60 * 60 * 1000;
 }
 
-export interface ModelPricing {
+interface ModelPricing {
   model: string;
   inputPerM: number;
   outputPerM: number;
@@ -57,7 +57,7 @@ export const MODEL_PRICING: ModelPricing[] = [
 export const DEFAULT_MODEL = "claude-sonnet-4-5";
 export const DEFAULT_TASK_BUDGET_USD = 2.0;
 
-export interface UsageInput {
+interface UsageInput {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;

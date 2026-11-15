@@ -262,8 +262,7 @@ body::before {
    ════════════════════════════════════════════════════════════════════════════ */
 @layer components {
   /* Focus: a cobalt outline that sits outside the hard shadow */
-  .ui-focus:focus-visible,
-  .focus-ring:focus-visible {
+  .ui-focus:focus-visible {
     outline: 2.5px solid var(--focus);
     outline-offset: 3px;
   }

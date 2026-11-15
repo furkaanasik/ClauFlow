@@ -12,7 +12,6 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { api } from "@/lib/api";
 import { justArrivedDone } from "@/lib/doneBurst";
 import {
-  formatUsd,
   isAgentWorking,
   isAwaitingApproval,
   isQueued,
@@ -20,6 +19,7 @@ import {
   taskCost,
   type SubtaskStats,
 } from "@/lib/boardView";
+import { formatUsd } from "@/lib/format";
 import type { Task } from "@/types";
 
 const PRIORITY_FILL: Record<PriorityLevel, string> = {
@@ -37,7 +37,7 @@ function showAgentBadge(task: Task): boolean {
   return s === "done" || s === "error";
 }
 
-export interface TaskCardProps {
+interface TaskCardProps {
   task: Task;
   /** Child-task progress when this task is a parent. */
   subtasks?: SubtaskStats;

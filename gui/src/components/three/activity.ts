@@ -31,7 +31,7 @@ function subscribeVisibility(cb: () => void) {
 }
 
 /** False while the tab is hidden (`visibilitychange`). */
-export function usePageVisible(): boolean {
+function usePageVisible(): boolean {
   return useSyncExternalStore(
     subscribeVisibility,
     () => document.visibilityState !== "hidden",
@@ -40,7 +40,7 @@ export function usePageVisible(): boolean {
 }
 
 /** True while `ref` intersects the viewport (with a margin so the loop starts just before it scrolls in). */
-export function useInView<T extends Element>(ref: RefObject<T | null>, rootMargin = "0px"): boolean {
+function useInView<T extends Element>(ref: RefObject<T | null>, rootMargin = "0px"): boolean {
   const [inView, setInView] = useState(true);
   useEffect(() => {
     const el = ref.current;
@@ -57,7 +57,7 @@ export function useInView<T extends Element>(ref: RefObject<T | null>, rootMargi
   return inView;
 }
 
-export interface SceneActivity {
+interface SceneActivity {
   inView: boolean;
   pageVisible: boolean;
   reducedMotion: boolean;

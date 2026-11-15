@@ -8,7 +8,7 @@ import { git } from "./fakeRepo.js";
  * `pr create` with a PR URL, and fails `pr merge` when FAKE_GH_MERGE_FAIL is
  * set. No network, no real GitHub.
  */
-export interface FakeGh {
+interface FakeGh {
   dir: string;
   log: string;
   calls: () => string[];

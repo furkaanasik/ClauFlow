@@ -7,7 +7,7 @@ export const DIFF_CHAR_CAP = 30_000;
 /** A8e: every context section (brief, spec, delivery, bug list, analysis, description, project background). */
 export const SECTION_CHAR_CAP = 20_000;
 
-export function capSection(body: string, label: string): string {
+function capSection(body: string, label: string): string {
   if (body.length <= SECTION_CHAR_CAP) return body;
   return `${body.slice(0, SECTION_CHAR_CAP)}\n[${label} truncated to ${SECTION_CHAR_CAP} characters]`;
 }
@@ -58,12 +58,12 @@ const COMMON_RULES = [
   "If a tool call is rejected by a hook or policy, read the reason, satisfy it if it is reasonable, and retry once.",
 ].join("\n");
 
-export interface LoadedSkill {
+interface LoadedSkill {
   id: string;
   body: string;
 }
 
-export interface SkillSections {
+interface SkillSections {
   text: string;
   injected: string[];
   truncated: string[];
@@ -136,7 +136,7 @@ export function buildRoleSystemPrompt(
   return { text: parts.filter(Boolean).join("\n\n"), skills: skillSections };
 }
 
-export interface RolePromptContext {
+interface RolePromptContext {
   task: Pick<Task, "title" | "description" | "analysis">;
   project: Pick<Project, "aiPrompt">;
   round: number;
@@ -179,7 +179,7 @@ function taskBlock(task: RolePromptContext["task"]): string {
   return `<task>\n${parts.join("\n\n")}\n</task>`;
 }
 
-export function truncateDiff(diff: string): string {
+function truncateDiff(diff: string): string {
   if (diff.length <= DIFF_CHAR_CAP) return diff;
   return `${diff.slice(0, DIFF_CHAR_CAP)}\n[diff truncated to ${DIFF_CHAR_CAP} characters]`;
 }

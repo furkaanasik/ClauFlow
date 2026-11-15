@@ -23,6 +23,7 @@ import {
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { errorText } from "@/lib/errorText";
+import { formatUsd } from "@/lib/format";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Project, ProjectPatch, Task } from "@/types";
 
@@ -294,7 +295,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
             )}
             <StatusPill status="todo" icon={<IconCoin size={12} />}>
               <span className="font-mono">
-                {project.budgetUsd != null ? `$${project.budgetUsd.toFixed(2)}` : pd.budgetDefaultShort}
+                {project.budgetUsd != null ? formatUsd(project.budgetUsd) : pd.budgetDefaultShort}
               </span>
             </StatusPill>
           </>

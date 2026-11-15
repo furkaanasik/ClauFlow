@@ -10,7 +10,7 @@ import { costFromResult } from "./roleRunner.js";
  * parsing of the planner reply and the isolated, read-only CLI call.
  */
 
-export interface PlannedTaskItem {
+interface PlannedTaskItem {
   title: string;
   description: string;
   analysis: string;
@@ -18,14 +18,14 @@ export interface PlannedTaskItem {
   tags: string[];
 }
 
-export const VALID_PRIORITIES: readonly TaskPriority[] = [
+const VALID_PRIORITIES: readonly TaskPriority[] = [
   "low",
   "medium",
   "high",
   "critical",
 ];
 
-export function unwrapEnvelope(raw: string): { text: string; envelopeError?: string } {
+function unwrapEnvelope(raw: string): { text: string; envelopeError?: string } {
   const trimmed = raw.trim();
   if (!trimmed.startsWith("{")) return { text: trimmed };
   try {
@@ -47,7 +47,7 @@ export function unwrapEnvelope(raw: string): { text: string; envelopeError?: str
   }
 }
 
-export function recoverArrayObjects(text: string): unknown[] {
+function recoverArrayObjects(text: string): unknown[] {
   const arrStart = text.indexOf("[");
   if (arrStart === -1) return [];
   const objects: unknown[] = [];
@@ -128,7 +128,7 @@ export function extractJsonArray(raw: string): unknown {
   );
 }
 
-export function normalizePriority(value: unknown): TaskPriority {
+function normalizePriority(value: unknown): TaskPriority {
   if (typeof value !== "string") return "medium";
   const lower = value.trim().toLowerCase();
   return (VALID_PRIORITIES as readonly string[]).includes(lower)
@@ -136,7 +136,7 @@ export function normalizePriority(value: unknown): TaskPriority {
     : "medium";
 }
 
-export function normalizeTags(value: unknown): string[] {
+function normalizeTags(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const tags: string[] = [];
   for (const entry of value) {
@@ -179,10 +179,10 @@ export function normalizeTasks(parsed: unknown, maxTasks: number): PlannedTaskIt
 }
 
 /** Read-only exploration tools; never `--allowedTools` (bypass mode ignores it). */
-export const PLANNER_TOOLS = ["Read", "Glob", "Grep"];
-export const PLANNER_SETTING_SOURCES = ["project", "local"];
+const PLANNER_TOOLS = ["Read", "Glob", "Grep"];
+const PLANNER_SETTING_SOURCES = ["project", "local"];
 
-export interface PlannerCliResult extends ClaudeRunResult {
+interface PlannerCliResult extends ClaudeRunResult {
   /** The call's `total_cost_usd` from the JSON envelope (0 when missing). */
   costUsd: number;
 }

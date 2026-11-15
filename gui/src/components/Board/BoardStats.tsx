@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react";
 import { RingGauge } from "@/components/ui/Meters";
 import { useTranslation } from "@/hooks/useTranslation";
-import { formatUsd } from "@/lib/boardView";
+import { formatUsd } from "@/lib/format";
 
 interface BoardStatsProps {
   total: number;

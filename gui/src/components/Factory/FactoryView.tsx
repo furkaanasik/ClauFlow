@@ -22,7 +22,7 @@ import { useBoardStore } from "@/store/boardStore";
 import { useViewStore } from "@/store/viewStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { errorText } from "@/lib/errorText";
-import { formatUsd } from "@/lib/boardView";
+import { formatUsd } from "@/lib/format";
 import { ROLE_TONE, agentStepLabel, roleIcon } from "@/components/Team/roleMeta";
 import type { Task, TaskStatus } from "@/types";
 import { FactoryFallback } from "./FactoryFallback";

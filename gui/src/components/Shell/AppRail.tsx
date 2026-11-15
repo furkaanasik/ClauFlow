@@ -132,7 +132,7 @@ export function AppRail({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
       >
         {/* Logo */}
         <div className={clsx("flex h-16 w-full shrink-0 items-center border-b-2 border-line", collapsed ? "justify-center" : "gap-2 px-4")}>
-          <Link href="/" className="ui-focus flex items-center gap-2.5 rounded-[10px]" aria-label={`ClauFlow · ${t.shell.home}`}>
+          <Link href="/?landing=1" className="ui-focus flex items-center gap-2.5 rounded-[10px]" aria-label={`ClauFlow · ${t.shell.home}`}>
             <Monogram />
             {!collapsed && <span className="text-[18px] font-extrabold tracking-[-0.03em] text-ink">ClauFlow</span>}
           </Link>

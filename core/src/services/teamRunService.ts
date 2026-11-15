@@ -184,7 +184,7 @@ export function insertTeamArtifact(input: InsertTeamArtifactInput): TeamArtifact
   return getTeamArtifact(id)!;
 }
 
-export function getTeamArtifact(id: string): TeamArtifact | null {
+function getTeamArtifact(id: string): TeamArtifact | null {
   const row = stmtGetArtifact.get(id) as ArtifactRow | undefined;
   return row ? rowToArtifact(row) : null;
 }

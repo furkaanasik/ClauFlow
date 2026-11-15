@@ -13,7 +13,7 @@ export interface RepoLease {
   release(): void;
 }
 
-export interface RepoLockHolder {
+interface RepoLockHolder {
   owner: string;
   since: string;
 }
@@ -69,7 +69,7 @@ function grant(key: string, state: LockState, owner: string): RepoLease {
   return lease;
 }
 
-export class RepoLockAbortedError extends Error {
+class RepoLockAbortedError extends Error {
   constructor() {
     super("aborted");
     this.name = "AbortError";

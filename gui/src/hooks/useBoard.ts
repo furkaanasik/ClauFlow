@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
-import type { Task, TaskPatch, TaskStatus } from "@/types";
+import type { TaskStatus } from "@/types";
 
 export function useProjects() {
   const setProjects = useBoardStore((s) => s.setProjects);
@@ -102,23 +102,6 @@ export async function moveTaskOptimistic(
     // The server may have changed the row while refusing the move (a failed
     // merge sets agent.error); the snapshot would hide that, so re-read it.
     api.getTask(id).then(upsertTask).catch(() => {});
-    throw err;
-  }
-}
-
-export async function patchTaskOptimistic(
-  id: string,
-  patch: TaskPatch,
-): Promise<Task | undefined> {
-  const { patchTaskLocal, rollbackTask, upsertTask } = useBoardStore.getState();
-  const previous = patchTaskLocal(id, patch);
-  if (!previous) return undefined;
-  try {
-    const updated = await api.updateTask(id, patch);
-    upsertTask(updated);
-    return updated;
-  } catch (err) {
-    rollbackTask(id, previous);
     throw err;
   }
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useLayoutEffect, type CSSProperties, type ReactNode } from "react";
 import { FactoryHero } from "@/components/Landing/FactoryHero";
 import { IconButton } from "@/components/ui/Button";
 import { SectionPill } from "@/components/ui/Pills";
@@ -11,10 +12,28 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useBoardStore } from "@/store/boardStore";
 
 const REPO = "https://github.com/furkaanasik/ClauFlow";
+/** Set once the landing has been shown; later visits to `/` go straight to the board. */
+const VISITED_KEY = "clauflow.visited";
 
 export default function LandingPage() {
   const t = useTranslation();
   const L = t.landing;
+  const router = useRouter();
+
+  // First visit shows the landing and remembers it; afterwards `/` opens the
+  // board. `/?landing=1` (the logo links) always shows the landing.
+  useLayoutEffect(() => {
+    try {
+      const forced = new URLSearchParams(window.location.search).get("landing") === "1";
+      if (!forced && localStorage.getItem(VISITED_KEY) === "1") {
+        router.replace("/board");
+        return;
+      }
+      localStorage.setItem(VISITED_KEY, "1");
+    } catch {
+      /* storage blocked: always show the landing */
+    }
+  }, [router]);
 
   return (
     <main className="relative min-h-screen text-ink">
@@ -73,7 +92,7 @@ function LandingNav() {
   return (
     <header className="absolute inset-x-0 top-0 z-20">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 pt-5 md:px-12 md:pt-7">
-        <Link href="/" className="ui-focus flex items-center gap-2.5 rounded-[10px]">
+        <Link href="/?landing=1" className="ui-focus flex items-center gap-2.5 rounded-[10px]">
           <Monogram />
           <span className="text-[17px] font-extrabold tracking-tight">ClauFlow</span>
         </Link>

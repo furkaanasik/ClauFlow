@@ -40,12 +40,13 @@ import { ApprovalGate } from "@/components/Card/ApprovalGate";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
 import { apiErrorCode, errorText } from "@/lib/errorText";
-import { formatTokens, totalTokens } from "@/lib/cost";
+import { DEFAULT_TASK_BUDGET_USD, totalTokens } from "@/lib/cost";
+import { formatTokens, formatUsd } from "@/lib/format";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { TeamPicker } from "@/components/Team/TeamPicker";
 import { agentStepLabel, teamStepKind } from "@/components/Team/roleMeta";
-import { formatUsd, isAgentWorking, taskCost } from "@/lib/boardView";
+import { isAgentWorking, taskCost } from "@/lib/boardView";
 import type { AgentText, Project, Task, TaskPatch, TeamArtifact, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
@@ -55,7 +56,6 @@ type Translations = ReturnType<typeof useTranslation>;
 const EMPTY_TOOL_CALLS: ToolCall[] = [];
 const EMPTY_AGENT_TEXTS: AgentText[] = [];
 /** Executor default when neither task nor project sets a budget (core). */
-const DEFAULT_BUDGET_USD = 2;
 const ACTIVE_STEPS = ["branching", "running", "pushing", "pr_opening"] as const;
 
 const STATUS_KIND: Record<Task["status"], StatusKind> = {
@@ -330,7 +330,7 @@ export function TaskDetailDrawer() {
     const exceeded = budgetExceeded[task.id];
     const total = task.usage ? totalTokens(task.usage) : 0;
     const spent = exceeded?.spentUsd ?? lastRunCost;
-    const limit = exceeded?.budgetUsd ?? task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_BUDGET_USD;
+    const limit = exceeded?.budgetUsd ?? task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_TASK_BUDGET_USD;
     const pct = limit > 0 ? spent / limit : 0;
     return {
       spent,
@@ -721,7 +721,7 @@ export function TaskDetailDrawer() {
                         icon={<span className="font-mono text-[13px] font-bold">$</span>}
                         placeholder={td.budgetInputPlaceholder.replace(
                           "{v}",
-                          (task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_BUDGET_USD).toFixed(2),
+                          (task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_TASK_BUDGET_USD).toFixed(2),
                         )}
                         value={draft.budgetUsd}
                         onChange={(e) => setDraft({ ...draft, budgetUsd: e.target.value })}
@@ -926,10 +926,10 @@ function TaskMeta({
             </RingGauge>
             <div className="min-w-0 flex-1">
               <div className="font-mono text-[20px] font-bold leading-none tracking-tight text-ink">
-                ${budget.spent.toFixed(2)}
+                {formatUsd(budget.spent)}
               </div>
               <div className="mt-1 font-mono text-[11.5px] text-ink-3">
-                / ${budget.limit.toFixed(2)} {td.budgetLimit.toLowerCase()}
+                / {formatUsd(budget.limit)} {td.budgetLimit.toLowerCase()}
               </div>
               <DotMeter
                 className="mt-2.5"
@@ -949,7 +949,7 @@ function TaskMeta({
             ) : (
               <span>
                 {budget.ownBudget
-                  ? td.budgetPerTask.replace("{v}", `$${budget.limit.toFixed(2)}`)
+                  ? td.budgetPerTask.replace("{v}", formatUsd(budget.limit))
                   : td.budgetProjectDefault}
                 {budget.spent === 0 && <span className="text-ink-3"> · {td.budgetNoUsage}</span>}
               </span>

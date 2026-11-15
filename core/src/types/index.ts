@@ -81,8 +81,6 @@ export interface Project {
 
 export type RoleKind = "ceo" | "analyst" | "developer" | "qa";
 
-export const ROLE_KINDS: readonly RoleKind[] = ["ceo", "analyst", "developer", "qa"];
-
 export interface TeamRole {
   id: string;
   kind: RoleKind;
@@ -163,11 +161,6 @@ export interface SkillCatalogEntry {
   source: SkillSource;
   pluginId?: string;
   description: string;
-}
-
-export interface SystemCapabilities {
-  advisor: boolean;
-  models: string[];
 }
 
 export interface TasksFile {

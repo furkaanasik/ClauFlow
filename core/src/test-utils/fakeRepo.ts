@@ -31,7 +31,7 @@ export function writeRepoFile(repo: string, rel: string, body: string): void {
   writeFileSync(file, body);
 }
 
-export interface FakeCall {
+interface FakeCall {
   cwd: string;
   role: string | null;
   round: number;

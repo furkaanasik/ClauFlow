@@ -42,10 +42,3 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
   },
 }));
-
-export function useNotification() {
-  return {
-    notify: useNotificationStore((s) => s.notify),
-    requestPermission: useNotificationStore((s) => s.requestPermission),
-  };
-}

@@ -1,7 +1,6 @@
 export const ADVISOR_SUPPORTED = true;
 
 export const MODEL_ALIASES = ["haiku", "sonnet", "opus", "fable"] as const;
-export type ModelAlias = (typeof MODEL_ALIASES)[number];
 
 const HAIKU_RANK = 0;
 const FABLE_RANK = 3;
@@ -23,7 +22,7 @@ export function isValidAdvisor(mainModel: string, advisorModel: string): boolean
   return adv >= main;
 }
 
-export interface ClaudeCapabilities {
+interface ClaudeCapabilities {
   advisor: boolean;
   models: string[];
 }

@@ -24,7 +24,7 @@ import {
 import type { Comment } from "../services/commentService.js";
 import type { Project } from "../types/index.js";
 
-export class CommentRunError extends Error {}
+class CommentRunError extends Error {}
 
 /**
  * Applies a comment on the task's branch. Waits (FIFO) for the repo lock so

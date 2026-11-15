@@ -9,7 +9,8 @@ import { IconAlert, IconBranch, IconCheck, IconClose, IconCoin, IconTeam } from 
 import { RoleChain, RolePlate } from "@/components/Team/RoleChain";
 import { ROLE_TONE, fill, roleLabel, teamName, teamStepKind } from "@/components/Team/roleMeta";
 import { useTranslation } from "@/hooks/useTranslation";
-import { formatTokens, totalTokens } from "@/lib/cost";
+import { totalTokens } from "@/lib/cost";
+import { formatTokens, formatUsd } from "@/lib/format";
 import { useBoardStore } from "@/store/boardStore";
 import type { NodeRun, Task, TeamArtifact, TeamRun, TeamRunStatus } from "@/types";
 
@@ -110,7 +111,7 @@ export function TeamTimeline({ task, renderApproval }: TeamTimelineProps) {
               </span>
             )}
             <span className="team-chip" title={tl.totalCost}>
-              <IconCoin size={12} />${run.costUsd.toFixed(2)}
+              <IconCoin size={12} />{formatUsd(run.costUsd)}
             </span>
           </span>
         </div>
@@ -279,7 +280,7 @@ function ArtifactBubble({
           <footer className="team-bubble__foot">
             {a.costUsd != null && (
               <span className="team-chip" title={t.taskDetail.costReported}>
-                <IconCoin size={12} />${a.costUsd.toFixed(2)}
+                <IconCoin size={12} />{formatUsd(a.costUsd)}
               </span>
             )}
             {tokens > 0 && (
@@ -326,7 +327,7 @@ function LiveBubble({ kind, name, label }: { kind: NonNullable<TeamArtifact["rol
  * The bubble header already names the output and the QA pill carries the verdict,
  * so drop a leading "## Brief"-style heading and the `VERDICT:` line from the body.
  */
-export function displayBody(body: string): string {
+function displayBody(body: string): string {
   return body
     .replace(/^\s*#{1,2}\s+[^\n]*\n+/, "")
     .replace(/^[ \t]*\**VERDICT:\s*(PASS|FAIL)\**[ \t]*$/gim, "")

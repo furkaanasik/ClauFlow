@@ -122,7 +122,7 @@ export interface TeamRun {
   finishedAt: string | null;
 }
 
-export type TeamArtifactKind =
+type TeamArtifactKind =
   | "brief"
   | "spec"
   | "delivery"
@@ -130,16 +130,7 @@ export type TeamArtifactKind =
   | "stuck"
   | "summary";
 
-export type QaVerdict = "pass" | "fail";
-
-/** Why a team run stopped early (`TeamRun.stopReason`). Other values are free text (errors). */
-export type TeamStopReason =
-  | "stalled"
-  | "round_limit"
-  | "budget"
-  | "aborted"
-  | "superseded"
-  | "server_restart";
+type QaVerdict = "pass" | "fail";
 
 /** `GET /api/tasks/:id/team` */
 export interface TaskTeamState {
@@ -256,9 +247,9 @@ export interface TaskUsage {
   cacheWriteTokens: number;
 }
 
-export type NodeRunStatus = "running" | "done" | "error" | "aborted";
+type NodeRunStatus = "running" | "done" | "error" | "aborted";
 
-export type NodeType =
+type NodeType =
   | "planner"
   | "coder"
   | "reviewer"
@@ -292,7 +283,7 @@ export interface NodeRun {
   costUsd?: number | null;
 }
 
-export type ToolCallStatus = "running" | "done" | "error";
+type ToolCallStatus = "running" | "done" | "error";
 
 export interface ToolCall {
   id: string;
@@ -321,7 +312,7 @@ export interface GithubRepo {
 
 export type CloneStatus = "cloning" | "done" | "error";
 
-export interface CloneProgress {
+interface CloneProgress {
   status: CloneStatus;
   message: string;
   project?: Project;
@@ -362,7 +353,7 @@ export type WsMessage =
   | { type: "task_breakdown_done"; taskId: string; taskCount: number }
   | { type: "task_breakdown_error"; taskId: string; error: string };
 
-export interface BudgetExceededPayload {
+interface BudgetExceededPayload {
   spentUsd: number;
   budgetUsd: number;
   taskTitle: string;

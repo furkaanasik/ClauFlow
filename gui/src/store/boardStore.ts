@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
 import { mergeById, newerAgentText, newerTeamArtifact, newerTeamRun, newerToolCall } from "./mergeById";
 
 type Lang = "tr" | "en";
@@ -84,7 +84,6 @@ interface BoardState {
   failClone: (targetPath: string, message: string) => void;
 
   upsertNodeRun: (run: NodeRun) => void;
-  clearNodeRuns: (taskId: string) => void;
 
   setBudgetExceeded: (taskId: string, payload: { spentUsd: number; budgetUsd: number }) => void;
   clearBudgetExceeded: (taskId: string) => void;
@@ -103,7 +102,6 @@ interface BoardState {
   upsertTeamRun: (run: TeamRun) => void;
   upsertTeamArtifact: (artifact: TeamArtifact) => void;
 
-  getByStatus: (status: TaskStatus) => Task[];
 }
 
 const LOG_LIMIT = 500;
@@ -401,13 +399,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       },
     })),
 
-  clearNodeRuns: (taskId) =>
-    set((state) => {
-      const { [taskId]: _runs, ...restRuns } = state.nodeRuns;
-      void _runs;
-      return { nodeRuns: restRuns };
-    }),
-
   setBudgetExceeded: (taskId, payload) =>
     set((state) => ({
       budgetExceeded: { ...state.budgetExceeded, [taskId]: payload },
@@ -463,18 +454,5 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setLang: (lang) => {
     if (typeof window !== "undefined") localStorage.setItem("lang", lang);
     set(() => ({ lang }));
-  },
-
-  getByStatus: (status) => {
-    const { tasks, order, filterText } = get();
-    const needle = filterText.trim().toLowerCase();
-    return order
-      .map((id) => tasks[id])
-      .filter((t) => {
-        if (!t || t.status !== status) return false;
-        if (!needle) return true;
-        return t.title.toLowerCase().includes(needle) ||
-          (t.description ?? "").toLowerCase().includes(needle);
-      });
   },
 }));

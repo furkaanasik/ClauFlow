@@ -32,7 +32,7 @@ function subscribe(listener: () => void) {
   };
 }
 
-export function applyTheme(theme: Theme) {
+function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle(NIGHT_CLASS, theme === "night");
   try {
     localStorage.setItem(STORAGE_KEY, theme);

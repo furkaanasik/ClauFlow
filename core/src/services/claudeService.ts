@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { ADVISOR_SUPPORTED } from "./claudeCapabilities.js";
 
-export interface ParsedToolCall {
+interface ParsedToolCall {
   id: string;
   toolName: string;
   args: unknown;
@@ -12,7 +12,7 @@ export interface ParsedToolCall {
   durationMs: number | null;
 }
 
-export interface StreamJsonParserHandlers {
+interface StreamJsonParserHandlers {
   onText?: (text: string) => void;
   onToolCallStart?: (toolCall: ParsedToolCall) => void;
   onToolCallEnd?: (toolCall: ParsedToolCall) => void;
@@ -300,7 +300,7 @@ function emitText(
  */
 export const ARG_BYTES_LIMIT = 100 * 1024;
 
-export class PromptTooLargeError extends Error {
+class PromptTooLargeError extends Error {
   constructor() {
     super("prompt_too_large");
     this.name = "PromptTooLargeError";
@@ -319,7 +319,7 @@ function argvBytes(args: string[]): number {
  * whole argv fits in `limit` bytes. Throws `prompt_too_large` when no block
  * is left to shrink.
  */
-export function fitPromptToArgLimit(prompt: string, otherBytes: number, limit = ARG_BYTES_LIMIT): string {
+function fitPromptToArgLimit(prompt: string, otherBytes: number, limit = ARG_BYTES_LIMIT): string {
   let p = prompt;
   const over = () => Buffer.byteLength(p, "utf8") + otherBytes - limit;
   for (let guard = 0; guard < 64 && over() > 0; guard++) {

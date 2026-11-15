@@ -63,7 +63,7 @@ import { Andon, BlobFieldMesh, FactorySign, Pile, useBlobField, type AndonState 
  * idle factory costs nothing on an iGPU.
  */
 
-export interface FactoryCopy {
+interface FactoryCopy {
   columns: Record<TaskStatus, string>;
   notes: Record<TaskStatus, string>;
   steps: Record<AgentStatus, string>;
@@ -79,7 +79,7 @@ export interface FactoryCameraApi {
   focus: (status: TaskStatus) => void;
 }
 
-export interface BoardFactorySceneProps {
+interface BoardFactorySceneProps {
   layout: FactoryLayout;
   /** Changes on project / filter switches: crates then appear in place instead of dropping in. */
   epoch: string;

@@ -25,7 +25,7 @@ import { applyEkiplerMigration } from "./ekiplerMigration.js";
 import { applyTemizlikMigration } from "./temizlikMigration.js";
 import { DEFAULT_NEW_PROJECT_TEAM_ID, upsertBuiltinTeams } from "./teamTemplates.js";
 
-export const DEFAULT_QA_MAX_ROUNDS = 3;
+const DEFAULT_QA_MAX_ROUNDS = 3;
 
 // ─── DB Setup ─────────────────────────────────────────────────────────────
 
@@ -38,8 +38,6 @@ const LEGACY_JSON_FILE = path.join(DATA_DIR, "tasks.json");
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });
 }
-
-export const dbPath = DB_FILE;
 
 export const db = new Database(DB_FILE);
 db.pragma("journal_mode = WAL");
@@ -813,7 +811,7 @@ export async function getProject(id: string): Promise<Project | null> {
   return row ? rowToProject(row) : null;
 }
 
-export interface CreateTaskInput {
+interface CreateTaskInput {
   projectId: string;
   title: string;
   description?: string;
@@ -876,7 +874,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     return displayId;
   });
 
-  const displayId = insertWithCounter();
+  insertWithCounter();
 
   const row = stmtGetTask.get(taskId) as TaskRow | undefined;
   if (!row) throw new Error(`Task insert failed: ${taskId}`);
@@ -1078,7 +1076,7 @@ export async function createProject(
   return project;
 }
 
-export type ProjectPatch = Partial<
+type ProjectPatch = Partial<
   Pick<
     Project,
     | "name"
@@ -1272,7 +1270,7 @@ const stmtUpdateToolCall = db.prepare(
    WHERE id = @id`,
 );
 
-export interface InsertToolCallInput {
+interface InsertToolCallInput {
   id: string;
   taskId: string;
   toolName: string;
@@ -1310,7 +1308,7 @@ export function insertToolCall(input: InsertToolCallInput): ToolCall {
   return rowToToolCall(row);
 }
 
-export interface UpdateToolCallPatch {
+interface UpdateToolCallPatch {
   status?: ToolCallStatus;
   result?: string | null;
   finishedAt?: string | null;
@@ -1337,11 +1335,6 @@ export function updateToolCall(
 export function listToolCallsByTask(taskId: string): ToolCall[] {
   const rows = stmtListToolCallsByTask.all(taskId) as ToolCallRow[];
   return rows.map(rowToToolCall);
-}
-
-export function getToolCall(id: string): ToolCall | null {
-  const row = stmtGetToolCall.get(id) as ToolCallRow | undefined;
-  return row ? rowToToolCall(row) : null;
 }
 
 // ─── Agent Texts ──────────────────────────────────────────────────────────
@@ -1377,7 +1370,7 @@ const stmtListAgentTextsByTask = db.prepare(
   `SELECT * FROM task_agent_texts WHERE taskId = ? ORDER BY createdAt ASC, sequence ASC`,
 );
 
-export interface InsertAgentTextInput {
+interface InsertAgentTextInput {
   taskId: string;
   text: string;
   /** Optional explicit sequence; otherwise auto-incremented per task. */
@@ -1439,7 +1432,7 @@ const stmtUpdateTaskUsage = db.prepare(
    WHERE id = @id`,
 );
 
-export type TaskUsageDelta = Partial<TaskUsage>;
+type TaskUsageDelta = Partial<TaskUsage>;
 
 /**
  * Increments token usage counters on a task. Each call adds to the running
@@ -1592,7 +1585,7 @@ const stmtUpdateNodeRun = db.prepare(
    WHERE id = @id`,
 );
 
-export interface InsertNodeRunInput {
+interface InsertNodeRunInput {
   id: string;
   taskId: string;
   nodeId: string;
@@ -1649,7 +1642,7 @@ export function insertNodeRun(input: InsertNodeRunInput): NodeRun {
   return rowToNodeRun(row);
 }
 
-export interface UpdateNodeRunPatch {
+interface UpdateNodeRunPatch {
   status?: NodeRunStatus;
   finishedAt?: string | null;
   inputArtifact?: Record<string, unknown> | null;

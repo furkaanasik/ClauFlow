@@ -1,8 +1,8 @@
 import type { QaVerdict } from "../types/index.js";
 
-export const STALL_THRESHOLD = 0.8;
+const STALL_THRESHOLD = 0.8;
 
-export interface ParsedQaVerdict {
+interface ParsedQaVerdict {
   verdict: QaVerdict;
   /** False when no VERDICT line was found (treated as FAIL). */
   hadVerdict: boolean;

@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { slugify } from "./slug.js";
 
 export interface RunResult {
   code: number;
@@ -188,14 +187,14 @@ export function pushBranch(repoPath: string, branch: string): Promise<RunResult>
   return run("git", ["push", "--force-with-lease", "-u", "origin", "--", branch], repoPath);
 }
 
-export interface CreatePrInput {
+interface CreatePrInput {
   repoPath: string;
   title: string;
   body: string;
   base: string;
 }
 
-export interface PrResult {
+interface PrResult {
   url: string | null;
   number: number | null;
   raw: RunResult;

@@ -139,7 +139,6 @@ export interface Translations {
     plannerError: string;
   };
   taskCard: {
-    diffButton: string;
     openDiffTitle: string;
     openOnGithubTitle: string;
     cancelQueuedTitle: string;
@@ -277,7 +276,6 @@ export interface Translations {
     collapseColumn: string;
     expandColumn: string;
     needsConfirm: string;
-    dropHere: string;
     moveFailed: string;
     prMerged: string;
     /** Review → Done merged the local branch into base (no remote). */
@@ -339,8 +337,6 @@ export interface Translations {
       done:   { title: string; hint: string };
     };
     searchPlaceholder: string;
-    loadingTasks: string;
-    noSelection: string;
     shortcuts: {
       title: string;
       focusSearch: string;
@@ -376,31 +372,25 @@ export interface Translations {
     budgetProjectDefault: string;
     budgetInputPlaceholder: string;
     budgetHint: string;
-    budgetSpent: string;
     budgetLimit: string;
     budgetExceeded: string;
     budgetUsed: string;
     budgetNoUsage: string;
     /** Budget ring scope: the latest team run (the task total is in the header). */
     budgetThisRun: string;
-    tokensLabel: string;
     /** Tooltip on CLI-reported costs (task header, role chips). */
     costReported: string;
     follow: string;
     abortFailed: string;
-    statusLabel: string;
     agentLabel: string;
-    propertiesLabel: string;
     createdLabel: string;
     updatedLabel: string;
     tabsLabel: string;
     logViewLabel: string;
-    prLabel: string;
     noLinks: string;
     editingBadge: string;
     lines: (n: number) => string;
     titlePlaceholder: string;
-    closeLabel: string;
     descriptionLabel: string;
     descriptionPlaceholder: string;
     descriptionEmpty: string;
@@ -418,7 +408,6 @@ export interface Translations {
     changesTruncated: (base: string, branch: string) => string;
     changesEmpty: string;
     changesStatLabel: string;
-    commentsLabel: string;
     retryButton: string;
     restartButton: string;
     retryingButton: string;
@@ -435,7 +424,6 @@ export interface Translations {
       done: string;
     };
     connectionsLabel: string;
-    branchLabel: string;
     openPr: string;
     merged: string;
     mergeError: string;
@@ -458,7 +446,6 @@ export interface Translations {
       confirm: string;
       cancel: string;
     };
-    flowLabel: string;
     errors: {
       titleRequired: string;
       updateFailed: string;
@@ -499,7 +486,6 @@ export interface Translations {
     missingMany: string;
     found: string;
     missing: string;
-    install: string;
     copy: string;
     copied: string;
     docs: string;
@@ -521,7 +507,6 @@ export interface Translations {
     panePreview: string;
     cancel: string;
     tabLabel: string;
-    overviewTab: string;
     segmentInstructions: string;
     segmentTeam: string;
     teamHint: string;
@@ -533,8 +518,6 @@ export interface Translations {
     revert: string;
     saved: string;
     saveError: string;
-    repoMissing: string;
-    fileLabel: string;
     commitHint: string;
     committed: string;
     commitSkipped: string;
@@ -558,12 +541,10 @@ export interface Translations {
     footerHint: string;
     listTitle: string;
     uninstall: string;
-    uninstalling: string;
     enable: string;
     disable: string;
     enabled: string;
     disabled: string;
-    sectionInstalled: string;
     emptyInstalled: string;
     loadError: string;
     enableError: string;
@@ -600,7 +581,6 @@ export interface Translations {
     exportJson: string;
     exportCsv: string;
     statTasks: string;
-    statTasksSub: string;
     statCost: string;
     /** Cost tile footnote when the project planner spent something: "{v}". */
     statCostPlanning: string;
@@ -620,7 +600,6 @@ export interface Translations {
     sectionRecentTasks: string;
     emptyTasks: string;
     emptyTasksHint: string;
-    navInsights: string;
   };
   projectDetail: {
     nameRequired: string;
@@ -651,7 +630,6 @@ export interface Translations {
     budgetPlaceholder: string;
     total: string;
     title: string;
-    editProject: string;
     projectName: string;
     projectDescription: string;
     projectAiPrompt: string;
@@ -665,7 +643,6 @@ export interface Translations {
     openInGithub: string;
     activeTasksBlockPath: string;
     progress: string;
-    taskCounts: string;
     details: string;
     cancel: string;
     deleting: string;
@@ -746,7 +723,6 @@ export interface Translations {
     };
     unknownAuthor: string;
     openOnGithub: string;
-    unknownError: string;
     mergeFailed: string;
     merge: string;
     merging: string;

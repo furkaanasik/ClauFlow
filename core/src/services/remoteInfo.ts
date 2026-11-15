@@ -33,7 +33,7 @@ export function invalidateHasRemote(repoPath?: string): void {
   else CACHE.delete(repoLockKey(repoPath));
 }
 
-export type ProjectWithRemote = Project & { hasRemote: boolean };
+type ProjectWithRemote = Project & { hasRemote: boolean };
 
 export async function withHasRemote(project: Project): Promise<ProjectWithRemote> {
   return { ...project, hasRemote: await repoHasRemote(project.repoPath) };

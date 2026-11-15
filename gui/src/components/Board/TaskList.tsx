@@ -7,12 +7,12 @@ import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import {
   COLUMN_STATUSES,
-  formatUsd,
   isAgentWorking,
   tagDot,
   taskCost,
   type SubtaskStats,
 } from "@/lib/boardView";
+import { formatUsd } from "@/lib/format";
 import type { Task } from "@/types";
 
 type SortKey = "key" | "status" | "priority" | "cost" | "updated";

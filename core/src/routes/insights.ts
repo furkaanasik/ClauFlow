@@ -60,7 +60,7 @@ interface ExportRow {
   prNumber: number | null;
 }
 
-export interface NodeTypeCost {
+interface NodeTypeCost {
   nodeType: string;
   runCount: number;
   doneCount: number;

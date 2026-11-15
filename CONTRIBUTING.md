@@ -5,7 +5,7 @@ Thanks for your interest. Here's everything you need to start contributing.
 ## Before you begin
 
 - Read [`CLAUDE.md`](CLAUDE.md) — data flow, WS event shapes, project conventions
-- Check [`ROADMAP.md`](ROADMAP.md) — pick an active item or open an issue before tackling something large
+- Check [GitHub Issues](https://github.com/furkaanasik/ClauFlow/issues), which is the roadmap: pick an open item or open an issue before tackling something large
 - For significant changes, **open an issue first** to align on approach
 
 ## Setup
@@ -18,11 +18,11 @@ cd core && npm install && npm run dev
 cd gui && pnpm install && pnpm dev
 ```
 
-Create `gui/.env.local`:
+The defaults work without an env file. To point the GUI elsewhere, create `gui/.env.local`:
 
 ```env
-NEXT_PUBLIC_API_BASE=http://localhost:3001
-NEXT_PUBLIC_WS_URL=ws://localhost:3001
+NEXT_PUBLIC_API_BASE=http://localhost:3001/api
+NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws
 ```
 
 ## Prerequisites
@@ -38,8 +38,9 @@ gh auth status     # GitHub CLI
 
 - `core/` uses `npm`, `gui/` uses `pnpm` — never cross them
 - UI confirmations use `ConfirmDialog`, never `window.confirm`
-- Tailwind v4 theming via `html.light { --color-zinc-* }` CSS variable override
-- Translations live in `gui/src/lib/i18n/en.ts` and `tr.ts` — add keys to both
+- Theming: `cream` is the default (`:root` tokens in `gui/src/app/globals.css`), `night` adds the `html.night` class; use the tokens and `components/ui/` primitives described in [`DESIGN.md`](DESIGN.md), never raw hex colours
+- Translations live in `gui/src/lib/i18n/en.ts` and `tr.ts`, typed by `types.ts` — add keys to all three
+- `core/` has vitest tests (a fake `claude` CLI lives in `core/src/agents/__fixtures__/`); add or update tests with core changes
 
 ## Before pushing
 

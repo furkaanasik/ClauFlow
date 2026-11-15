@@ -8,7 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
  * same cream / night values as the 2D UI and never hard-codes a hex.
  */
 
-export const SCENE_TOKENS = {
+const SCENE_TOKENS = {
   paper: "--paper",
   panel: "--panel",
   sunken: "--sunken",
@@ -31,7 +31,7 @@ export const SCENE_TOKENS = {
   onRed: "--on-red",
 } as const;
 
-export type SceneColorKey = keyof typeof SCENE_TOKENS;
+type SceneColorKey = keyof typeof SCENE_TOKENS;
 
 export type SceneColors = Record<SceneColorKey, string> & {
   night: boolean;
@@ -71,7 +71,7 @@ function opaque(hex: string): string {
   return /^#[0-9a-f]{8}$/i.test(h) ? h.slice(0, 7) : h;
 }
 
-export function readSceneColors(el?: Element | null): SceneColors {
+function readSceneColors(el?: Element | null): SceneColors {
   const root = el ?? document.documentElement;
   const cs = getComputedStyle(root);
   const out = {} as Record<SceneColorKey, string>;

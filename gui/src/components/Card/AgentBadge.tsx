@@ -12,7 +12,7 @@ import { useBoardStore } from "@/store/boardStore";
 import type { AgentState, AgentStatus } from "@/types";
 
 /** The four live executor steps, in order (spec §5). */
-export const AGENT_STEPS: AgentStatus[] = ["branching", "running", "pushing", "pr_opening"];
+const AGENT_STEPS: AgentStatus[] = ["branching", "running", "pushing", "pr_opening"];
 
 const STEP_KIND: Record<AgentStatus, StatusKind> = {
   idle: "todo",

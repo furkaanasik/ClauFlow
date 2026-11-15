@@ -20,16 +20,9 @@ import {
   IconRetry,
 } from "@/components/ui/icons";
 import { api, type InsightsData } from "@/lib/api";
-import { formatTokens } from "@/lib/cost";
+import { formatDuration, formatTokens, formatUsd } from "@/lib/format";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useBoardStore } from "@/store/boardStore";
-
-function formatTimeToGreen(ms: number | null): string {
-  if (ms === null) return "—";
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}m ${s % 60}s`;
-}
 
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
 
@@ -205,7 +198,7 @@ function InsightsContent() {
               />
             </KpiTile>
 
-            <KpiTile icon={<IconCoin size={15} />} label={ti.statCost} value={`$${s.costUsd.toFixed(2)}`} accent="var(--mustard)">
+            <KpiTile icon={<IconCoin size={15} />} label={ti.statCost} value={formatUsd(s.costUsd)} accent="var(--mustard)">
               <SplitBar
                 parts={[
                   { v: tokens.input, c: "var(--cobalt)" },
@@ -219,7 +212,7 @@ function InsightsContent() {
               </span>
               {s.planningCostUsd > 0 && (
                 <span className="font-mono text-[11.5px] text-ink-3">
-                  {ti.statCostPlanning.replace("{v}", `$${s.planningCostUsd.toFixed(2)}`)}
+                  {ti.statCostPlanning.replace("{v}", formatUsd(s.planningCostUsd))}
                 </span>
               )}
             </KpiTile>
@@ -241,7 +234,7 @@ function InsightsContent() {
             <KpiTile
               icon={<IconClock size={15} />}
               label={ti.statAvgRunTime}
-              value={formatTimeToGreen(s.avgTimeToGreenMs)}
+              value={formatDuration(s.avgTimeToGreenMs, { empty: "—" })}
               accent="var(--cobalt)"
             >
               <span className="text-[12px] text-ink-3">
@@ -308,7 +301,7 @@ function InsightsContent() {
                             </span>
                           </td>
                           <td className="text-right font-mono tabular-nums" title={n.estimated ? ti.costEstimated : undefined}>
-                            {n.estimated ? "~" : ""}${n.costUsd.toFixed(3)}
+                            {n.estimated ? "~" : ""}{formatUsd(n.costUsd, { precision: 3 })}
                           </td>
                         </tr>
                       );
@@ -346,11 +339,11 @@ function InsightsContent() {
                         <StatusPill status={kind}>{label}</StatusPill>
                         <span className="hidden w-[84px] items-center justify-end gap-1 font-mono text-[12px] tabular-nums text-ink-2 sm:inline-flex">
                           <IconCoin size={12} className="text-ink-3" />
-                          ${task.costUsd.toFixed(3)}
+                          {formatUsd(task.costUsd, { precision: 3 })}
                         </span>
                         <span className="hidden w-[78px] items-center justify-end gap-1 font-mono text-[12px] tabular-nums text-ink-3 md:inline-flex">
                           <IconClock size={12} />
-                          {formatTimeToGreen(task.timeToGreenMs)}
+                          {formatDuration(task.timeToGreenMs, { empty: "—" })}
                         </span>
                       </button>
                     </li>

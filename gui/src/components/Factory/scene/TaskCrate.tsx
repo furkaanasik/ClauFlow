@@ -64,7 +64,7 @@ function onBeltAt(x: number, z: number) {
   return Math.abs(z) < 0.9 && x > BELT_FROM && x < BELT_TO;
 }
 
-export interface CrateCopy {
+interface CrateCopy {
   stepLabel: string;
 }
 

@@ -2,7 +2,7 @@
 
 ClauFlow arayüzünün ("Atölye") taşınabilir tasarım dokümanı. Başka bir projeye, Next.js olmasa bile, bu dosyayı bir AI kodlama ajanına vererek aynı görünümü kurmak için yazıldı.
 
-**Doğruluk kaynağı:** Buradaki her değer koddan kopyalandı. Kaynaklar şunlar: `gui/src/app/globals.css`, `gui/src/components/ui/*`, `gui/src/components/Shell/*`, `gui/src/components/Board/*`, `gui/src/components/Card/TaskCard.tsx`, `gui/src/components/three/*`, `gui/src/hooks/useTheme.ts`, `gui/src/lib/theme.ts` ve `gui/src/app/layout.tsx`. Plan dosyası (`docs/plans/atolye-redesign.md`) ile kod ayrıştığında kod esas alındı. Kodda olmayan bir şey için "tanımlı değil" yazıldı.
+**Doğruluk kaynağı:** Buradaki her değer koddan kopyalandı. Kaynaklar şunlar: `gui/src/app/globals.css`, `gui/src/components/ui/*`, `gui/src/components/Shell/*`, `gui/src/components/Board/*`, `gui/src/components/Card/TaskCard.tsx`, `gui/src/components/three/*`, `gui/src/hooks/useTheme.ts`, `gui/src/lib/theme.ts` ve `gui/src/app/layout.tsx`. Eski tasarım planıyla (repo dışında, `atolye-lab/plans/` altında tutuluyor) kod ayrıştığında kod esas alındı. Kodda olmayan bir şey için "tanımlı değil" yazıldı.
 
 > **Önce şunu okuyun: kök font 14px.** `globals.css` içinde `html, body { font-size: 14px; }` tanımlı. Bu yüzden **1rem = 14px**. Kaynaktaki tüm `rem` değerleri, Tailwind'in `rem` tabanlı yardımcıları da dahil (`h-16`, `text-xs`, `gap-3` …), 14px üzerinden hesaplanır. Tablolarda kaynak değer yazıldı, gerektiğinde parantez içinde px karşılığı da verildi (ör. `2.5rem` (35px)). Başka bir projede aynı ölçüleri istiyorsanız kökü 14px yapın ya da rem değerlerini px'e çevirin. Media query'lerdeki rem değerleri ise tarayıcı varsayılanına (16px) göre çözülür, kök fonttan etkilenmez.
 
@@ -30,7 +30,7 @@ ClauFlow arayüzünün ("Atölye") taşınabilir tasarım dokümanı. Başka bir
 
 - **Basılı atölye ve oyun arayüzü.** Krem kâğıt zemin, her yüzeyde 2px mürekkep çizgi ve bulanıklığı olmayan sert ofset gölge. Arayüz basılmış karton plakalardan oluşuyormuş gibi görünür.
 - **Hardal (`--mustard`) eylem ve "aktif" rengidir.** Birincil buton, seçili segment, raydaki aktif öğe, işaretli checkbox ve sekme şapkası hardaldır.
-- **Kobalt (`--cobalt`) etiket rengidir.** Bölüm pilleri ("Upgrades" stili), bilgi, CI durumu ve odak halkası kobalttır.
+- **Kobalt (`--cobalt`) etiket rengidir.** Bölüm pilleri ("Upgrades" stili), bilgi, açık PR durumu ve odak halkası kobalttır.
 - **Jira/Trello yoğunluğu.** 14px gövde metni, sıkı satır aralıkları, sayaçlar, mono anahtarlar (`CLF-87`), Trello tarzı sütunlar ve Jira tarzı liste tablosu.
 - **Gece vardiyası.** Aynı baskı, koyu kâğıt üzerinde. Tokenların adları aynı kalır, yalnızca değerleri değişir.
 - **Kâğıt dokusu.** `body::before` üzerinde çok hafif bir SVG gürültüsü var (kremde `0.045`, gecede `0.05` opaklık).
@@ -45,7 +45,7 @@ ClauFlow arayüzünün ("Atölye") taşınabilir tasarım dokümanı. Başka bir
 | Küçük renkli metin için `--*-text` varyantlarını kullan (`--cobalt-text` …). | Parlak dolgu rengini (`--mustard`, `--orange` …) küçük metin rengi olarak kullanma. Kontrastı yetmez. |
 | Dolgu üstündeki metin için `--on-*` tokenını kullan (`--on-mustard` …). | Bileşenlerde ham hex ya da hazır palet rengi (`rose-500`, `text-[#..]`) kullanma. Plan §4 bunu yasaklıyor, 3D bile renkleri CSS tokenlarından okuyor. |
 | ID, sayaç, maliyet, zaman, etiket ve log için mono font (JetBrains Mono) kullan. | Butonu devre dışı bırakırken yarı saydam yapma. Devre dışı buton "mürekkepsiz plaka"dır: sunken zemin, soluk çizgi, gölge yok. |
-| Boş, yer tutucu ya da "nothing" durumları için tarama desenini (`.ui-hatch`) kullan. | Odak halkasını `box-shadow` ile yapma. Sert gölgeyle çakışır. Odak halkası her zaman `outline` (2.5px kobalt). |
+| Boş ve yer tutucu durumlar için tarama desenini (`.ui-hatch`) kullan. | Odak halkasını `box-shadow` ile yapma. Sert gölgeyle çakışır. Odak halkası her zaman `outline` (2.5px kobalt). |
 | Seçili filtre çipini mürekkep plaka ve hardal ofset gölgeyle göster. | Gecede gölgeyi `--line` ile verme. Krem gölge parlıyor, bu yüzden ayrı `--shadow-ink` tokenı var. |
 | Onay için `ConfirmDialog` kullan. | `window.confirm` kullanma (plan §7). |
 
@@ -71,7 +71,7 @@ Tokenlar `:root` (krem, varsayılan) ve `html.night` (gece) üzerinde CSS custom
 | `--hair` | `#1b171226` | İnce ayraçlar, ghost hover zemini, tarama deseni |
 | `--mustard` | `#f2c33d` | Birincil eylem, aktif segment, aktif ray öğesi |
 | `--mustard-press` | `#d9a923` | Birincil buton basılı, segment alt çizgisi |
-| `--cobalt` | `#2d5be3` | Bölüm pilleri, bilgi, CI, odak (`--focus`) |
+| `--cobalt` | `#2d5be3` | Bölüm pilleri, bilgi, açık PR, odak (`--focus`) |
 | `--orange` | `#ee7b2c` | Çalışan ajan (doing), uyarı, yürüyen kenar |
 | `--red` | `#c8372d` | Tehlikeli eylem, hata |
 | `--green` | `#3e9b5a` | Done, başarı, switch açık |
@@ -168,10 +168,11 @@ Tokenlar `:root` (krem, varsayılan) ve `html.night` (gece) üzerinde CSS custom
 |---|---|---|---|
 | `todo` | `var(--ink-3)` | `var(--on-ink)` | `var(--ink-2)` |
 | `doing` | `var(--orange)` | `var(--on-orange)` | `var(--orange-text)` |
-| `ci` | `var(--cobalt)` | `var(--on-cobalt)` | `var(--cobalt-text)` |
 | `review` | `var(--mustard)` | `var(--on-mustard)` | `var(--mustard-text)` |
 | `done` | `var(--green)` | `var(--on-green)` | `var(--green-text)` |
 | `nothing` | `var(--ink-3)` (nokta taralı) | `var(--on-ink)` | `var(--ink-3)` |
+
+`StatusKind` görev durumundan (`TaskStatus` = `todo` \| `doing` \| `review` \| `done`) ayrıdır: `nothing` görev durumu değil, TopBar'ın "Çevrimdışı" hapı ve proje çekmecesinin nötr hapları (boşta, "yalnızca yerel") için kalır. Açık PR'lar `info` (kobalt) ile boyanır (`lib/githubConstants.ts`).
 | `error` | `var(--red)` | `var(--on-red)` | `var(--red-text)` |
 | `info` | `var(--cobalt)` | `var(--on-cobalt)` | `var(--cobalt-text)` |
 
@@ -438,7 +439,7 @@ Temel sınıf `.ui-pill`:
 
 **SectionPill:** bir panel grubunun başlığındaki kobalt etiket ("Upgrades"). Props: `tone` = `cobalt` (varsayılan) \| `ink` \| `mustard`, `size` = `md` (varsayılan) \| `sm`, `icon`, `count`. Tarifi: `ui-pill ui-pill--{size} font-bold tracking-[0.01em]` + inline `background`/`color` (ton) + `boxShadow: "2px 2px 0 var(--shadow-ink)"`. `count` şöyle basılır: `font-mono text-[0.85em] font-semibold opacity-80`.
 
-**StatusPill:** noktalı durum satırı ("● Waiting for review"). Props: `status` (§2.4'teki sekiz durum), `variant` = `soft` (varsayılan: panel zemin, ink metin, renkli nokta) \| `solid` (durum rengiyle dolu, nokta `on` renginde), `size` = `sm` (varsayılan) \| `md`, `live` (noktada atan halka), `icon` (noktanın yerine geçer). `nothing` durumu taralı nokta (`ui-dot--hatched`) kullanır.
+**StatusPill:** noktalı durum satırı ("● Waiting for review"). Props: `status` (§2.4'teki yedi durum), `variant` = `soft` (varsayılan: panel zemin, ink metin, renkli nokta) \| `solid` (durum rengiyle dolu, nokta `on` renginde), `size` = `sm` (varsayılan) \| `md`, `live` (noktada atan halka), `icon` (noktanın yerine geçer). `nothing` durumu (çevrimdışı) taralı nokta (`ui-dot--hatched`) kullanır.
 
 Nokta (`.ui-dot`):
 
@@ -735,14 +736,14 @@ Anatomi:
 - İkon plakası: `h-8 w-8 rounded-[8px] border-2 border-line`, dolgu türe göre (success `IconCheck`, error `IconAlert`, info `IconInfo`, `size={15}`).
 - Etiket: `font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-3`. Mesaj: `text-[13px] font-medium leading-snug text-ink`.
 - Kapat: `ui-focus grid h-7 w-7 place-items-center rounded-[8px] text-ink-3 hover:bg-hair hover:text-ink`.
-- Boşalan şerit: store 3 saniyede otomatik kapatır, şerit de aynı sürede boşalır.
+- Boşalan şerit: store varsayılan 3 saniyede otomatik kapatır, şerit de aynı sürede boşalır. Süre çağrı başına verilebilir (`toast.error(msg, 10000)`, ör. birleştirme çakışması); `Toast` bunu `--toast-ms` değişkeniyle şeride geçirir.
 
 ```css
 .ui-toast__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--toast, var(--ink));
-  transform-origin: left center; animation: toast-drain 3000ms linear both; }
+  transform-origin: left center; animation: toast-drain var(--toast-ms, 3000ms) linear both; }
 ```
 
-Kullanım: `const toast = useToast(); toast.success("PR #42 opened"); toast.error(...); toast.info(...)`.
+Kullanım: `const toast = useToast(); toast.success("PR #42 opened"); toast.error(msg, ms?); toast.info(...)`.
 
 ### 5.16 Menü, banner, seçenek kartı ve diğer yardımcı sınıflar
 
@@ -776,7 +777,7 @@ Bunların React bileşeni yok, doğrudan sınıf olarak kullanılırlar.
   transform: translate(-1px, -1px); }
 .ui-option:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; }
 
-/* Hatched slot (empty states, "nothing" lane) */
+/* Hatched slot (empty states, offline dot) */
 .ui-hatch { background-image: repeating-linear-gradient(135deg, var(--hair) 0 2px, transparent 2px 9px); }
 
 /* Drawer header key plate */
@@ -804,7 +805,7 @@ Ekranlara özel diğer sınıflar da `globals.css` içinde tanımlı. Aynı dili
 | `.team-bubble`, `.team-chip` | Ekip zaman çizelgesi balonu (`4px 14px 14px 14px` köşe, solda `--role` renk şeridi; `data-tone` = `stuck` kırmızı taralı, `live` kesik çizgili, `summary` sunken) ve mono meta çipi |
 | `.ui-banner--approval` | Şartname onay kapısı: hardal zeminli banner ("sıra sende") |
 | Ekip editörü (`components/Team/TeamEditor.tsx`) | Yeni sınıf yok: ekip kartları `.ui-option` (seçili `data-checked`), rol satırları solda `inset 4px 0 0` rol rengi şeridi (seçiliyken `+ 3px 3px 0` gölge), salt okunur rol `dl` satırları `1.5px` `--hair` ayraçlı, proje ayarları `Segmented` + `Switch`. |
-| `.pr-row`, `.diff-*` | PR listesi ve split diff |
+| `.diff-*` | Split diff: PR çekmecesi ve görev çekmecesinin "Değişiklikler" sekmesi aynı parçaları kullanır (`components/Github/DiffView.tsx`) |
 | `.kpi-tile` | Üstünde 6px renk şeridi (`--kpi`) olan KPI kartı |
 | `.factory-*` | 3D fabrika sahnesinin DOM katmanı (nokta ızgaralı sahne, lejant, tooltip) |
 | `.prose-claude`, `.comment-markdown` | Markdown önizleme. `ReactMarkdown` her yerde `remark-gfm` ile çalışır: tablolar `1px solid var(--border)` hücreli, `.comment-markdown` tablosu taşınca yatay kayar. |
@@ -852,7 +853,7 @@ Elle ayarlanmış küçük stroke ikon seti: *"16px grid, 2px stroke, round caps
   strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false" />
 ```
 
-Varsayılan `size` 16. Mevcut ikonlar: `IconPlus`, `IconClose`, `IconCheck`, `IconChevronDown/Right/Left/Up`, `IconSearch`, `IconBolt`, `IconPlay`, `IconStop`, `IconRetry`, `IconTrash`, `IconGear`, `IconBranch`, `IconPR`, `IconEye`, `IconSun`, `IconMoon`, `IconAlert`, `IconInfo`, `IconCoin`, `IconClock`, `IconBoard`, `IconList`, `IconFactory`, `IconChart`, `IconBell`, `IconRobot`, `IconSpinner`, `IconRail`, `IconFolder`, `IconSubtask`, `IconTag`, `IconFilter`, `IconDots` (`strokeWidth={2.6}`), `IconDownload`, `IconArrowUpRight`, `IconSort`, `IconLock`, `IconGithub`, `IconTerminal`, `IconChat`, `IconCopy`, `IconFlow`, `IconFile`, `IconPencil`. Ekip rolleri: `IconBriefcase` (CEO), `IconClipboard` (Analist), `IconCode` (Yazılımcı), `IconShieldCheck` (QA), `IconTeam` (ekip). Ekip editörü: `IconStar` (varsayılan yap), `IconUpload` (şablon olarak kaydet).
+Varsayılan `size` 16. Mevcut ikonlar: `IconPlus`, `IconClose`, `IconCheck`, `IconChevronDown/Right/Left/Up`, `IconSearch`, `IconBolt`, `IconPlay`, `IconStop`, `IconRetry`, `IconTrash`, `IconGear`, `IconBranch`, `IconPR`, `IconEye`, `IconSun`, `IconMoon`, `IconAlert`, `IconInfo`, `IconCoin`, `IconClock`, `IconBoard`, `IconList`, `IconFactory`, `IconChart`, `IconBell`, `IconRobot`, `IconSpinner`, `IconRail`, `IconFolder`, `IconSubtask`, `IconTag`, `IconFilter`, `IconDownload`, `IconArrowUpRight`, `IconSort`, `IconLock`, `IconGithub`, `IconTerminal`, `IconChat`, `IconCopy`, `IconFile`, `IconPencil`. Ekip rolleri: `IconBriefcase` (CEO), `IconClipboard` (Analist), `IconCode` (Yazılımcı), `IconShieldCheck` (QA), `IconTeam` (ekip). Ekip editörü: `IconStar` (varsayılan yap), `IconUpload` (şablon olarak kaydet).
 
 `IconSpinner`: `r=6` daire, `strokeOpacity 0.25`, `strokeWidth 2.5`, üstünde `M8 2a6 6 0 0 1 6 6` yayı. `ui-spin` sınıfıyla döner (`0.8s linear infinite`).
 
@@ -860,7 +861,7 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
 
 ### 5.21 Board sütunu (`Board/BoardColumn.tsx`)
 
-**Sütun sırası** (`COLUMN_STATUSES`): `todo`, `doing`, `ci`, `review`, `done`, `nothing`. `ci` ve `nothing` varsayılan olarak daraltılmış başlar (`localStorage["board-collapsed-cols"]`).
+**Sütun sırası** (`COLUMN_STATUSES`): `todo`, `doing`, `review`, `done`. Sütun adları dile göre tek set: TR "Yapılacak · Yapılıyor · İncelemede · Bitti", EN "To do · Doing · Review · Done" (`board.columns`). Hepsi açık başlar; daraltılanlar `localStorage["board-collapsed-cols"]` içinde saklanır (bilinmeyen eski değerler süzülür).
 
 ```
 ┌─ .lane ──────────────────────────────── 2px line, r-panel, --lane rengi ─┐
@@ -872,8 +873,8 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Açık sütun: `lane min-w-[272px] max-w-[380px] flex-1 basis-0`, inline `--lane` = durumun `fill` rengi (`nothing` için `var(--ink-3)`).
-- Başlık: `ui-dot` (durum rengi, `nothing` taralı, `doing` sütununda çalışan ajan varsa `ui-dot--live`), `h2` `text-[14px] font-bold tracking-[-0.01em]`, `.lane__count`, ghost `IconButton sm` ile "+" ve daraltma (`aria-expanded`).
+- Açık sütun: `lane min-w-[272px] max-w-[380px] flex-1 basis-0`, inline `--lane` = durumun `fill` rengi.
+- Başlık: `ui-dot` (durum rengi, `doing` sütununda çalışan ajan varsa `ui-dot--live`), `h2` `text-[14px] font-bold tracking-[-0.01em]`, `.lane__count`, ghost `IconButton sm` ile "+" ve daraltma (`aria-expanded`).
 - Daraltılmış sütun: `lane lane--strip` (`width: 3rem`). İçinde dikey başlık (`writingMode: "vertical-rl"`, `rotate(180deg)`, `text-[13px] font-bold tracking-[0.02em]`), sayaç ve `IconChevronRight`. Tıklayınca açılır.
 - Boş durum: `ui-hatch` + `rounded-[12px] border-2 border-dashed` (kenar `color-mix(in srgb, var(--line) 35%, transparent)`), başlık `text-[14px] font-bold text-ink-2`, ipucu `text-[12px] text-ink-3`. İlk yükleme iskeleti `h-[96px]`, aynı tarama ve `animate-pulse`.
 - Sürükleme: izinli hedef sütun kesik kenarlı olur (`data-target="allowed"`). Üstüne gelince hardal zemin ve hardal halka alır (`data-over="allowed"`). Onay gerektiren sütun turuncu taralı olur (`data-over="confirm"`) ve `font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--orange-text)]` etiketi çıkar.
@@ -913,14 +914,14 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
 │ (●backend) (●api) +2                                                       │  en fazla 3 etiket
 │ [◉ running ▪▪▪▫]                    (yalnızca ajan çalışırken, tam satır)  │
 │ ─────────────────────────── 1.5px hair ──────────────────────────────────  │
-│ [⤷ 0/2] [¤ $0.42]                       [queued ×] [CI] [#42] [#42 merged↗]│  alt bilgi
+│ [⤷ 0/2] [¤ $0.42] [⑂ Yerel dal]               [queued ×] [#42] [#42 merged↗]│  alt bilgi
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - İç dolgu `py-3 pr-3`. Sol dolgu `pl-4`, ajan çalışırken `pl-[1.35rem]` (yürüyen kenara yer).
 - Anahtar: `.task-card__key`. Üst görev: `font-mono text-[11px] text-ink-3` ve `IconSubtask size={12}`.
 - Etiket: `inline-flex h-5 items-center gap-1.5 rounded-pill border-[1.5px] border-line bg-paper px-2 text-[11px] font-medium text-ink-2`, nokta `h-1.5 w-1.5 rounded-full` (`tagDot`). Fazlası `+n` olarak `font-mono text-[11px] text-ink-3`.
-- Alt bilgi: `mt-3 flex flex-wrap items-center gap-1.5 border-t-[1.5px] border-hair pt-2.5`. Alt görev sayacı ve maliyet `.task-card__meta` olarak basılır (bütçe aşıldıysa zemin `var(--red)`, metin `var(--on-red)`). Açık PR butonu kobalt dolgulu, merged PR butonu yeşil dolgulu `.task-card__btn`. Kuyrukta bekleyen için `StatusPill status="todo"` ve kare iptal butonu (`!w-6`, hover'da kırmızı).
+- Alt bilgi: `mt-3 flex flex-wrap items-center gap-1.5 border-t-[1.5px] border-hair pt-2.5`. Alt görev sayacı, maliyet (görevin gerçek ömür boyu harcaması `task.costUsd`, `formatUsd`) ve Review'daki PR'sız dallı görev için "Yerel dal" (`IconBranch`, `title` dal adı) `.task-card__meta` olarak basılır (bütçe aşıldıysa maliyet zemini `var(--red)`, metni `var(--on-red)`). Açık PR butonu kobalt dolgulu, merged PR butonu yeşil dolgulu `.task-card__btn`. Kuyrukta bekleyen için `StatusPill status="todo"` ve kare iptal butonu (`!w-6`, hover'da kırmızı).
 - İç butonlar `pointerdown` ve `click` olaylarında `stopPropagation` yapar, böylece sürükleme ve kart açma tetiklenmez.
 - Durum öznitelikleri: `data-running`, `data-locked` (ajan çalışırken sürükleme kapalı), `data-dragging`, `data-burst`.
 - Yeni gelen kart `opacity: 0; translate: 0 -8px` durumundan `500ms ease-out` ile girer.
@@ -961,6 +962,22 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
 
 Kap: `ui-panel ui-panel--raised flex items-center gap-4 py-2 pl-2.5 pr-5`. İçinde `RingGauge` (`size={60} thickness={8} color="var(--green)"`, merkezde `text-[13px]` yüzde) ve dört `<dl>` öğesi: Toplam, Bitti (`--green-text`), Çalışan (çalışan varsa `--orange-text` ve canlı turuncu nokta) ve Maliyet. Başlıklar `t-label !text-[10px] !tracking-[0.12em] !text-ink-3`, değerler `font-mono text-[20px] font-bold leading-none tabular-nums`.
 
+### 5.24 Yerel değişiklikler (`Card/LocalChangesTab.tsx`)
+
+Görev çekmecesinin "Değişiklikler" sekmesi. Görevin dalı varsa ve PR'ı yoksa (`review` ya da `done`) görünür; remote'suz repolarda incelemenin yeridir. Veri `GET /api/tasks/:id/diff` (`<base>...<dal>`).
+
+- Üst satır `flex flex-wrap items-center gap-x-3 gap-y-2`: dal → base kodu (`rounded-[8px] border-2 border-line bg-sunken px-2 py-1 font-mono text-[11.5px]`, `IconBranch size={13}`), dosya sayısı ve `+n` (`--green-text`) / `−n` (`--red-text`) mono sayaçlar, `ChangeBar`.
+- Review'da `ui-banner ui-banner--info` ("Bitti'ye taşıyınca ana dala birleştirilir"); diff kırpıldıysa `ui-banner ui-banner--warn`.
+- `--stat` özeti `t-label` başlıklı mono blokta, altında dosya başına `.diff-*` blokları (görüldü işareti, daraltma) PR çekmecesiyle aynı.
+- Yüklenirken `ui-hatch` + kesik kenarlı iskelet satırları, hata `ui-banner--error`.
+
+### 5.25 Yeni proje modalı (`Modals/NewProjectModal.tsx`)
+
+Üstte `Segmented` ("Yeni proje" `IconPlus` \| "GitHub'dan klonla" `IconGithub`, `mb-5`). Modal açıklaması ve altbilgi düğmesi moda göre değişir ("Oluştur" / "Klonla", repo seçilmeden kapalı).
+
+- **Klon sekmesi** (`Modals/CloneRepoForm.tsx`): arama `Input`, `GET /github/repos` listesi `flex max-h-[15rem] flex-col gap-1.5 overflow-y-auto` içinde `ui-option` radyo satırları (mürekkep zeminli `IconGithub` plakası, ad, sahip/ad, açıklama, gizliyse kilit). Projeye zaten eklenmiş repolar listede yok. Altında hedef dizin alanı.
+- GitHub bağlı değilse liste yerine `ui-hatch` kesik kenarlı boş durum ve birincil "GitHub'a bağlan" (`GithubConnectModal`). Yüklenirken `h-[3.25rem]` taralı iskelet satırları.
+
 ---
 
 ## 6. Yerleşim
@@ -969,7 +986,7 @@ Kap: `ui-panel ui-panel--raised flex items-center gap-4 py-2 pl-2.5 pr-5`. İçi
 
 ```
 ┌──────────────┬──────────────────────────────────────────────────────────┐
-│ AppRail      │ TopBar  (h-16, border-b-2, bg-paper, px-5)              │
+│ AppRail      │ TopBar  (h-16, border-b-2, bg-paper, px-3 sm:px-5)      │
 │ 260px ↔ 76px ├──────────────────────────────────────────────────────────┤
 │ bg-panel     │ main  (min-h-0 flex-1, kendi içinde kayar)               │
 │ border-r-2  ●│ ← kenar tutamağı (top 50px, right -15px)                │
@@ -977,30 +994,32 @@ Kap: `ui-panel ui-panel--raised flex items-center gap-4 py-2 pl-2.5 pr-5`. İçi
 └──────────────┴──────────────────────────────────────────────────────────┘
 ```
 
-`AppShell.tsx` (PR'lar ve İstatistikler sayfaları):
+`AppShell.tsx` board ve İstatistikler sayfalarının ortak kabuğudur (`section: "board" | "insights"`). WebSocket (`useAgentSocket`) yalnızca burada bağlanır; canlı durum ve görev güncellemeleri her görünüme ulaşır. Rayın mobil katmanının açık/kapalı durumu da burada tutulur.
 
 ```tsx
-<div className="flex h-screen overflow-hidden bg-paper">
-  <AppRail />
+<div className="flex h-dvh overflow-hidden bg-paper">
+  <AppRail mobileOpen={railOpen} onMobileClose={closeRail} />
   <div className="flex min-w-0 flex-1 flex-col">
-    <TopBar section={section} />
-    <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+    <TopBar section={…} menuOpen={railOpen} onOpenMenu={() => setRailOpen(true)} />
+    <main className={section === "board"
+      ? "min-h-0 flex-1 flex flex-col overflow-hidden px-3 pb-3 pt-4 sm:px-6 sm:pt-5"
+      : "min-h-0 flex-1 overflow-y-auto"}>{children}</main>
   </div>
   <ToastContainer />
 </div>
 ```
 
-Board sayfası aynı parçaları kendisi kurar. Ana alanı sabit yükseklikli olduğu için `main` şöyle: `flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-3 pt-5`.
+Board'un ana alanı sabit yükseklikli (sütunlar kendi içinde kayar), İstatistikler sayfası kayar.
 
 ### 6.2 Sol ray (`Shell/AppRail.tsx`)
 
-- `<aside aria-label="ClauFlow">`: `relative z-20 flex h-full shrink-0 flex-col border-r-2 border-line bg-panel transition-[width] duration-200 ease-out`. Açıkken `w-[260px]`, daraltılmışken `w-[76px] items-center`.
+- `<aside id="app-rail" aria-label="ClauFlow">`: `h-full shrink-0 flex-col border-r-2 border-line bg-panel`. Masaüstünde (`md` ve üstü) `relative z-20 hidden md:flex transition-[width] duration-200 ease-out`; açıkken `w-[260px]`, daraltılmışken `w-[76px] items-center`.
+- **Mobil katman (`md` altı):** ray gizlidir, TopBar'daki menü düğmesiyle soldan kayan katman olarak açılır: `rail-sheet fixed inset-y-0 left-0 z-50 flex w-[min(280px,86vw)]` (`ui-rail-in` 220ms, `box-shadow: 4px 0 0 var(--shadow-ink)`), arkasında `ui-scrim z-40`. `role="dialog"`, `aria-modal`, odak tuzağı; Esc, scrim, gezinme ve logo satırındaki kapat düğmesi kapatır, `md` eşiği geçilince kendiliğinden kapanır. Katmandaki ray her zaman açık (daraltılmamış) haldedir.
 - Durum `localStorage["rail-collapsed"]` içinde `"1"` ya da `"0"` olarak saklanır (`viewStore`).
 - **Logo satırı:** `flex h-16 w-full shrink-0 items-center border-b-2 border-line` (açıkken `gap-2 px-4`, daraltılmışken `justify-center`). Monogram şöyle: `h-9 w-9 rounded-[10px] border-2 border-line bg-mustard font-mono text-[14px] font-extrabold text-[var(--on-mustard)] shadow-[2px_2px_0_var(--shadow-ink)]`, içinde "cf". Sağ üst köşede `-right-[3px] -top-[3px] h-2.5 w-2.5 rounded-full border-2 border-line bg-orange` noktası var. Logo kelimesi `text-[18px] font-extrabold tracking-[-0.03em]`.
 - **Kenar tutamağı (yuvarlak):** başlık çizgisinin üstünde durur, iki durumda da görünür. Sarmalayıcı `absolute -right-[15px] top-[50px] z-30`. Buton `ui-focus grid h-7 w-7 place-items-center rounded-full border-2 border-ink bg-panel text-ink shadow-hard transition-colors hover:bg-mustard`, içinde `IconChevronLeft`/`IconChevronRight` (`size={14}`). `aria-label` ve tooltip duruma göre "daralt"/"genişlet" der, `aria-expanded={!collapsed}`, tooltip `side="right"`.
 - **Proje değiştirici:** kaydırma alanının dışında durur, böylece popover'ı kırpılmaz (`relative z-10 w-full shrink-0 pt-4`, açıkken `px-3`).
-- **Gezinti:** `flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overflow-x-hidden pb-4 pt-5`. Bölüm başlığı `t-label mb-2 px-2 !text-[10px]`. Liste `flex flex-col gap-1`. Öğe ikonları `size={17}`, `grid w-5 place-items-center` içinde. Daraltılmış rayda her öğe `Tooltip side="right"` ile sarılır.
-- **GitHub repo listesi:** yalnızca açık rayda. İlk 5 öğe gösterilir, "Tümünü göster (n)" düğmesi `text-[12px] font-semibold text-[var(--cobalt-text)]`. Satırlar `ui-menu__item` kullanır, indirme ikonu hover ve klavye odağında görünür olur.
+- **Gezinti:** `flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overflow-x-hidden pb-4 pt-5`. Bölüm başlığı `t-label mb-2 px-2 !text-[10px]`. Liste `flex flex-col gap-1`. Öğe ikonları `size={17}`, `grid w-5 place-items-center` içinde. Daraltılmış rayda her öğe `Tooltip side="right"` ile sarılır ve etiket metni düştüğü için `aria-label` taşır. GitHub reposu klonlamak raydan değil, Yeni proje modalının klon sekmesinden yapılır (§5.25).
 - **Alt bilgi:** `flex w-full shrink-0 flex-col gap-2 border-t-2 border-line p-3`. Açıkken kesik kenarlı "+ Yeni proje" butonu: `h-10 w-full rounded-[10px] border-2 border-dashed border-line px-3 text-[14px] font-semibold text-ink-2`, hover'da `border-solid bg-mustard text-[var(--on-mustard)] shadow-[2px_2px_0_var(--shadow-ink)]`. Daraltılmışken `IconButton`.
 
 **Rail öğesi:**
@@ -1020,24 +1039,25 @@ Board sayfası aynı parçaları kendisi kurar. Ana alanı sabit yükseklikli ol
 
 ### 6.3 Üst bar (`Shell/TopBar.tsx`)
 
-`<header className="relative z-10 flex h-16 shrink-0 items-center gap-3 border-b-2 border-line bg-paper px-5">`. Soldan sağa:
+`<header className="relative z-10 flex h-16 shrink-0 items-center gap-1.5 border-b-2 border-line bg-paper px-3 sm:gap-3 sm:px-5">`. Soldan sağa:
 
+0. **Menü düğmesi** (yalnızca `md` altı): ghost `IconButton sm`, `IconRail size={17}`, `aria-expanded`, `aria-controls="app-rail"`; rayın mobil katmanını açar.
 1. **Breadcrumb** (`nav aria-label="Breadcrumb"`, `ol`): proje › görünüm › görev anahtarı. Ayırıcı `IconChevronRight size={13}`, `text-ink-3`. Son öğe `aria-current="page"`. Seçili görevin başlığı yalnızca `xl` ve üstünde görünür.
-2. **Arama** (yalnızca board görünümlerinde): `relative w-[300px] flex-none`, `Input size="sm"`, `IconSearch size={14}`, `id="board-search"`. Sağda boşken `Kbd` "/" (`!h-5 !min-w-5`), doluyken temizleme düğmesi (ghost `IconButton`, `!h-6 !w-6`) durur. Esc metni temizler.
+2. **Arama** (yalnızca board görünümlerinde): `sm` ve üstünde `relative w-[300px] flex-none`, `Input size="sm"`, `IconSearch size={14}`, `id="board-search"`. Sağda boşken `Kbd` "/" (`!h-5 !min-w-5`), doluyken temizleme düğmesi (ghost `IconButton`, `!h-6 !w-6`) durur. Esc metni temizler. `sm` altında ikon düğmesine döner; tıklanınca alan başlık genişliğinde (`absolute inset-x-3`) açılır ve odaklanır, boşken odak kaybında ya da Esc ile kapanır.
 3. **Canlı/çevrimdışı** `StatusPill` (`done` + `live` ya da `nothing`). `hidden md:inline-flex`.
 4. **AgentCore** (36px CSS 3D küp, bkz. §7.4).
-5. Bildirimler ve ön koşul göstergesi.
+5. Bildirimler ve ön koşul göstergesi (`Layout/PrereqIndicator.tsx`). Göstergenin popover'ında `claude` / `git` / `gh` satırlarının altında, `border-t-2 border-hair` ayraçla **GitHub satırı** durur: `h-6 w-6 rounded-[7px] border-2` durum plakası (bağlıysa `--green` + `IconCheck`, değilse `--sunken` + `IconGithub`), mono "GitHub" etiketi, `@kullanıcı` ya da "bağlı değil (isteğe bağlı)"; bağlı değilse birincil `Button size="sm"` "Bağlan" (`GithubConnectModal`). GitHub isteğe bağlıdır, eksik sayısına girmez. Auth durumu tek store diliminden (`store/githubAuthStore.ts`) gelir ve ilk yanıt gelene kadar satır hiç çizilmez (yanlış durum yanıp sönmez).
 6. Dikey ayraç: `h-6 w-[2px] flex-none rounded bg-hair`.
 7. TR/EN düğmesi: `ui-focus grid h-8 min-w-8 place-items-center rounded-[8px] px-1.5 font-mono text-[12px] font-bold text-ink-2 hover:bg-hair hover:text-ink`.
 8. Tema düğmesi: ghost `IconButton sm`.
-9. GitHub: bağlıysa `Avatar size="sm" state="online"` ve kullanıcı adı (`hidden lg:inline`, `max-w-[120px] truncate text-[13px] font-semibold`). Bağlı değilse `Button size="sm" variant="primary"`.
+9. GitHub: yalnızca bağlıysa ve durum yüklendiyse `Avatar size="sm" state="online"` ve kullanıcı adı (`hidden lg:inline`, `max-w-[120px] truncate text-[13px] font-semibold`). Bağlı değilken TopBar'da düğme yoktur; bağlantı ön koşul göstergesinden yapılır.
 
 ### 6.4 Board sayfası (`Board/Board.tsx`)
 
 `flex h-full min-h-0 flex-col gap-5` içinde:
 
-- **Sayfa başlığı:** `flex flex-wrap items-end justify-between gap-x-6 gap-y-4`. Solda `SectionPill size="sm"` (görünüm adı ve ikonu), proje slug'ı (`font-mono text-[12px] font-semibold uppercase text-ink-3`), dal adı ve kirli/temiz noktası (turuncu/yeşil) durur. Altında `h1.t-display mt-2 truncate text-[32px]` ve ipucu `mt-1 text-[13px] text-ink-3`. Sağda `BoardStats`.
-- **Araç çubuğu:** `flex flex-wrap items-center gap-3`. Sırasıyla: `Segmented size="sm"` (Board/Liste/Fabrika, ikonlar `size={14}`), ayraç, hızlı filtre çipleri (`role="group"`, `flex flex-wrap items-center gap-2`), `flex-1` boşluk, ghost "Issue içe aktar" ve `Tooltip shortcut="N"` ile sarılı birincil "Yeni görev".
+- **Sayfa başlığı:** `flex flex-wrap items-end justify-between gap-x-6 gap-y-4`. Solda `SectionPill size="sm"` (görünüm adı ve ikonu), proje slug'ı (`font-mono text-[12px] font-semibold uppercase text-ink-3`), dal adı ve kirli/temiz noktası (turuncu/yeşil) durur. Altında `h1.t-display mt-2 truncate text-[32px]` ve ipucu `mt-1 text-[13px] text-ink-3` (remote'u olmayan projede yerel akışı anlatan ayrı metin: `board.hintLocal`; Review sütununun boş durumu da aynı ayrımı yapar). Sağda `BoardStats`.
+- **Araç çubuğu:** `flex flex-wrap items-center gap-3`. Sırasıyla: `Segmented size="sm"` (Board/Liste/Fabrika, ikonlar `size={14}`), ayraç, hızlı filtre çipleri (`role="group"`, `flex flex-wrap items-center gap-2`), `flex-1` boşluk ve `Tooltip shortcut="N"` ile sarılı birincil "Yeni görev".
 - **Sütunlar:** `-mx-1 flex min-h-0 flex-1 gap-3.5 overflow-x-auto px-1 pb-3`. Yatay kayar.
 - **Filtre sonucu boş:** `ui-panel ui-hatch flex max-w-sm flex-col items-center gap-3 px-8 py-8 text-center`.
 - **Proje yok:** `ui-panel ui-panel--raised flex max-w-md flex-col items-center gap-4 px-10 py-10 text-center`, ikon `ui-panel__icon !h-12 !w-12 !rounded-[12px]`.
@@ -1051,8 +1071,8 @@ Board sayfası aynı parçaları kendisi kurar. Ana alanı sabit yükseklikli ol
 
 | Bağlam | Değer |
 |---|---|
-| Board ana alanı | `px-6 pb-3 pt-5` |
-| Üst bar | `h-16 px-5 gap-3` |
+| Board ana alanı | `px-3 pb-3 pt-4`, `sm` ve üstü `px-6 pt-5` |
+| Üst bar | `h-16 px-3 gap-1.5`, `sm` ve üstü `px-5 gap-3` |
 | Board bölümleri arası | `gap-5` |
 | Araç çubuğu | `gap-3` (filtre çipleri arası `gap-2`) |
 | Sütunlar arası / kartlar arası | `gap-3.5` / `gap-3` |
@@ -1070,8 +1090,8 @@ Board sayfası aynı parçaları kendisi kurar. Ana alanı sabit yükseklikli ol
 | `10` | Üst bar. Proje değiştirici sarmalayıcısı. |
 | `20` | Sol ray |
 | `30` | Ray kenar tutamağı |
-| `40` | Drawer. Fabrika tooltip'i (`.factory-tip`). |
-| `50` | Modal |
+| `40` | Drawer. Fabrika tooltip'i (`.factory-tip`). Mobil ray katmanının scrim'i. |
+| `50` | Modal. Mobil ray katmanı (`.rail-sheet`). |
 | `55` | Menü (`.ui-menu`) |
 | `60` | Tooltip |
 | `9999` | ConfirmDialog, Toast |
@@ -1080,13 +1100,13 @@ Board sayfası aynı parçaları kendisi kurar. Ana alanı sabit yükseklikli ol
 
 - **Özel breakpoint tanımlı değil.** Tailwind v4 varsayılanları geçerli: `sm` 40rem, `md` 48rem, `lg` 64rem, `xl` 80rem. Media query'lerde rem tarayıcı varsayılanına göre çözülür (16px, yani `md` = 768px).
 - Kodda var olanlar:
-  - Ray belli bir genişlikte kendiliğinden daralmaz. Daraltma yalnızca kullanıcı tutamağa basınca olur.
-  - Üst bar: canlı pil `hidden md:inline-flex`, kullanıcı adı `hidden lg:inline`, görev başlığı `hidden xl:inline`.
+  - `md` altında ray gizlenir ve TopBar menü düğmesiyle açılan katmana döner (§6.2). `md` ve üstünde daraltma yalnızca kullanıcı tutamağa basınca olur.
+  - Üst bar: menü düğmesi `md:hidden`, arama `sm` altında ikon, canlı pil `hidden md:inline-flex`, kullanıcı adı `hidden lg:inline`, görev başlığı `hidden xl:inline`.
   - Drawer: dar ekranda `min(…px, 100vw)` ya da `w-full`, `md` ve üstünde vw yüzdesi ve `min-w`. Aside sütunu `hidden lg:block`.
   - Modal: `p-4` kenar boşluğu, `max-h-[85vh]`, `w-full` ve `max-w-*`.
-  - Board sütunları `min-w-[272px]` olduğu için dar ekranda yatay kayar.
-  - Styleguide iki tema sütununu `xl` ve üstünde yan yana koyar.
-- Ayrı bir mobil yerleşim tasarımı **yok** (bkz. §11).
+  - Board sütunları `min-w-[272px]` olduğu için dar ekranda yatay kayar (sayfa değil, sütun şeridi; 390px'te `scrollWidth` 390).
+  - Kabuk `h-dvh` (mobil tarayıcı çubuğu yüksekliği düşer).
+  - Styleguide iki tema sütununu `xl` ve üstünde yan yana koyar. Styleguide yalnızca geliştirmede açılır, üretimde 404.
 
 ---
 
@@ -1144,10 +1164,7 @@ Board sayfası aynı parçaları kendisi kurar. Ana alanı sabit yükseklikli ol
 @keyframes ui-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes ui-drawer-in { from { transform: translateX(104%); } to { transform: translateX(0); } }
 @keyframes ui-drawer-out { from { transform: translateX(0); } to { transform: translateX(104%); } }
-@keyframes node-pulse {
-  0%, 100% { box-shadow: 4px 4px 0 var(--run, var(--orange)); }
-  50% { box-shadow: 4px 4px 0 var(--run, var(--orange)), 0 0 0 5px color-mix(in srgb, var(--orange) 28%, transparent); }
-}
+@keyframes ui-rail-in { from { transform: translateX(-104%); } to { transform: translateX(0); } }
 @keyframes fade-up { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes dot-bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 @keyframes scan-line { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
@@ -1266,7 +1283,7 @@ const BoardFactoryScene = dynamic(() => import("./scene/BoardFactoryScene"), { s
 | `tape` | `mustard` | `mustard` |
 | `rubber` | `ink` | `sunken` |
 
-İstasyon vurguları: landing'de `STATION_ACCENT` = todo `cobalt`, doing `orange`, review `mustard`, done `green`. Board fabrikasında (`factoryLayout.ts`) todo `ink3`, doing `orange`, ci `cobalt`, review `mustard`, done `green`, nothing `sunken`.
+İstasyon vurguları: landing'de `STATION_ACCENT` = todo `cobalt`, doing `orange`, review `mustard`, done `green`. Board fabrikasında (`factoryLayout.ts`) todo `ink3`, doing `orange`, review `mustard`, done `green`; dört istasyon eşit aralıklı (x = −12, −4.6, 2.8, 10.2). Board fabrikasının tabelaları sütun adlarını dile göre büyük harfle yazar (`toLocaleUpperCase(lang)`); landing tabelaları marka öğesi olarak TODO/DOING/REVIEW/DONE kalır.
 
 ### 8.4 Toon malzeme, ışık ve kontur (`scene.tsx`)
 
@@ -1349,7 +1366,7 @@ export function frameloopFor({ active, reducedMotion }) {
 | Kural | Değer |
 |---|---|
 | Güvenlik ağı (`@layer base`, sıfır özgüllük `:where(...)`) | `a[href], button, summary, [role="button"], [role="link"], [role="tab"], [role="radio"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [tabindex]:not([tabindex="-1"])` → `:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }` |
-| `.ui-focus`, `.focus-ring` | `outline: 2.5px solid var(--focus); outline-offset: 3px;` (sert gölgenin dışında kalır) |
+| `.ui-focus` | `outline: 2.5px solid var(--focus); outline-offset: 3px;` (sert gölgenin dışında kalır) |
 | `.task-card`, `.ui-check`, `.ui-switch`, `.ui-option`, `.ui-linkrow` | `outline-offset: 3px` |
 | `.rail-item`, `.task-card__btn`, `button.tl__head` | `outline-offset: 2px` |
 | `.ui-seg__item` | `outline-offset: -5px; border-radius: 6px;` (içe) |
@@ -1387,7 +1404,7 @@ Halka her zaman kobalt (`--focus: var(--cobalt)`) ve `outline` olarak verilir. `
 | DotMeter / RingGauge | `role="meter"`, `aria-valuemin/max/now`, `aria-label` |
 | PriorityMark (etiketsiz) | `role="img"` + `aria-label` |
 | Avatar, AgentCore, 3D Canvas | `role="img"` + `aria-label` |
-| Rail / breadcrumb | Aktif öğe `aria-current="page"`. Kenar tutamağı `aria-expanded`. |
+| Rail / breadcrumb | Aktif öğe `aria-current="page"`. Kenar tutamağı `aria-expanded`. Daraltılmış rayda öğeler `aria-label`. Mobil katman `role="dialog"` + `aria-modal`, menü düğmesi `aria-expanded` + `aria-controls="app-rail"`. |
 | Board sütunu | `<section aria-label="Başlık · n">`. Daralt/aç butonları `aria-expanded`. |
 | IconButton | `aria-label` ve `title` zorunlu (`label` prop'u) |
 | Dekoratif noktalar ve ikonlar | `aria-hidden` (ikon SVG'leri ayrıca `focusable="false"`) |
@@ -1606,8 +1623,7 @@ body::before {
 .t-h2 { font-size: 1.125rem; font-weight: 700; line-height: 1.3; letter-spacing: -0.012em; color: var(--ink); }
 
 /* ─── Focus ring (outside the hard shadow) ─── */
-.ui-focus:focus-visible,
-.focus-ring:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; }
+.ui-focus:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; }
 
 /* ─── Button ─── */
 .ui-btn {
@@ -1926,7 +1942,7 @@ Ardından §10a'daki `--font-jost: "Jost"; --font-jetbrains-mono: "JetBrains Mon
 
 - **Boşluk, boyut ve font-size tokenı yok.** Boşluk Tailwind'in varsayılan ölçeğinden geliyor (1 adım = 0.25rem = 3.5px, kök 14px yüzünden). Font boyutları `t-*` sınıfları ve keyfi px değerleriyle veriliyor.
 - **Kök font 14px.** Tailwind'in rem tabanlı bütün ölçüleri (`h-16`, `text-xs` …) varsayılan 16px'e göre %12.5 daha küçük çıkar. Taşırken buna dikkat edin.
-- **Özel breakpoint yok, mobil yerleşim tasarlanmamış.** Ray dar ekranda kendiliğinden daralmıyor. Board yatay kayıyor.
+- **Özel breakpoint yok.** Mobilde yalnızca kabuk uyarlanır (ray katmanı, ikon arama); board sütunları yatay kayar, ayrı bir mobil board tasarımı yok.
 - **Sistem temasına göre otomatik seçim yok.** `prefers-color-scheme` okunmuyor, varsayılan her zaman krem.
 - **Bazı köşe yarıçapları token değil, sabit.** `12px`, `8px`, `9px`, `11px` ve `5px` değerleri sınıflarda doğrudan yazılı. Yalnızca `--r-panel`, `--r-btn`, `--r-pill` ve `--r-sm` token. `--r-sm` Tailwind temasına eşlenmemiş.
 - **Gradient tamamen yasak değil.** Sert duraklı desenler (tarama, nokta ızgara, fosforlu kalem) ve ajan çekirdeğinin yumuşak `radial-gradient` halesi kodda var.
@@ -1934,6 +1950,5 @@ Ardından §10a'daki `--font-jost: "Jost"; --font-jetbrains-mono: "JetBrains Mon
 - **Plan ve kod ayrışmaları (kod esas alındı):**
   - Gece `--ink-3`: plan §3'te `#8E8471`, §11'in Faz 1 notunda `#968C78`, kodda `#9d937f`.
   - Gölge: plan `--shadow: 3px 3px 0 var(--line)` diyor, kod `var(--shadow-ink)` kullanıyor (gecede `#b9ae97`).
-  - Fabrika istasyon renkleri landing'de (todo kobalt) ve board'da (todo ink-3, ci kobalt) farklı.
+  - Fabrika istasyon renkleri landing'de (todo kobalt) ve board'da (todo ink-3) farklı.
 - **Bileşenlerin uygulamaya bağımlılıkları var.** `Modal`, `Drawer` ve `Toast`, `useTranslation` (kapat/gizle metinleri) ve `useToastStore` (zustand) kullanıyor. Taşırken bunları kendi i18n ve store çözümünüzle değiştirin.
-- **`CLAUDE.md` eski.** Hâlâ "Theme: html.light zinc override" diyor. Doğrusu §2.6 (`html.night`, varsayılan krem).

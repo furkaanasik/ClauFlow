@@ -16,6 +16,7 @@ import {
   IconTerminal,
 } from "@/components/ui/icons";
 import { useTranslation } from "@/hooks/useTranslation";
+import { formatDuration } from "@/lib/format";
 import type { AgentText, ToolCall } from "@/types";
 
 // ─── Tool families: one colour per kind of work ──────────────────────────────
@@ -50,15 +51,6 @@ function getToolConfig(toolName: string): ToolConfig {
 }
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
-
-function formatDuration(ms?: number): string {
-  if (ms === undefined || ms === null) return "";
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
-  const m = Math.floor(ms / 60_000);
-  const s = Math.round((ms % 60_000) / 1000);
-  return `${m}m ${s}s`;
-}
 
 function clock(iso?: string): string {
   if (!iso) return "";

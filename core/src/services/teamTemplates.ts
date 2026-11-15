@@ -81,7 +81,7 @@ export function defaultRole(kind: RoleKind): TeamRole {
   };
 }
 
-export interface BuiltinTeamTemplate {
+interface BuiltinTeamTemplate {
   id: string;
   templateKey: string;
   name: string;

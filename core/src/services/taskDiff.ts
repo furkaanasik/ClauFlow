@@ -4,7 +4,7 @@ import type { Project, Task } from "../types/index.js";
 /** Characters of unified diff sent to the drawer; the rest is cut (plan §5.2). */
 export const DIFF_CHAR_CAP = 200_000;
 
-export interface TaskDiff {
+interface TaskDiff {
   base: string;
   branch: string;
   stat: string;
@@ -12,7 +12,7 @@ export interface TaskDiff {
   truncated: boolean;
 }
 
-export type TaskDiffResult =
+type TaskDiffResult =
   | { ok: true; diff: TaskDiff }
   | { ok: false; code: "no_branch" | "diff_failed"; detail?: string };
 

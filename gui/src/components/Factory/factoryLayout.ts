@@ -11,9 +11,9 @@ import { teamStepKind } from "@/components/Team/roleMeta";
  * (+z, towards the camera), machines and signs behind it (−z).
  */
 
-export type StationAccent = "ink3" | "orange" | "mustard" | "green";
+type StationAccent = "ink3" | "orange" | "mustard" | "green";
 
-export interface StationDef {
+interface StationDef {
   status: TaskStatus;
   /** Station centre on the belt. */
   x: number;
@@ -33,9 +33,8 @@ export interface StationDef {
 
 /** Crate scale relative to the shared kit crate (1.3 × 1 × 1.3). */
 export const CRATE_SCALE = 0.74;
-export const CRATE_W = 1.3 * CRATE_SCALE;
 export const CRATE_H = 1 * CRATE_SCALE;
-export const SLOT_PITCH = 1.12;
+const SLOT_PITCH = 1.12;
 export const BELT_TOP = 0.86;
 export const BELT_FROM = -15.1;
 export const BELT_TO = 13.2;
@@ -53,7 +52,7 @@ export const STATION_BY_STATUS = Object.fromEntries(STATIONS.map((s) => [s.statu
 /** Slab bounds (x from..to, z from..to) — the camera keeps its target inside. */
 export const SLAB = { x: [-15.8, 15.8] as [number, number], z: [-4.6, 4.7] as [number, number] };
 
-export type Vec3 = [number, number, number];
+type Vec3 = [number, number, number];
 
 export interface CrateSpec {
   id: string;
@@ -92,12 +91,12 @@ export interface FactoryLayout {
   running: number;
 }
 
-export function stationCapacity(s: StationDef): number {
+function stationCapacity(s: StationDef): number {
   return s.cols * s.rows * s.layers;
 }
 
 /** Rest position of yard slot `i` (fills the row nearest the belt first, then stacks). */
-export function slotPosition(s: StationDef, i: number): Vec3 {
+function slotPosition(s: StationDef, i: number): Vec3 {
   const perLayer = s.cols * s.rows;
   const layer = Math.floor(i / perLayer);
   const inLayer = i % perLayer;
@@ -110,7 +109,7 @@ export function slotPosition(s: StationDef, i: number): Vec3 {
   return [x, y, z];
 }
 
-export function beltPosition(s: StationDef): Vec3 {
+function beltPosition(s: StationDef): Vec3 {
   return [s.x, BELT_TOP + CRATE_H / 2, 0];
 }
 
@@ -127,7 +126,7 @@ function rank(t: Task, budget: Record<string, unknown>): number {
   return 3;
 }
 
-export function taskKey(t: Task): string {
+function taskKey(t: Task): string {
   return t.displayId ?? `#${t.id.slice(0, 7)}`;
 }
 

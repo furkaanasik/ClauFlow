@@ -1,6 +1,6 @@
 import type { StatusKind } from "@/components/ui/Pills";
 
-export type PRState = "OPEN" | "MERGED" | "CLOSED";
+type PRState = "OPEN" | "MERGED" | "CLOSED";
 
 /**
  * PR state → Atölye status colour (matches the card PR badge: open cobalt,

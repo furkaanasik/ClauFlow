@@ -30,7 +30,7 @@ import type { NodeType } from "../types/index.js";
 /** Role calls skip user-level settings (hooks, plugins) and the user's MCP servers. */
 export const ROLE_SETTING_SOURCES = ["project", "local"];
 
-export interface RunRoleOptions {
+interface RunRoleOptions {
   taskId: string;
   cwd: string;
   /** Parent controller: aborting it (user abort) kills the role. */
@@ -53,7 +53,7 @@ export interface RunRoleOptions {
   inputArtifact?: Record<string, unknown> | null;
 }
 
-export interface RoleRunResult {
+interface RoleRunResult {
   nodeRunId: string;
   /** `result` field of the final stream-json event, else the concatenated agent text. */
   finalText: string;

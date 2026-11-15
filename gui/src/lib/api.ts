@@ -34,7 +34,7 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export interface CreateTaskInput {
+interface CreateTaskInput {
   projectId: string;
   title: string;
   description?: string;
@@ -46,7 +46,7 @@ export interface CreateTaskInput {
   teamId?: string | null;
 }
 
-export interface CreateProjectInput {
+interface CreateProjectInput {
   name: string;
   slug?: string;
   repoPath: string;
@@ -58,7 +58,7 @@ export interface CreateProjectInput {
   budgetUsd?: number | null;
 }
 
-export interface InsightsByNodeType {
+interface InsightsByNodeType {
   nodeType: string;
   runCount: number;
   doneCount: number;
@@ -71,7 +71,7 @@ export interface InsightsByNodeType {
   estimated: boolean;
 }
 
-export interface InsightsRecentTask {
+interface InsightsRecentTask {
   id: string;
   displayId: string | null;
   title: string;
@@ -83,7 +83,7 @@ export interface InsightsRecentTask {
   nodeRunCount: number;
 }
 
-export interface InsightsSummary {
+interface InsightsSummary {
   totalTasks: number;
   doneTasks: number;
   errorTasks: number;
@@ -173,11 +173,6 @@ export const api = {
     fetch(`${BASE}/projects`, { cache: "no-store" })
       .then((r) => handle<{ projects: Project[] }>(r))
       .then((d) => d.projects ?? []),
-
-  getProject: (id: string): Promise<Project> =>
-    fetch(`${BASE}/projects/${id}`, { cache: "no-store" })
-      .then((r) => handle<{ project: Project }>(r))
-      .then((d) => d.project),
 
   getProjectGitStatus: (id: string): Promise<GitStatus> =>
     fetch(`${BASE}/projects/${id}/git-status`, { cache: "no-store" })
@@ -371,7 +366,7 @@ export const api = {
     }).then((r) => handle<DirEntry>(r)),
 };
 
-export interface DirEntry {
+interface DirEntry {
   name: string;
   path: string;
   isGitRepo: boolean;
@@ -397,7 +392,7 @@ export interface InstalledPlugin {
   projectPath?: string;
 }
 
-export interface ClaudeInstructionsSaveResult {
+interface ClaudeInstructionsSaveResult {
   exists: boolean;
   content: string;
   path: string;
@@ -424,7 +419,7 @@ export interface PRListItem {
   repository?: { nameWithOwner: string };
 }
 
-export interface PRFile {
+interface PRFile {
   filename: string;
   status: "added" | "modified" | "deleted" | "renamed" | string;
   additions: number;
@@ -467,7 +462,7 @@ export interface GithubAuthStatus {
   error: string | null;
 }
 
-export interface CloneProjectInput {
+interface CloneProjectInput {
   repoUrl: string;
   targetPath: string;
   name: string;

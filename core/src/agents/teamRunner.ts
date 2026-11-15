@@ -35,7 +35,7 @@ import type {
 import { RoleRunError, runRole } from "./roleRunner.js";
 import { extractSpecAcceptanceCriteria, isStalled, parseQaVerdict } from "./teamArtifacts.js";
 import { buildRolePrompt, buildRoleSystemPrompt, loadRoleSkills } from "./teamPrompts.js";
-import { uiText, type UiLang, type UiText } from "./uiText.js";
+import { formatUsd, uiText, type UiLang, type UiText } from "./uiText.js";
 
 export type TeamStopReason = "stalled" | "round_limit" | "budget";
 
@@ -43,7 +43,7 @@ interface OutcomeBase {
   run: TeamRun;
 }
 
-export type TeamOutcome =
+type TeamOutcome =
   | (OutcomeBase & {
       kind: "delivered";
       summary: string;
@@ -55,7 +55,7 @@ export type TeamOutcome =
   | (OutcomeBase & { kind: "stuck"; reason: TeamStopReason; reasonText: string; summary: string })
   | (OutcomeBase & { kind: "awaiting_approval" });
 
-export interface RunTeamOptions {
+interface RunTeamOptions {
   task: Task;
   project: Project;
   controller: AbortController;
@@ -135,7 +135,7 @@ function stopReasonText(
     case "round_limit":
       return tx.stopRoundLimit(info.qaMaxRounds);
     case "budget":
-      return tx.stopBudget(info.spent.toFixed(2), (info.budget ?? 0).toFixed(2));
+      return tx.stopBudget(info.spent, info.budget ?? 0);
   }
 }
 
@@ -155,7 +155,7 @@ function roleLine(role: TeamRole, artifacts: TeamArtifact[], tx: UiText): string
   }
 }
 
-export function buildTeamSummary(
+function buildTeamSummary(
   run: TeamRun,
   artifacts: TeamArtifact[],
   outcome: "delivered" | "explored" | "stuck",
@@ -169,7 +169,7 @@ export function buildTeamSummary(
     `**${tx.team}:** ${team.name}`,
     `**${tx.outcome}:** ${tx.outcomeLabel[outcome]}${reasonText ? ` (${reasonText})` : ""}`,
     team.roles.some((r) => r.kind === "qa") ? `**${tx.qaRounds}:** ${qaRuns}` : null,
-    `**${tx.cost}:** $${run.costUsd.toFixed(4)}`,
+    `**${tx.cost}:** ${formatUsd(run.costUsd, 4)}`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -220,7 +220,6 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
   const roles = team.roles;
   const solo = roles.length === 1 && roles[0]!.kind === "developer";
   const devIndex = roles.findIndex((r) => r.kind === "developer");
-  const analystIndex = roles.findIndex((r) => r.kind === "analyst");
   const budget = getTaskEffectiveBudget(task.id);
   const qaMaxRounds = project.qaMaxRounds ?? 3;
 

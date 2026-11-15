@@ -7,7 +7,7 @@ import { useToastStore } from "@/hooks/useToast";
 import { useNotificationStore } from "@/hooks/useNotification";
 import { tr } from "@/lib/i18n/tr";
 import { en } from "@/lib/i18n/en";
-import { formatUsd } from "@/lib/boardView";
+import { formatUsd } from "@/lib/format";
 import { errorText } from "@/lib/errorText";
 import type { Task, WsMessage } from "@/types";
 

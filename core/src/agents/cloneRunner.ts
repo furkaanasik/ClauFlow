@@ -5,7 +5,7 @@ import { createProject } from "../services/taskService.js";
 import { broadcastCloneProgress } from "../services/wsService.js";
 import { withHasRemote } from "../services/remoteInfo.js";
 
-export interface CloneRepoInput {
+interface CloneRepoInput {
   repoUrl: string;
   targetPath: string;
   name: string;

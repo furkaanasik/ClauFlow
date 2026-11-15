@@ -6,8 +6,12 @@ import { z } from "zod";
  * stored; English when the request did not send one.
  */
 export type UiLang = "tr" | "en";
-export const DEFAULT_UI_LANG: UiLang = "en";
 export const uiLangSchema = z.enum(["tr", "en"]);
+
+/** USD amount in user-facing text: "$0.38" (`precision` decimals). */
+export function formatUsd(n: number, precision = 2): string {
+  return "$" + n.toFixed(precision);
+}
 
 export interface UiText {
   summaryTitle: string;
@@ -22,7 +26,7 @@ export interface UiText {
   emptyOutput: string;
   stopStalled: string;
   stopRoundLimit: (max: number) => string;
-  stopBudget: (spent: string, budget: string) => string;
+  stopBudget: (spent: number, budget: number) => string;
   roleDidNotRun: string;
   roleBrief: string;
   roleSpec: (acs: number) => string;
@@ -59,7 +63,7 @@ const TR: UiText = {
   emptyOutput: "(boş çıktı)",
   stopStalled: "QA arka arkaya iki kez esasen aynı hata listesini döndü",
   stopRoundLimit: (max) => `QA tur sınırına ulaşıldı (${max})`,
-  stopBudget: (spent, budget) => `Bütçe aşıldı ($${spent} / $${budget})`,
+  stopBudget: (spent, budget) => `Bütçe aşıldı (${formatUsd(spent)} / ${formatUsd(budget)})`,
   roleDidNotRun: "çalışmadı",
   roleBrief: "brief yazdı",
   roleSpec: (acs) => `şartname yazdı${acs ? ` (${acs} kabul kriteri)` : ""}`,
@@ -99,7 +103,7 @@ const EN: UiText = {
   emptyOutput: "(empty output)",
   stopStalled: "QA returned essentially the same bug list twice in a row",
   stopRoundLimit: (max) => `QA round limit reached (${max})`,
-  stopBudget: (spent, budget) => `Budget exceeded ($${spent} / $${budget})`,
+  stopBudget: (spent, budget) => `Budget exceeded (${formatUsd(spent)} / ${formatUsd(budget)})`,
   roleDidNotRun: "did not run",
   roleBrief: "wrote the brief",
   roleSpec: (acs) => `wrote the spec${acs ? ` (${acs} acceptance criteria)` : ""}`,

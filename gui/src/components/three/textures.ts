@@ -66,7 +66,7 @@ export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w
   ctx.closePath();
 }
 
-export interface LabelOptions {
+interface LabelOptions {
   text: string;
   /** Small mono line above the text, e.g. "01". */
   kicker?: string;

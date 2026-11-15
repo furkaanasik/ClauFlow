@@ -24,7 +24,7 @@ import {
 /* ── text helpers ─────────────────────────────────────────────────────────── */
 
 /** Draw `text` centred at (x, y), shrinking the font until it fits `maxW`. */
-export function fitText(
+function fitText(
   ctx: CanvasRenderingContext2D,
   text: string,
   x: number,

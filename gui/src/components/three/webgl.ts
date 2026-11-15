@@ -11,7 +11,7 @@ import { useSyncExternalStore } from "react";
 
 let cached: boolean | undefined;
 
-export function hasWebGL2(): boolean {
+function hasWebGL2(): boolean {
   if (cached !== undefined) return cached;
   try {
     if (new URLSearchParams(window.location.search).get("webgl") === "0") {

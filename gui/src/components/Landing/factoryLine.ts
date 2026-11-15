@@ -5,7 +5,6 @@
 
 export const STATION_X = [-7.5, -2.5, 2.5, 7.5] as const;
 export const STATION_KINDS = ["todo", "doing", "review", "done"] as const;
-export type LineStation = (typeof STATION_KINDS)[number];
 
 export const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -15,8 +14,8 @@ export function smooth(a: number, b: number, v: number) {
 }
 
 /** Scroll progress where the establishing shot hands over to the dolly. */
-export const DOLLY_START = 0.16;
-export const DOLLY_END = 0.98;
+const DOLLY_START = 0.16;
+const DOLLY_END = 0.98;
 
 /** World x the camera looks at for a given scroll progress (close shots). */
 export function focusX(progress: number) {

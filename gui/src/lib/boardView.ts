@@ -26,7 +26,7 @@ export function hasOpenPR(task: Task): boolean {
   return Boolean(task.prNumber) && task.status !== "done";
 }
 
-export function matchesText(task: Task, needle: string): boolean {
+function matchesText(task: Task, needle: string): boolean {
   if (!needle) return true;
   return (
     task.title.toLowerCase().includes(needle) ||
@@ -35,7 +35,7 @@ export function matchesText(task: Task, needle: string): boolean {
   );
 }
 
-export function matchesQuickFilters(task: Task, f: QuickFilters): boolean {
+function matchesQuickFilters(task: Task, f: QuickFilters): boolean {
   if (f.priorities.length > 0) {
     const p = task.priority ?? null;
     if (!p || !f.priorities.includes(p)) return false;
@@ -71,12 +71,6 @@ export function visibleTasks(
 /** Lifetime USD spend of a task (CLI `total_cost_usd`), or null when nothing has been spent yet. */
 export function taskCost(task: Task): number | null {
   return task.costUsd && task.costUsd > 0 ? task.costUsd : null;
-}
-
-export function formatUsd(n: number): string {
-  if (n > 0 && n < 0.01) return "<$0.01";
-  if (n >= 100) return `$${n.toFixed(0)}`;
-  return `$${n.toFixed(2)}`;
 }
 
 export interface SubtaskStats {
