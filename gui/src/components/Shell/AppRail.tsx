@@ -223,7 +223,7 @@ export function AppRail() {
                           <span className="truncate font-semibold text-ink">{repo.name}</span>
                           <span className="truncate font-mono text-[11px] text-ink-3">{repo.nameWithOwner}</span>
                         </span>
-                        <span className="flex-none text-ink-3 opacity-0 transition group-hover:opacity-100">
+                        <span className="flex-none text-ink-3 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
                           <IconDownload size={14} />
                         </span>
                       </button>

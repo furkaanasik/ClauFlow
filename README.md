@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/hero-animation.svg" alt="ClauFlow — TODO → DOING → REVIEW → DONE, the agent ships the PR" width="100%">
+  <img src="docs/assets/screenshots/landing-krem.webp" alt="ClauFlow landing page: a 3D agent factory moves task crates through TODO, DOING, REVIEW and DONE stations" width="100%">
 </p>
 
 <div align="center">
@@ -14,7 +14,7 @@ Move a card to **DOING** — Claude Code branches, writes, commits, and opens a 
 [![CI](https://github.com/furkaanasik/ClauFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/furkaanasik/ClauFlow/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/furkaanasik/ClauFlow?style=flat)](https://github.com/furkaanasik/ClauFlow/releases)
 [![Stack](https://img.shields.io/badge/stack-Next.js%2015%20·%20Express%20·%20SQLite-1e1e1e?style=flat)](#stack)
-[![AI](https://img.shields.io/badge/agent-Claude%20Code%20CLI-d4ff3d?style=flat&labelColor=0a0908)](https://docs.claude.com/en/docs/claude-code/overview)
+[![AI](https://img.shields.io/badge/agent-Claude%20Code%20CLI-f2c33d?style=flat&labelColor=1b1712)](https://docs.claude.com/en/docs/claude-code/overview)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](#license)
 
 [Architecture](CLAUDE.md) · [Issues](https://github.com/furkaanasik/ClauFlow/issues)
@@ -60,8 +60,18 @@ There's no chat. There's no copy-paste. The board is the interface, the PR is th
 - **Claude Config tab** — split-pane `CLAUDE.md` editor with live preview, plus a prereq banner that checks `claude` / `git` / `gh` versions and offers copy-paste install commands
 - **Multi-project support** — sidebar with search and `gh repo list` integration; click any GitHub repo to clone it as a new project
 - **GitHub via `gh` device flow** — no custom OAuth app to register
-- **i18n + theming** — TR/EN toggle and dark/light mode, both persisted in `localStorage`
+- **Board, List and Factory views** — Trello-style columns with drag-and-drop, a Jira-style table, and a live 3D "factory" where every task is a crate moving between stations as the agent works
+- **Atölye design** — a printed-workshop look: cream paper, 2px ink rules, hard offset shadows, mustard actions and cobalt section pills, set in Jost + JetBrains Mono. A matching dark "night shift" theme is one click away
+- **i18n + theming** — TR/EN toggle and cream/night themes, both persisted in `localStorage`; keyboard shortcuts (`N`, `/`, `?`, `Esc`), visible focus rings and reduced-motion support throughout
 - **SQLite (WAL mode)** — transaction-safe storage, automatic migration from the legacy `tasks.json`
+
+## Screenshots
+
+| Board (cream) | Board (night shift) |
+|---|---|
+| ![Board view in the cream theme: columns with priority stripes, labels and a progress ring](docs/assets/screenshots/board-krem.webp) | ![The same board in the dark night-shift theme](docs/assets/screenshots/board-gece.webp) |
+| **Task drawer** | **Factory view (3D)** |
+| ![Task detail drawer with tabs, subtasks and a budget gauge](docs/assets/screenshots/detail-krem.webp) | ![3D factory view: one station per column, tasks as crates on a conveyor](docs/assets/screenshots/fabrika-krem.webp) |
 
 ---
 
@@ -99,9 +109,11 @@ cd gui && pnpm install && pnpm dev
 Create `gui/.env.local`:
 
 ```env
-NEXT_PUBLIC_API_BASE=http://localhost:3001
-NEXT_PUBLIC_WS_URL=ws://localhost:3001
+NEXT_PUBLIC_API_BASE=http://localhost:3001/api
+NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws
 ```
+
+Both values above are also the defaults, so for a local setup the file is optional.
 
 Open <http://localhost:3000>, connect a GitHub repo, drop a card on **DOING**, and watch the agent work.
 
@@ -201,7 +213,7 @@ The team only spawns for non-trivial work — see [`CLAUDE.md`](CLAUDE.md) for t
 
 | Layer    | Stack |
 |----------|------|
-| Frontend | Next.js 15 (App Router), Tailwind CSS 4, Zustand, dnd-kit, React Flow (`@xyflow/react`) |
+| Frontend | Next.js 15 (App Router), Tailwind CSS 4, Zustand, dnd-kit, React Flow (`@xyflow/react`), Three.js + React Three Fiber (3D views) |
 | Backend  | Node.js, Express, `ws`, `better-sqlite3` (WAL mode) |
 | AI       | Claude Code CLI (`claude`) |
 | VCS      | Git + GitHub CLI (`gh`) |
@@ -236,7 +248,7 @@ pnpm lint          # eslint
 
 PRs welcome. A few notes before you open one:
 
-- **Read [`CLAUDE.md`](CLAUDE.md) first** — it documents the data flow, WS event shape, and project conventions (no `window.confirm`, Tailwind v4 theming, comment runner contract).
+- **Read [`CLAUDE.md`](CLAUDE.md) first** — it documents the data flow, WS event shape, and project conventions (no `window.confirm`, design tokens in `gui/src/app/globals.css`, comment runner contract).
 - **Roadmap** lives in [GitHub Issues](https://github.com/furkaanasik/ClauFlow/issues). Open an issue before tackling a larger change.
 - Run `npm run typecheck` (in `core/`) and `pnpm typecheck && pnpm lint` (in `gui/`) before pushing.
 - Keep commits scoped, PR descriptions focused on the *why*.

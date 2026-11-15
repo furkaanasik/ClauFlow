@@ -11,7 +11,7 @@ import { StudioCanvas } from "@/components/Studio/StudioCanvas";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Segmented";
 import { Textarea } from "@/components/ui/Input";
-import { useEscapeLayer } from "@/components/ui/overlay";
+import { useEscapeLayer, useFocusTrap } from "@/components/ui/overlay";
 import {
   IconAlert,
   IconArrowUpRight,
@@ -365,6 +365,8 @@ function ExpandedEditor(p: ExpandedEditorProps) {
 
   // Esc closes the editor only — the project drawer underneath stays open.
   useEscapeLayer(true, p.onClose);
+  const frameRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(frameRef, true);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -399,8 +401,10 @@ function ExpandedEditor(p: ExpandedEditorProps) {
   // opened from carries a transform and would otherwise clip it.
   return createPortal(
     <div
+      ref={frameRef}
       role="dialog"
       aria-modal="true"
+      tabIndex={-1}
       aria-label={`CLAUDE.md · ${cc.segmentInstructions}`}
       className="cc-full flex flex-col bg-paper"
       style={{
@@ -409,7 +413,7 @@ function ExpandedEditor(p: ExpandedEditorProps) {
         zIndex: 9999,
       }}
     >
-      <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b-2 border-line bg-panel px-5 py-3">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b-2 border-line bg-panel px-5 py-3">
         <div className="flex min-w-0 items-center gap-3 justify-self-start">
           <span
             aria-hidden
@@ -450,7 +454,7 @@ function ExpandedEditor(p: ExpandedEditorProps) {
         <IconButton label={cc.collapse} size="sm" onClick={p.onClose} className="justify-self-end">
           <IconClose size={14} />
         </IconButton>
-      </header>
+      </div>
 
       <div className="flex min-h-0 flex-1 gap-4 p-4">
         {showEditor && (
@@ -468,7 +472,7 @@ function ExpandedEditor(p: ExpandedEditorProps) {
               spellCheck={false}
               data-autofocus
               aria-label="CLAUDE.md"
-              className="h-full w-full flex-1 resize-none bg-sunken px-5 py-4 font-mono text-[13px] leading-relaxed text-ink outline-none placeholder:text-ink-3"
+              className="h-full w-full flex-1 resize-none bg-sunken px-5 py-4 font-mono text-[13px] leading-relaxed text-ink outline-none placeholder:text-ink-3 focus-visible:shadow-[inset_0_0_0_2.5px_var(--focus)]"
               placeholder={cc.instructionsPlaceholder}
             />
           </div>

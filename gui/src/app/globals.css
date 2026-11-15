@@ -99,7 +99,7 @@ html.night,
   --sunken: #100e0a;
   --ink: #f4ecda;
   --ink-2: #cfc4ae;
-  --ink-3: #968c78;          /* spec #8E8471 → lifted for 4.5:1 on panel */
+  --ink-3: #9d937f;          /* spec #8E8471 → lifted for 4.5:1 on panel and the orange-tinted working card */
   --line: #e9dfc9;
   --hair: #f4ecda22;
 
@@ -131,10 +131,9 @@ html.night,
   --grain-blend: screen;
 }
 
-/* ─── Shared geometry + legacy aliases ────────────────────────────────────────
-   Declared on every theme root so a `.theme-*` subtree resolves the aliases
-   against its own palette. The legacy names keep pre-redesign screens working;
-   Faz 5 removes the unused ones. */
+/* ─── Shared geometry ─────────────────────────────────────────────────────────
+   Declared on every theme root so a `.theme-*` subtree resolves the derived
+   values (shadows, --border) against its own palette. */
 :root,
 .theme-cream,
 .theme-night {
@@ -150,46 +149,8 @@ html.night,
   --focus: var(--cobalt);
   --ease-press: cubic-bezier(0.3, 0.7, 0.4, 1);
 
-  /* legacy surface/text */
-  --bg-base: var(--paper);
-  --bg-surface: var(--panel);
-  --bg-elevated: var(--panel);
-  --bg-sunken: var(--sunken);
+  /* soft 1px rule for prose tables, markdown and code chips */
   --border: color-mix(in srgb, var(--line) 24%, var(--paper));
-  --border-strong: color-mix(in srgb, var(--line) 55%, var(--paper));
-  --hairline: var(--hair);
-  --text-primary: var(--ink);
-  --text-secondary: var(--ink-2);
-  --text-muted: var(--ink-3);
-  --text-faint: color-mix(in srgb, var(--ink-3) 78%, var(--paper));
-
-  /* legacy accent: was acid lime, used as both text and fill → cobalt reads
-     on both. Primary *buttons* (.btn-ink) are mustard. */
-  --accent-primary: var(--cobalt-text);
-  --accent-hover: color-mix(in srgb, var(--cobalt) 82%, var(--ink));
-  --accent-ink: var(--on-cobalt);
-  --accent-muted: color-mix(in srgb, var(--cobalt) 16%, transparent);
-  --accent-glow: color-mix(in srgb, var(--cobalt) 30%, transparent);
-
-  /* legacy status */
-  --status-todo: var(--ink-2);
-  --status-todo-ink: color-mix(in srgb, var(--ink-3) 14%, transparent);
-  --status-doing: var(--orange-text);
-  --status-doing-ink: color-mix(in srgb, var(--orange) 16%, transparent);
-  --status-review: var(--mustard-text);
-  --status-review-ink: color-mix(in srgb, var(--mustard) 22%, transparent);
-  --status-done: var(--green-text);
-  --status-done-ink: color-mix(in srgb, var(--green) 16%, transparent);
-  --status-error: var(--red-text);
-  --status-error-ink: color-mix(in srgb, var(--red) 14%, transparent);
-  --status-info: var(--cobalt-text);
-  --status-warning: var(--orange-text);
-  --status-success: var(--green-text);
-
-  --prio-low: var(--ink-3);
-  --prio-medium: var(--cobalt-text);
-  --prio-high: var(--orange-text);
-  --prio-critical: var(--red-text);
 }
 
 .theme-cream,
@@ -247,6 +208,17 @@ body::before {
   font-family: inherit;
 }
 
+/* Keyboard focus safety net: anything focusable that has no bespoke ring gets
+   the house cobalt outline. Zero-specificity :where() + base layer, so every
+   component rule (and Tailwind utility) still wins. */
+@layer base {
+  :where(a[href], button, summary, [role="button"], [role="link"], [role="tab"], [role="radio"],
+    [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2.5px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
 /* ─── Scrollbar ───────────────────────────────────────────────────────────── */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-thumb {
@@ -279,31 +251,11 @@ body::before {
   color: var(--ink-3);
 }
 
-.t-numeral {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.04em;
-  color: var(--ink-3);
-}
-.t-numeral::before { content: "§"; opacity: 0.45; margin-right: 0.25rem; }
 
 .t-body { font-size: 0.875rem; line-height: 1.55; color: var(--ink); }
-.t-body-sm { font-size: 0.8125rem; line-height: 1.5; color: var(--ink-2); }
-.t-caption { font-size: 0.75rem; color: var(--ink-3); line-height: 1.45; }
-
-.t-quote {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 400;
-  color: var(--ink-2);
-}
 
 .t-h1 { font-size: 1.75rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.025em; color: var(--ink); }
 .t-h2 { font-size: 1.125rem; font-weight: 700; line-height: 1.3; letter-spacing: -0.012em; color: var(--ink); }
-.t-h3 { font-size: 0.9375rem; font-weight: 600; line-height: 1.4; color: var(--ink); }
-
-.hairline-x { border-bottom: 1px solid var(--border); }
-.hairline-y { border-right: 1px solid var(--border); }
 
 /* ════════════════════════════════════════════════════════════════════════════
    Atölye primitives — the classes behind components/ui/*
@@ -758,7 +710,7 @@ body::before {
     transition: background-color 100ms ease;
   }
   .ui-menu__item:hover,
-  .ui-menu__item:focus-visible { background: color-mix(in srgb, var(--mustard) 26%, var(--panel)); outline: none; }
+  .ui-menu__item:focus-visible { background: color-mix(in srgb, var(--mustard) 26%, var(--panel)); outline: none; box-shadow: inset 0 0 0 2px var(--focus); }
   .ui-menu__item[aria-checked="true"],
   .ui-menu__item[aria-current="true"] { background: var(--sunken); }
 
@@ -1795,74 +1747,6 @@ body::before {
   }
 }
 
-/* ─── Legacy component utilities (restyled to tokens) ─────────────────────── */
-.kanban-column,
-.kanban-panel {
-  background-color: var(--panel);
-  border-color: var(--border);
-}
-
-.kanban-search {
-  background-color: var(--sunken);
-  border-color: var(--border);
-  color: var(--ink);
-}
-.kanban-search::placeholder { color: var(--ink-3); }
-.kanban-search:focus {
-  border-color: var(--line);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 35%, transparent);
-}
-
-.analysis-block {
-  background-color: var(--sunken);
-  border-color: var(--border);
-  color: var(--ink-2);
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  line-height: 1.55;
-}
-
-/* Legacy primary CTA → mustard press button */
-.btn-ink {
-  background: var(--mustard);
-  color: var(--on-mustard);
-  border: 2px solid var(--line);
-  border-radius: var(--r-btn);
-  box-shadow: var(--shadow);
-  font-weight: 600;
-  transition: transform 110ms var(--ease-press), box-shadow 110ms var(--ease-press), background 120ms ease;
-}
-.btn-ink:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow-hover); }
-.btn-ink:active { transform: translate(2px, 2px); box-shadow: var(--shadow-press); background: var(--mustard-press); }
-.btn-ink:disabled { opacity: 0.5; transform: none; box-shadow: none; }
-
-.btn-ghost {
-  background: transparent;
-  color: var(--ink-2);
-  border: 2px solid var(--border);
-  border-radius: var(--r-btn);
-  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
-}
-.btn-ghost:hover {
-  color: var(--ink);
-  border-color: var(--line);
-  background: var(--panel);
-}
-
-.rule-label {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: var(--ink-3);
-}
-.rule-label::before,
-.rule-label::after {
-  content: "";
-  flex: 1;
-  height: 2px;
-  background: var(--hair);
-}
-
 /* ─── Animations ──────────────────────────────────────────────────────────── */
 @keyframes ui-spin { to { transform: rotate(360deg); } }
 @keyframes ui-ping {
@@ -1903,18 +1787,6 @@ body::before {
   0%, 100% { box-shadow: 4px 4px 0 var(--run, var(--orange)); }
   50% { box-shadow: 4px 4px 0 var(--run, var(--orange)), 0 0 0 5px color-mix(in srgb, var(--orange) 28%, transparent); }
 }
-@keyframes pulse-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-@keyframes slide-in-right {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-@keyframes slide-out-right {
-  from { transform: translateX(0); opacity: 1; }
-  to { transform: translateX(100%); opacity: 0; }
-}
 @keyframes fade-up {
   from { transform: translateY(8px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -1922,10 +1794,6 @@ body::before {
 @keyframes dot-bounce {
   0%, 80%, 100% { transform: scale(0); }
   40% { transform: scale(1); }
-}
-@keyframes ticker {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
 }
 @keyframes scan-line {
   from { transform: translateX(-100%); }
@@ -1948,9 +1816,6 @@ body::before {
 .animate-dot-2 { animation: dot-bounce 1.4s infinite ease-in-out 0.2s; }
 .animate-dot-3 { animation: dot-bounce 1.4s infinite ease-in-out 0.4s; }
 .animate-fade-up { animation: fade-up 0.22s ease-out both; }
-.animate-ticker { animation: ticker 28s linear infinite; }
-.animate-scan { animation: scan-line 1.6s ease-in-out infinite; }
-.animate-blink { animation: blink 1.05s steps(2) infinite; }
 
 /* ─── Landing (Faz 4) ─────────────────────────────────────────────────────── */
 /* Highlighter swipe under a headline phrase: mustard band, ink text. */

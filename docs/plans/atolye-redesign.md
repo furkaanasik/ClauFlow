@@ -5,8 +5,72 @@
 
 ## Sabah raporu
 
-_(Tüm fazlar bitince ya da çalışma durunca burası doldurulacak: ne yapıldı, ne
-yapılamadı, nereye bakmalı, ekran görüntüleri nerede.)_
+**Durum (2026-11-15 sabahı):** Faz 0–5'in hepsi tamam. Tüm iş `redesign/atolye` dalında, **push/merge/PR yok**. `core/`a dokunulmadı. typecheck, lint (0 uyarı) ve `next build` yeşil.
+
+### Fazlar ve commit'ler
+
+| Faz | Commit | Ne yapıldı |
+|---|---|---|
+| hazırlık | `5c8e66e` | Bekleyen `core/package-lock.json` + `gui/pnpm-workspace.yaml` (chore) |
+| 0 | `fb3041e` | 3D bağımlılıkları, sandbox projesi `proj_c2dd3194` (12 kart, remote yok), 12 "önce" görüntüsü |
+| 1 | `191e357` | Krem/gece tokenları, `useTheme` + `localStorage.theme` taşıma, Jost + JetBrains Mono, `components/ui/` primitive'leri, `/styleguide` |
+| 2 | `c56d8d0` | Sol ray, üst bar, görünüm seçici, yeni board/kart (maliyet dahil), hızlı filtreler, Liste görünümü, DnD testi |
+| 3a | `4f5ac24` | Görev detayı sağdan Drawer (sekmeler, bütçe halkası, log zaman çizelgesi), tüm modallar, popover'lar |
+| 3b | `3d9c065` | Proje paneli + CLAUDE.md editörü, Studio, PR sayfası + diff drawer'ı, İstatistikler |
+| 4a | `1bb7dfe` | Ortak 3D kiti + landing "Ajan Fabrikası" ve yeni landing |
+| 4b | `eec1645` | Board **Fabrika** görünümü (store'a bağlı), üst bar ajan çekirdeği, DONE konfetisi |
+| 5 | dalın son commit'i (`git log -1 redesign/atolye`) | Erişilebilirlik, ölü kod/alias temizliği, build doğrulaması, karşılaştırmalar, README |
+
+### Nasıl bakılır
+
+```bash
+git checkout redesign/atolye
+cd core && npm run dev                 # :3001
+cd gui && npx -y pnpm@11.0.9 install   # Faz 5'te 2 paket kaldırıldı
+cd gui && npx -y pnpm@11.0.9 dev       # :3000
+```
+
+- Landing: <http://localhost:3000/>
+- Board: <http://localhost:3000/board?projectId=proj_c2dd3194>
+- Liste: `…/board?projectId=proj_c2dd3194&view=list`
+- Fabrika (3D): `…/board?projectId=proj_c2dd3194&view=factory` (veya üstteki görünüm seçicisi)
+- Styleguide: <http://localhost:3000/styleguide> (`?mode=cream` / `?mode=night` tek tema)
+- PR'lar ve İstatistikler: ray'deki bağlantılar (`/github`, `/insights`)
+- Tema: üst bardaki ay/güneş. Dil: TR/EN.
+
+### Ekran görüntüleri
+
+- **Önce/sonra:** `/home/furkanasikdev/Projects/ClauFlow-redesign-shots/karsilastirma/` (landing, board, detail, studio, prs, insights × krem/gece + `board-vs-fabrika-*`; solda eski, sağda yeni).
+- Faz görüntüleri: aynı klasörde `faz-N-*.png`. Son hal: `faz-5-*.png`.
+- Betikler: `ClauFlow-redesign-shots/scripts/` (`a11y-faz5.mjs` axe denetimi, `kbd-faz5.mjs` klavye yürüyüşü, `shots-faz5*.mjs`). Hepsi core'a yalnızca GET atar, diğer istekleri engeller.
+
+### Bilinen sınırlar
+
+- **TODO içi sıralama yalnızca tarayıcıda** (`localStorage["board-order:<projectId>"]`). Backend'de sıra alanı yok; başka tarayıcıda/cihazda sıra görünmez.
+- **PR sayfası remote ister.** Sandbox'ın remote'u yok, bu yüzden gerçek veriyle "fişi çekik" durum kartı görünür. Dolu PR listesi/diff görüntüleri mock'lu GET yanıtlarıyla çekildi.
+- **Canlı kart durumları** (çalışan ajan, kuyruk, CI, PR, maliyet) sandbox'ta güvenle üretilemediği için `/styleguide` → "Board kartları" bölümünde sahte görevlerle gösteriliyor. Gerçek bir ajan koşusuyla bir kez gözle kontrol edilmeli.
+- **Fabrika'da sürükle-bırak yok** (plan gereği). 3D kutular klavyeyle seçilemiyor; klavye kullanıcısı aynı görevlere Board/Liste'den ulaşır.
+- Konsolda tek uyarı: `THREE.Clock … deprecated`. R3F 9.8.2'nin içinden geliyor, bizim kodumuzdan değil.
+- `/styleguide`'da axe'ın tek bulgusu `heading-order` (geliştirici aracı, bırakıldı).
+- `CLAUDE.md`'deki "Theme: html.light zinc override" satırı artık yanlış. Oturum kuralı gereği CLAUDE.md'ye dokunmadım; elle düzeltilmeli (doğrusu: tokenlar `gui/src/app/globals.css`'te, `:root` krem, `html.night` gece).
+- §10 "Takılanlar" boş: hiçbir adım iki denemede başarısız olmadı.
+
+### Gözden geçirmeye değer kararlar (tamamı §11'de)
+
+1. **Kontrast için token sapmaları** (Faz 1, Faz 5): `--ink-3` iki temada da spec'ten koyulaştırıldı/açıldı. Küçük metin için `--*-text`, dolgu üstü için `--on-*` tokenları eklendi. Eski lime `--accent-primary` kobalta bağlandıktan sonra Faz 5'te tamamen silindi.
+2. **Hızlı filtre çipleri üst bar yerine board araç çubuğunda** (Faz 2). Yalnızca board/liste için anlamlılar.
+3. **TODO sırası istemci tarafında** (Faz 2). Yukarıdaki sınır ve aşağıdaki backend isteğiyle bağlantılı.
+4. **Ajan çekirdeği WebGL değil, CSS 3D** (Faz 4b). Her sayfaya three.js ve ikinci bir GL bağlamı yüklememek için.
+5. **Fabrika `frameloop="demand"`** (Faz 4b). Boşta 0 kare/sn çizer. İstasyon renkleri landing'den farklı: landing'de TODO kobalt, fabrikada CI kobalt olduğu için TODO `--ink-3`.
+6. **README** (Faz 5): Eski lime/Fraunces `hero-animation.svg` silindi, yerine yeni landing görüntüsü kondu. README görüntülerinde ray'deki GitHub repo listesi kapalı çekildi (özel repo adları sızmasın).
+
+### Önerilen sonraki adımlar
+
+- **Backend (§9'a yazılmalı):** (1) görevlere `position` alanı + sıralama endpoint'i, ki TODO sırası sunucuda kalsın; (2) istenirse PR ekranı için remote'suz projelerde boş liste dönen bir mod (şu an 422).
+- Gerçek bir projede bir kartı DOING'e taşıyıp çalışan ajan, StatusPill, ajan çekirdeği ve Fabrika'daki kaynak/andon davranışını canlı izle.
+- `CLAUDE.md` tema satırını düzelt (yukarıda).
+- Next 16'ya geçerken `next lint` kaldırılacak; ESLint CLI'a geçiş (`npx @next/codemod@canary next-lint-to-eslint-cli .`).
+- Dal hazır olunca PR açmak senin kararın; ben açmadım.
 
 ---
 
@@ -233,16 +297,16 @@ Hepsi tokenları kullanır. Arbitrary renk (`text-[#..]`) ve ham Tailwind paleti
 - [x] Faz sonu: lint, ekran görüntüleri (`--use-gl=angle --use-angle=swiftshader` ile), commit.
 
 ### Faz 5: Cila ve doğrulama
-- [ ] Erişilebilirlik:
+- [x] Erişilebilirlik:
   - Odak halkaları
   - Kontrast: metin/zemin en az 4.5:1. Hardal üstüne mürekkep yazı kullanılır.
   - Klavye ile gezinme
   - İkon butonlarında `aria-label`
-- [ ] Kullanılmayan eski alias'ları, Fraunces/Geist kalıntılarını ve ölü CSS'i temizle.
-- [ ] `typecheck`, `lint` ve `build` yeşil.
-- [ ] Önce/sonra karşılaştırma görüntüleri.
-- [ ] README'deki ekran ve stil anlatımını ve `.env.local` örneğini düzelt. Doğrusu: `NEXT_PUBLIC_API_BASE=http://localhost:3001/api`, `NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws`.
-- [ ] Sabah raporunu yaz. Loop'u durdur.
+- [x] Kullanılmayan eski alias'ları, Fraunces/Geist kalıntılarını ve ölü CSS'i temizle.
+- [x] `typecheck`, `lint` ve `build` yeşil.
+- [x] Önce/sonra karşılaştırma görüntüleri.
+- [x] README'deki ekran ve stil anlatımını ve `.env.local` örneğini düzelt. Doğrusu: `NEXT_PUBLIC_API_BASE=http://localhost:3001/api`, `NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws`.
+- [x] Sabah raporunu yaz. Loop'u durdur. _(Rapor yazıldı. Loop'u bu alt ajan değil, onu başlatan üst oturum durdurur.)_
 
 ## 9. Backend soruları ve istekleri
 
@@ -314,6 +378,13 @@ _(boş)_
 - **Faz 4b, mikro animasyonlar:** Kart hover kalkışı, sürüklenen kartın 2.5° eğilmesi, buton gömülmesi ve Drawer/Modal giriş-çıkışı Faz 1–3'te yapılmıştı, doğrulandı. Eksik olan DONE patlaması eklendi: `lib/doneBurst.ts` store'a yalnızca arayüz amaçlı abone olur, DONE'a geçen görevi işaretler; DONE sütununda yeniden mount olan kart 14 mürekkep kenarlı konfeti karesi saçar ve yeşil gölgeyle "iner". Reduced-motion'da gizli.
 - **Faz 4b, test kancası ve sahte durumlar:** Board'a yalnızca geliştirmede çalışan `window.__clauflowStore` kancası eklendi (`process.env.NODE_ENV === "production"` ise erken döner, build'de ölü kod). Betik `ClauFlow-redesign-shots/scripts/shots-faz4-factory.mjs` çalışan ajan / hata / bütçe / review→done / 52 görev durumlarını yalnızca tarayıcıdaki store'a yazar; core'a giden GET dışı her istek engellenir (koşuda hiç yazma isteği denenmedi). Ayrı kopyada `next build` bu fazda alınmadı (kural 8: build Faz 5'te).
 - **Faz 4b, i18n:** `board.factory.*` yer tutucu metinleri yerine sahne etiketi, yedek notu, istasyon/lejant/kontrol/tooltip metinleri ve istasyon notları; `shell.core.*`. Ray'deki Fabrika "Yakında" rozeti ve kullanılmayan `shell.soon` anahtarı kaldırıldı.
+- **Faz 5, erişilebilirlik denetimi:** axe-core (gui'nin kendi `node_modules`'undaki 4.11.3) ile landing, board, liste, fabrika, detay, yeni görev, proje paneli, Studio, PR'lar, İstatistikler ve styleguide iki temada tarandı (`scripts/a11y-faz5.mjs`). Düzeltilenler: kart `<article role=button>` → `<div>` (izinsiz rol); Modal/Drawer/tam ekran editör başlıkları `<header>` → `<div>` (diyalog açıkken ikinci "banner" landmark'ı oluyordu); PR boş/hata çizimleri `role="img"` yerine `aria-hidden` (yanlarında açıklayıcı metin var); Studio yan panellerinin kaydırma alanları `tabIndex=0` + `role=region` (klavyeyle kaydırılamıyordu); styleguide'a `<main>`. Kalan tek bulgu styleguide'da `heading-order`, geliştirici aracı olduğu için bırakıldı.
+- **Faz 5, kontrast:** Gece `--ink-3` `#968C78` → `#9D937F`: çalışan kartın turuncuya boyanmış zemininde (`#30261A`) açıklama metni 4.45:1'di, şimdi 4.88:1 (panelde 5.46). Krem değişmedi.
+- **Faz 5, odak ve klavye:** Taban katmanında sıfır özgüllüklü (`:where`) bir güvenlik ağı eklendi: kendine özgü halkası olmayan her odaklanabilir öğe aynı kobalt outline'ı alır. Bileşen kuralları ve Tailwind utility'leri yine kazanır. Menü öğelerinin odak hali (`.ui-menu__item`) yalnızca zemin tonuydu, ray'deki repo satırlarında seçilmiyordu; içe 2px kobalt çerçeve eklendi. Hover'da beliren kontroller (ray'deki indirme ikonu, Studio düğümündeki skill kaldır ×) artık klavye odağında da görünür. Tam ekran CLAUDE.md editörüne `useFocusTrap` (Tab dışarı kaçıyordu) ve odak gölgesi eklendi. `kbd-faz5.mjs` doğruladı: ilk 45 Tab durağının hepsinde görünür halka var; görünüm seçicide ←/→ URL'yi değiştiriyor; kartta Enter Drawer'ı açıyor, odak içeride kalıyor, Esc kapatıp odağı karta geri veriyor; N, ?, / kısayolları çalışıyor. İkon butonları zaten `IconButton.label` ile zorunlu `aria-label` taşıyordu; etiketsiz ikon butonu bulunamadı.
+- **Faz 5, temizlik:** Kullanılmayan tüm legacy alias'lar silindi (`--bg-*`, `--text-*`, `--accent-*`, `--status-*`, `--prio-*`, `--hairline`, `--border-strong`). Yalnızca `--border` kaldı ve artık legacy değil, gerçek bir token (prose/markdown tabloları için yumuşak 1px çizgi). Ölü CSS silindi: `.kanban-*`, `.analysis-block`, `.rule-label`, `.btn-ink`/`.btn-ghost` (yalnızca styleguide gösteriyordu), `.t-numeral/.t-body-sm/.t-caption/.t-quote/.t-h3`, `.hairline-x/y`, `.animate-ticker/scan/blink` ve kullanılmayan `ticker`, `pulse-glow`, `slide-in/out-right` keyframe'leri (≈3.7 kB). Kodda Fraunces/Geist kalıntısı yoktu; tek kalıntı README'nin hero SVG'siydi (Fraunces + lime), silindi. Bağımlılıklar: `@tanstack/react-virtual` (hiç import edilmemiş) ve `autoprefixer` (PostCSS config yalnızca `@tailwindcss/postcss` kullanıyor) kaldırıldı. Ham Tailwind paleti ve arbitrary hex kullanımı taramada sıfır çıktı.
+- **Faz 5, build:** `next build` çalışan dev sunucusunun `.next`'ine dokunmamak için scratchpad'deki bir kopyada, `node_modules` symlink'iyle ve doğrudan `node_modules/.bin/next build` ile alındı. Not: kopyada `pnpm build` çalıştırınca pnpm symlink'li modules dizinini silip yeniden kurmaya kalktı ve TTY olmadığı için kendisi iptal etti. Gerçek `node_modules` sağlam kaldı, bu yöntem kullanılmamalı. Sonuç: `/` 138 kB, `/board` 309 kB, `/styleguide` 165 kB First Load. `window.__clauflowStore` test kancası `.next` çıktısının hiçbir yerinde yok (static + server grep: 0).
+- **Faz 5, karşılaştırmalar:** "Sonra" görüntüleri gerçek sandbox verisiyle (mock yok) Faz 0 ile aynı ekranlarda ve 1600×1000'de çekildi (`faz-5-*`). Bu yüzden Studio boş tuval, PR'lar "remote yok" durumunda, ki önceki hallerle elmaya elma karşılaştırma olsun. ImageMagick ile yan yana birleştirildi.
+- **Faz 5, README:** Hero yeni landing görüntüsü oldu. "Screenshots" tablosu eklendi (board krem/gece, detay, fabrika). Görüntüler `docs/assets/screenshots/*.webp` (her biri ~80–100 kB), İngilizce arayüzle ve ray'deki GitHub repo listesi kapalı çekildi. Özellik listesi yeni tasarımı ve görünümleri anlatıyor, stack satırına Three.js/R3F eklendi, AI rozeti lime'dan hardala döndü. `.env.local` örneği `…/api` ve `…/ws` olarak düzeltildi; bunların zaten varsayılan olduğu da not edildi. `CLAUDE.md` bu oturumda düzenlenmedi (bkz. Sabah raporu).
 
 ## 12. İlerleme günlüğü
 
@@ -325,3 +396,4 @@ _(boş)_
 - 2026-11-15: **Faz 3 tamam** (3b). ProjectDetailDrawer + ClaudeConfigTab (tam ekran editör), Studio (tuval, düğümler, yan paneller, koşu paneli, ajan/üret/skill modalları), PR sayfası + PRDetailDrawer, İstatistikler; Modal/ConfirmDialog portal, AppShell. typecheck yeşil; lint 0 uyarı. Görüntüler `/home/furkanasikdev/Projects/ClauFlow-redesign-shots/faz-3-*` (krem/gece). Sıradaki: Faz 4 (3D).
 - 2026-11-15: **Faz 4a tamam** (Faz 4'ün ilk yarısı). Ortak 3D kiti `gui/src/components/three/` (dinamik yükleme, görünürlük/sekme/reduced-motion denetimi, token renkleri ve canlı tema, DPR `[1,1.75]`, WebGL2 yoksa SVG yedeği, yeniden kullanılabilir toon parçalar) ve landing "Ajan Fabrikası" + yeni landing düzeni (sticky kaydırmalı kamera, 3 adım, CTA'lar; metinler i18n'de). typecheck yeşil; lint 0 uyarı. Ayrı kopyada `next build`: `/` First Load 137 kB, 3D chunk'ları hidrasyondan sonra tembel (~242 kB gzip). Görüntüler `/home/furkanasikdev/Projects/ClauFlow-redesign-shots/faz-4-landing-*` (krem/gece, kaydırılmış, reduced-motion, WebGL yedeği, mobil, tema geçişi). Sıradaki: Board Fabrika görünümü (aynı kiti kullanır), ajan çekirdeği, mikro animasyonlar, faz sonu.
 - 2026-11-15: **Faz 4 tamam** (4b). Board Fabrika görünümü store'a bağlı (6 istasyon, kutu geçişleri, kol/andon/alarm/duman/damga, tooltip, tıkla→Drawer, +N yığın, demand döngüsü), üst bar ajan çekirdeği (CSS 3D), DONE konfetisi; diğer mikro animasyonlar doğrulandı. typecheck yeşil; lint 0 uyarı. Görüntüler `/home/furkanasikdev/Projects/ClauFlow-redesign-shots/faz-4-fabrika-*`, `faz-4-header-core-*`, `faz-4-done-burst-krem.png` (krem/gece, SwiftShader). Sıradaki: Faz 5.
+- 2026-11-15: **Faz 5 tamam, plan bitti.** Erişilebilirlik (axe iki temada, klavye yürüyüşü, odak güvenlik ağı, kontrast düzeltmesi), legacy alias + ölü CSS + 2 kullanılmayan bağımlılık temizliği, typecheck/lint/build yeşil (build ayrı kopyada; test kancası prod çıktısında yok), önce/sonra karşılaştırmaları `/home/furkanasikdev/Projects/ClauFlow-redesign-shots/karsilastirma/`, README güncellendi, Sabah raporu yazıldı. Loop'u üst oturum durdurur.

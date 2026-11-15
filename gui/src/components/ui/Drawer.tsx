@@ -86,7 +86,7 @@ export function Drawer({
           WIDTH[width],
         )}
       >
-        <header className="flex items-start gap-3 border-b-2 border-line bg-panel px-5 pb-4 pt-4">
+        <div className="flex items-start gap-3 border-b-2 border-line bg-panel px-5 pb-4 pt-4">
           <div className="min-w-0 flex-1">
             {eyebrow && <div className="mb-1.5 flex items-center gap-2 font-mono text-xs text-ink-3">{eyebrow}</div>}
             {title && (
@@ -102,7 +102,7 @@ export function Drawer({
               <IconClose size={14} />
             </IconButton>
           </div>
-        </header>
+        </div>
         {tabs && <div className="bg-panel pt-2">{tabs}</div>}
         <div className="flex min-h-0 flex-1">
           <div

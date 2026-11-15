@@ -324,7 +324,7 @@ function StateCard({
 /** Repo plate and GitHub plate with the cable pulled apart. */
 function UnpluggedArt({ broken = false }: { broken?: boolean }) {
   return (
-    <svg viewBox="0 0 260 150" className="h-auto w-full" role="img">
+    <svg viewBox="0 0 260 150" className="h-auto w-full" aria-hidden="true" focusable="false">
       {/* repo plate */}
       <rect x="14" y="40" width="78" height="70" rx="12" fill="var(--shadow-ink)" transform="translate(4 4)" />
       <rect x="14" y="40" width="78" height="70" rx="12" fill="var(--panel)" stroke="var(--line)" strokeWidth="2.5" />
@@ -359,7 +359,7 @@ function UnpluggedArt({ broken = false }: { broken?: boolean }) {
 /** Empty in-tray with a single PR slip floating above it. */
 function EmptyTrayArt() {
   return (
-    <svg viewBox="0 0 260 150" className="h-auto w-full" role="img">
+    <svg viewBox="0 0 260 150" className="h-auto w-full" aria-hidden="true" focusable="false">
       <rect x="92" y="18" width="76" height="52" rx="8" fill="var(--shadow-ink)" transform="translate(4 4) rotate(-6 130 44)" />
       <g transform="rotate(-6 130 44)">
         <rect x="92" y="18" width="76" height="52" rx="8" fill="var(--panel)" stroke="var(--line)" strokeWidth="2.5" />

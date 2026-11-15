@@ -71,7 +71,7 @@ const PALETTE: Record<ThemeName, Record<string, string>> = {
   },
   night: {
     paper: "#17140F", panel: "#221E17", sunken: "#100E0A", ink: "#F4ECDA", "ink-2": "#CFC4AE",
-    "ink-3": "#968C78", mustard: "#F2C33D", cobalt: "#5B82F0", orange: "#F08A42", red: "#E2574C", green: "#5BB877",
+    "ink-3": "#9D937F", mustard: "#F2C33D", cobalt: "#5B82F0", orange: "#F08A42", red: "#E2574C", green: "#5BB877",
   },
 };
 /* What sits on each swatch (ink for light fills, paper for dark). */
@@ -103,7 +103,7 @@ export function Styleguide({ initialMode }: { initialMode: StyleguideMode }) {
   const columns: ThemeName[] = mode === "split" ? ["cream", "night"] : [mode];
 
   return (
-    <div className="min-h-screen bg-paper text-ink">
+    <main className="min-h-screen bg-paper text-ink">
       <header className="sticky top-0 z-30 border-b-2 border-line bg-panel">
         <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-4 px-6 py-3.5">
           <span
@@ -169,7 +169,7 @@ export function Styleguide({ initialMode }: { initialMode: StyleguideMode }) {
         ))}
       </div>
       <ToastContainer />
-    </div>
+    </main>
   );
 }
 
@@ -595,13 +595,6 @@ function Gallery({ theme, wide }: { theme: ThemeName; wide: boolean }) {
           {(["neutral", "blue", "yellow", "orange", "purple", "green", "red"] as const).map((tone) => (
             <Badge key={tone} tone={tone} pulse={tone === "orange"}>{tone}</Badge>
           ))}
-        </Row>
-        <Row label="classes">
-          <button type="button" className="btn-ink focus-ring px-4 py-2 text-[13px]">.btn-ink</button>
-          <button type="button" className="btn-ghost focus-ring px-4 py-2 text-[13px]">.btn-ghost</button>
-          <span className="text-[13px] text-[var(--accent-primary)]">--accent-primary</span>
-          <span className="text-[13px] text-[var(--status-doing)]">--status-doing</span>
-          <span className="text-[13px] text-[var(--status-review)]">--status-review</span>
         </Row>
       </Section>
 

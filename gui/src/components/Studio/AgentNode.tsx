@@ -174,7 +174,7 @@ function AgentNodeComponent({ data, selected }: NodeProps) {
                   e.stopPropagation();
                   onRemoveSkill(agent.slug, sk);
                 }}
-                className="nodrag grid h-3.5 w-3.5 place-items-center rounded-full text-ink-3 opacity-0 transition hover:bg-red hover:text-[var(--on-red)] group-hover:opacity-100"
+                className="nodrag grid h-3.5 w-3.5 place-items-center rounded-full text-ink-3 opacity-0 transition hover:bg-red hover:text-[var(--on-red)] group-hover:opacity-100 focus-visible:opacity-100"
                 aria-label={st.removeSkill.replace("{skill}", sk)}
               >
                 <IconClose size={8} />

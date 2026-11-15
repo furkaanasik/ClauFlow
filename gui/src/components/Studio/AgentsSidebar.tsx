@@ -26,7 +26,7 @@ export function AgentsSidebar({ agents, canvasNodeIds, onNewAgent, onGenerate }:
       </div>
       <p className="px-3 pt-2.5 text-[11.5px] leading-snug text-ink-3">{st.agentsHint}</p>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2.5">
+      <div role="region" aria-label={st.agentsTitle} tabIndex={0} className="ui-focus focus-visible:outline-offset-[-3px] flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2.5">
         {draggable.length === 0 ? (
           <div className="ui-hatch flex flex-col items-center gap-2 rounded-[10px] border-2 border-dashed border-hair px-3 py-6 text-center">
             <Avatar name="agent" kind="agent" size="sm" />

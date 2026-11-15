@@ -67,7 +67,7 @@ export function Modal({
         className={`ui-modal relative flex max-h-[85vh] w-full flex-col overflow-hidden rounded-panel border-2 border-line bg-panel outline-none ${SIZE_CLS[size]}`}
       >
         {title && (
-          <header className="flex items-center gap-3 border-b-2 border-line px-5 py-3.5">
+          <div className="flex items-center gap-3 border-b-2 border-line px-5 py-3.5">
             {icon && (
               <span
                 aria-hidden
@@ -86,7 +86,7 @@ export function Modal({
             <IconButton label={t.common.close} size="sm" onClick={onClose}>
               <IconClose size={14} />
             </IconButton>
-          </header>
+          </div>
         )}
         <div className="min-h-0 flex-1 overflow-auto p-5">{children}</div>
         {(footer || footerStart) && (

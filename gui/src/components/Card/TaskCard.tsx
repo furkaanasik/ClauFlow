@@ -145,8 +145,8 @@ export function TaskCardView({
   };
 
   return (
-    <article
-      ref={nodeRef as Ref<HTMLElement>}
+    <div
+      ref={nodeRef as Ref<HTMLDivElement>}
       style={{
         ...style,
         ...(isNew && !entered ? { opacity: 0, translate: "0 -8px" } : null),
@@ -340,7 +340,7 @@ export function TaskCardView({
           </footer>
         )}
       </div>
-    </article>
+    </div>
   );
 }
 
