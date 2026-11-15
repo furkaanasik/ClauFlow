@@ -137,6 +137,14 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
       // Comment runs (no role marker) apply the feedback by touching a file.
       // Planner / breakdown calls (plannerShared.runPlannerCli) get a two-task plan.
       if (prompt.includes("Return ONLY a JSON array")) {
+        // zincir F3: plan_deps chains the 2nd and 3rd item to the 1st by key.
+        if (scenario === "plan_deps") {
+          return JSON.stringify([
+            { title: "Fake schema", description: "Base.", analysis: "a", key: "fake-schema", dependsOn: [] },
+            { title: "Fake api", description: "Uses the schema.", analysis: "b", key: "fake-api", dependsOn: ["fake-schema"] },
+            { title: "Fake docs", description: "Documents the schema.", analysis: "c", key: "fake-docs", dependsOn: ["fake-schema"] },
+          ]);
+        }
         return JSON.stringify([
           { title: "Fake task one", description: "First.", analysis: "a", priority: "high", tags: ["core"] },
           { title: "Fake task two", description: "Second.", analysis: "b", priority: "low" },
