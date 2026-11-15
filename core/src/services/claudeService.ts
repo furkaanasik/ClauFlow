@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { ADVISOR_SUPPORTED } from "./claudeCapabilities.js";
 
 export interface ParsedToolCall {
   id: string;
@@ -221,8 +222,19 @@ export interface ClaudeRunOptions {
   maxOutputTokens?: number;
   /** Number of automatic retries on transient API errors. Defaults to 2. */
   maxRetries?: number;
-  /** Skip project hooks, CLAUDE.md auto-discovery, and LSP. Use in graph mode to prevent project config from overriding graph flow. */
+  /** Skip project hooks, CLAUDE.md auto-discovery, and LSP. */
   bare?: boolean;
+  /** Passed as `--model`. CLI aliases (`sonnet`, `opus`) are accepted. */
+  model?: string;
+  /** Passed as `--tools`, which restricts the built-in tool set (unlike `--allowedTools`). */
+  tools?: string[];
+  appendSystemPrompt?: string;
+  /** Passed as `--advisor` only while ADVISOR_SUPPORTED is true. */
+  advisorModel?: string | null;
+  /** Adds `--strict-mcp-config` so the user's MCP servers are not loaded. */
+  strictMcpConfig?: boolean;
+  /** Passed as `--setting-sources`, e.g. ["project", "local"] to skip user settings and their hooks/plugins. */
+  settingSources?: string[];
 }
 
 export interface ClaudeRunResult {
@@ -282,20 +294,39 @@ function emitText(
   }
 }
 
-function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
+export function buildClaudeArgs(options: ClaudeRunOptions): string[] {
   // -p must be immediately followed by the prompt string.
   // Other flags come after so the CLI parser picks up the prompt correctly.
   const args = ["-p", options.prompt, "--permission-mode", "bypassPermissions"];
   if (options.bare) args.push("--bare");
+  if (options.model) args.push("--model", options.model);
+  if (options.tools && options.tools.length > 0) {
+    args.push("--tools", options.tools.join(","));
+  }
   if (options.allowedTools && options.allowedTools.length > 0) {
     args.push("--allowedTools", options.allowedTools.join(","));
   }
-  const isStreamJson = options.outputFormat === "stream-json";
+  if (options.appendSystemPrompt) {
+    args.push("--append-system-prompt", options.appendSystemPrompt);
+  }
+  if (options.advisorModel && ADVISOR_SUPPORTED) {
+    args.push("--advisor", options.advisorModel);
+  }
+  if (options.strictMcpConfig) args.push("--strict-mcp-config");
+  if (options.settingSources && options.settingSources.length > 0) {
+    args.push("--setting-sources", options.settingSources.join(","));
+  }
   if (options.outputFormat) {
     args.push("--output-format", options.outputFormat);
     // claude CLI requires --verbose for stream-json output mode.
-    if (isStreamJson) args.push("--verbose");
+    if (options.outputFormat === "stream-json") args.push("--verbose");
   }
+  return args;
+}
+
+function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
+  const args = buildClaudeArgs(options);
+  const isStreamJson = options.outputFormat === "stream-json";
   const env = { ...process.env };
   if (options.maxOutputTokens && options.maxOutputTokens > 0) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(options.maxOutputTokens);

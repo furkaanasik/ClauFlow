@@ -28,7 +28,9 @@ export const DEFAULT_QA_MAX_ROUNDS = 3;
 
 // ─── DB Setup ─────────────────────────────────────────────────────────────
 
-const DATA_DIR = path.resolve(process.cwd(), "data");
+const DATA_DIR = process.env.CLAUFLOW_DATA_DIR
+  ? path.resolve(process.env.CLAUFLOW_DATA_DIR)
+  : path.resolve(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "tasks.db");
 const LEGACY_JSON_FILE = path.join(DATA_DIR, "tasks.json");
 

@@ -18,6 +18,8 @@ const VALUE_FLAGS = new Set([
   "--max-budget-usd",
   "--mcp-config",
   "--fallback-model",
+  "--setting-sources",
+  "--settings",
 ]);
 
 const MODEL_IDS = {
@@ -146,6 +148,8 @@ async function main() {
         tools: flags["--tools"] ?? null,
         allowedTools: flags["--allowedTools"] ?? null,
         advisor: advisorArg,
+        settingSources: flags["--setting-sources"] ?? null,
+        strictMcpConfig: booleans.includes("--strict-mcp-config"),
         appendSystemPrompt: systemPrompt,
         permissionMode: flags["--permission-mode"] ?? null,
         outputFormat,
