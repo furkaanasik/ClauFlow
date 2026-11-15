@@ -232,7 +232,8 @@ describe("team run B: stop paths", () => {
     expect(r.roles).toEqual(["ceo:1"]);
     expect(task.status).toBe("todo");
     expect(task.agent.status).toBe("error");
-    expect(task.agent.error).toContain("claude CLI exited 1");
+    // zincir E2: agent.error is a code now; the raw CLI output stays in the log.
+    expect(task.agent.error).toBe("claude_exit");
     expect(r.runs[0]!.status).toBe("error");
     expect(r.branches).toEqual([]);
     expect(r.currentBranch).toBe("main");

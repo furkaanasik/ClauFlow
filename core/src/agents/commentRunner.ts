@@ -1,4 +1,4 @@
-import { run as gitRun, commitAll, pushBranch } from "../services/gitService.js";
+import { run as gitRun, commitAll, ensureGhCredentials, pushBranch } from "../services/gitService.js";
 import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
 import { acquireRepoLock } from "../services/repoLock.js";
 import { costFromResult } from "./roleRunner.js";
@@ -90,8 +90,9 @@ async function runCommentInner(
       if (fresh) broadcastCommentUpdated(fresh);
     }
 
-    // ── Step 3: refresh git credentials (same as executor) ────────────────
-    await gitRun("gh", ["auth", "setup-git"], projectRepoPath);
+    // ── Step 3: refresh git credentials (same as executor; E1: only with a
+    // remote, a missing gh fails as `gh_missing` before the checkout) ──────
+    await ensureGhCredentials(projectRepoPath);
 
     // ── Step 4: git checkout <branch> ─────────────────────────────────────
     if (!/^[a-zA-Z0-9._\/-]+$/.test(branch)) {

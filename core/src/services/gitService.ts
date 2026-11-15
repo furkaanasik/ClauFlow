@@ -80,6 +80,32 @@ export function runWithProgress(
   });
 }
 
+/** `gh` is not on PATH while the repo has a remote (zincir E1, plan §3/21). */
+export class GhMissingError extends Error {
+  constructor() {
+    super("gh_missing");
+    this.name = "GhMissingError";
+  }
+}
+
+/**
+ * E1: refresh gh's git credential helper only when the repo has a remote.
+ * No remote → `gh` is never spawned. A spawn failure (gh not installed) is
+ * `GhMissingError`; a non-zero exit from `gh auth setup-git` is ignored as
+ * before.
+ */
+export async function ensureGhCredentials(repoPath: string): Promise<"skipped" | "ok"> {
+  const remotes = await run("git", ["remote"], repoPath);
+  if (remotes.stdout.trim() === "") return "skipped";
+  try {
+    await run("gh", ["auth", "setup-git"], repoPath);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException | undefined)?.code === "ENOENT") throw new GhMissingError();
+    throw e;
+  }
+  return "ok";
+}
+
 export async function checkoutBase(repoPath: string, base: string): Promise<RunResult> {
   let co = await run("git", ["checkout", base], repoPath);
 

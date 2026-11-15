@@ -5,8 +5,8 @@ import { git } from "./fakeRepo.js";
 
 /**
  * A `gh` shim put first on PATH: logs every argv line to `log`, answers
- * `pr create` with a PR URL, and fails `pr merge` when FAKE_GH_MERGE_FAIL is
- * set. No network, no real GitHub.
+ * `pr create` with a PR URL (or fails it when FAKE_GH_CREATE_FAIL is set),
+ * and fails `pr merge` when FAKE_GH_MERGE_FAIL is set. No network, no real GitHub.
  */
 interface FakeGh {
   dir: string;
@@ -24,6 +24,10 @@ export function installFakeGh(prNumber = 7): FakeGh {
     [
       "#!/bin/sh",
       `echo "$*" >> "${log}"`,
+      'if [ "$1" = "pr" ] && [ "$2" = "create" ] && [ -n "$FAKE_GH_CREATE_FAIL" ]; then',
+      '  echo "$FAKE_GH_CREATE_FAIL" >&2',
+      "  exit 1",
+      "fi",
       'if [ "$1" = "pr" ] && [ "$2" = "create" ]; then',
       `  echo "https://github.com/acme/fake/pull/${prNumber}"`,
       "fi",
