@@ -1,6 +1,20 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+/** Current git branch of `cwd`, or "unknown" outside a repo / on a detached HEAD. */
+function currentBranch(cwd) {
+  try {
+    return execFileSync("git", ["symbolic-ref", "--short", "HEAD"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "unknown";
+  }
+}
 
 const VALUE_FLAGS = new Set([
   "-p",
@@ -106,8 +120,15 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
       return "## Şartname\n\n### Ne yapılacak\nFake work.\n\n### Dosyalar\n- fake.txt\n\n### Kabul kriterleri\n- AC-1: fake file exists\n\n### Test önerisi\n- ls";
     case "developer": {
       const name = `fake-${round}.txt`;
+      const file = join(cwd, name);
       // no_change: the developer finds nothing to change (executor closes the task as done).
-      if (scenario !== "no_change") writeFileSync(join(cwd, name), `fake developer output round ${round}\n`);
+      // zincir Z16: when the file is already there (a chained task branched after its
+      // dependency's merge), append a line naming this branch instead of rewriting the
+      // same content, so the dependent still has a change of its own.
+      if (scenario !== "no_change") {
+        if (existsSync(file)) appendFileSync(file, `fake developer output on ${currentBranch(cwd)} round ${round}\n`);
+        else writeFileSync(file, `fake developer output round ${round}\n`);
+      }
       return `## Teslim notu\n\n- ${name} yazıldı\n- AC-1 → ${name}\n- Tests: 1 passed`;
     }
     case "qa":

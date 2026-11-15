@@ -56,6 +56,17 @@ describe("fake-claude fixture", () => {
     expect(existsSync(join(dir, "fake-2.txt"))).toBe(true);
   });
 
+  it("developer appends a branch line when fake-<round>.txt already exists (zincir Z16)", () => {
+    const git = (...args: string[]) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+    git("init", "-q", "-b", "feature/clf-3-b");
+    run(dir, "pass", "developer", 1);
+    expect(readFileSync(join(dir, "fake-1.txt"), "utf8")).toBe("fake developer output round 1\n");
+    run(dir, "pass", "developer", 1);
+    expect(readFileSync(join(dir, "fake-1.txt"), "utf8")).toBe(
+      "fake developer output round 1\nfake developer output on feature/clf-3-b round 1\n",
+    );
+  });
+
   it("fail_then_pass fails the first QA call and passes the second", () => {
     expect(run(dir, "fail_then_pass", "qa", 1).text).toContain("VERDICT: FAIL");
     expect(run(dir, "fail_then_pass", "qa", 2).text).toContain("VERDICT: PASS");
