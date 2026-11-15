@@ -5,6 +5,7 @@ import path from "node:path";
 import { homedir } from "node:os";
 import { getProject } from "../services/taskService.js";
 import { run } from "../services/gitService.js";
+import { tryAcquireRepoLock } from "../services/repoLock.js";
 import {
   listInstalled as cliListInstalled,
   listAvailable as cliListAvailable,
@@ -54,52 +55,59 @@ router.put("/:id/claude/instructions", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "repo_path_missing" });
     }
 
-    const file = path.join(project.repoPath, "CLAUDE.md");
-    fs.writeFileSync(file, parsed.data.content, "utf8");
+    // A1g: never write into a working tree a run/comment/merge is using.
+    const lease = tryAcquireRepoLock(project.repoPath, `claude-md:${project.id}`);
+    if (!lease) return res.status(409).json({ error: "repo_busy" });
 
+    const file = path.join(project.repoPath, "CLAUDE.md");
     let committed = false;
     let commitSha: string | null = null;
     let commitWarning: string | null = null;
+    try {
+      fs.writeFileSync(file, parsed.data.content, "utf8");
 
-    const head = fs.existsSync(path.join(project.repoPath, ".git"))
-      ? await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], project.repoPath)
-      : null;
+      const head = fs.existsSync(path.join(project.repoPath, ".git"))
+        ? await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], project.repoPath)
+        : null;
 
-    if (head && (head.code !== 0 || head.stdout.trim() !== project.defaultBranch)) {
-      commitWarning = "not_on_default_branch";
-    } else if (head) {
-      const add = await run("git", ["add", "CLAUDE.md"], project.repoPath);
-      if (add.code !== 0) {
-        commitWarning = `git add failed: ${add.stderr || add.stdout}`.trim();
-      } else {
-        const status = await run(
-          "git",
-          ["diff", "--cached", "--name-only"],
-          project.repoPath,
-        );
-        if (status.stdout.trim().length === 0) {
-          commitWarning = "no_changes";
+      if (head && (head.code !== 0 || head.stdout.trim() !== project.defaultBranch)) {
+        commitWarning = "not_on_default_branch";
+      } else if (head) {
+        const add = await run("git", ["add", "CLAUDE.md"], project.repoPath);
+        if (add.code !== 0) {
+          commitWarning = `git add failed: ${add.stderr || add.stdout}`.trim();
         } else {
-          const commit = await run(
+          const status = await run(
             "git",
-            ["commit", "-m", "chore: update CLAUDE.md"],
+            ["diff", "--cached", "--name-only"],
             project.repoPath,
           );
-          if (commit.code !== 0) {
-            commitWarning = `git commit failed: ${commit.stderr || commit.stdout}`.trim();
+          if (status.stdout.trim().length === 0) {
+            commitWarning = "no_changes";
           } else {
-            committed = true;
-            const sha = await run(
+            const commit = await run(
               "git",
-              ["rev-parse", "--short", "HEAD"],
+              ["commit", "-m", "chore: update CLAUDE.md"],
               project.repoPath,
             );
-            commitSha = sha.code === 0 ? sha.stdout.trim() : null;
+            if (commit.code !== 0) {
+              commitWarning = `git commit failed: ${commit.stderr || commit.stdout}`.trim();
+            } else {
+              committed = true;
+              const sha = await run(
+                "git",
+                ["rev-parse", "--short", "HEAD"],
+                project.repoPath,
+              );
+              commitSha = sha.code === 0 ? sha.stdout.trim() : null;
+            }
           }
         }
+      } else {
+        commitWarning = "not_a_git_repo";
       }
-    } else {
-      commitWarning = "not_a_git_repo";
+    } finally {
+      lease.release();
     }
 
     res.json({

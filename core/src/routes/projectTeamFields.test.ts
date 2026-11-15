@@ -1,4 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Own throwaway DB: never touch the shared core/data/tasks.db (dev server, master).
+vi.hoisted(() => {
+  const tmp = process.env.TMPDIR ?? "/tmp";
+  process.env.CLAUFLOW_DATA_DIR = `${tmp}/clauflow-projectTeamFields-${process.pid}-${Date.now()}`;
+});
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -139,4 +145,9 @@ describe("task teamId", () => {
       (await call("POST", "/api/tasks", { projectId: project.id, title: "bad", teamId: "team_missing" })).status,
     ).toBe(400);
   });
+});
+
+afterAll(async () => {
+  const { rmSync } = await import("node:fs");
+  rmSync(process.env.CLAUFLOW_DATA_DIR!, { recursive: true, force: true });
 });

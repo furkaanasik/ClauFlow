@@ -953,27 +953,56 @@ export async function appendAgentLog(
   stmtAppendLog.run(line, new Date().toISOString(), id);
 }
 
-export async function recoverOrphanedTasks(): Promise<number> {
+export interface OrphanRecovery {
+  taskIds: string[];
+  runIds: string[];
+  nodeRunIds: string[];
+}
+
+/**
+ * Boot-time cleanup of state no live process owns any more (the executor's
+ * maps are in memory). Tasks left in "doing" go back to todo + `server_restart`
+ * — except tasks paused for spec approval, which wait for the user on
+ * purpose — and running team runs / node runs become errors. Returns the ids
+ * so the caller can broadcast them.
+ */
+export function recoverOrphans(): OrphanRecovery {
   const now = new Date().toISOString();
-  // Any task left in "doing" after a server restart has no live executor
-  // (RUNNING map is in-memory). Roll all of them back to todo+error — except
-  // tasks paused for spec approval, which wait for the user on purpose.
-  const result = db
-    .prepare(
+  return db.transaction((): OrphanRecovery => {
+    const taskIds = (
+      db
+        .prepare(`SELECT id FROM tasks WHERE status = 'doing' AND agentStatus != 'awaiting_approval'`)
+        .all() as { id: string }[]
+    ).map((r) => r.id);
+    db.prepare(
       `UPDATE tasks
          SET status = 'todo',
              agentStatus = 'error',
-             agentError = 'Sunucu yeniden başlatıldı; task otomatik kurtarıldı',
+             agentError = 'server_restart',
              agentFinishedAt = @now,
              updatedAt = @now
        WHERE status = 'doing' AND agentStatus != 'awaiting_approval'`,
-    )
-    .run({ now });
-  db.prepare(
-    `UPDATE task_team_runs SET status = 'error', stopReason = 'server_restart', finishedAt = @now
-      WHERE status = 'running'`,
-  ).run({ now });
-  return result.changes;
+    ).run({ now });
+    const runIds = (
+      db.prepare(`SELECT id FROM task_team_runs WHERE status = 'running'`).all() as { id: string }[]
+    ).map((r) => r.id);
+    db.prepare(
+      `UPDATE task_team_runs SET status = 'error', stopReason = 'server_restart', finishedAt = @now
+        WHERE status = 'running'`,
+    ).run({ now });
+    const nodeRunIds = (
+      db.prepare(`SELECT id FROM task_node_runs WHERE status = 'running'`).all() as { id: string }[]
+    ).map((r) => r.id);
+    db.prepare(
+      `UPDATE task_node_runs SET status = 'error', errorMessage = 'server_restart', finishedAt = @now
+        WHERE status = 'running'`,
+    ).run({ now });
+    return { taskIds, runIds, nodeRunIds };
+  })();
+}
+
+export async function recoverOrphanedTasks(): Promise<number> {
+  return recoverOrphans().taskIds.length;
 }
 
 export interface CreateProjectInput {

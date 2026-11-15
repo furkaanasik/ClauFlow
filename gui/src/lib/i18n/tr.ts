@@ -1,6 +1,20 @@
 import type { Translations } from "./types";
 
 export const tr: Translations = {
+  errors: {
+    repo_busy: "Repo şu an başka bir işlemde (görev, yorum ya da birleştirme). Bitince tekrar dene.",
+    task_running: "Görev çalışıyor; bitmesini bekle.",
+    no_branch: "Görevin dalı yok.",
+    aborted_by_user: "Kullanıcı tarafından durduruldu.",
+    aborted_while_awaiting_approval: "Kullanıcı tarafından durduruldu (şartname onayı beklerken).",
+    aborted_orphan: "Kullanıcı tarafından durduruldu (sahipsiz görev).",
+    server_restart: "Sunucu yeniden başlatıldı; görev otomatik kurtarıldı.",
+    prompt_too_large: "Görev bağlamı CLI argüman sınırını aşıyor; açıklamayı kısalt.",
+    pr_merge_failed: "PR birleştirilemedi; ayrıntı core logunda.",
+    stuck_stalled: "Takıldı: QA arka arkaya iki kez esasen aynı hata listesini döndü.",
+    stuck_round_limit: "Takıldı: QA tur sınırına ulaşıldı.",
+    stuck_budget: "Takıldı: bütçe aşıldı.",
+  },
   landing: {
     tagline: "ClauFlow, Claude Code'u bir kanban panosuna bağlar.",
     subtitle: "Görevi DOING'e taşı: ajan dal açar, kodu yazar, iter ve pull request'i açar. Sana incelemek kalır.",
@@ -348,6 +362,7 @@ export const tr: Translations = {
     keyHint: "↑↓ gez · Enter aç · ⌫ yukarı",
   },
   board: {
+    budgetToast: (ref, spent, budget) => `${ref} bütçeyi aştı: ${spent} / ${budget}. Ekip durduruldu.`,
     title: "Board",
     hint: "Bir görevi Doing'e sürükle; Claude kodu yazar ve PR açar.",
     noProject: { title: "Proje seçili değil", hint: "Soldaki proje seçiciden birini seç ya da yeni bir proje aç." },
@@ -709,7 +724,8 @@ export const tr: Translations = {
     sending: "Gönderiliyor…",
     sendFailed: "Gönderilemedi.",
     yesterday: "Dün",
-    readOnly: "Yorum, görev Yapılıyor ya da İncelemede iken eklenebilir.",
+    readOnly: "Yorum, görev İncelemede iken (ya da dalı hâlâ duran bitmiş görevde) eklenebilir.",
+    runningReadOnly: "Görev çalışırken yorum eklenemez; bitince İncelemede yorum yazabilirsin.",
     you: "Sen",
   },
   githubConnect: {

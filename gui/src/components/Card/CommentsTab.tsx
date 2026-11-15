@@ -5,6 +5,7 @@ import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "@/lib/api";
+import { errorText } from "@/lib/errorText";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Button } from "@/components/ui/Button";
@@ -121,7 +122,9 @@ export function CommentsTab({ task }: CommentsTabProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canComment = task.status === "review" || task.status === "doing";
+  // §3/12: review always; done only for an unmerged local branch; never while running.
+  const canComment =
+    task.status === "review" || (task.status === "done" && !!task.branch && !task.prNumber);
 
   const handleSend = async () => {
     const trimmed = body.trim();
@@ -133,7 +136,7 @@ export function CommentsTab({ task }: CommentsTabProps) {
       upsertComment(comment);
       setBody("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : c.sendFailed);
+      setError(errorText(t, err, c.sendFailed));
     } finally {
       setSending(false);
     }
@@ -210,7 +213,7 @@ export function CommentsTab({ task }: CommentsTabProps) {
       ) : (
         <p className="flex shrink-0 items-center gap-2 rounded-[10px] border-2 border-dashed border-hair px-3 py-2 text-[12.5px] text-ink-3">
           <IconLock size={13} />
-          {c.readOnly}
+          {task.status === "doing" ? c.runningReadOnly : c.readOnly}
         </p>
       )}
     </div>

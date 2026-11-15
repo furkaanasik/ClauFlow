@@ -98,7 +98,7 @@ function qaReport(scenario, qaIndex) {
   }
 }
 
-function replyFor(role, round, scenario, cwd, stateDir) {
+function replyFor(role, round, scenario, cwd, stateDir, prompt) {
   switch (role) {
     case "ceo":
       return "## Brief\n\n### Amaç\nFake goal.\n\n### Kapsam\n- one thing\n\n### Kapsam dışı\n- everything else\n\n### Varsayımlar\n- none";
@@ -113,6 +113,11 @@ function replyFor(role, round, scenario, cwd, stateDir) {
     case "qa":
       return qaReport(scenario, priorCalls(stateDir, "qa"));
     default:
+      // Comment runs (no role marker) apply the feedback by touching a file.
+      if (prompt.includes("<user_feedback>")) {
+        appendFileSync(join(cwd, "fake-comment.txt"), "feedback applied\n");
+        return "Feedback applied.";
+      }
       return "fake reply";
   }
 }
@@ -132,7 +137,11 @@ async function main() {
   const cwd = process.cwd();
   const { role, round } = readRole(systemPrompt);
 
-  const text = replyFor(role, round, scenario, cwd, stateDir);
+  const text = replyFor(role, round, scenario, cwd, stateDir, prompt);
+  // Lets a test make non-developer roles leave edits behind (teamRunner stashes them).
+  if (role && (process.env.FAKE_CLAUDE_DIRTY_ROLES ?? "").split(",").includes(role)) {
+    writeFileSync(join(cwd, `scratch-${role}-${round}.txt`), `${role} scribbled in round ${round}\n`);
+  }
 
   if (stateDir) {
     mkdirSync(stateDir, { recursive: true });

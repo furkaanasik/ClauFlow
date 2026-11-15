@@ -6,6 +6,7 @@ import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "@/lib/api";
+import { errorText } from "@/lib/errorText";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { TeamEditor } from "@/components/Team/TeamEditor";
@@ -78,7 +79,8 @@ type ViewMode = "split" | "edit" | "preview";
 type CommitInfo = { committed: boolean; sha: string | null; warning: string | null } | null;
 
 function InstructionsSegment({ projectId, hasRemote }: { projectId: string; hasRemote: boolean }) {
-  const cc = useTranslation().claudeConfig;
+  const t = useTranslation();
+  const cc = t.claudeConfig;
   const [loaded, setLoaded] = useState(false);
   const [original, setOriginal] = useState("");
   const [content, setContent] = useState("");
@@ -133,7 +135,7 @@ function InstructionsSegment({ projectId, hasRemote }: { projectId: string; hasR
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 4000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : cc.saveError);
+      setError(errorText(t, err, cc.saveError));
     } finally {
       setSaving(false);
     }

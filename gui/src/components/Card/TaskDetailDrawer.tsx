@@ -36,6 +36,7 @@ import { TeamTimeline } from "@/components/Card/TeamTimeline";
 import { ApprovalGate } from "@/components/Card/ApprovalGate";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
+import { errorText } from "@/lib/errorText";
 import { calculateCost, formatTokens, totalTokens } from "@/lib/cost";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -150,6 +151,9 @@ export function TaskDetailDrawer() {
     setTab(useBoardStore.getState().tasks[selectedTaskId ?? ""]?.agent.status === "awaiting_approval" ? "team" : "details");
   }, [selectedTaskId]);
 
+  // Refetch on open and whenever the socket (re)connects: events sent while it
+  // was down (e.g. boot-time orphan recovery, A8a) never reached the store.
+  const wsConnected = useBoardStore((s) => s.wsConnected);
   useEffect(() => {
     if (!selectedTaskId) return;
     api.getComments(selectedTaskId).then((comments) => {
@@ -168,7 +172,7 @@ export function TaskDetailDrawer() {
       for (const run of runs) upsertNodeRun(run);
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTaskId]);
+  }, [selectedTaskId, wsConnected]);
 
   const handleTeamChange = async (teamId: string | null) => {
     if (!task) return;
@@ -524,7 +528,7 @@ export function TaskDetailDrawer() {
                   <IconAlert size={15} className="mt-0.5 shrink-0" />
                   <span>
                     <strong className="mr-1.5">{td.logsErrorPrefix}</strong>
-                    <span className="whitespace-pre-wrap">{task.agent.error}</span>
+                    <span className="whitespace-pre-wrap">{errorText(tt, task.agent.error)}</span>
                   </span>
                 </div>
               )}

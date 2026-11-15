@@ -1,6 +1,20 @@
 import type { Translations } from "./types";
 
 export const en: Translations = {
+  errors: {
+    repo_busy: "The repo is busy with another operation (task, comment or merge). Try again when it finishes.",
+    task_running: "The task is running; wait for it to finish.",
+    no_branch: "The task has no branch.",
+    aborted_by_user: "Stopped by the user.",
+    aborted_while_awaiting_approval: "Stopped by the user (while waiting for spec approval).",
+    aborted_orphan: "Stopped by the user (orphaned task).",
+    server_restart: "The server restarted; the task was recovered automatically.",
+    prompt_too_large: "The task context exceeds the CLI argument limit; shorten the description.",
+    pr_merge_failed: "The PR could not be merged; see the core log for details.",
+    stuck_stalled: "Stuck: QA returned essentially the same bug list twice in a row.",
+    stuck_round_limit: "Stuck: the QA round limit was reached.",
+    stuck_budget: "Stuck: the budget was exceeded.",
+  },
   landing: {
     tagline: "ClauFlow wires Claude Code into a kanban board.",
     subtitle: "Move a task to DOING: the agent branches, writes the code, pushes and opens the pull request. You review.",
@@ -348,6 +362,7 @@ export const en: Translations = {
     keyHint: "↑↓ move · Enter open · ⌫ up",
   },
   board: {
+    budgetToast: (ref, spent, budget) => `${ref} went over budget: ${spent} / ${budget}. The team stopped.`,
     title: "Board",
     hint: "Drag a task to Doing; Claude writes the code and opens a PR.",
     noProject: { title: "No project selected", hint: "Pick one from the project switcher on the left, or create a new project." },
@@ -709,7 +724,8 @@ export const en: Translations = {
     sending: "Sending…",
     sendFailed: "Could not send.",
     yesterday: "Yesterday",
-    readOnly: "Comments can be added while the task is in Doing or Review.",
+    readOnly: "Comments can be added while the task is in Review (or on a done task whose branch still exists).",
+    runningReadOnly: "Comments are disabled while the task runs; add one once it reaches Review.",
     you: "You",
   },
   githubConnect: {

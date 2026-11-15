@@ -113,52 +113,55 @@ export async function checkoutBase(repoPath: string, base: string): Promise<RunR
   }
 
   if (co.code !== 0) return co;
-  // Pull only when a remote exists — skip silently for local-only repos
   const remotes = await run("git", ["remote"], repoPath);
-  if (remotes.stdout.trim() === "") return co;
+  const hasRemote = remotes.stdout.trim() !== "";
 
   // Before stashing, auto-commit a CLAUDE.md the user just saved from the GUI
-  // so it does not end up in a stash. Best-effort — failures are not fatal.
-  const preserveFiles = ["CLAUDE.md"];
-  const dirtyPreserve = await run(
-    "git",
-    ["status", "--porcelain", "--", ...preserveFiles],
-    repoPath,
-  );
-  if (dirtyPreserve.code === 0 && dirtyPreserve.stdout.trim() !== "") {
-    const add = await run("git", ["add", "--", ...preserveFiles], repoPath);
-    if (add.code === 0) {
-      await run(
-        "git",
-        ["commit", "-m", "chore: autosave CLAUDE.md"],
-        repoPath,
-      );
+  // so it does not end up in a stash. Only for repos with a remote (the commit
+  // then rides along with the pull); best-effort — failures are not fatal.
+  if (hasRemote) {
+    const preserveFiles = ["CLAUDE.md"];
+    const dirtyPreserve = await run(
+      "git",
+      ["status", "--porcelain", "--", ...preserveFiles],
+      repoPath,
+    );
+    if (dirtyPreserve.code === 0 && dirtyPreserve.stdout.trim() !== "") {
+      const add = await run("git", ["add", "--", ...preserveFiles], repoPath);
+      if (add.code === 0) {
+        await run(
+          "git",
+          ["commit", "-m", "chore: autosave CLAUDE.md"],
+          repoPath,
+        );
+      }
     }
   }
 
-  // Defensive: `git pull` fails fast on a dirty working tree when the user's
-  // global config has `pull.rebase = true` ("cannot pull with rebase: You
-  // have unstaged changes"). Checkout itself can leave the tree dirty via
-  // smudge filters, line-ending normalization, or auto-touched runtime files
-  // (e.g. SQLite WAL/SHM). Stash anything left over with a labeled message
-  // so the user can recover real edits later via `git stash list`.
+  // A5: `git checkout` carries uncommitted edits over to base, and the new task
+  // branch would then commit them. Stash anything left over — with or without
+  // a remote — under a labeled message so real edits stay recoverable via
+  // `git stash list`. (With a remote this also keeps `git pull` from failing
+  // on a dirty tree under `pull.rebase = true`.)
   const dirty = await run("git", ["status", "--porcelain"], repoPath);
-  let pullStashLabel: string | null = null;
+  let stashLabel: string | null = null;
   if (dirty.stdout.trim() !== "") {
-    pullStashLabel = `kanban-pull-auto-${new Date().toISOString()}`;
+    stashLabel = `${hasRemote ? "kanban-pull-auto" : "kanban-auto"}-${new Date().toISOString()}`;
     const stash = await run(
       "git",
-      ["stash", "push", "--include-untracked", "--message", pullStashLabel],
+      ["stash", "push", "--include-untracked", "--message", stashLabel],
       repoPath,
     );
     if (stash.code !== 0) return stash;
   }
+  const stashNote = stashLabel
+    ? `\n[kanban] working tree had dirty files; auto-stashed as "${stashLabel}". Recover with: git stash list`
+    : "";
+
+  if (!hasRemote) return { ...co, stdout: `${co.stdout}${stashNote}` };
 
   const pullResult = await run("git", ["pull", "origin", base], repoPath);
   if (pullResult.code !== 0) return pullResult;
-  const stashNote = pullStashLabel
-    ? `\n[kanban] working tree had dirty files; auto-stashed as "${pullStashLabel}". Recover with: git stash list`
-    : "";
   return {
     code: 0,
     stdout: `${co.stdout}\n${pullResult.stdout}${stashNote}`,
@@ -176,8 +179,13 @@ export async function commitAll(repoPath: string, message: string): Promise<RunR
   return run("git", ["commit", "-m", message], repoPath);
 }
 
+/**
+ * A6: `--force-with-lease` so a retry that recreated the task branch can push
+ * over the previous attempt's branch (e.g. push succeeded, `gh pr create`
+ * failed), while still refusing to clobber commits someone else pushed.
+ */
 export function pushBranch(repoPath: string, branch: string): Promise<RunResult> {
-  return run("git", ["push", "-u", "origin", "--", branch], repoPath);
+  return run("git", ["push", "--force-with-lease", "-u", "origin", "--", branch], repoPath);
 }
 
 export interface CreatePrInput {

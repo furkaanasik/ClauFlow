@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
 import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
+import { mergeById, newerAgentText, newerTeamArtifact, newerTeamRun, newerToolCall } from "./mergeById";
 
 type Lang = "tr" | "en";
 
@@ -242,7 +243,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   setToolCalls: (taskId, calls) =>
     set((state) => ({
-      toolCalls: { ...state.toolCalls, [taskId]: calls },
+      toolCalls: {
+        ...state.toolCalls,
+        [taskId]: mergeById(state.toolCalls[taskId], calls, (c) => c.id, newerToolCall),
+      },
     })),
 
   appendAgentText: (taskId, agentText) =>
@@ -259,7 +263,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   setAgentTexts: (taskId, list) =>
     set((state) => ({
-      agentTexts: { ...state.agentTexts, [taskId]: list },
+      agentTexts: {
+        ...state.agentTexts,
+        [taskId]: mergeById(state.agentTexts[taskId], list, (x) => x.id, newerAgentText),
+      },
     })),
 
   upsertComment: (comment) =>
@@ -457,8 +464,11 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   setTaskTeam: (taskId, { runs, artifacts }) =>
     set((s) => ({
-      teamRuns: { ...s.teamRuns, [taskId]: runs },
-      teamArtifacts: { ...s.teamArtifacts, [taskId]: artifacts },
+      teamRuns: { ...s.teamRuns, [taskId]: mergeById(s.teamRuns[taskId], runs, (r) => r.id, newerTeamRun) },
+      teamArtifacts: {
+        ...s.teamArtifacts,
+        [taskId]: mergeById(s.teamArtifacts[taskId], artifacts, (a) => a.id, newerTeamArtifact),
+      },
     })),
 
   upsertTeamRun: (run) =>

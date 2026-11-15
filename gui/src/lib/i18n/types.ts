@@ -1,7 +1,23 @@
 /** Team editor validation codes (core `teamRolesSchema` messages + client-only checks). */
 export type TeamValidationCode = "roles_min" | "roles_max" | "duplicate_kind" | "duplicate_role_id" | "qa_requires_developer" | "qa_before_developer" | "advisor_below_model" | "haiku_advisor" | "invalid_model" | "invalid_skill_id" | "duplicate_tool" | "duplicate_skill" | "tools_min" | "skills_max" | "name_required" | "team_name_required" | "generic";
 
+/** Core error codes (plan §5.4) the GUI translates; see `lib/errorText.ts`. */
+export type ErrorCode =
+  | "repo_busy"
+  | "task_running"
+  | "no_branch"
+  | "aborted_by_user"
+  | "aborted_while_awaiting_approval"
+  | "aborted_orphan"
+  | "server_restart"
+  | "prompt_too_large"
+  | "pr_merge_failed"
+  | "stuck_stalled"
+  | "stuck_round_limit"
+  | "stuck_budget";
+
 export interface Translations {
+  errors: Record<ErrorCode, string>;
   landing: {
     tagline: string;
     subtitle: string;
@@ -216,6 +232,7 @@ export interface Translations {
     keyHint: string;
   };
   board: {
+    budgetToast: (ref: string, spent: string, budget: string) => string;
     title: string;
     hint: string;
     noProject: { title: string; hint: string };
@@ -675,6 +692,7 @@ export interface Translations {
     sendFailed: string;
     yesterday: string;
     readOnly: string;
+    runningReadOnly: string;
     you: string;
   };
   githubConnect: {

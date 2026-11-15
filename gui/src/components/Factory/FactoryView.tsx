@@ -21,6 +21,7 @@ import { IconAlert, IconCoin, IconRetry } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
 import { useViewStore } from "@/store/viewStore";
 import { useTranslation } from "@/hooks/useTranslation";
+import { errorText } from "@/lib/errorText";
 import { formatUsd } from "@/lib/boardView";
 import { ROLE_TONE, agentStepLabel, roleIcon } from "@/components/Team/roleMeta";
 import type { Task, TaskStatus } from "@/types";
@@ -330,7 +331,7 @@ function CrateTip({
           {spec.error && (
             <span className="factory-tip__row" style={{ color: "var(--red-text)" }}>
               <IconAlert size={12} />
-              <span className="line-clamp-2">{task?.agent.error || t.board.factory.tooltip.error}</span>
+              <span className="line-clamp-2">{task?.agent.error ? errorText(t, task.agent.error) : t.board.factory.tooltip.error}</span>
             </span>
           )}
           {budget && (

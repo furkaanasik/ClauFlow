@@ -7,14 +7,19 @@ import { useToastStore } from "@/hooks/useToast";
 import { useNotificationStore } from "@/hooks/useNotification";
 import { tr } from "@/lib/i18n/tr";
 import { en } from "@/lib/i18n/en";
+import { formatUsd } from "@/lib/boardView";
+import { errorText } from "@/lib/errorText";
 import type { Task, WsMessage } from "@/types";
 
 const RECONNECT_DELAY_MS = 3000;
 
-/** Toast for a live planner transition. Names the project when it isn't the open one. */
-function plannerToast(projectId: string, type: "success" | "error", message: string) {
+/** Toast for a live planner/budget event. Names the project when it isn't the open one. */
+function plannerToast(projectId: string, type: "success" | "error", message: string, fallbackName?: string) {
   const { projects, selectedProjectId } = useBoardStore.getState();
-  const name = projectId === selectedProjectId ? null : projects.find((p) => p.id === projectId)?.name;
+  const name =
+    projectId === selectedProjectId
+      ? null
+      : (projects.find((p) => p.id === projectId)?.name ?? fallbackName ?? null);
   useToastStore.getState().push(type, name ? `${name}: ${message}` : message);
 }
 
@@ -99,7 +104,9 @@ export function useAgentSocket(url?: string) {
                 useNotificationStore.getState().notify(
                   isError ? `Error: ${t.title}` : `Done: ${t.title}`,
                   isError
-                    ? (t.agent.error ?? "Agent encountered an error")
+                    ? (t.agent.error
+                        ? errorText(useBoardStore.getState().lang === "en" ? en : tr, t.agent.error)
+                        : "Agent encountered an error")
                     : "Agent finished successfully",
                 );
               }
@@ -220,7 +227,14 @@ export function useAgentSocket(url?: string) {
             case "budget_exceeded": {
               const m = msg as Extract<WsMessage, { type: "budget_exceeded" }>;
               setBudgetExceeded(m.taskId, m.payload);
-              useToastStore.getState().push("error", `Budget exceeded: $${m.payload.spentUsd.toFixed(4)} / $${m.payload.budgetUsd.toFixed(2)}`);
+              const p = m.payload;
+              const strings = useBoardStore.getState().lang === "en" ? en : tr;
+              const message = strings.board.budgetToast(
+                p.displayId ?? p.taskTitle,
+                formatUsd(p.spentUsd),
+                formatUsd(p.budgetUsd),
+              );
+              plannerToast(p.projectId, "error", message, p.projectName);
               break;
             }
             case "hello":

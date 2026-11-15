@@ -4,6 +4,13 @@ import type { Project, RoleKind, Task, TeamRole } from "../types/index.js";
 export const SKILL_CHAR_CAP = 20_000;
 export const SKILL_TOTAL_CAP = 60_000;
 export const DIFF_CHAR_CAP = 30_000;
+/** A8e: every context section (brief, spec, delivery, bug list, analysis, description, project background). */
+export const SECTION_CHAR_CAP = 20_000;
+
+export function capSection(body: string, label: string): string {
+  if (body.length <= SECTION_CHAR_CAP) return body;
+  return `${body.slice(0, SECTION_CHAR_CAP)}\n[${label} truncated to ${SECTION_CHAR_CAP} characters]`;
+}
 
 /** Today's single-CLI testing block, used verbatim by every developer role. */
 export const TESTING_INSTRUCTIONS =
@@ -145,8 +152,9 @@ export interface RolePromptContext {
 
 /** Today's single-CLI prompt, byte-for-byte. */
 export function buildSoloPrompt(ctx: Pick<RolePromptContext, "task" | "project">): string {
-  const taskBrief = ctx.task.analysis || ctx.task.description || ctx.task.title;
-  const background = ctx.project.aiPrompt?.trim();
+  const taskBrief = capSection(ctx.task.analysis || ctx.task.description || ctx.task.title, "task");
+  const rawBackground = ctx.project.aiPrompt?.trim();
+  const background = rawBackground ? capSection(rawBackground, "project_background") : rawBackground;
   return background
     ? `Project background (reference only — do NOT implement features beyond the current task's scope):\n` +
         `<project_background>\n${background}\n</project_background>\n\n` +
@@ -161,13 +169,13 @@ export function buildSoloPrompt(ctx: Pick<RolePromptContext, "task" | "project">
 
 function block(tag: string, body: string | null | undefined): string | null {
   const t = body?.trim();
-  return t ? `<${tag}>\n${t}\n</${tag}>` : null;
+  return t ? `<${tag}>\n${capSection(t, tag)}\n</${tag}>` : null;
 }
 
 function taskBlock(task: RolePromptContext["task"]): string {
   const parts = [`Title: ${task.title}`];
-  if (task.description?.trim()) parts.push(`Description:\n${task.description.trim()}`);
-  if (task.analysis?.trim()) parts.push(`Analysis:\n${task.analysis.trim()}`);
+  if (task.description?.trim()) parts.push(`Description:\n${capSection(task.description.trim(), "description")}`);
+  if (task.analysis?.trim()) parts.push(`Analysis:\n${capSection(task.analysis.trim(), "analysis")}`);
   return `<task>\n${parts.join("\n\n")}\n</task>`;
 }
 

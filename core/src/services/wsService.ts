@@ -7,6 +7,7 @@ const _pkg = _require("../../package.json") as { version: string };
 const SERVER_VERSION: string = _pkg.version ?? "0.0.0";
 import type {
   AgentStatus,
+  BudgetExceededPayload,
   AgentText,
   Comment,
   NodeRun,
@@ -191,12 +192,8 @@ export function broadcastTeamArtifact(artifact: TeamArtifact): void {
   broadcast({ type: "team_artifact", taskId: artifact.taskId, payload: artifact });
 }
 
-export function broadcastBudgetExceeded(
-  taskId: string,
-  spentUsd: number,
-  budgetUsd: number,
-): void {
-  broadcast({ type: "budget_exceeded", taskId, payload: { spentUsd, budgetUsd } });
+export function broadcastBudgetExceeded(taskId: string, payload: BudgetExceededPayload): void {
+  broadcast({ type: "budget_exceeded", taskId, payload });
 }
 
 export function closeWebSocket(): Promise<void> {

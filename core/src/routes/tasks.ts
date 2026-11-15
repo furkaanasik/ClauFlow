@@ -22,6 +22,7 @@ import {
   enqueue as enqueueExecutor,
   abort as abortExecutor,
   isRunning as isExecutorRunning,
+  runPhase as executorRunPhase,
   waitForIdle as waitForExecutorIdle,
 } from "../agents/executor.js";
 import {
@@ -211,7 +212,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
                 status: "review",
                 agent: {
                   status: "error",
-                  error: `PR merge hatası: ${errMsg}`,
+                  error: "pr_merge_failed",
                   finishedAt: new Date().toISOString(),
                 },
               });
@@ -233,7 +234,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
               status: "review",
               agent: {
                 status: "error",
-                error: `PR merge hatası: ${msg}`,
+                error: "pr_merge_failed",
                 finishedAt: new Date().toISOString(),
               },
             });
@@ -257,16 +258,16 @@ router.post("/:id/retry", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "task_not_in_doing" });
     }
 
-    // If a claude run is currently in flight, kill it first and wait for the
-    // run() catch+finally to unwind so we can re-enqueue cleanly. Without this,
-    // the new enqueueExecutor call would block on acquireSlot waiting for the
-    // old run to finish, leaving the user staring at "Sırada".
+    // Kill the live (or queued) run and give it a moment to unwind. If it is
+    // slower than that, the new run simply queues behind it on the repo lock;
+    // run tokens keep the old run's late finally from touching the new one.
     if (isExecutorRunning(task.id)) {
       abortExecutor(task.id);
       await waitForExecutorIdle(task.id, 5000);
     }
 
     const reset = await updateTask(task.id, {
+      status: "doing",
       agent: {
         status: "idle",
         currentStep: undefined,
@@ -293,9 +294,10 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
     const task = await getTask(id);
     if (!task) return res.status(404).json({ error: "not_found" });
 
-    if (isExecutorRunning(id)) {
+    const phase = executorRunPhase(id);
+    if (phase) {
       abortExecutor(id);
-      return res.json({ aborted: true, source: "in_memory" });
+      return res.json({ aborted: true, source: phase === "queued" ? "queued" : "in_memory" });
     }
 
     // No live process for this task. A task paused for spec approval, or an
@@ -318,9 +320,7 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
         agent: {
           status: "error",
           currentStep: undefined,
-          error: paused
-            ? "Kullanıcı tarafından durduruldu (şartname onayı beklerken)"
-            : "Kullanıcı tarafından durduruldu (orphan task)",
+          error: paused ? "aborted_while_awaiting_approval" : "aborted_orphan",
           finishedAt: new Date().toISOString(),
         },
       });

@@ -13,7 +13,7 @@ import systemRouter from "./routes/system.js";
 import insightsRouter from "./routes/insights.js";
 import fsRouter from "./routes/fs.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
-import { recoverOrphanedTasks } from "./services/taskService.js";
+import { recoverAndBroadcastOrphans } from "./services/orphanRecovery.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1";
@@ -55,9 +55,11 @@ server.listen(PORT, HOST, async () => {
   console.log(`[core] listening on http://${HOST}:${PORT}`);
   console.log(`[core] websocket on ws://localhost:${PORT}/ws`);
   try {
-    const recovered = await recoverOrphanedTasks();
-    if (recovered > 0) {
-      console.log(`[core] recovered ${recovered} orphaned task(s) left in active state`);
+    const recovered = await recoverAndBroadcastOrphans();
+    if (recovered.taskIds.length + recovered.runIds.length + recovered.nodeRunIds.length > 0) {
+      console.log(
+        `[core] recovered orphans: ${recovered.taskIds.length} task(s), ${recovered.runIds.length} team run(s), ${recovered.nodeRunIds.length} node run(s)`,
+      );
     }
   } catch (err) {
     console.error("[core] orphan recovery failed:", err);

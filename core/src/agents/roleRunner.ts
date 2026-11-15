@@ -47,6 +47,8 @@ export interface RunRoleOptions {
   budgetUsd: number | null;
   /** Cost already spent by earlier roles of the same run. */
   spentBeforeUsd: number;
+  /** Names for the `budget_exceeded` toast (A8d). */
+  budgetContext?: { taskTitle: string; displayId: string | null; projectId: string; projectName: string };
   inputArtifact?: Record<string, unknown> | null;
 }
 
@@ -229,7 +231,14 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
   const exceedBudget = (spentUsd: number): void => {
     if (budgetExceeded || opts.budgetUsd == null) return;
     budgetExceeded = true;
-    broadcastBudgetExceeded(taskId, spentUsd, opts.budgetUsd);
+    broadcastBudgetExceeded(taskId, {
+      spentUsd,
+      budgetUsd: opts.budgetUsd,
+      taskTitle: opts.budgetContext?.taskTitle ?? "",
+      displayId: opts.budgetContext?.displayId ?? null,
+      projectId: opts.budgetContext?.projectId ?? "",
+      projectName: opts.budgetContext?.projectName ?? "",
+    });
     roleController.abort();
   };
 

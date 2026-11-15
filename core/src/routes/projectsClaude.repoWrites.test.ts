@@ -1,9 +1,16 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Own throwaway DB: never touch the shared core/data/tasks.db (dev server, master).
+vi.hoisted(() => {
+  const tmp = process.env.TMPDIR ?? "/tmp";
+  process.env.CLAUFLOW_DATA_DIR = `${tmp}/clauflow-projectsClaude-repoWrites-${process.pid}-${Date.now()}`;
+});
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProject, db } from "../services/taskService.js";
+import { acquireRepoLock, getRepoLockHolder } from "../services/repoLock.js";
 import { startTestServer, type TestServer } from "../test-utils/httpApp.js";
 import projectsClaudeRouter from "./projectsClaude.js";
 
@@ -93,4 +100,29 @@ describe("Claude config routes do not write to the repo on their own", () => {
     expect(git("log", "-1", "--format=%s")).toBe("chore: update CLAUDE.md");
     expect(git("status", "--porcelain")).toBe("");
   });
+
+  it("PUT /claude/instructions answers 409 repo_busy and writes nothing while the repo is locked (A1g)", async () => {
+    const before = git("rev-parse", "HEAD");
+    const content = readFileSync(join(repo, "CLAUDE.md"), "utf8");
+    const lease = await acquireRepoLock(repo, { owner: "task:running:tok" });
+    try {
+      const busy = await call("PUT", `/api/projects/${projectId}/claude/instructions`, { content: "# During a run\n" });
+      expect(busy.status).toBe(409);
+      expect(busy.json).toEqual({ error: "repo_busy" });
+      expect(readFileSync(join(repo, "CLAUDE.md"), "utf8")).toBe(content);
+      expect(git("status", "--porcelain")).toBe("");
+      expect(git("rev-parse", "HEAD")).toBe(before);
+    } finally {
+      lease.release();
+    }
+    const free = await call("PUT", `/api/projects/${projectId}/claude/instructions`, { content: "# After the run\n" });
+    expect(free.status).toBe(200);
+    expect(free.json).toMatchObject({ committed: true });
+    expect(getRepoLockHolder(repo)).toBeNull();
+  });
+});
+
+afterAll(async () => {
+  const { rmSync } = await import("node:fs");
+  rmSync(process.env.CLAUFLOW_DATA_DIR!, { recursive: true, force: true });
 });

@@ -102,6 +102,25 @@ async function headSha(repo: string): Promise<string | null> {
   return r.code === 0 ? r.stdout.trim() : null;
 }
 
+/** Drops this run's `clauflow-discard-<runId>-…` stashes, newest index last. */
+async function dropRunStashes(taskId: string, repo: string, runId: string): Promise<void> {
+  const list = await gitRun("git", ["stash", "list", "--format=%gd%x09%s"], repo);
+  if (list.code !== 0) return;
+  const prefix = `clauflow-discard-${runId}-`;
+  const refs = list.stdout
+    .split("\n")
+    .map((line) => line.split("\t"))
+    .filter(([ref, subject]) => ref && subject?.includes(prefix))
+    .map(([ref]) => ref!)
+    .sort((a, b) => stashIndex(b) - stashIndex(a));
+  for (const ref of refs) await gitRun("git", ["stash", "drop", ref], repo);
+  if (refs.length > 0) await pushLog(taskId, `↺ Koşunun ${refs.length} discard stash'i düşürüldü`);
+}
+
+function stashIndex(ref: string): number {
+  return Number(/\{(\d+)\}/.exec(ref)?.[1] ?? -1);
+}
+
 function stopReasonText(reason: TeamStopReason, info: { qaMaxRounds: number; spent: number; budget: number | null }): string {
   switch (reason) {
     case "stalled":
@@ -301,6 +320,12 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
         isolate: true,
         budgetUsd: budget,
         spentBeforeUsd: current().costUsd,
+        budgetContext: {
+          taskTitle: task.title,
+          displayId: task.displayId ?? null,
+          projectId: project.id,
+          projectName: project.name,
+        },
         inputArtifact: { roleId: role.id, round, team: team.name },
       });
       run = patchRun(runId, { costUsd: current().costUsd + out.costUsd });
@@ -342,7 +367,7 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
       } else {
         const dirty = await gitRun("git", ["status", "--porcelain"], repo);
         if (dirty.code === 0 && dirty.stdout.trim()) {
-          const label = `clauflow-discard-${role.kind}`;
+          const label = `clauflow-discard-${runId}-${role.kind}-${round}`;
           await gitRun("git", ["stash", "push", "-u", "-m", label], repo);
           await pushLog(task.id, `↺ ${role.name} çalışma ağacını değiştirdi; değişiklik stash'e alındı (${label})`);
         }
@@ -383,11 +408,17 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
         }
       }
 
-      const isLast = i === roles.length - 1;
-      if (out.budgetExceeded && !isLast) return await stop("budget");
+      // A3: a role that ran over budget stops the run whatever its position —
+      // otherwise a last-role developer's half-done work would be delivered.
+      // The only exception is a QA turn that passed: the work is verified.
+      const qaPassed = role.kind === "qa" && qaVerdict === "pass";
+      if (out.budgetExceeded && !qaPassed) return await stop("budget");
       i++;
     }
 
+    // A8c: a finished run no longer needs the edits its non-developer roles
+    // made; stuck/error runs keep them for inspection.
+    await dropRunStashes(task.id, repo, runId);
     if (devIndex < 0) {
       const summary = finish("explored");
       await pushLog(task.id, "✓ Keşif tamamlandı");
