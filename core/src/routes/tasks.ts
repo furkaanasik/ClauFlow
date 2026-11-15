@@ -41,6 +41,20 @@ import { mergeTaskBranch } from "../services/mergeService.js";
 import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
 import { getTaskDiff } from "../services/taskDiff.js";
 import { uiLangSchema } from "../agents/uiText.js";
+import { baseBranchExists, baseBranchHint } from "../services/baseBranch.js";
+import { existsSync } from "node:fs";
+import type { Project } from "../types/index.js";
+
+/**
+ * zincir F0.5 (plan §5.0): a read-only check before a task is queued. Returns
+ * the repo's current branch hint when the project's base branch is missing,
+ * null when it exists (or the repo path is not there; the executor reports that).
+ */
+async function missingBaseBranch(project: Project | null | undefined): Promise<string | null> {
+  if (!project || !project.repoPath || !existsSync(project.repoPath)) return null;
+  if (await baseBranchExists(project.repoPath, project.defaultBranch)) return null;
+  return baseBranchHint(project.repoPath);
+}
 
 const router = Router();
 
@@ -211,6 +225,12 @@ router.patch("/:id", async (req: Request, res: Response) => {
     }
     if (patch.teamId) assertTeamUsableByProject(patch.teamId, existing.projectId);
 
+    // zincir F0.5: never queue a run whose base branch is not in the repo.
+    if (patch.status === "doing" && existing.status !== "doing") {
+      const current = await missingBaseBranch(await getProject(existing.projectId));
+      if (current !== null) return res.status(422).json({ error: "base_branch_missing", current });
+    }
+
     // Reset agent state immediately so queued tasks show "Sırada" instead of stale error
     let updateData: TaskPatch =
       patch.status === "doing"
@@ -294,6 +314,10 @@ router.post("/:id/retry", async (req: Request, res: Response) => {
     if (!task) return res.status(404).json({ error: "not_found" });
     if (task.status !== "doing") {
       return res.status(400).json({ error: "task_not_in_doing" });
+    }
+    {
+      const current = await missingBaseBranch(await getProject(task.projectId));
+      if (current !== null) return res.status(422).json({ error: "base_branch_missing", current });
     }
 
     // Kill the live (or queued) run and give it a moment to unwind. If it is
@@ -438,6 +462,9 @@ router.post("/:id/breakdown", async (req: Request, res: Response) => {
   // D4: a finished task is history; a running one belongs to the executor.
   if (task.status === "done") return res.status(409).json({ error: "task_done" });
   if (task.status === "doing") return res.status(409).json({ error: "task_running" });
+  // zincir E3 (plan §3/23): closing a reviewed parent as done would skip its
+  // merge and orphan its branch.
+  if (task.status === "review") return res.status(409).json({ error: "task_in_review" });
 
   const parsed = breakdownSchema.safeParse(req.body);
   if (!parsed.success) {

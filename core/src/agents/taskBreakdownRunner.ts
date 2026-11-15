@@ -30,7 +30,9 @@ export async function closeBrokenDownParent(
   } catch (e) {
     console.error(`[taskBreakdown] breakdown comment for ${taskId} failed:`, e);
   }
-  if (parent.status === "done" || parent.status === "doing") return;
+  // E3: the parent may have moved to review while the breakdown ran; a review
+  // task is closed only by its merge.
+  if (parent.status === "done" || parent.status === "doing" || parent.status === "review") return;
   const closed = await updateTask(taskId, { status: "done" });
   broadcastTaskUpdated(closed);
 }

@@ -8,7 +8,8 @@ vi.hoisted(() => {
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createProject, createTask, projectHasActiveTasks, updateTask } from "../services/taskService.js";
+import { createProject, createTask, getProject, projectHasActiveTasks, updateTask } from "../services/taskService.js";
+import { git, makeRepo } from "../test-utils/fakeRepo.js";
 import { startTestServer, type TestServer } from "../test-utils/httpApp.js";
 import projectsRouter from "./projects.js";
 import githubRouter from "./github.js";
@@ -120,6 +121,62 @@ describe("D6d: project routes answer error codes", () => {
       status: 400,
       json: { error: "invalid_pr_number" },
     });
+  });
+});
+
+describe("zincir F0.5: base branch must exist in an existing repo (plan §5.0)", () => {
+  it("POST: existing repo + missing branch → 422 + detected; right branch, unborn repo and new repo → 201", async () => {
+    const repo = makeRepo("clauflow-codes-bb-");
+    try {
+      expect(
+        await call("POST", "/api/projects", { name: "BB1", repoPath: repo, defaultBranch: "master", slug: "bb-one" }),
+      ).toEqual({ status: 422, json: { error: "base_branch_missing", detected: "main" } });
+      const ok = await call("POST", "/api/projects", { name: "BB1", repoPath: repo, defaultBranch: "main", slug: "bb-one" });
+      expect(ok.status).toBe(201);
+      expect(ok.json.project.defaultBranch).toBe("main");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+
+    const unborn = join(tmp, "unborn");
+    mkdirSync(unborn, { recursive: true });
+    git(unborn, "init", "-q", "-b", "main");
+    const u = await call("POST", "/api/projects", { name: "BB2", repoPath: unborn, defaultBranch: "master", slug: "bb-two" });
+    expect(u.status).toBe(201);
+
+    const fresh = join(tmp, "fresh-trunk");
+    const f = await call("POST", "/api/projects", { name: "BB3", repoPath: fresh, defaultBranch: "trunk", slug: "bb-three" });
+    expect(f.status).toBe(201);
+    expect(git(fresh, "rev-parse", "--abbrev-ref", "HEAD")).toBe("trunk");
+  });
+
+  it("PATCH: defaultBranch alone and repoPath + defaultBranch together are validated at the target repo", async () => {
+    const a = makeRepo("clauflow-codes-bba-");
+    const b = makeRepo("clauflow-codes-bbb-");
+    git(b, "branch", "-m", "main", "trunk");
+    try {
+      const p = await createProject({ name: "BBP", repoPath: a, defaultBranch: "main", slug: "bb-patch" });
+      expect(await call("PATCH", `/api/projects/${p.id}`, { defaultBranch: "master" })).toEqual({
+        status: 422,
+        json: { error: "base_branch_missing", detected: "main" },
+      });
+      expect(await call("PATCH", `/api/projects/${p.id}`, { repoPath: b })).toEqual({
+        status: 422,
+        json: { error: "base_branch_missing", detected: "trunk" },
+      });
+      expect(await call("PATCH", `/api/projects/${p.id}`, { repoPath: b, defaultBranch: "main" })).toEqual({
+        status: 422,
+        json: { error: "base_branch_missing", detected: "trunk" },
+      });
+      expect((await getProject(p.id))!.repoPath).toBe(a);
+      const ok = await call("PATCH", `/api/projects/${p.id}`, { repoPath: b, defaultBranch: "trunk" });
+      expect(ok.status).toBe(200);
+      expect(ok.json.project.defaultBranch).toBe("trunk");
+      expect((await call("PATCH", `/api/projects/${p.id}`, { name: "renamed" })).status).toBe(200);
+    } finally {
+      rmSync(a, { recursive: true, force: true });
+      rmSync(b, { recursive: true, force: true });
+    }
   });
 });
 

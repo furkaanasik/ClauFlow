@@ -62,6 +62,23 @@ import { runProjectPlanner } from "../agents/projectPlanner.js";
 import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import { runCloneRepo } from "../agents/cloneRunner.js";
 import { invalidateHasRemote, withHasRemote, withHasRemoteAll } from "../services/remoteInfo.js";
+import { baseBranchExists, detectBaseBranch, repoHasCommits } from "../services/baseBranch.js";
+
+/**
+ * zincir F0.5 (plan §5.0): an existing repo with commits must carry the given
+ * base branch. Returns the 422 body (with a `detected` hint) or null. A repo
+ * without commits (unborn branch) or a missing path is not checked here.
+ */
+async function baseBranchProblem(
+  repoPath: string,
+  branch: string,
+): Promise<{ error: "base_branch_missing"; detected: string | null } | null> {
+  const resolved = path.resolve(expandHome(repoPath));
+  if (!fs.existsSync(path.join(resolved, ".git"))) return null;
+  if (!(await repoHasCommits(resolved))) return null;
+  if (await baseBranchExists(resolved, branch)) return null;
+  return { error: "base_branch_missing", detected: await detectBaseBranch(resolved) };
+}
 
 const router = Router();
 
@@ -156,6 +173,12 @@ router.post("/", async (req: Request, res: Response) => {
     if (data.repoName && !/^[a-zA-Z0-9_.-]+$/.test(data.repoName)) {
       res.status(400).json({ error: "invalid_repo_name" });
       return;
+    }
+
+    // An existing repo keeps its branches: never record a base it lacks.
+    if (data.defaultBranch) {
+      const problem = await baseBranchProblem(data.repoPath, data.defaultBranch);
+      if (problem) return res.status(422).json(problem);
     }
 
     if (!data.createGithubRepo) {
@@ -334,6 +357,11 @@ router.patch("/:id", async (req: Request, res: Response) => {
       if (hasActive) {
         return res.status(409).json({ error: "active_tasks_block_path_change" });
       }
+      const problem = await baseBranchProblem(
+        data.repoPath ?? existing.repoPath,
+        data.defaultBranch ?? existing.defaultBranch,
+      );
+      if (problem) return res.status(422).json(problem);
     }
 
     const trimmedPrompt = data.aiPrompt?.trim();

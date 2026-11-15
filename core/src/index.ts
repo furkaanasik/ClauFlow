@@ -14,6 +14,7 @@ import insightsRouter from "./routes/insights.js";
 import fsRouter from "./routes/fs.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
 import { recoverAndBroadcastOrphans } from "./services/orphanRecovery.js";
+import { auditProjectBaseBranches } from "./services/baseBranch.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1";
@@ -63,6 +64,12 @@ server.listen(PORT, HOST, async () => {
     }
   } catch (err) {
     console.error("[core] orphan recovery failed:", err);
+  }
+  // zincir F0.5: log projects whose base branch is missing; changes nothing.
+  try {
+    await auditProjectBaseBranches();
+  } catch (err) {
+    console.error("[core] base branch audit failed:", err);
   }
 });
 

@@ -8,7 +8,9 @@ vi.hoisted(() => {
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createProject, createTask, updateTask } from "../services/taskService.js";
+import { createProject, createTask, getTask, updateTask } from "../services/taskService.js";
+import { closeBrokenDownParent } from "../agents/taskBreakdownRunner.js";
+import { FAKE_CLAUDE, makeRepo, readCalls } from "../test-utils/fakeRepo.js";
 import { BUILTIN_TEAM_IDS } from "../services/teamTemplates.js";
 import { startTestServer, type TestServer } from "../test-utils/httpApp.js";
 import tasksRouter from "./tasks.js";
@@ -74,6 +76,50 @@ describe("D4: finished and running tasks", () => {
     });
     const todo = await taskIn("todo");
     expect((await call("POST", `/api/tasks/${todo.id}/breakdown`, { prompt: "x", uiLang: "de" })).status).toBe(400);
+  });
+
+  it("zincir E3: POST /breakdown on a review task → 409 task_in_review, the planner never runs; todo still starts", async () => {
+    const state = mkdtempSync(join(tmpdir(), "clauflow-guards-state-"));
+    const repo = makeRepo("clauflow-guards-bd-");
+    const prev = { bin: process.env.CLAUFLOW_CLAUDE_BIN, state: process.env.FAKE_CLAUDE_STATE };
+    process.env.CLAUFLOW_CLAUDE_BIN = FAKE_CLAUDE;
+    process.env.FAKE_CLAUDE_STATE = state;
+    try {
+      const review = await taskIn("review");
+      expect(await call("POST", `/api/tasks/${review.id}/breakdown`, { prompt: "split it" })).toEqual({
+        status: 409,
+        json: { error: "task_in_review" },
+      });
+      await new Promise((r) => setTimeout(r, 100));
+      expect(readCalls(state)).toEqual([]);
+      expect((await getTask(review.id))!.status).toBe("review");
+
+      const p = await createProject({ name: "Guards BD", repoPath: repo, slug: `gbd${Date.now().toString(36)}` });
+      const todo = await createTask({ projectId: p.id, title: "split me" });
+      expect(await call("POST", `/api/tasks/${todo.id}/breakdown`, { prompt: "split it" })).toEqual({
+        status: 200,
+        json: { status: "started" },
+      });
+      const start = Date.now();
+      while ((await getTask(todo.id))!.status !== "done" && Date.now() - start < 5000) {
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      expect((await getTask(todo.id))!.status).toBe("done");
+      expect(readCalls(state)).toHaveLength(1);
+    } finally {
+      process.env.CLAUFLOW_CLAUDE_BIN = prev.bin;
+      process.env.FAKE_CLAUDE_STATE = prev.state;
+      if (prev.bin === undefined) delete process.env.CLAUFLOW_CLAUDE_BIN;
+      if (prev.state === undefined) delete process.env.FAKE_CLAUDE_STATE;
+      rmSync(state, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("zincir E3: closeBrokenDownParent leaves a parent that moved to review alone", async () => {
+    const parent = await taskIn("review");
+    await closeBrokenDownParent(parent.id, 2);
+    expect((await getTask(parent.id))!.status).toBe("review");
   });
 });
 

@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { run } from "./gitService.js";
+import { listProjects } from "./taskService.js";
 
 /**
  * Read-only git probes for the project's base branch (zincir F0.5, plan §5.0).
@@ -74,4 +76,37 @@ export class BaseBranchMissing extends Error {
     this.name = "BaseBranchMissing";
     this.current = current;
   }
+}
+
+export interface BaseBranchFinding {
+  projectId: string;
+  name: string;
+  defaultBranch: string;
+  head: string | null;
+  branches: string[];
+}
+
+/**
+ * Boot audit (plan §5.0): logs every project whose base branch is missing from
+ * its repo. Read-only and idempotent — never changes a project or the repo.
+ */
+export async function auditProjectBaseBranches(): Promise<BaseBranchFinding[]> {
+  const findings: BaseBranchFinding[] = [];
+  for (const p of await listProjects()) {
+    if (!p.repoPath || !existsSync(p.repoPath)) continue;
+    if (!(await repoHasCommits(p.repoPath))) continue;
+    if (await baseBranchExists(p.repoPath, p.defaultBranch)) continue;
+    const finding: BaseBranchFinding = {
+      projectId: p.id,
+      name: p.name,
+      defaultBranch: p.defaultBranch,
+      head: await currentBranch(p.repoPath),
+      branches: await listLocalBranches(p.repoPath),
+    };
+    findings.push(finding);
+    console.warn(
+      `[core] project ${finding.name} (${finding.projectId}): defaultBranch "${finding.defaultBranch}" missing; HEAD=${finding.head ?? "-"}; branches=[${finding.branches.join(", ")}]`,
+    );
+  }
+  return findings;
 }
