@@ -9,9 +9,36 @@ import { tr } from "@/lib/i18n/tr";
 import { en } from "@/lib/i18n/en";
 import { formatUsd } from "@/lib/format";
 import { errorText } from "@/lib/errorText";
+import { blockerProblem, isWaitingDeps } from "@/lib/boardView";
 import type { Task, WsMessage } from "@/types";
 
 const RECONNECT_DELAY_MS = 3000;
+
+/** zincir D6: one blocker notification per failure (`${taskId}:${finishedAt}`), §3/12. */
+const chainBlockedNotified = new Set<string>();
+
+/**
+ * zincir D6: a dependency just got into trouble (§3/11) while tasks of the open
+ * project wait for it → one browser notification. Other projects are not in
+ * the store, so they stay silent (known limit; the card badge is permanent).
+ */
+function notifyChainBlocked(prev: Task | undefined, t: Task) {
+  if (!prev || !blockerProblem(t) || blockerProblem(prev)) return;
+  const { tasks } = useBoardStore.getState();
+  const waiting = Object.values(tasks).filter((x) => x && isWaitingDeps(x) && x.dependsOn?.includes(t.id));
+  if (waiting.length === 0) return;
+  const key = `${t.id}:${t.agent.finishedAt ?? ""}`;
+  if (chainBlockedNotified.has(key)) return;
+  chainBlockedNotified.add(key);
+  const s = uiStrings();
+  useNotificationStore.getState().notify(
+    s.notifications.chainBlocked(
+      t.displayId ?? t.title,
+      waiting.map((x) => x.displayId ?? x.title),
+    ),
+    t.agent.error ? errorText(s, t.agent.error) : s.notifications.taskErrorBody,
+  );
+}
 
 /** Toast for a live planner/budget event. Names the project when it isn't the open one. */
 function plannerToast(projectId: string, type: "success" | "error", message: string, fallbackName?: string) {
@@ -98,6 +125,7 @@ export function useAgentSocket(url?: string) {
               // tasks of other projects (no `prev`) stay silent.
               const prev: Task | undefined = useBoardStore.getState().tasks[t.id];
               upsertTask(t);
+              notifyChainBlocked(prev, t);
               if (t.agent.status === "idle" && t.status === "doing") {
                 useBoardStore.getState().clearBudgetExceeded(t.id);
               }
@@ -235,6 +263,16 @@ export function useAgentSocket(url?: string) {
                 formatUsd(p.budgetUsd),
               );
               plannerToast(p.projectId, "error", message, p.projectName);
+              break;
+            }
+            case "chain_advanced": {
+              const m = msg as Extract<WsMessage, { type: "chain_advanced" }>;
+              const p = m.payload;
+              const from = p.displayId ?? m.taskId;
+              const started = p.started.map((x) => x.displayId ?? x.id);
+              if (started.length > 0) {
+                plannerToast(p.projectId, "success", uiStrings().board.chainAdvanced(from, started, p.merged));
+              }
               break;
             }
             case "hello":

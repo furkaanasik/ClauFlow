@@ -53,6 +53,8 @@ import {
   applyManualOrder,
   isAgentWorking,
   loadManualOrder,
+  startsOnMerge,
+  unmetDeps,
   saveManualOrder,
   subtaskStats,
   taskCost,
@@ -177,6 +179,8 @@ export function Board() {
   const [addOpen, setAddOpen]       = useState(false);
   const [showHelp, setShowHelp]     = useState(false);
   const [pendingMove, setPendingMove] = useState<{ taskId: string; from: TaskStatus; to: TaskStatus } | null>(null);
+  // zincir E4 (§3/24): every Review → Done drag merges, so it asks first.
+  const [pendingMerge, setPendingMerge] = useState<string | null>(null);
 
   useKeyboardShortcuts({
     onNewTask:     useCallback(() => setAddOpen(true), []),
@@ -245,7 +249,15 @@ export function Board() {
     try {
       const updated = await moveTaskOptimistic(taskId, to);
       const key = updated?.displayId ?? before?.displayId ?? updated?.title ?? before?.title ?? taskId;
-      if (to === "doing") toast.info(t.board.taskQueued(key));
+      if (to === "doing") {
+        // zincir: the gate may have parked the task until its dependencies are done.
+        if (updated?.agent.status === "waiting_deps") {
+          const deps = unmetDeps(updated, useBoardStore.getState().tasks).map((d) => d.displayId ?? d.title);
+          toast.info(t.board.waitingToast(key, deps));
+        } else {
+          toast.info(t.board.taskQueued(key));
+        }
+      }
       if (to === "done") toast.success(doneToast(t, before));
     } catch (err) {
       toast.error(moveErrorText(t, err), apiErrorCode(err) === "merge_conflict" ? 10_000 : 5_000);
@@ -285,6 +297,11 @@ export function Board() {
       const nextRank = [...rank.filter((id) => !col.includes(id) && tasks[id]), ...nextCol];
       setRank(nextRank);
       saveManualOrder(selectedProjectId, nextRank);
+      return;
+    }
+
+    if (task.status === "review" && target === "done") {
+      setPendingMerge(taskId);
       return;
     }
 
@@ -492,6 +509,48 @@ export function Board() {
           ))}
         </div>
       </Modal>
+
+      {(() => {
+        const mergeTask = pendingMerge ? tasks[pendingMerge] : null;
+        const lines: string[] = [];
+        if (mergeTask) {
+          const mc = t.board.mergeConfirm;
+          const local = !mergeTask.prNumber && Boolean(mergeTask.branch);
+          if (mergeTask.prNumber) lines.push(mc.pr(mergeTask.prNumber));
+          else if (mergeTask.branch) lines.push(mc.local(mergeTask.branch, selectedProject?.defaultBranch ?? "main"));
+          else lines.push(mc.noMerge);
+          // Only the local merge stashes a dirty tree (mergeService).
+          if (local && gitStatus?.isDirty) lines.push(mc.dirty);
+          const starts = startsOnMerge(mergeTask.id, tasks);
+          if (starts.length > 0) lines.push(mc.starts(starts.length, starts.map((x) => x.displayId ?? x.title)));
+        }
+        return (
+          <ConfirmDialog
+            open={Boolean(mergeTask)}
+            title={t.board.mergeConfirm.title}
+            description={
+              lines.length > 0 ? (
+                <>
+                  {lines.map((line) => (
+                    <span key={line} className="block [&:not(:first-child)]:mt-1.5" data-merge-line>
+                      {line}
+                    </span>
+                  ))}
+                </>
+              ) : undefined
+            }
+            confirmLabel={t.board.mergeConfirm.confirm}
+            cancelLabel={t.board.mergeConfirm.cancel}
+            variant="default"
+            onConfirm={async () => {
+              const id = pendingMerge;
+              setPendingMerge(null);
+              if (id) await moveTask(id, "done");
+            }}
+            onCancel={() => setPendingMerge(null)}
+          />
+        );
+      })()}
 
       <ConfirmDialog
         open={Boolean(pendingMove)}
