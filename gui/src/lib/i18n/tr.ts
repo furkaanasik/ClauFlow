@@ -964,6 +964,8 @@ export const tr: Translations = {
       moveUp: "Yukarı taşı",
       moveDown: "Aşağı taşı",
       removeRole: "Rolü çıkar",
+      roleMoved: "{name} {n}. sıraya taşındı",
+      roleRemoved: "{name} ekipten çıkarıldı",
       save: "Kaydet",
       saving: "Kaydediliyor…",
       revert: "Geri al",

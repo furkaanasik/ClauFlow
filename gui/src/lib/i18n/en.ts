@@ -964,6 +964,8 @@ export const en: Translations = {
       moveUp: "Move up",
       moveDown: "Move down",
       removeRole: "Remove role",
+      roleMoved: "{name} moved to position {n}",
+      roleRemoved: "{name} removed from the team",
       save: "Save",
       saving: "Saving…",
       revert: "Revert",

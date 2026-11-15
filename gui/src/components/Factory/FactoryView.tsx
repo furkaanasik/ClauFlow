@@ -22,6 +22,7 @@ import { useBoardStore } from "@/store/boardStore";
 import { useViewStore } from "@/store/viewStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { formatUsd } from "@/lib/boardView";
+import { ROLE_TONE, agentStepLabel, roleIcon } from "@/components/Team/roleMeta";
 import type { Task, TaskStatus } from "@/types";
 import { FactoryFallback } from "./FactoryFallback";
 import { STATIONS, buildLayout, stabilizeLayout, type CrateSpec, type FactoryLayout, type PileSpec } from "./factoryLayout";
@@ -65,7 +66,13 @@ export function FactoryView({ tasks, epoch }: { tasks: Task[]; epoch: string }) 
   }, [tasks, budgetExceeded]);
 
   const copy = useMemo(
-    () => ({ columns: t.board.columns, notes: t.board.factory.notes, steps: t.taskCard.agentSteps }),
+    () => ({
+      columns: t.board.columns,
+      notes: t.board.factory.notes,
+      steps: t.taskCard.agentSteps,
+      roles: t.team.roles,
+      activity: t.team.activity,
+    }),
     [t],
   );
 
@@ -149,6 +156,15 @@ export function FactoryView({ tasks, epoch }: { tasks: Task[]; epoch: string }) 
                 />
                 <span className="text-[12px] font-bold">{t.board.columns[s.status]}</span>
                 <span className="font-mono text-[11px] font-bold text-ink-3">{layout.counts[s.status]}</span>
+                {s.status === "doing" && layout.doingRole && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[11px] font-bold"
+                    style={{ color: ROLE_TONE[layout.doingRole].text }}
+                  >
+                    {roleIcon(layout.doingRole, 12)}
+                    {t.team.roles[layout.doingRole]}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -284,6 +300,10 @@ function CrateTip({
   budget?: { spentUsd: number; budgetUsd: number };
 }) {
   const t = useTranslation();
+  const qaRound = useBoardStore((s) => {
+    const runs = s.teamRuns[spec.id];
+    return runs?.[runs.length - 1]?.qaRound ?? 0;
+  });
   const status = (task?.status ?? spec.status) as TaskStatus;
   return (
     <>
@@ -300,7 +320,7 @@ function CrateTip({
           {spec.working && (
             <span className="factory-tip__row" style={{ color: "var(--orange-text)" }}>
               <span className="ui-dot ui-dot--live !h-2 !w-2" style={{ "--dot": "var(--orange)" } as CSSProperties} />
-              {t.taskCard.agentSteps[task?.agent.status ?? spec.step]}
+              {task ? agentStepLabel(task.agent, t, qaRound) : t.taskCard.agentSteps[spec.step]}
             </span>
           )}
           {spec.queued && (

@@ -77,7 +77,7 @@ export function TeamList({ teams, selectedId, defaultId, onSelect }: TeamListPro
                             </span>
                           )}
                         </span>
-                        <span className="line-clamp-2 text-[12px] leading-snug text-ink-3">
+                        <span className="line-clamp-2 text-[12px] leading-snug text-ink-2">
                           {teamDescription(team, t) || "—"}
                         </span>
                       </span>

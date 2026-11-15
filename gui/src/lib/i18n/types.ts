@@ -899,6 +899,10 @@ export interface Translations {
       moveUp: string;
       moveDown: string;
       removeRole: string;
+      /** Screen-reader announcement after a reorder: "{name}", "{n}". */
+      roleMoved: string;
+      /** Screen-reader announcement after removing a role: "{name}". */
+      roleRemoved: string;
       save: string;
       saving: string;
       revert: string;

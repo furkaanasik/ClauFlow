@@ -1,13 +1,13 @@
 "use client";
 
 import clsx from "clsx";
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Button, IconButton } from "@/components/ui/Button";
 import { IconAlert, IconChevronDown, IconChevronUp, IconPlus, IconRetry, IconTrash } from "@/components/ui/icons";
 import type { RoleKind, TeamRole } from "@/types";
 import { RolePlate } from "./RoleChain";
-import { ROLE_KINDS, ROLE_TONE, roleLabel } from "./roleMeta";
+import { ROLE_KINDS, ROLE_TONE, fill, roleLabel } from "./roleMeta";
 import type { DraftIssue } from "./teamDraft";
 
 interface RoleListProps {
@@ -34,14 +34,46 @@ export function RoleList({ roles, selected, onSelect, onMove, onRemove, onAdd, i
   const teamIssues = issues.filter((i) => i.roleIndex === null);
   const roleIssues = issues.filter((i) => i.roleIndex !== null);
 
+  // Keyboard: a moved row keeps focus on its control, unless that control just
+  // became disabled (row hit the top/bottom) — then focus the opposite arrow.
+  // A removed row hands focus to its neighbour. Each change is announced.
+  const listRef = useRef<HTMLOListElement>(null);
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  const [announce, setAnnounce] = useState("");
+  useEffect(() => {
+    if (!pendingFocus) return;
+    const el = listRef.current?.parentElement?.querySelector<HTMLElement>(`[data-role-focus="${pendingFocus}"]`);
+    if (el && document.activeElement !== el) el.focus();
+    setPendingFocus(null);
+  }, [pendingFocus, roles]);
+
+  const move = (i: number, to: number) => {
+    const role = roles[i];
+    onMove!(i, to);
+    const atEdge = to === 0 || to === roles.length - 1;
+    const goingUp = to < i;
+    if (atEdge) setPendingFocus(`${role.id}:${goingUp ? "down" : "up"}`);
+    setAnnounce(fill(te.roleMoved, { name: roleLabel(role, role.kind, t), n: to + 1 }));
+  };
+  const remove = (i: number) => {
+    const role = roles[i];
+    onRemove!(i);
+    const next = roles[i + 1] ?? roles[i - 1];
+    setPendingFocus(next ? `${next.id}:select` : "add");
+    setAnnounce(fill(te.roleRemoved, { name: roleLabel(role, role.kind, t) }));
+  };
+
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      <p aria-live="polite" className="sr-only">
+        {announce}
+      </p>
       <header className="ui-sechead !mb-0">
         <span className="ui-sechead__t">{te.roles}</span>
         <span className="ui-sechead__n">{roles.length}/4</span>
       </header>
 
-      <ol className="flex flex-col">
+      <ol ref={listRef} className="flex flex-col">
         {roles.map((role, i) => {
           const loop = role.kind === "qa" && roles[i - 1]?.kind === "developer";
           const hasIssue = roleIssues.some((x) => x.roleIndex === i);
@@ -73,6 +105,7 @@ export function RoleList({ roles, selected, onSelect, onMove, onRemove, onAdd, i
                 <button
                   type="button"
                   onClick={() => onSelect(i)}
+                  data-role-focus={`${role.id}:select`}
                   aria-current={isSel ? "true" : undefined}
                   className="ui-focus flex min-w-0 flex-1 items-center gap-2.5 rounded-[8px] py-2 pl-3 pr-1 text-left"
                 >
@@ -99,7 +132,8 @@ export function RoleList({ roles, selected, onSelect, onMove, onRemove, onAdd, i
                       size="sm"
                       variant="ghost"
                       disabled={i === 0}
-                      onClick={() => onMove!(i, i - 1)}
+                      data-role-focus={`${role.id}:up`}
+                      onClick={() => move(i, i - 1)}
                     >
                       <IconChevronUp size={13} />
                     </IconButton>
@@ -108,7 +142,8 @@ export function RoleList({ roles, selected, onSelect, onMove, onRemove, onAdd, i
                       size="sm"
                       variant="ghost"
                       disabled={i === roles.length - 1}
-                      onClick={() => onMove!(i, i + 1)}
+                      data-role-focus={`${role.id}:down`}
+                      onClick={() => move(i, i + 1)}
                     >
                       <IconChevronDown size={13} />
                     </IconButton>
@@ -116,7 +151,7 @@ export function RoleList({ roles, selected, onSelect, onMove, onRemove, onAdd, i
                       label={`${te.removeRole}: ${roleLabel(role, role.kind, t)}`}
                       size="sm"
                       variant="ghost"
-                      onClick={() => onRemove!(i)}
+                      onClick={() => remove(i)}
                     >
                       <IconTrash size={13} />
                     </IconButton>
@@ -135,8 +170,15 @@ export function RoleList({ roles, selected, onSelect, onMove, onRemove, onAdd, i
             <p className="text-[12px] text-ink-3">{te.addRoleNone}</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
-              {missing.map((kind) => (
-                <Button key={kind} size="sm" variant="secondary" icon={<IconPlus size={12} />} onClick={() => onAdd(kind)}>
+              {missing.map((kind, k) => (
+                <Button
+                  key={kind}
+                  size="sm"
+                  variant="secondary"
+                  icon={<IconPlus size={12} />}
+                  onClick={() => onAdd(kind)}
+                  data-role-focus={k === 0 ? "add" : undefined}
+                >
                   {t.team.roles[kind]}
                 </Button>
               ))}

@@ -4,7 +4,102 @@
 
 ## Sabah raporu
 
-_(Faz 5'in son adımında doldurulur: fazlar ve commit'ler tablosu, nasıl bakılır, ekran görüntüleri, bilinen sınırlar, gözden geçirmeye değer kararlar, önerilen sonraki adımlar. Biçim `atolye-redesign.md` sabah raporuyla aynı.)_
+**Durum (2026-11-15 gecesi):** Faz 0–5'in hepsi tamam. Tüm iş `feature/ekipler` dalında; **push, merge ve PR yok**. Studio kalktı, yerine "Ekipler" geldi: görev, sıralı rollerden oluşan bir ekiple (CEO → Analist → Yazılımcı ⇄ QA) çalışıyor. Son doğrulamaların hepsi yeşil: core typecheck + 149 test, gui typecheck + lint (0 uyarı) ve `next build`. Sandbox'ta iki gerçek ekip koşusu yapıldı, ikisi de başarılı, toplam maliyet **$0.53**. §11 "Takılanlar" boş.
+
+### Fazlar ve commit'ler
+
+| Faz | Commit | Ne yapıldı |
+|---|---|---|
+| 0 | `ed69983` | Dal, DB yedeği, CLI spike'ı (5 koşu, ≈ $3.04: `--tools` kısıtlıyor, `--allowedTools` kısıtlamıyor, `--advisor opus` `-p` ile çalışıyor), `CLAUFLOW_CLAUDE_BIN`, sahte CLI, yalıtılmış core (:3101), sandbox koruma `CLAUDE.md`'si, "önce" görüntüleri |
+| 1 | `8e916dd` | `teams` / `task_team_runs` / `task_team_artifacts` / `app_meta` tabloları (eklemeli göç), 4 yerleşik ekip, `teamService` + doğrulama, `/api/teams`, proje alanları (`defaultTeamId`, `qaMaxRounds`, `specApproval`), birleşik skill kataloğu, `/api/system/capabilities`. Arayüzün repoya yazması durdu |
+| 2a | `57fdc40` | Rol çağrısı (`--model`, `--tools`, `--append-system-prompt`, `--advisor`, yalıtma bayrakları), takma ad fiyatları, rol prompt'ları, QA kararı ayrıştırma ve takılma tespiti |
+| 2 | `1f43581` | `teamRunner` motoru: roller arası commit, QA döngüsü, tur sınırı, takılma, bütçe, onay kapısı, Keşif yolu, executor entegrasyonu, `graphRunner` silindi; 3 sahte CLI entegrasyon test seti |
+| 3 | `a6e11c5` | Görev detayı: "Bu görevi kim yapsın?" seçicisi, "Ekip" sekmesi (zaman çizelgesi), onay kapısı, kart rozetleri ("QA kontrol ediyor · tur 2"), AddTask'te seçici |
+| 4 | `9d4bf96` | Ekip editörü (şablonlar, Özelleştir, rol listesi ve düzenleyici, skill seçici, QA tur sınırı, şartname onayı, Şablon olarak kaydet). Studio GUI'den ve core'dan silindi, `@xyflow/react` kalktı, `remark-gfm` geldi, belgeler güncellendi |
+| 5 | dalın son commit'i (`git log -1 feature/ekipler`) | Fabrika'da etkin rol, erişilebilirlik (axe 0 ihlal, rol sıralamasında klavye odağı ve duyurular), iki gerçek koşu, önce/sonra karşılaştırmaları, son doğrulamalar, bu rapor |
+
+### Nasıl bakılır
+
+```bash
+git checkout feature/ekipler
+# sunucuları yeniden başlat (dal değişti, core göçü ilk açılışta çalışır)
+cd core && npm run dev                 # :3001
+cd gui && npx -y pnpm@11.0.9 install   # bağımlılıklar değişti: remark-gfm eklendi, @xyflow/react kalktı
+cd gui && npx -y pnpm@11.0.9 dev       # :3000
+```
+
+- **Board:** <http://localhost:3000/board?projectId=proj_c2dd3194> ("ClauFlow Sandbox").
+- **Gerçek koşu sonuçları:** CLF-13 (Done) ve CLF-14 (Done) kartlarını aç → **Ekip** sekmesi. Burada zaman çizelgesi, QA kararı, commit çipi ve en altta "Teknik akış" var. **Yorumlar** sekmesinde `## Ekip özeti` yorumu duruyor.
+- **Ekip seçici:** herhangi bir Todo kartı → Detay → sağ sütunda "Bu görevi kim yapsın?". Görev ekleme modalında (`N`) da aynı seçici var.
+- **Ekip editörü:** sol üstte proje adı → "Detaylar" → **Claude Config** → **Ekip** segmenti. Görev çekmecesinin başlığındaki "Ekibi düzenle" de buraya açılır, görevin ekibi seçili gelir.
+- **Fabrika:** `…&view=factory`. Bir ekip koşarken DOING tabelası ve çipi etkin rolü gösterir.
+- Kendi denemen için: sandbox'ta yeni bir görev aç, DOING'e sürükle. Proje varsayılanı şu an Yazılım Ekibi, QA sınırı 2, bütçe $3. **Review→Done sürükleme** (`gh pr merge`); sandbox'ta remote olmadığı için görev zaten doğrudan Done'a gider.
+
+### Ekran görüntüleri
+
+Hepsi `/home/furkanasikdev/Projects/ClauFlow/atolye-lab/ekran-goruntuleri/` altında, krem + gece.
+
+- **Önce/sonra (yan yana):** `karsilastirma/ekipler-studio-vs-ekip-editoru-*`, `ekipler-studio-vs-rol-duzenleyici-*`, `ekipler-calisma-modu-vs-ekip-secici-*`, `ekipler-addtask-*`
+- **Gerçek koşu 1 (Yazılım Ekibi):** `ekipler-5-kosu1-{kart-bitti,bitti-ust,bitti-alt}-*`
+- **Gerçek koşu 2 (Keşif, canlı):** `ekipler-5-kosu2-canli-{kart,zaman-cizelgesi}-*`, `ekipler-5-kosu2-bitti-{ust,alt}-*`
+- **Fabrika etkin rolü:** `ekipler-5-fabrika-rol-*`
+- **Faz görüntüleri:** `ekipler-0-*` (önce), `ekipler-3-*` (görev detayı, onay kapısı, takıldı, canlı sahte koşu), `ekipler-4-*` (Ekip editörü)
+- **Betikler:** `scripts/shots-ekipler-*.mjs`, `scripts/a11y-ekipler-faz5.mjs`. Hepsi ya yalnızca GET atar ve yazmaları engeller, ya da yalıtılmış core'a (:3101) bağlanır. İstisna Faz 5 gerçek koşusu: o, görevi API ile başlattı.
+
+### Gerçek koşular ve maliyet
+
+| Koşu | Görev | Ekip | Sonuç | Süre | Maliyet |
+|---|---|---|---|---|---|
+| 1 | CLF-13 "slugify fonksiyonu ve testi ekle" | Yazılım Ekibi (QA sınırı 2, bütçe $3) | `delivered`, ilk QA turunda PASS | ≈ 1,5 dk | **$0.377** (CEO 0.046 · Analist/opus 0.163 · Yazılımcı 0.083 · QA 0.085) |
+| 2 | CLF-14 "Repoya hangi küçük geliştirmeler eklenmeli?" | Keşif | `explored` | ≈ 2 dk | **$0.149** (CEO 0.036 · Analist/opus 0.112) |
+
+- **Koşu 1:**
+  - Şartnamede 14 kabul kriteri vardı.
+  - Yazılımcı `src/slugify.ts` ve `src/slugify.test.ts` dosyalarını yazdı (96 satır). Commit `bd69f7e feat(CLF-13): …`, `feature/clf-13-…` dalında.
+  - QA `node --test` çalıştırdı: 24/24, PASS.
+  - Görevde `## Ekip özeti` yorumu var. Görev `done` oldu, sandbox `main`e döndü.
+- **Koşu 2:**
+  - Çıktılar brief ve şartname (9 kriter) oldu. Özet yoruma ikisinin tamamı yazıldı.
+  - Commit, dal ve PR yok. Sandbox'ta yeni commit ya da dal oluşmadı.
+- **ClauFlow çalışma ağacı:** her koşudan önce ve sonra `git status --porcelain` aynıydı, `git diff` özeti aynıydı, stash yoktu. Geri alınacak bir şey çıkmadı.
+- **Bütün ekipler çalışmasının gerçek koşu harcaması:** spike ≈ $3.04 + yalıtma denemesi $0.0008 + Faz 5 $0.53 ≈ **$3.57**.
+
+### Bilinen sınırlar
+
+- **QA FAIL döngüsü, takılma, tur sınırı, bütçe durması ve onay kapısı gerçek modelde denenmedi.** Koşu 1 ilk turda geçti. Bu yollar sahte CLI testleriyle ve yalıtılmış core'da doğrulandı (Faz 2–3).
+- **Remote'lu akış gerçek koşuyla denenmedi.** Sandbox'ın remote'u yok. Bu yüzden şunlar yalnızca testlerde ya da typecheck'te doğrulandı: PR gövdesindeki `## Ekip` bölümü, `review`/`ci` geçişi ve `ciWatcher`'ın düzeltmeden önce görev dalına geçmesi.
+- **Görev maliyet çipi ve bütçe halkası run maliyetinden düşük görünüyor.** Koşu 1'de run maliyeti $0.377, görevde gösterilen ~$0.30. Görev maliyeti token'lardan tek model fiyatıyla hesaplanıyor; danışman ve opus Analist eksik kalıyor. Bütçe durması run maliyetini kullandığı için güvenli tarafta.
+- **Kart rozetindeki tur eki** ("· tur 2") sayfa koşu ortasında yenilenirse bir sonraki rol bitene kadar görünmüyor.
+- **Fabrika yalnızca bir koşunun rolünü gösteriyor.** Tabela ve çip, bant üstündeki tek koşunun rolünü taşıyor. Diğer kasaların etiketi kendi rolünü gösteriyor.
+- **`--advisor` gizli bir CLI bayrağı.** `claude --help` onu listelemiyor. Bayrak kalkarsa `claudeCapabilities.ts`'teki `ADVISOR_SUPPORTED` elle kapatılmalı.
+- **Rol koşuları kullanıcı ayarlarını görmüyor.** Bayraklar `--setting-sources project,local --strict-mcp-config`. Bu yüzden global hook'ların, plugin'lerin ve MCP sunucularının hiçbiri rol koşularında yok. Bu bilinçli bir seçim; eski çağıranlar (yorum, CI düzeltme, planlayıcı) değişmedi.
+- **Eski veriler duruyor.** `graphs` tablosu ve `tasks.executionMode`/`graphId` kolonları `master` ile ortak DB yüzünden silinmedi. Repolardaki eski `.claude/agents/*.md` dosyaları artık okunmuyor ama silinmedi. Kullanılmayan `/claude/skills/installed-skills` ucu da kaldı.
+- **Sandbox proje ayarları değişti.** Önce Solo / 3 / bütçesizdi, şimdi Yazılım Ekibi / QA 2 / $3. CLF-13 dalı sandbox'ta duruyor.
+
+### Gözden geçirmeye değer kararlar (tamamı §3 ve §12'de)
+
+1. **Varsayılan ekip.** Mevcut projeler Solo'da kaldı, davranışları sessizce değişmedi. Yeni projeler Yazılım Ekibi ile başlıyor. Bu atama servis katmanında yapılıyor, yani klonla açılan projeler de aynı varsayılanı alıyor.
+2. **Solo'nun Yazılımcı'sı artık `--model sonnet` + danışman opus ile çalışıyor.** Eskiden kullanıcının varsayılan modeli kullanılıyordu.
+3. **Durmalar tek yoldan bitiyor.** Takılma, tur sınırı ve bütçe aynı sonuca gidiyor: görev `todo` + "Takıldı: <neden>", dal korunuyor, iş `wip:` commit'iyle dalda kalıyor (ağaç kirliyse), bir özet yorumu yazılıyor. Tur sınırı aşılınca da PR açılmıyor.
+4. **Rol koşuları kullanıcı ayarlarından yalıtıldı.** Hook kapısı ve MCP şemaları rol koşularına sızıyordu. Spike'ta bir MCP sızıntısı tek başına $2.44 tutmuştu.
+5. **`## Ekip özeti` yorumu her ekipte yazılıyor, Solo dahil.** "nothing" durumunda eski ham yorumun yerine geçti.
+6. **Hazır ekipler salt okunur.** Kullanıcı şablonları da editörde salt okunur. Düzenleme yalnızca projeye kopyalanan ekipte yapılıyor ("Özelleştir").
+7. **Başarılı koşudan sonra repo base dala dönüyor.** CLAUDE.md editörü yalnızca base daldayken commit atıyor.
+8. **Fiyat eşlemesi.** `fable`/`mythos` en yeni opus fiyatıyla hesaplanıyor; bütçe tahmininde ihtiyatlı yön bu.
+9. **Rol sıralaması yalnızca yukarı/aşağı düğmeleriyle yapılıyor**, sürükle-bırak yok. Klavyede odak korunuyor ve her değişiklik ekran okuyucuya duyuruluyor.
+
+### Önerilen sonraki adımlar
+
+- Remote'lu küçük bir test reposunda bir ekip koşusu çalıştır. PR gövdesindeki `## Ekip` bölümünü, review yolunu ve CI düzeltme döngüsünü gözle kontrol et.
+- Sandbox'ta şartname onayını aç, bir görevle onay kapısını gerçek modelde dene.
+- §1/15 gelecek işleri:
+  - CEO'nun sorularını görev yorumu olarak sorması (koşuyu engellemeden)
+  - Skill önerileri
+  - Tam proje ayarları sayfası
+  - Kalıcı TODO sırası
+  - Görev maliyet çipinin run maliyetini göstermesi
+  - Fabrika'da birden çok eşzamanlı koşunun rollerini göstermek
+- Dal hazır olunca PR açmak senin kararın; ben açmadım.
 
 ---
 
@@ -41,7 +136,7 @@ _(Faz 5'in son adımında doldurulur: fazlar ve commit'ler tablosu, nasıl bakı
     - İsteğe bağlı cila: Fabrika istasyonları rolleri yansıtır.
     - Tam proje ayarları sayfası ayrı bir gelecek iştir.
 14. **Geçiş:** `executionMode='graph'` olan görevler Solo'ya eşlenir. Eski graf verisi dönüştürülmez (eski tabloların kaderi §3'te). Studio arayüzü, `graphRunner`, `_graph.json` işleme, `claudeTopologySyncService` ve `docs/graph-authoring.md` silinir. README/CLAUDE.md'deki Studio/graf satırları güncellenir.
-15. **Gelecek işler (yazılır, yapılmaz):** CEO sorularının görev yorumu olarak sorulması (engellemeden); skill önerileri; tam ayarlar sayfası; kalıcı TODO sırası.
+15. **Gelecek işler (yazılır, yapılmaz):** CEO sorularının görev yorumu olarak sorulması (engellemeden); skill önerileri; tam ayarlar sayfası; kalıcı TODO sırası; görev maliyet çipi/bütçe halkasının run maliyetini (danışman + rol modelleri) göstermesi (F5); Fabrika'da birden çok eşzamanlı ekip koşusunun rollerini göstermek (F5).
 
 ## 2. Gece çalışma kuralları (otonom mod)
 
@@ -274,13 +369,13 @@ Solo'nun Yazılımcı'sı bugünkü `testingInstructions` metnini (`executor.ts:
 - [x] Faz sonu: doğrulamalar + build, commit `feat: faz 4 - ekip editörü, studio silindi`.
 
 ### Faz 5: Cila, gerçek koşu, rapor
-- [ ] (İsteğe bağlı) Fabrika: DOING istasyonunun tabelası/pili etkin rolü gösterir (`components/Factory/`).
-- [ ] Erişilebilirlik: axe (gui `node_modules`'undaki axe-core) Ekip editörü, zaman çizelgesi, onay kapısı, iki tema; rol sıralamasında klavye yürüyüşü.
-- [ ] Gerçek koşu 1 (sandbox): varsayılan ekip Yazılım Ekibi, `qaMaxRounds` 2, `budgetUsd` 3; küçük görev ("`src/` altına `slugify` fonksiyonu ve testi ekle"); `PATCH doing`. Doğrula: 4 rol artifact'ı, Yazılımcı commit'i dalda, QA kararı, `## Ekip özeti` yorumu, `done`, repo `main`de, ClauFlow ağacı temiz. Canlı kart ve zaman çizelgesi görüntüsü.
-- [ ] Gerçek koşu 2 (sandbox): Keşif, küçük bir soru görevi. Commit/PR yok, yorum var.
-- [ ] Önce/sonra karşılaştırmaları (ImageMagick yan yana): Studio → Ekip editörü, çalışma modu → ekip seçici.
-- [ ] Son doğrulamalar (core test + typecheck, gui typecheck + lint + build).
-- [ ] Sabah raporunu yaz.
+- [x] (İsteğe bağlı) Fabrika: DOING istasyonunun tabelası/pili etkin rolü gösterir (`components/Factory/`).
+- [x] Erişilebilirlik: axe (gui `node_modules`'undaki axe-core) Ekip editörü, zaman çizelgesi, onay kapısı, iki tema; rol sıralamasında klavye yürüyüşü.
+- [x] Gerçek koşu 1 (sandbox): varsayılan ekip Yazılım Ekibi, `qaMaxRounds` 2, `budgetUsd` 3; küçük görev ("`src/` altına `slugify` fonksiyonu ve testi ekle"); `PATCH doing`. Doğrula: 4 rol artifact'ı, Yazılımcı commit'i dalda, QA kararı, `## Ekip özeti` yorumu, `done`, repo `main`de, ClauFlow ağacı temiz. Canlı kart ve zaman çizelgesi görüntüsü.
+- [x] Gerçek koşu 2 (sandbox): Keşif, küçük bir soru görevi. Commit/PR yok, yorum var.
+- [x] Önce/sonra karşılaştırmaları (ImageMagick yan yana): Studio → Ekip editörü, çalışma modu → ekip seçici.
+- [x] Son doğrulamalar (core test + typecheck, gui typecheck + lint + build).
+- [x] Sabah raporunu yaz.
 
 ## 11. Takılanlar
 
@@ -293,6 +388,8 @@ _(Faz 2: takılan yok.)_
 _(Faz 3: takılan yok.)_
 
 _(Faz 4: takılan yok.)_
+
+_(Faz 5: takılan yok.)_
 
 ## 12. Kendi kararlarım (otonom çalışırken verilen)
 
@@ -389,6 +486,13 @@ _(Diğer kararlar buraya, faz etiketiyle.)_
 - **F4 · Görüntüler yalıtılmış core'da.** `scripts/shots-ekipler-faz4.mjs` :3000 GUI'yi `page.route` ile :3101'e yönlendirir (WS boş taklit), her koşuda yeni remote'suz repo + "Ekip Editörü" projesi açar (önceki koşununkini fake DB'den kaldırır). Akış gerçekten yazar (yalnızca fake DB): Özelleştir → rol düzenle + `project:release-notes` skill'i → Yazılımcı'yı çıkar (doğrulama) → geri ekle → Kaydet → Sınırsız + şartname onayı + Varsayılan yap → Şablon olarak kaydet → şablonu kaldır → görevden "Ekibi düzenle". Doğrulandı: proje `qaMaxRounds 0`, `specApproval true`, varsayılan kopya ekip; kopyada Yazılımcı skill'i kayıtlı; şablon kalktı; repo HEAD'i ve ağacı aynı; sayfa hatası yok; "Ekibi düzenle" Ekip segmentinde, görevin ekibi (Hata Avı) seçili. :3001'e istek gitmedi, :3101 iş bitince durduruldu.
 - **F4 · Oturumda kapı yine çıktı.** "Fact-Forcing Gate" `git rm` komutlarında (Studio dizini, `graph-authoring.md`) ve plan güncellemesinde istenen bilgiler (etkilenen dosyalar, geri alma `git checkout a6e11c5 -- <yol>`, talimat) verilince geçti.
 
+- **F5 · Fabrika'da rol yalnızca DOING'de.** Tabela ve çip, bant üstündeki (sıralamada ilk) çalışan DOING kasasının rolünü gösterir; aynı anda birden çok ekip koşarsa yalnızca o görünür, diğer kasaların etiketi kendi rolünü taşır. İstasyon rengi turuncu kalır (rol rengiyle değişmez), 3D sahneye yeni nesne eklenmedi.
+
+- **F5 · Rol sıralaması klavyesi.** Sürükle-bırak eklenmedi; yukarı/aşağı düğmeleri yeterli sayıldı. Taşınan satır odağı korur, kenara gelince devre dışı kalan okun yerine karşı ok odaklanır; çıkarmada odak komşu role gider. Duyuru metni ekranda görünmez (`sr-only`, `aria-live=polite`).
+
+- **F5 · Görev maliyet çipi run maliyetinden düşük.** Koşu 1'de run `costUsd` $0.377 (rol başına `total_cost_usd`, danışman ve opus Analist dahil), görev başlığındaki tahmin `~$0.30` ve bütçe halkası $0.30. Görev `usage` token'larından tek model fiyatıyla hesaplanıyor. Bütçe kontrolü run maliyetini kullandığı için güvenli yönde; gösterim farkı bilinen sınır olarak bırakıldı (core'a dokunmadan).
+- **F5 · Gerçek koşu ayarları kalıcı bırakıldı.** Sandbox projesi koşudan sonra da varsayılan Yazılım Ekibi, `qaMaxRounds` 2, `budgetUsd` 3 ile duruyor (önce: Solo/NULL, 3, NULL). Sabah aynı projede ekibi görmek için. CLF-13 dalı sandbox'ta duruyor.
+
 ## 13. İlerleme günlüğü
 
 - 2026-11-15: Plan yazıldı. Çalışma başlamadı; Furkan'ın "başla" demesi bekleniyor.
@@ -452,3 +556,10 @@ _(Diğer kararlar buraya, faz etiketiyle.)_
 - 2026-11-15 F4: Tarama yalnızca bilinçli kalanları gösteriyor (§12 F4 listesi).
 - 2026-11-15 F4: Görüntüler `scripts/shots-ekipler-faz4.mjs` (yalıtılmış core :3101): `ekipler-4-{sablonlar,rol-duzenleyici,dogrulama,ayarlar,sablon-kaydedildi,sil-onay,ekibi-duzenle}-{krem,gece}.png`, sayfa hatası yok, repo değişmedi.
 - 2026-11-15 F4: Faz sonu doğrulamaları yeşil (core typecheck + 149 test / 24 dosya; gui typecheck + lint 0 uyarı; scratchpad kopyasında `node_modules/.bin/next build`: `/board` 276 kB, `/` 143 kB First Load; ortak DB'de yalnızca 4 yerleşik ekip); faz 4 commit'i.
+- 2026-11-15 F5: Fabrika etkin rolü gösteriyor: `factoryLayout` kasaya `role`, düzene `doingRole` (bant üstündeki çalışan DOING kasası); DOING tabelasının üst satırı `02 · 1 · QA`, istasyon çipinde rol ikonu + adı (rol rengi), çalışan kasanın etiketi ve ipucu `agentStepLabel` ("QA kontrol ediyor · tur 2"). Typecheck + lint yeşil; `scripts/shots-ekipler-faz5-fabrika.mjs` (store taklidi, yazma 0) → `ekipler-5-fabrika-rol-{krem,gece}.png`.
+- 2026-11-15 F5: Erişilebilirlik: `scripts/a11y-ekipler-faz5.mjs` (axe-core 4.11, GET dışı engelli, run/artifact ve düzenlenebilir proje ekibi taklit): Ekip editörü (proje ekibi + yerleşik), zaman çizelgesi, onay kapısı × krem/gece. İlk tur: gecede seçili ekip kartının açıklaması 3.39:1 → `text-ink-2` ile düzeldi. Klavye: rol sona/başa taşınınca odak `BODY`'ye düşüyordu → karşı oka geçiyor; çıkarılan rolün odağı komşusuna (yoksa ilk "+ rol"); her değişiklik `aria-live` ile duyuruluyor (`team.editor.roleMoved`/`roleRemoved`, tr/en/types). İkinci tur: 8/8 ekran 0 ihlal, yazma 0. Typecheck + lint yeşil.
+- 2026-11-15 F5: Gerçek koşu 1 (sandbox `proj_c2dd3194`, varsayılan Yazılım Ekibi, `qaMaxRounds` 2, `budgetUsd` 3): CLF-13 "slugify fonksiyonu ve testi ekle", `PATCH doing` 21:03:50 → `done` ≈21:05. Run `delivered`, `qaRound 0`, **$0.377** (CEO 0.046, Analist/opus 0.163, Yazılımcı 0.083, QA 0.085). 4 rol artifact'ı + özet; şartname 14 AC; Yazılımcı commit'i `bd69f7e feat(CLF-13): …` (`src/slugify.ts` + `src/slugify.test.ts`, 96 satır) dalda `feature/clf-13-slugify-fonksiyonu-ve-testi-ekle`; QA `node --test` 24/24, PASS; `## Ekip özeti` yorumu; sandbox `main`de, ağaç temiz, stash yok. ClauFlow `status --porcelain` ve `git diff` md5 önce/sonra aynı, stash yok. Görüntüler `ekipler-5-kosu1-{kart-bitti,bitti-ust,bitti-alt}-{krem,gece}.png` (koşu ~1 dk sürdü, kart görüntüsü bitmiş hali).
+- 2026-11-15 F5: Önce/sonra karşılaştırmaları (ImageMagick, Inter etiket, yan yana): `atolye-lab/ekran-goruntuleri/karsilastirma/ekipler-{studio-vs-ekip-editoru,studio-vs-rol-duzenleyici,calisma-modu-vs-ekip-secici,addtask}-{krem,gece}.png` (3208×1064).
+- 2026-11-15 F5: Gerçek koşu 2 (sandbox, görev `teamId = team_kesif`): CLF-14 "Repoya hangi küçük geliştirmeler eklenmeli?", `PATCH doing` ≈21:06 → `done` ≈21:08. Run `explored`, **$0.149** (CEO 0.036, Analist/opus 0.112). Brief + şartname (9 AC) + `## Ekip özeti` yorumu (brief ve şartnamenin tamamı); commit yok, dal silindi (`task.branch = null`), PR yok, sandbox `main`de, yeni dal/commit yok. ClauFlow `status --porcelain` önce/sonra aynı; koşu sırasında ClauFlow'da yalnızca plan dosyası (benim) değişti. Canlı görüntüler: `ekipler-5-kosu2-canli-{kart,zaman-cizelgesi}-{krem,gece}.png` ("CEO brief yazıyor", "Analist şartname yazıyor" balonu), bitmiş: `ekipler-5-kosu2-bitti-{ust,alt}-{krem,gece}.png`. İki koşunun toplamı **$0.53**.
+- 2026-11-15 F5: Son doğrulamalar yeşil: core typecheck + 149 test / 24 dosya; gui typecheck + lint 0 uyarı; scratchpad kopyasında `node_modules/.bin/next build`: `/board` 277 kB, `/` 143 kB First Load.
+- 2026-11-15 F5: Sabah raporu yazıldı; faz 5 commit'i.
