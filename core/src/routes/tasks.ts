@@ -42,6 +42,7 @@ import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
 import { getTaskDiff } from "../services/taskDiff.js";
 import { uiLangSchema } from "../agents/uiText.js";
 import { baseBranchExists, baseBranchHint } from "../services/baseBranch.js";
+import { DependencyError, MAX_DEPENDENCIES, setDependencies } from "../services/dependencyService.js";
 import { existsSync } from "node:fs";
 import type { Project } from "../types/index.js";
 
@@ -86,6 +87,11 @@ const createTaskSchema = z.object({
   status: taskStatus.optional(),
   parentTaskId: z.string().nullable().optional(),
   teamId: z.string().min(1).nullable().optional(),
+  dependsOn: z.array(z.string().min(1)).max(MAX_DEPENDENCIES).optional(),
+});
+
+const dependenciesSchema = z.object({
+  dependsOn: z.array(z.string().min(1)).max(MAX_DEPENDENCIES),
 });
 
 const updateTaskSchema = z.object({
@@ -204,9 +210,29 @@ router.post("/", async (req: Request, res: Response) => {
     res.status(201).json({ task });
   } catch (err) {
     if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
+    if (err instanceof DependencyError) return res.status(err.httpStatus).json(err.toBody());
     const msg = errorMessage(err);
     if (msg.startsWith("Project not found")) return res.status(404).json({ error: "project_not_found" });
     res.status(400).json({ error: msg });
+  }
+});
+
+// zincir (plan §3/8, §5.2): replace the task's whole dependency set. Only a
+// `todo` or waiting task can change its edges; the service checks the rest.
+router.put("/:id/dependencies", async (req: Request, res: Response) => {
+  const parsed = dependenciesSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
+  try {
+    const existing = await getTask(req.params.id!);
+    if (!existing) return res.status(404).json({ error: "not_found" });
+    const task = setDependencies(existing.id, parsed.data.dependsOn);
+    broadcastTaskUpdated(task);
+    res.json({ task });
+  } catch (err) {
+    if (err instanceof DependencyError) return res.status(err.httpStatus).json(err.toBody());
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
