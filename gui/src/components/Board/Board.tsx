@@ -13,6 +13,7 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import { BoardColumn } from "@/components/Board/BoardColumn";
 import { BoardStats } from "@/components/Board/BoardStats";
+import { PlannerBanner } from "@/components/Board/PlannerBanner";
 import { QuickFilters } from "@/components/Board/QuickFilters";
 import { TaskList } from "@/components/Board/TaskList";
 import { FactoryView } from "@/components/Factory/FactoryView";
@@ -349,6 +350,8 @@ export function Board() {
         </Tooltip>
       </div>
 
+      <PlannerBanner project={selectedProject} />
+
       {error && (
         <div
           role="alert"
@@ -397,6 +400,7 @@ export function Board() {
                 subtaskStats={subStats}
                 keyById={keyById}
                 loading={loading && projectTasks.length === 0}
+                planning={status === "todo" && selectedProject?.planningStatus === "planning"}
               />
             ))}
           </div>

@@ -12,6 +12,8 @@ interface BoardState {
   tasks: Record<string, Task>;
   order: string[];
   projects: Project[];
+  /** Client clock (ms) when this tab saw `project_planning_started`, per project. */
+  planningStartedAt: Record<string, number>;
   selectedProjectId: string | null;
   selectedTaskId: string | null;
   selectedPRTaskId: string | null;
@@ -126,6 +128,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   tasks: {},
   order: [],
   projects: [],
+  planningStartedAt: {},
   selectedProjectId: null,
   selectedTaskId: null,
   selectedPRTaskId: null,
@@ -360,13 +363,19 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }),
 
   updateProjectPlanningStatus: (projectId, status, error) =>
-    set((state) => ({
-      projects: state.projects.map((p) =>
-        p.id === projectId
-          ? { ...p, planningStatus: status, planningError: error ?? null }
-          : p,
-      ),
-    })),
+    set((state) => {
+      const planningStartedAt = { ...state.planningStartedAt };
+      if (status === "planning") planningStartedAt[projectId] = Date.now();
+      else delete planningStartedAt[projectId];
+      return {
+        projects: state.projects.map((p) =>
+          p.id === projectId
+            ? { ...p, planningStatus: status, planningError: error ?? null }
+            : p,
+        ),
+        planningStartedAt,
+      };
+    }),
 
   selectProject: (id) =>
     set((state) => {

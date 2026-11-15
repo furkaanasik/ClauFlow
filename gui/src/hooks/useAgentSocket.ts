@@ -5,9 +5,22 @@ import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useToastStore } from "@/hooks/useToast";
 import { useNotificationStore } from "@/hooks/useNotification";
+import { tr } from "@/lib/i18n/tr";
+import { en } from "@/lib/i18n/en";
 import type { WsMessage } from "@/types";
 
 const RECONNECT_DELAY_MS = 3000;
+
+/** Toast for a live planner transition. Names the project when it isn't the open one. */
+function plannerToast(projectId: string, type: "success" | "error", message: string) {
+  const { projects, selectedProjectId } = useBoardStore.getState();
+  const name = projectId === selectedProjectId ? null : projects.find((p) => p.id === projectId)?.name;
+  useToastStore.getState().push(type, name ? `${name}: ${message}` : message);
+}
+
+function plannerStrings() {
+  return (useBoardStore.getState().lang === "en" ? en : tr).board.planner;
+}
 
 export function useAgentSocket(url?: string) {
   const wsUrl =
@@ -148,11 +161,18 @@ useNotificationStore.getState().notify(
             case "project_planning_done": {
               const m = msg as Extract<WsMessage, { type: "project_planning_done" }>;
               updateProjectPlanningStatus(m.projectId, "done");
+              plannerToast(
+                m.projectId,
+                "success",
+                plannerStrings().doneToast.replace("{count}", String(m.taskCount)),
+              );
               break;
             }
             case "project_planning_error": {
               const m = msg as Extract<WsMessage, { type: "project_planning_error" }>;
               updateProjectPlanningStatus(m.projectId, "error", m.error);
+              const err = m.error.length > 140 ? `${m.error.slice(0, 140)}…` : m.error;
+              plannerToast(m.projectId, "error", plannerStrings().errorToast.replace("{error}", err));
               break;
             }
             case "task_breakdown_started": {

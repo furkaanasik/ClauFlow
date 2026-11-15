@@ -7,7 +7,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { TaskCard } from "@/components/Card/TaskCard";
 import { Button, IconButton } from "@/components/ui/Button";
 import { STATUS_COLOR } from "@/components/ui/Pills";
-import { IconChevronLeft, IconChevronRight, IconPlus } from "@/components/ui/icons";
+import { IconChevronLeft, IconChevronRight, IconPlus, IconSpinner } from "@/components/ui/icons";
 import { useTranslation } from "@/hooks/useTranslation";
 import { isAgentWorking, type SubtaskStats } from "@/lib/boardView";
 import type { Task, TaskStatus } from "@/types";
@@ -26,6 +26,8 @@ interface BoardColumnProps {
   keyById?: Record<string, string>;
   /** First load: show card skeletons instead of the empty state. */
   loading?: boolean;
+  /** The AI planner is still writing this project's tasks (Todo lane only). */
+  planning?: boolean;
 }
 
 export function BoardColumn({
@@ -39,10 +41,11 @@ export function BoardColumn({
   subtaskStats = {},
   keyById = {},
   loading = false,
+  planning = false,
 }: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { status } });
   const t = useTranslation();
-  const emptyState = t.board.emptyStates[status];
+  const emptyState = planning ? t.board.planner.todoEmpty : t.board.emptyStates[status];
   const tone = STATUS_COLOR[status];
   const laneStyle = { "--lane": status === "nothing" ? "var(--ink-3)" : tone.fill } as CSSProperties;
 
@@ -146,9 +149,16 @@ export function BoardColumn({
             ))}
           {!loading && tasks.length === 0 && (
             <div className="ui-hatch flex flex-col items-start gap-1.5 rounded-[12px] border-2 border-dashed border-[color-mix(in_srgb,var(--line)_35%,transparent)] px-4 py-5">
-              <p className="text-[14px] font-bold text-ink-2">{emptyState.title}</p>
+              <p className="flex items-center gap-2 text-[14px] font-bold text-ink-2">
+                {planning && (
+                  <span aria-hidden className="text-[var(--cobalt-text)]">
+                    <IconSpinner size={13} />
+                  </span>
+                )}
+                {emptyState.title}
+              </p>
               <p className="text-[12px] leading-relaxed text-ink-3">{emptyState.hint}</p>
-              {onAddTask && (
+              {onAddTask && !planning && (
                 <Button size="sm" variant="secondary" icon={<IconPlus size={14} />} onClick={onAddTask} className="mt-2">
                   {t.board.addTask}
                 </Button>
