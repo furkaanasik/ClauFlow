@@ -1952,6 +1952,27 @@ body::before {
 .animate-scan { animation: scan-line 1.6s ease-in-out infinite; }
 .animate-blink { animation: blink 1.05s steps(2) infinite; }
 
+/* ─── Landing (Faz 4) ─────────────────────────────────────────────────────── */
+/* Highlighter swipe under a headline phrase: mustard band, ink text. */
+.landing-mark {
+  background-image: linear-gradient(transparent 58%, var(--mustard) 58%, var(--mustard) 92%, transparent 92%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  padding: 0 0.08em;
+  margin: 0 -0.08em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+@keyframes landing-cue {
+  0%, 100% { transform: translateY(-2px); }
+  50% { transform: translateY(3px); }
+}
+html.night .landing-mark {
+  /* cream type on mustard is too faint: drop the band below the x-height */
+  background-image: linear-gradient(transparent 82%, var(--mustard) 82%, var(--mustard) 97%, transparent 97%);
+}
+.landing-scroll-cue { animation: landing-cue 1.4s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

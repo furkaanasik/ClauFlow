@@ -2,9 +2,52 @@ import type { Translations } from "./types";
 
 export const tr: Translations = {
   landing: {
-    tagline: "AI-powered agentic kanban board.",
-    subtitle: "Task'ı sürükle, Claude kodu yazar, PR açar.",
-    cta: "Projelere Git",
+    tagline: "ClauFlow, Claude Code'u bir kanban panosuna bağlar.",
+    subtitle: "Görevi DOING'e taşı: ajan dal açar, kodu yazar, iter ve pull request'i açar. Sana incelemek kalır.",
+    cta: "Panoyu aç",
+    ctaSecondary: "Kaynağı oku",
+    navBoard: "Pano",
+    navGithub: "GitHub",
+    eyebrow: "Ajan kanban · açık kaynak",
+    titleA: "Kartı sürükle.",
+    titleB: "Ajan kodu yazar,",
+    titleC: "PR'ı açar.",
+    sceneLabel:
+      "Ajan fabrikası: görev kutuları konveyörde TODO, DOING, REVIEW ve DONE istasyonlarından geçiyor. Robot kol kodu yazıyor, büyüteç inceliyor, damga PR'ı basıyor ve kutu paketlenip gönderiliyor.",
+    scrollHint: "Kaydır, hattı gez",
+    stationsLabel: "Hattın istasyonları",
+    fallbackNote: "Bu tarayıcıda 3D kapalı, fabrikanın baskısı gösteriliyor.",
+    stations: {
+      todo: { name: "TODO", note: "kuyrukta", body: "Kart sıraya girer. Başlık, açıklama ve öncelik ajanın iş emridir." },
+      doing: { name: "DOING", note: "ajan yazıyor", body: "Ajan dal açar, kodu yazar, testleri koşar ve iter." },
+      review: { name: "REVIEW", note: "inceleniyor", body: "Diff hazır. Yorum bırakırsan ajan aynı dalda düzeltir." },
+      done: { name: "DONE", note: "PR merge", body: "Kartı DONE'a bırak: PR merge edilir, iş ana dala girer." },
+    },
+    how: {
+      eyebrow: "Nasıl çalışır",
+      title: "Üç hareket.",
+      titleAccent: "Arası ajanın işi.",
+      body: "Sürükle, yorum yaz, birleştir. Dal açmak, kod yazmak, itmek ve PR açmak ajanda.",
+      steps: {
+        drag: {
+          verb: "sürükle",
+          title: "Ajanı gönder",
+          body: "Kartı TODO'dan DOING'e taşı. Claude main'den dal açar, analizi uygular, commit atar, iter ve PR açar.",
+        },
+        comment: {
+          verb: "yorum yaz",
+          title: "Aynı dalda düzelt",
+          body: "İncelemede yorum bırak. Ajan aynı dalda yeniden çalışır ve yeni commit'leri iter; yeni PR açılmaz.",
+        },
+        merge: {
+          verb: "birleştir",
+          title: "Döngüyü kapat",
+          body: "Kartı DONE'a bırak. ClauFlow gh pr merge çağırır ve görev ana dala girer.",
+        },
+      },
+    },
+    closing: { eyebrow: "Hazır mısın", title: "Bu gece kur,", titleAccent: "sabah PR'ları incele.", cta: "Panoyu aç" },
+    footer: { tagline: "ClauFlow · ajan kanban", stack: "Next.js · Claude Code CLI · git + gh" },
   },
   common: {
     close: "Kapat",

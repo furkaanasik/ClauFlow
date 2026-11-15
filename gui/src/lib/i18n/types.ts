@@ -3,6 +3,27 @@ export interface Translations {
     tagline: string;
     subtitle: string;
     cta: string;
+    ctaSecondary: string;
+    navBoard: string;
+    navGithub: string;
+    eyebrow: string;
+    titleA: string;
+    titleB: string;
+    titleC: string;
+    sceneLabel: string;
+    scrollHint: string;
+    stationsLabel: string;
+    fallbackNote: string;
+    stations: Record<"todo" | "doing" | "review" | "done", { name: string; note: string; body: string }>;
+    how: {
+      eyebrow: string;
+      title: string;
+      titleAccent: string;
+      body: string;
+      steps: Record<"drag" | "comment" | "merge", { verb: string; title: string; body: string }>;
+    };
+    closing: { eyebrow: string; title: string; titleAccent: string; cta: string };
+    footer: { tagline: string; stack: string };
   };
   common: {
     close: string;

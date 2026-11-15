@@ -2,9 +2,52 @@ import type { Translations } from "./types";
 
 export const en: Translations = {
   landing: {
-    tagline: "AI-powered agentic kanban board.",
-    subtitle: "Drag a task, Claude writes code, opens a PR.",
-    cta: "Go to Projects",
+    tagline: "ClauFlow wires Claude Code into a kanban board.",
+    subtitle: "Move a task to DOING: the agent branches, writes the code, pushes and opens the pull request. You review.",
+    cta: "Open the board",
+    ctaSecondary: "Read the source",
+    navBoard: "Board",
+    navGithub: "GitHub",
+    eyebrow: "Agentic kanban · open source",
+    titleA: "Drag a card.",
+    titleB: "The agent writes it,",
+    titleC: "then opens the PR.",
+    sceneLabel:
+      "The agent factory: task crates ride a conveyor through the TODO, DOING, REVIEW and DONE stations. A robot arm writes the code, a magnifier reviews it, a stamp presses the PR and the crate is wrapped and shipped.",
+    scrollHint: "Scroll to walk the line",
+    stationsLabel: "Stations on the line",
+    fallbackNote: "3D is off in this browser, showing the printed factory.",
+    stations: {
+      todo: { name: "TODO", note: "queued", body: "The card joins the queue. Title, description and priority are the agent's work order." },
+      doing: { name: "DOING", note: "agent writes", body: "The agent branches, writes the code, runs the tests and pushes." },
+      review: { name: "REVIEW", note: "in review", body: "The diff is ready. Leave a comment and the agent fixes it on the same branch." },
+      done: { name: "DONE", note: "PR merged", body: "Drop the card in DONE: the PR is merged and the work lands on main." },
+    },
+    how: {
+      eyebrow: "How it works",
+      title: "Three motions.",
+      titleAccent: "The agent does the rest.",
+      body: "Drag, comment, merge. Branching, writing, pushing and opening pull requests is the agent's job.",
+      steps: {
+        drag: {
+          verb: "drag",
+          title: "Dispatch the agent",
+          body: "Move a card from TODO to DOING. Claude branches off main, applies the analysis, commits, pushes and opens a PR.",
+        },
+        comment: {
+          verb: "comment",
+          title: "Iterate on the same branch",
+          body: "Leave a review comment. The agent re-runs on the same branch and pushes new commits; no new PR.",
+        },
+        merge: {
+          verb: "merge",
+          title: "Close the loop",
+          body: "Drop the card in DONE. ClauFlow calls gh pr merge and the task lands on main.",
+        },
+      },
+    },
+    closing: { eyebrow: "Ready", title: "Set it up tonight,", titleAccent: "review PRs in the morning.", cta: "Open the board" },
+    footer: { tagline: "ClauFlow · agentic kanban", stack: "Next.js · Claude Code CLI · git + gh" },
   },
   common: {
     close: "Close",
