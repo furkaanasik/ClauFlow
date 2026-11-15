@@ -35,7 +35,15 @@ export type ErrorCode =
   | "task_done"
   | "active_tasks_block_path_change"
   | "not_found"
-  | "invalid_body";
+  | "invalid_body"
+  | "base_branch_missing"
+  | "gh_missing"
+  | "git_checkout_failed"
+  | "git_push_failed"
+  | "pr_create_failed"
+  | "claude_exit"
+  | "run_failed"
+  | "task_in_review";
 
 export interface Translations {
   errors: Record<ErrorCode, string>;
@@ -226,6 +234,9 @@ export interface Translations {
     modeNew: string;
     modeClone: string;
     cloneHint: string;
+    /** zincir F0.5: a 422 base_branch_missing names the branch the repo is on. */
+    repoIsOn: (branch: string) => string;
+    useDetected: string;
   };
   folderPicker: {
     title: string;
@@ -323,7 +334,8 @@ export interface Translations {
       tooltip: { open: string; openList: string; error: string; budget: string; more: string };
     };
     loadError: string;
-    agentStarted: string;
+    /** A move to Doing was accepted; the run is queued (it may wait for the repo lock). */
+    taskQueued: (key: string) => string;
     columns: {
       todo:   string;
       doing:  string;
@@ -714,6 +726,12 @@ export interface Translations {
     notRequested: string;
     enable: string;
     toggle: string;
+    taskError: (title: string) => string;
+    taskErrorBody: string;
+    taskDone: (title: string) => string;
+    taskDoneBody: string;
+    /** In-app toast when a run fails (the browser notification may be off or unseen). */
+    runFailedToast: (ref: string, reason: string) => string;
   };
   prs: {
     state: {

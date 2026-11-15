@@ -243,8 +243,9 @@ export function Board() {
   const moveTask = async (taskId: string, to: TaskStatus) => {
     const before = useBoardStore.getState().tasks[taskId];
     try {
-      await moveTaskOptimistic(taskId, to);
-      if (to === "doing") toast.info(t.board.agentStarted);
+      const updated = await moveTaskOptimistic(taskId, to);
+      const key = updated?.displayId ?? before?.displayId ?? updated?.title ?? before?.title ?? taskId;
+      if (to === "doing") toast.info(t.board.taskQueued(key));
       if (to === "done") toast.success(doneToast(t, before));
     } catch (err) {
       toast.error(moveErrorText(t, err), apiErrorCode(err) === "merge_conflict" ? 10_000 : 5_000);

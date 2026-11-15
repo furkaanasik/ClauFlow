@@ -35,6 +35,14 @@ export const en: Translations = {
     active_tasks_block_path_change: "The repo path and default branch can't change while a task is running or waiting in Review with its branch.",
     not_found: "Not found.",
     invalid_body: "Invalid request.",
+    base_branch_missing: "The project's base branch does not exist in this repo (repo is on: {detail}). Fix the base branch in project settings.",
+    gh_missing: "GitHub CLI (gh) not found. Repos with a remote need gh for pull requests: install gh and run gh auth login.",
+    git_checkout_failed: "Could not check out the base branch: {detail}",
+    git_push_failed: "Could not push the branch (git push). Details in the agent log.",
+    pr_create_failed: "Could not open the PR (gh pr create). Details in the agent log.",
+    claude_exit: "The Claude CLI exited with an error. Details in the agent log.",
+    run_failed: "Run failed: {detail}",
+    task_in_review: "The task is in review; merge or move it back before breaking it down.",
   },
   landing: {
     tagline: "ClauFlow wires Claude Code into a kanban board.",
@@ -325,6 +333,8 @@ export const en: Translations = {
     modeNew: "New project",
     modeClone: "Clone from GitHub",
     cloneHint: "Clone one of your GitHub repos into a local folder and add it as a project.",
+    repoIsOn: (branch) => `Repo is on: ${branch}`,
+    useDetected: "Use this",
   },
   folderPicker: {
     title: "Choose a folder",
@@ -425,7 +435,7 @@ export const en: Translations = {
       },
     },
     loadError: "Board failed to load",
-    agentStarted: "Agent started",
+    taskQueued: (key) => `Queued: ${key}`,
     columns: {
       todo:   "To do",
       doing:  "Doing",
@@ -738,6 +748,11 @@ export const en: Translations = {
     notRequested: "Permission not requested yet",
     enable: "Allow",
     toggle: "Browser notifications on/off",
+    taskError: (title) => `Error: ${title}`,
+    taskErrorBody: "The agent ran into an error.",
+    taskDone: (title) => `Done: ${title}`,
+    taskDoneBody: "The agent finished successfully.",
+    runFailedToast: (ref, reason) => `${ref} stopped: ${reason}`,
   },
   prs: {
     state: {

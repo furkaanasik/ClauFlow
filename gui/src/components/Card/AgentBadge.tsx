@@ -9,6 +9,7 @@ import { IconTerminal } from "@/components/ui/icons";
 import { LogViewer } from "@/components/Card/LogViewer";
 import { agentStepLabel, roleIcon, teamStepKind } from "@/components/Team/roleMeta";
 import { useBoardStore } from "@/store/boardStore";
+import { errorText } from "@/lib/errorText";
 import type { AgentState, AgentStatus } from "@/types";
 
 /** The four live executor steps, in order (spec §5). */
@@ -53,6 +54,9 @@ export function AgentBadge({ agent, taskTitle, taskId }: AgentBadgeProps) {
   const label = agentStepLabel(agent, t, qaRound);
   const variant = live || awaiting ? "solid" : "soft";
   const icon = roleKind ? roleIcon(roleKind, 12) : undefined;
+  // zincir F0.5: an error pill says why, not just "open log".
+  const reason = agent.status === "error" && agent.error ? errorText(t, agent.error) : null;
+  const hint = reason ? (hasLog ? `${reason} · ${t.taskCard.openLog}` : reason) : hasLog ? t.taskCard.openLog : label;
 
   return (
     <>
@@ -64,7 +68,8 @@ export function AgentBadge({ agent, taskTitle, taskId }: AgentBadgeProps) {
           e.stopPropagation();
           if (hasLog) setOpen(true);
         }}
-        title={hasLog ? t.taskCard.openLog : label}
+        title={hint}
+        aria-label={reason ? hint : undefined}
         className="ui-focus inline-flex items-center gap-1.5 rounded-pill disabled:cursor-default"
       >
         <StatusPill status={STEP_KIND[agent.status]} variant={variant} live={live} icon={icon}>

@@ -23,6 +23,7 @@ import {
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { errorText } from "@/lib/errorText";
+import { DetectedBranchNote, detectedBranchOf } from "./DetectedBranchNote";
 import { formatUsd } from "@/lib/format";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Project, ProjectPatch, Task } from "@/types";
@@ -111,6 +112,8 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
   const [draft,         setDraft]         = useState<DraftState | null>(null);
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState<string | null>(null);
+  /** zincir F0.5: set by a 422 base_branch_missing; null = core found no branch to suggest. */
+  const [detectedBranch, setDetectedBranch] = useState<string | null | undefined>(undefined);
   const [confirmKanban, setConfirmKanban] = useState(false);
   const [deleting,      setDeleting]      = useState(false);
 
@@ -125,6 +128,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       setDraft(null);
     }
     setError(null);
+    setDetectedBranch(undefined);
     setSaving(false);
     setDeleting(false);
     setActiveTab(wantsTeam ? "claude" : "overview");
@@ -160,6 +164,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
     if (!draft.name.trim()) { setError(pd.nameRequired); return; }
     setSaving(true);
     setError(null);
+    setDetectedBranch(undefined);
     try {
       const patch: ProjectPatch = {
         name:          draft.name.trim(),
@@ -173,6 +178,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       updateProject(project.id, updated);
     } catch (err) {
       setError(errorText(t, err, pd.updateFailed));
+      setDetectedBranch(detectedBranchOf(err));
     } finally {
       setSaving(false);
     }
@@ -427,14 +433,33 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                     />
                   )}
                 </Field>
-                <Field label={pd.projectDefaultBranch}>
-                  {({ id }) => (
+                <Field
+                  label={pd.projectDefaultBranch}
+                  error={
+                    detectedBranch ? (
+                      <DetectedBranchNote
+                        detected={detectedBranch}
+                        onUse={(b) => {
+                          setDraft({ ...draft, defaultBranch: b });
+                          setDetectedBranch(undefined);
+                          setError(null);
+                        }}
+                      />
+                    ) : undefined
+                  }
+                >
+                  {({ id, describedBy }) => (
                     <Input
                       id={id}
+                      aria-describedby={describedBy}
+                      invalid={detectedBranch !== undefined}
                       icon={<IconBranch size={14} />}
                       className="font-mono !text-[13px]"
                       value={draft.defaultBranch}
-                      onChange={(e) => setDraft({ ...draft, defaultBranch: e.target.value })}
+                      onChange={(e) => {
+                        setDraft({ ...draft, defaultBranch: e.target.value });
+                        setDetectedBranch(undefined);
+                      }}
                       disabled={projectHasActiveTasks}
                       placeholder="main"
                     />

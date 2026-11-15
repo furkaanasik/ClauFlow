@@ -11,14 +11,38 @@ export function apiErrorCode(err: unknown): string | null {
   return null;
 }
 
+/** The hint a 422 carries next to its code (`current` for a run, `detected` for a project). */
+function bodyDetail(raw: unknown): string | null {
+  if (!(raw instanceof ApiError)) return null;
+  const body = raw.body as { current?: unknown; detected?: unknown } | null;
+  if (!body || typeof body !== "object") return null;
+  if (typeof body.current === "string" && body.current) return body.current;
+  if (typeof body.detected === "string" && body.detected) return body.detected;
+  return null;
+}
+
+/** Puts `detail` into `{detail}`, or appends it in parentheses when there is no placeholder. */
+function withDetail(text: string, detail: string | null): string {
+  if (text.includes("{detail}")) return text.split("{detail}").join(detail ?? "-");
+  return detail ? `${text} (${detail})` : text;
+}
+
+function knownCode(t: Translations, code: string): code is ErrorCode {
+  return Object.prototype.hasOwnProperty.call(t.errors, code);
+}
+
 /**
- * Translates a core error code (§5.4) into the UI language. Unknown codes and
- * free text (older rows, raw git/CLI output) are shown as they are.
+ * Translates a core error code (§5.4) into the UI language. A stored
+ * `code:detail` value (zincir F0.5, e.g. `base_branch_missing:main`) fills the
+ * translation's `{detail}`. Unknown codes and free text (older rows, raw
+ * git/CLI output) are shown as they are.
  */
 export function errorText(t: Translations, raw: unknown, fallback?: string): string {
   const code = typeof raw === "string" ? raw : apiErrorCode(raw);
-  if (code && Object.prototype.hasOwnProperty.call(t.errors, code)) {
-    return t.errors[code as ErrorCode];
+  if (code && knownCode(t, code)) return withDetail(t.errors[code], bodyDetail(raw));
+  if (code) {
+    const m = /^([a-z_]+):([\s\S]+)$/.exec(code);
+    if (m && knownCode(t, m[1]!)) return withDetail(t.errors[m[1] as ErrorCode], m[2]!.trim());
   }
   if (typeof raw === "string") return raw;
   if (code) return code;

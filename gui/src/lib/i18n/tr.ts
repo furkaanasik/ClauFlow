@@ -35,6 +35,14 @@ export const tr: Translations = {
     active_tasks_block_path_change: "Çalışan ya da dalı İncelemede bekleyen görev varken repo yolu ve varsayılan dal değiştirilemez.",
     not_found: "Bulunamadı.",
     invalid_body: "Geçersiz istek.",
+    base_branch_missing: "Proje ayarlarındaki ana dal bu repoda yok (repo şu an: {detail}). Proje ayarlarından ana dalı düzelt.",
+    gh_missing: "GitHub CLI (gh) bulunamadı. Remote'lu repolarda PR için gh gerekir: gh'yi kur ve gh auth login çalıştır.",
+    git_checkout_failed: "Ana dala geçilemedi: {detail}",
+    git_push_failed: "Dal remote'a gönderilemedi (git push). Ayrıntı ajan logunda.",
+    pr_create_failed: "PR açılamadı (gh pr create). Ayrıntı ajan logunda.",
+    claude_exit: "Claude CLI hatayla çıktı. Ayrıntı ajan logunda.",
+    run_failed: "Koşu başarısız: {detail}",
+    task_in_review: "Görev incelemede; önce birleştir ya da geri al, sonra parçala.",
   },
   landing: {
     tagline: "ClauFlow, Claude Code'u bir kanban panosuna bağlar.",
@@ -325,6 +333,8 @@ export const tr: Translations = {
     modeNew: "Yeni proje",
     modeClone: "GitHub'dan klonla",
     cloneHint: "GitHub repolarından birini yerel bir klasöre klonla ve proje olarak ekle.",
+    repoIsOn: (branch) => `Repo şu an: ${branch}`,
+    useDetected: "Bunu kullan",
   },
   folderPicker: {
     title: "Klasör seç",
@@ -425,7 +435,7 @@ export const tr: Translations = {
       },
     },
     loadError: "Board yüklenemedi",
-    agentStarted: "Agent başlatıldı",
+    taskQueued: (key) => `Sıraya alındı: ${key}`,
     columns: {
       todo:   "Yapılacak",
       doing:  "Yapılıyor",
@@ -738,6 +748,11 @@ export const tr: Translations = {
     notRequested: "Henüz izin istenmedi",
     enable: "İzin ver",
     toggle: "Tarayıcı bildirimlerini aç/kapat",
+    taskError: (title) => `Hata: ${title}`,
+    taskErrorBody: "Ajan bir hatayla karşılaştı.",
+    taskDone: (title) => `Bitti: ${title}`,
+    taskDoneBody: "Ajan işi başarıyla bitirdi.",
+    runFailedToast: (ref, reason) => `${ref} durdu: ${reason}`,
   },
   prs: {
     state: {

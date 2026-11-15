@@ -773,7 +773,8 @@ export function TaskDetailDrawer() {
               {/* Below lg the split aside is hidden, so its sections move inline */}
               <div className="mb-7 rounded-[14px] border-2 border-line bg-panel p-4 lg:hidden">{meta}</div>
 
-              {!editing && task.status !== "done" && task.status !== "doing" && (
+              {/* zincir E3: a task in review is closed by its merge, never by a breakdown. */}
+              {!editing && task.status !== "done" && task.status !== "doing" && task.status !== "review" && (
                 <div className="mb-2">
                   {!showBreakdown ? (
                     <button

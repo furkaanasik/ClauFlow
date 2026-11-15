@@ -27,6 +27,10 @@ function plannerStrings() {
   return (useBoardStore.getState().lang === "en" ? en : tr).board.planner;
 }
 
+function uiStrings() {
+  return useBoardStore.getState().lang === "en" ? en : tr;
+}
+
 export function useAgentSocket(url?: string) {
   const wsUrl =
     url ?? process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:3001/ws";
@@ -100,14 +104,21 @@ export function useAgentSocket(url?: string) {
               const finished = t.agent.status === "done" || t.agent.status === "error";
               if (prev?.status === "doing" && t.status !== "doing" && finished) {
                 const isError = t.agent.status === "error";
+                const s = uiStrings();
+                const reason = t.agent.error ? errorText(s, t.agent.error) : s.notifications.taskErrorBody;
                 useNotificationStore.getState().notify(
-                  isError ? `Error: ${t.title}` : `Done: ${t.title}`,
-                  isError
-                    ? (t.agent.error
-                        ? errorText(useBoardStore.getState().lang === "en" ? en : tr, t.agent.error)
-                        : "Agent encountered an error")
-                    : "Agent finished successfully",
+                  isError ? s.notifications.taskError(t.title) : s.notifications.taskDone(t.title),
+                  isError ? reason : s.notifications.taskDoneBody,
                 );
+                // zincir F0.5: the notification may be off or unseen; a failed run
+                // also gets an in-app toast with the translated reason.
+                if (isError) {
+                  const { projects, selectedProjectId } = useBoardStore.getState();
+                  const name =
+                    t.projectId === selectedProjectId ? null : (projects.find((p) => p.id === t.projectId)?.name ?? null);
+                  const message = s.notifications.runFailedToast(t.displayId ?? t.title, reason);
+                  useToastStore.getState().push("error", name ? `${name}: ${message}` : message, 8000);
+                }
               }
               break;
             }
