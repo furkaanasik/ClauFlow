@@ -1,37 +1,61 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import clsx from "clsx";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Drawer } from "@/components/ui/Drawer";
+import { Tabs } from "@/components/ui/Tabs";
+import { Button } from "@/components/ui/Button";
+import { Segmented } from "@/components/ui/Segmented";
+import { Input, Textarea } from "@/components/ui/Input";
+import { DotMeter, RingGauge } from "@/components/ui/Meters";
+import { Panel } from "@/components/ui/Panel";
+import { PriorityMark, StatusPill, STATUS_COLOR, type StatusKind } from "@/components/ui/Pills";
+import {
+  IconAlert,
+  IconArrowUpRight,
+  IconBranch,
+  IconChat,
+  IconCheck,
+  IconCoin,
+  IconFlow,
+  IconInfo,
+  IconPencil,
+  IconPR,
+  IconRetry,
+  IconRobot,
+  IconStop,
+  IconSubtask,
+  IconTerminal,
+  IconTrash,
+} from "@/components/ui/icons";
+import { AgentBadge } from "@/components/Card/AgentBadge";
 import { CommentsTab } from "@/components/Card/CommentsTab";
+import { LogViewer } from "@/components/Card/LogViewer";
 import { MiniDagView } from "@/components/Card/MiniDagView";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
 import { calculateCost, formatTokens, totalTokens } from "@/lib/cost";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { AgentText, GraphRecord, Task, TaskPatch, ToolCall } from "@/types";
+import type { AgentText, GraphRecord, Project, Task, TaskPatch, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
-type DrawerTab = "details" | "log" | "comments" | "flow";
+type DrawerTab = "details" | "log" | "flow" | "comments";
+type Translations = ReturnType<typeof useTranslation>;
 
 const EMPTY_TOOL_CALLS: ToolCall[] = [];
 const EMPTY_AGENT_TEXTS: AgentText[] = [];
+/** Executor default when neither task nor project sets a budget (core). */
+const DEFAULT_BUDGET_USD = 2;
+const ACTIVE_STEPS = ["branching", "running", "pushing", "pr_opening"] as const;
 
-const STATUS_COLOR: Record<Task["status"], string> = {
-  todo:    "var(--status-todo)",
-  doing:   "var(--status-doing)",
-  ci:      "var(--status-ci, var(--status-review))",
-  review:  "var(--status-review)",
-  done:    "var(--status-done)",
-  nothing: "var(--text-faint, #94a3b8)",
-};
-
-const PRIO_COLOR: Record<EditPriority, string> = {
-  low:      "var(--prio-low)",
-  medium:   "var(--prio-medium)",
-  high:     "var(--prio-high)",
-  critical: "var(--prio-critical)",
+const STATUS_KIND: Record<Task["status"], StatusKind> = {
+  todo: "todo",
+  doing: "doing",
+  ci: "ci",
+  review: "review",
+  done: "done",
+  nothing: "nothing",
 };
 
 interface DraftState {
@@ -50,51 +74,65 @@ function normalizePriority(p?: string | null): EditPriority {
 
 function makeDraft(task: Task): DraftState {
   return {
-    title:       task.title,
+    title: task.title,
     description: task.description ?? "",
-    analysis:    task.analysis ?? "",
-    priority:    normalizePriority(task.priority),
-    budgetUsd:   task.budgetUsd != null ? String(task.budgetUsd) : "",
+    analysis: task.analysis ?? "",
+    priority: normalizePriority(task.priority),
+    budgetUsd: task.budgetUsd != null ? String(task.budgetUsd) : "",
   };
 }
 
 const PRIORITY_BUTTONS: EditPriority[] = ["low", "medium", "high", "critical"];
 
+interface BudgetView {
+  spent: number;
+  limit: number;
+  pct: number;
+  exceeded: boolean;
+  ownBudget: boolean;
+  tokens: string | null;
+}
+
 export function TaskDetailDrawer() {
   const tt = useTranslation();
   const td = tt.taskDetail;
+  const lang = useBoardStore((s) => s.lang);
   const selectedTaskId = useBoardStore((s) => s.selectedTaskId);
-  const task           = useBoardStore((s) =>
-    s.selectedTaskId ? s.tasks[s.selectedTaskId] ?? null : null,
-  );
-  const projects       = useBoardStore((s) => s.projects);
-  const selectTask     = useBoardStore((s) => s.selectTask);
-  const upsertTask     = useBoardStore((s) => s.upsertTask);
-  const removeTask     = useBoardStore((s) => s.removeTask);
-  const upsertComment  = useBoardStore((s) => s.upsertComment);
-  const setToolCalls   = useBoardStore((s) => s.setToolCalls);
-  const setAgentTexts  = useBoardStore((s) => s.setAgentTexts);
-  const openStudio     = useBoardStore((s) => s.openStudio);
-  const upsertNodeRun  = useBoardStore((s) => s.upsertNodeRun);
-  const appendNodeLog  = useBoardStore((s) => s.appendNodeLog);
-  const breakdownStatus = useBoardStore((s) => task ? s.breakdownStatus[task.id] : undefined);
+  const liveTask = useBoardStore((s) => (s.selectedTaskId ? s.tasks[s.selectedTaskId] ?? null : null));
+  const projects = useBoardStore((s) => s.projects);
+  const selectTask = useBoardStore((s) => s.selectTask);
+  const upsertTask = useBoardStore((s) => s.upsertTask);
+  const removeTask = useBoardStore((s) => s.removeTask);
+  const upsertComment = useBoardStore((s) => s.upsertComment);
+  const setToolCalls = useBoardStore((s) => s.setToolCalls);
+  const setAgentTexts = useBoardStore((s) => s.setAgentTexts);
+  const openStudio = useBoardStore((s) => s.openStudio);
+  const upsertNodeRun = useBoardStore((s) => s.upsertNodeRun);
+  const appendNodeLog = useBoardStore((s) => s.appendNodeLog);
 
-  const [editing,         setEditing]         = useState(false);
-  const [draft,           setDraft]           = useState<DraftState | null>(null);
-  const [saving,          setSaving]          = useState(false);
-  const [deleting,        setDeleting]        = useState(false);
-  const [retrying,        setRetrying]        = useState(false);
-  const [aborting,        setAborting]        = useState(false);
-  const [confirmAbort,    setConfirmAbort]    = useState(false);
-  const [error,           setError]           = useState<string | null>(null);
-  const [tab,             setTab]             = useState<DrawerTab>("details");
-  const [confirmDelete,   setConfirmDelete]   = useState(false);
-  const [showBreakdown,   setShowBreakdown]   = useState(false);
+  // Keep the last task on screen while the drawer plays its exit animation.
+  const lastTaskRef = useRef<Task | null>(null);
+  if (liveTask) lastTaskRef.current = liveTask;
+  const task = liveTask ?? lastTaskRef.current;
+
+  const breakdownStatus = useBoardStore((s) => (task ? s.breakdownStatus[task.id] : undefined));
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<DraftState | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [aborting, setAborting] = useState(false);
+  const [confirmAbort, setConfirmAbort] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<DrawerTab>("details");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [breakdownPrompt, setBreakdownPrompt] = useState("");
-  const [breakdownError,  setBreakdownError]  = useState<string | null>(null);
+  const [breakdownError, setBreakdownError] = useState<string | null>(null);
+  const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
 
-  // Execution mode state
-  const [graphs,        setGraphs]        = useState<GraphRecord[]>([]);
+  const [graphs, setGraphs] = useState<GraphRecord[]>([]);
   const [graphsLoading, setGraphsLoading] = useState(false);
 
   const open = Boolean(selectedTaskId);
@@ -133,20 +171,16 @@ export function TaskDetailDrawer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
 
-  // Load graphs when task is open and execution mode section is visible
   useEffect(() => {
-    if (!task?.projectId) return;
+    if (!liveTask?.projectId) return;
     setGraphsLoading(true);
-    api.listGraphs(task.projectId)
+    api.listGraphs(liveTask.projectId)
       .then((resp) => setGraphs(resp.graphs))
       .catch(() => {})
       .finally(() => setGraphsLoading(false));
-  }, [task?.projectId]);
+  }, [liveTask?.projectId]);
 
-  const handleExecutionModeChange = async (
-    mode: "simple" | "graph",
-    graphId?: string | null,
-  ) => {
+  const handleExecutionModeChange = async (mode: "simple" | "graph", graphId?: string | null) => {
     if (!task) return;
     const patch: TaskPatch = {
       executionMode: mode,
@@ -156,55 +190,43 @@ export function TaskDetailDrawer() {
       const updated = await api.updateTask(task.id, patch);
       upsertTask(updated);
     } catch {
-      // silently ignore — optimistic update not needed, server is source of truth
+      // server is source of truth — no optimistic update to roll back
     }
   };
 
-  const close = () => selectTask(null);
+  const close = () => {
+    if (confirmDelete || confirmAbort) return; // Esc belongs to the dialog
+    selectTask(null);
+  };
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const logRef = useRef<HTMLPreElement | null>(null);
-  const [logAutoFollow, setLogAutoFollow] = useState(true);
-
-  useEffect(() => {
-    if (!logAutoFollow) return;
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [task?.agent.log?.length, logAutoFollow]);
-
-  function handleLogScroll() {
-    const el = logRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-    setLogAutoFollow(atBottom);
-  }
-
-  function scrollToBottom() {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-    setLogAutoFollow(true);
-  }
-
-  const beginEdit  = () => { if (!task) return; setDraft(makeDraft(task)); setEditing(true); setError(null); };
-  const cancelEdit = () => { setEditing(false); setDraft(null); setError(null); };
+  const beginEdit = () => {
+    if (!task) return;
+    setDraft(makeDraft(task));
+    setEditing(true);
+    setError(null);
+    setTab("details");
+  };
+  const cancelEdit = () => {
+    setEditing(false);
+    setDraft(null);
+    setError(null);
+  };
 
   const saveEdit = async () => {
     if (!task || !draft) return;
-    if (!draft.title.trim()) { setError(td.errors.titleRequired); return; }
+    if (!draft.title.trim()) {
+      setError(td.errors.titleRequired);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const patch: TaskPatch = {
-        title:       draft.title.trim(),
+        title: draft.title.trim(),
         description: draft.description,
-        analysis:    draft.analysis,
-        priority:    draft.priority,
-        budgetUsd:   draft.budgetUsd ? parseFloat(draft.budgetUsd) : null,
+        analysis: draft.analysis,
+        priority: draft.priority,
+        budgetUsd: draft.budgetUsd ? parseFloat(draft.budgetUsd) : null,
       };
       const updated = await api.updateTask(task.id, patch);
       upsertTask(updated);
@@ -240,7 +262,7 @@ export function TaskDetailDrawer() {
     try {
       await api.abortTask(task.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Abort failed");
+      setError(err instanceof Error ? err.message : td.abortFailed);
     } finally {
       setAborting(false);
     }
@@ -271,738 +293,488 @@ export function TaskDetailDrawer() {
     }
   };
 
-  const logs         = useMemo(() => task?.agent.log ?? [], [task?.agent.log]);
+  const logs = useMemo(() => task?.agent.log ?? [], [task?.agent.log]);
   const commentCount = task?.comments?.length ?? 0;
-  const projectName  = task ? (projects.find((p) => p.id === task.projectId)?.name ?? "") : "";
+  const project = task ? projects.find((p) => p.id === task.projectId) ?? null : null;
 
-  const toolCalls      = useBoardStore((s) => task ? (s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS);
-  const agentTexts     = useBoardStore((s) => task ? (s.agentTexts[task.id] ?? EMPTY_AGENT_TEXTS) : EMPTY_AGENT_TEXTS);
-  const allTasks       = useBoardStore((s) => s.tasks);
-  const subtasks       = useMemo(
-    () => task ? Object.values(allTasks).filter((t) => t.parentTaskId === task.id) : [],
+  const toolCalls = useBoardStore((s) => (task ? s.toolCalls[task.id] ?? EMPTY_TOOL_CALLS : EMPTY_TOOL_CALLS));
+  const agentTexts = useBoardStore((s) => (task ? s.agentTexts[task.id] ?? EMPTY_AGENT_TEXTS : EMPTY_AGENT_TEXTS));
+  const allTasks = useBoardStore((s) => s.tasks);
+  const subtasks = useMemo(
+    () => (task ? Object.values(allTasks).filter((t) => t.parentTaskId === task.id) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [allTasks, task?.id],
   );
-  const parentTask     = useMemo(
-    () => task?.parentTaskId ? (allTasks[task.parentTaskId] ?? null) : null,
+  const parentTask = useMemo(
+    () => (task?.parentTaskId ? allTasks[task.parentTaskId] ?? null : null),
     [allTasks, task?.parentTaskId],
   );
   const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
-  const nodeRunCount   = useBoardStore((s) => task ? Object.keys(s.nodeRuns[task.id] ?? {}).length : 0);
-  const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
+  const nodeRunCount = useBoardStore((s) => (task ? Object.keys(s.nodeRuns[task.id] ?? {}).length : 0));
 
-  const costPill = useMemo(() => {
-    if (!task?.usage) return null;
-    const total = totalTokens(task.usage);
-    const cost = calculateCost(task.usage);
-    if (total === 0) return null;
+  const budget = useMemo<BudgetView | null>(() => {
+    if (!task) return null;
+    const exceeded = budgetExceeded[task.id];
+    const total = task.usage ? totalTokens(task.usage) : 0;
+    const spent = exceeded?.spentUsd ?? (task.usage && total > 0 ? calculateCost(task.usage) : 0);
+    const limit = exceeded?.budgetUsd ?? task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_BUDGET_USD;
+    const pct = limit > 0 ? spent / limit : 0;
     return {
-      tokens: formatTokens(total),
-      cost: cost.toFixed(2),
+      spent,
+      limit,
+      pct,
+      exceeded: Boolean(exceeded) || pct >= 1,
+      ownBudget: task.budgetUsd != null,
+      tokens: total > 0 ? formatTokens(total) : null,
     };
-  }, [task?.usage]);
+  }, [task, budgetExceeded, project?.budgetUsd]);
 
-  const budgetInfo = useMemo(() => {
-    const exceeded = budgetExceeded[task?.id ?? ""];
-    if (!exceeded) return null;
-    const pct = Math.min((exceeded.spentUsd / exceeded.budgetUsd) * 100, 100);
-    return { spentUsd: exceeded.spentUsd, budgetUsd: exceeded.budgetUsd, pct };
-  }, [task?.id, budgetExceeded]);
+  if (!task) {
+    return null;
+  }
 
-  if (!open) return null;
+  const priority = normalizePriority(task.priority);
+  const agentActive = (ACTIVE_STEPS as readonly string[]).includes(task.agent.status);
+  const queued = task.status === "doing" && task.agent.status === "idle";
+  const showAgentBadge = task.agent.status !== "idle" && (task.status === "doing" || task.agent.status === "error");
+
+  const tabItems = [
+    { value: "details" as const, label: td.tabDetails, icon: <IconInfo size={14} /> },
+    { value: "log" as const, label: td.tabLog, icon: <IconTerminal size={14} />, count: logs.length || toolCalls.length || undefined },
+    { value: "flow" as const, label: td.tabFlow, icon: <IconFlow size={14} />, count: nodeRunCount || undefined },
+    { value: "comments" as const, label: td.tabComments, icon: <IconChat size={14} />, count: commentCount || undefined },
+  ];
+
+  const meta = (
+    <TaskMeta
+      task={task}
+      project={project}
+      graphs={graphs}
+      graphsLoading={graphsLoading}
+      editing={editing}
+      budget={budget}
+      lang={lang}
+      t={tt}
+      onModeChange={handleExecutionModeChange}
+    />
+  );
+
+  let n = 0;
+  const next = () => String(++n).padStart(2, "0");
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-40 bg-black/65 backdrop-blur-sm"
-        onClick={close}
-        aria-hidden="true"
-      />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <aside
-          className="relative flex h-[88vh] w-full max-w-[72rem] flex-col overflow-hidden border border-[var(--border)] bg-[var(--bg-base)] shadow-2xl"
-          role="dialog"
-          aria-modal="true"
-        >
-        {task ? (
+      <Drawer
+        open={open}
+        onClose={close}
+        width="lg"
+        ariaLabel={task.title}
+        eyebrow={
           <>
-            {/* Header */}
-            <header className="border-b border-[var(--border)] px-6 py-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  {/* Meta row */}
-                  <div className="mb-3 flex flex-wrap items-center gap-2.5">
-                    <span className="font-mono text-[11px] text-[var(--text-faint)]">
-                      {task.displayId ?? `#${task.id.slice(0, 8)}`}
-                    </span>
-                    {projectName && (
-                      <>
-                        <span className="text-[var(--text-faint)]">·</span>
-                        <span className="text-[12px] text-[var(--text-muted)]">
-                          {projectName}
-                        </span>
-                        <span className="text-[var(--text-faint)]">·</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!task) return;
-                            openStudio(task.projectId, task.id);
-                            selectTask(null);
-                          }}
-                          className="rounded border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 font-mono text-[10px] text-blue-300 transition hover:bg-blue-500/20"
-                          aria-label="Studio'da aç"
-                        >
-                          studio →
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {/* Title */}
-                  {editing && draft ? (
-                    <input
-                      type="text"
-                      value={draft.title}
-                      onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                      className="w-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-lg text-[var(--text-primary)] focus:border-[var(--text-secondary)] focus:outline-none"
-                      placeholder={td.titlePlaceholder}
-                    />
-                  ) : (
-                    <h2 className="t-display text-3xl leading-[1.1] text-[var(--text-primary)]">
-                      {task.title}
-                    </h2>
-                  )}
-
-                  {/* Status + Priority pills */}
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Pill ink={STATUS_COLOR[task.status]} label={task.status} />
-                    {task.priority && !editing && (
-                      <Pill
-                        ink={PRIO_COLOR[normalizePriority(task.priority)]}
-                        label={task.priority}
-                      />
-                    )}
-                  </div>
-                </div>
+            <span className="ui-keyplate">{task.displayId ?? `#${task.id.slice(0, 8)}`}</span>
+            {project && (
+              <>
+                <span className="truncate font-sans text-[13px] font-semibold text-ink-2">{project.name}</span>
                 <button
                   type="button"
-                  onClick={close}
-                  className="shrink-0 border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-                  aria-label={td.closeLabel}
+                  onClick={() => {
+                    openStudio(task.projectId, task.id);
+                    selectTask(null);
+                  }}
+                  className="ui-focus inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 font-sans text-[12px] font-semibold text-[var(--cobalt-text)] transition hover:bg-hair"
                 >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <path d="M1 1l12 12M13 1L1 13" />
-                  </svg>
+                  {td.openInStudio}
+                  <IconArrowUpRight size={12} />
                 </button>
-              </div>
-            </header>
-
-            {/* Tabs */}
-            <div className="flex border-b border-[var(--border)]">
-              {([
-                { id: "details" as const,  label: td.tabDetails,  count: 0 },
-                { id: "log" as const,      label: td.tabLog,      count: logs.length },
-                { id: "flow" as const,     label: td.tabFlow,     count: nodeRunCount },
-                { id: "comments" as const, label: td.tabComments, count: commentCount },
-              ]).map(({ id, label, count }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setTab(id)}
-                  className={clsx(
-                    "relative flex flex-1 items-center justify-center gap-2 px-4 py-3 text-[13px] font-medium transition",
-                    tab === id
-                      ? "text-[var(--text-primary)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                  )}
-                >
-                  <span>{label}</span>
-                  {count > 0 && (
-                    <span className="font-mono text-[11px] text-[var(--text-faint)]">
-                      ({count})
-                    </span>
-                  )}
-                  {tab === id && (
-                    <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-[var(--accent-primary)]" />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto">
-              {tab === "comments" ? (
-                <CommentsTab task={task} />
-              ) : tab === "flow" ? (
-                <div className="flex h-full flex-col p-4">
-                  <MiniDagView
-                    taskId={task.id}
-                    noNodesLabel={td.flowNoNodes}
-                    nodeLogsTitle={td.flowNodeLogsTitle}
-                    nodeNoLogLabel={td.flowNodeNoLog}
-                  />
-                </div>
-              ) : tab === "details" ? (
-                <div className="px-6 py-5">
-                  {error && (
-                    <div className="mb-4 border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-sm text-[var(--status-error)]">
-                      {error}
-                    </div>
-                  )}
-
-                  {/* Parent Task */}
-                  {parentTask && (
-                    <Section label="Parent Task" numeral="↑">
-                      <button
-                        type="button"
-                        onClick={() => selectTask(parentTask.id)}
-                        className="flex w-full items-center gap-3 rounded border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-left text-sm transition hover:border-[var(--border-strong)]"
-                      >
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ background: STATUS_COLOR[parentTask.status] }}
-                        />
-                        <span className="min-w-0 flex-1 truncate text-[var(--text-primary)]">
-                          {parentTask.title}
-                        </span>
-                        <span className="shrink-0 font-mono text-[11px] text-[var(--text-faint)]">
-                          {parentTask.displayId ?? parentTask.status}
-                        </span>
-                      </button>
-                    </Section>
-                  )}
-
-                  {/* Description */}
-                  <Section label={td.descriptionLabel} numeral="01">
-                    {editing && draft ? (
-                      <textarea
-                        value={draft.description}
-                        onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                        rows={3}
-                        className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--text-secondary)] focus:outline-none"
-                        placeholder={td.descriptionPlaceholder}
-                      />
-                    ) : task.description ? (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-secondary)]">
-                        {task.description}
-                      </p>
-                    ) : (
-                      <p className="t-quote text-sm text-[var(--text-faint)]">{td.descriptionEmpty}</p>
-                    )}
-                  </Section>
-
-                  {/* Analysis */}
-                  <Section label={td.analysisLabel} numeral="02">
-                    {editing && draft ? (
-                      <textarea
-                        value={draft.analysis}
-                        onChange={(e) => setDraft({ ...draft, analysis: e.target.value })}
-                        rows={8}
-                        className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-[13px] text-[var(--text-primary)] focus:border-[var(--text-secondary)] focus:outline-none"
-                        placeholder={td.analysisPlaceholder}
-                      />
-                    ) : task.analysis ? (
-                      <pre className="analysis-block max-h-80 overflow-auto whitespace-pre-wrap border p-3.5">
-                        {task.analysis}
-                      </pre>
-                    ) : (
-                      <p className="t-quote text-sm text-[var(--text-faint)]">{td.analysisEmpty}</p>
-                    )}
-                  </Section>
-
-                  {/* Subtasks */}
-                  {!editing && subtasks.length > 0 && (
-                    <Section label="Subtasks" numeral="03">
-                      <ul className="space-y-1">
-                        {subtasks.map((sub) => (
-                          <li key={sub.id}>
-                            <button
-                              type="button"
-                              onClick={() => selectTask(sub.id)}
-                              className="flex w-full items-center gap-3 rounded border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-left text-sm transition hover:border-[var(--border-strong)]"
-                            >
-                              <span
-                                className="h-2 w-2 shrink-0 rounded-full"
-                                style={{ background: STATUS_COLOR[sub.status] }}
-                              />
-                              <span className="min-w-0 flex-1 truncate text-[var(--text-primary)]">
-                                {sub.title}
-                              </span>
-                              <span className="shrink-0 font-mono text-[11px] text-[var(--text-faint)]">
-                                {sub.displayId ?? sub.status}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </Section>
-                  )}
-
-                  {/* Execution Mode */}
-                  {!editing && (
-                    <Section label="Execution Mode" numeral="03">
-                      <div className="flex flex-col gap-3">
-                        {/* Simple | Graph toggle */}
-                        <div className="inline-flex border border-[var(--border)] bg-[var(--border)]" style={{ gap: "1px" }}>
-                          <button
-                            type="button"
-                            onClick={() => void handleExecutionModeChange("simple", null)}
-                            className={clsx(
-                              "flex-1 px-4 py-2 font-mono text-[11px] uppercase tracking-widest transition",
-                              (!task.executionMode || task.executionMode === "simple")
-                                ? "bg-[var(--bg-surface)] text-[var(--text-primary)]"
-                                : "bg-[var(--bg-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                            )}
-                          >
-                            Simple
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleExecutionModeChange("graph", task.graphId ?? graphs[0]?.id ?? null)}
-                            className={clsx(
-                              "flex-1 px-4 py-2 font-mono text-[11px] uppercase tracking-widest transition",
-                              task.executionMode === "graph"
-                                ? "bg-[var(--bg-surface)] text-[var(--text-primary)]"
-                                : "bg-[var(--bg-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                            )}
-                          >
-                            Graph
-                          </button>
-                        </div>
-
-                        {/* Graph picker — only shown in graph mode */}
-                        {task.executionMode === "graph" && (
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                              Select graph
-                            </label>
-                            {graphsLoading ? (
-                              <p className="font-mono text-[12px] text-[var(--text-faint)]">Loading...</p>
-                            ) : graphs.length === 0 ? (
-                              <p className="text-[12px] text-[var(--text-faint)]">
-                                No graphs found. Create one in Studio.
-                              </p>
-                            ) : (
-                              <div className="flex flex-col gap-1">
-                                {graphs.map((g) => {
-                                  const active = (task.graphId ?? graphs[0]?.id) === g.id;
-                                  return (
-                                    <button
-                                      key={g.id}
-                                      type="button"
-                                      onClick={() => void handleExecutionModeChange("graph", g.id)}
-                                      className={clsx(
-                                        "w-full px-3 py-2 text-left font-mono text-[12px] border transition",
-                                        active
-                                          ? "border-[var(--text-secondary)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
-                                          : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-                                      )}
-                                    >
-                                      {g.name}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </Section>
-                  )}
-
-                  {/* Priority (edit mode) */}
-                  {editing && draft && (
-                    <Section label={td.priorityLabel} numeral="03">
-                      <div className="flex gap-px border border-[var(--border)] bg-[var(--border)]">
-                        {PRIORITY_BUTTONS.map((value) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => setDraft({ ...draft, priority: value })}
-                            className={clsx(
-                              "flex-1 px-3 py-2 font-mono text-[11px] uppercase tracking-widest transition",
-                              draft.priority === value
-                                ? "bg-[var(--bg-surface)] text-[var(--text-primary)]"
-                                : "bg-[var(--bg-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                            )}
-                            style={
-                              draft.priority === value
-                                ? { boxShadow: `inset 0 -2px 0 ${PRIO_COLOR[value]}` }
-                                : {}
-                            }
-                          >
-                            {tt.addTask.priorities[value]}
-                          </button>
-                        ))}
-                      </div>
-                    </Section>
-                  )}
-
-                  {/* Retry / Abort panel */}
-                  {task.status === "doing" && (
-                    <Section label={td.connectionsLabel} numeral="04">
-                      <div className="flex items-center justify-between gap-3 border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          {task.agent.status === "idle" ? (
-                            <>
-                              <span className="h-1.5 w-1.5 bg-[var(--text-faint)]" />
-                              <span className="text-[var(--text-muted)]">{td.queueWaiting}</span>
-                            </>
-                          ) : task.agent.status === "error" ? (
-                            <>
-                              <span className="h-1.5 w-1.5 bg-[var(--status-error)]" />
-                              <span className="text-[var(--status-error)]">{td.errorOccurred}</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="h-1.5 w-1.5 animate-pulse bg-[var(--status-doing)]" />
-                              <span className="text-[var(--status-doing)]">
-                                {td.agentStatus[task.agent.status as keyof typeof td.agentStatus] ?? task.agent.status}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {task.agent.status !== "error" && task.agent.status !== "done" && (
-                            <button
-                              type="button"
-                              onClick={() => setConfirmAbort(true)}
-                              disabled={aborting}
-                              className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--status-error)] transition hover:bg-[var(--status-error)] hover:text-[var(--bg-base)] disabled:opacity-50"
-                            >
-                              {aborting ? td.abortingButton : td.abortButton}
-                            </button>
-                          )}
-                          {(() => {
-                            const isActive = (
-                              ["branching", "running", "pushing", "pr_opening"] as const
-                            ).includes(
-                              task.agent.status as
-                                | "branching"
-                                | "running"
-                                | "pushing"
-                                | "pr_opening",
-                            );
-                            return (
-                              <button
-                                type="button"
-                                onClick={doRetry}
-                                disabled={retrying}
-                                className={clsx(
-                                  "border px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition disabled:opacity-50",
-                                  isActive
-                                    ? "border-[var(--accent-primary)] bg-[var(--accent-muted)] text-[var(--accent-primary)] hover:bg-[var(--accent-primary)] hover:text-[var(--accent-ink)]"
-                                    : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]",
-                                )}
-                              >
-                                {retrying
-                                  ? td.retryingButton
-                                  : isActive
-                                    ? td.restartButton
-                                    : td.retryButton}
-                              </button>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    </Section>
-                  )}
-
-                  {/* Branch / PR */}
-                  {(task.branch || task.prUrl) && (
-                    <Section label={td.connectionsLabel} numeral="05">
-                      <div className="flex flex-col gap-2.5">
-                        {task.branch && (
-                          <div className="flex items-center gap-3 border-b border-[var(--border)] pb-2.5">
-                            <span className="t-label">{td.branchLabel}</span>
-                            <code className="font-mono text-xs text-[var(--accent-primary)]">
-                              {task.branch}
-                            </code>
-                          </div>
-                        )}
-                        {task.prUrl && (
-                          <div className="flex items-center justify-between gap-2 border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3">
-                            <a
-                              href={task.prUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-mono text-sm font-medium text-[var(--accent-primary)] transition hover:opacity-80"
-                            >
-                              {td.openPr} {task.prNumber ? `#${task.prNumber}` : ""} ↗
-                            </a>
-                            {task.status === "done" && (
-                              <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--accent-primary)]">
-                                ● {td.merged}
-                              </span>
-                            )}
-                            {task.agent.status === "error" && task.status !== "done" && (
-                              <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--status-error)]">
-                                ● {td.mergeError}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </Section>
-                  )}
-
-                  {/* Break down task */}
-                  {!editing && (
-                    <div className="mt-4 mb-6">
-                      {!showBreakdown ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowBreakdown(true);
-                            setBreakdownPrompt([task.title, task.description, task.analysis].filter(Boolean).join("\n\n"));
-                          }}
-                          className="text-[12px] text-[var(--accent-primary)] border border-[var(--border)] px-3 py-1.5 hover:border-[var(--accent-primary)] transition"
-                        >
-                          {td.breakdownLabel}
-                        </button>
-                      ) : (
-                        <div className="flex flex-col gap-2 border border-[var(--border)] p-3">
-                          <textarea
-                            value={breakdownPrompt}
-                            onChange={(e) => setBreakdownPrompt(e.target.value)}
-                            rows={5}
-                            disabled={breakdownStatus === "breaking"}
-                            placeholder={td.breakdownPromptPlaceholder}
-                            className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-mono text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none"
-                          />
-                          {breakdownError && (
-                            <p className="text-[11px] text-[var(--status-error)]">{breakdownError}</p>
-                          )}
-                          {breakdownStatus === "done" && (
-                            <p className="text-[11px] text-[var(--accent-primary)]">{td.breakdownDone}</p>
-                          )}
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={doBreakdown}
-                              disabled={breakdownStatus === "breaking" || !breakdownPrompt.trim()}
-                              className="btn-ink px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
-                            >
-                              {breakdownStatus === "breaking" ? td.breakdowning : td.breakdownButton}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setShowBreakdown(false); setBreakdownError(null); }}
-                              className="btn-ghost px-3 py-1.5 text-[12px]"
-                            >
-                              {td.breakdownCancel}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Budget */}
-                  <Section label="Budget" numeral="06">
-                    {editing && draft ? (
-                      <div className="flex flex-col gap-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          placeholder={`${task.budgetUsd != null ? String(task.budgetUsd) : "2.00 (project default)"}`}
-                          value={draft.budgetUsd}
-                          onChange={(e) => setDraft({ ...draft, budgetUsd: e.target.value })}
-                          className="w-full rounded border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 font-mono text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)]"
-                        />
-                        <p className="text-[11px] text-[var(--text-faint)]">Leave blank to inherit project budget ($2.00 default)</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        <p className="font-mono text-sm text-[var(--text-secondary)]">
-                          {task.budgetUsd != null ? `$${task.budgetUsd.toFixed(2)} / task` : "Project default"}
-                        </p>
-                        {budgetInfo && (
-                          <div>
-                            <div className="flex justify-between text-xs text-[var(--text-muted)] mb-1">
-                              <span>Spent</span>
-                              <span className={budgetInfo.pct >= 100 ? "text-[var(--status-error)] font-medium" : ""}>
-                                ${budgetInfo.spentUsd.toFixed(4)} / ${budgetInfo.budgetUsd.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="h-1.5 w-full rounded-full bg-[var(--bg-elevated)]">
-                              <div
-                                className={`h-1.5 rounded-full transition-all ${budgetInfo.pct >= 100 ? "bg-[var(--status-error)]" : budgetInfo.pct >= 90 ? "bg-amber-400" : "bg-[var(--accent-primary)]"}`}
-                                style={{ width: `${budgetInfo.pct}%` }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </Section>
-                </div>
-              ) : (
-                /* Log tab */
-                <div className="flex h-full flex-col gap-3 p-4">
-                  {/* View toggle */}
-                  <div className="inline-flex self-start border border-[var(--border)] bg-[var(--bg-surface)]">
-                    <button
-                      type="button"
-                      onClick={() => setLogView("timeline")}
-                      className={clsx(
-                        "border-r border-[var(--border)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
-                        logView === "timeline"
-                          ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                      )}
-                    >
-                      {td.toolTimelineTab}{toolCalls.length > 0 && ` (${toolCalls.length})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLogView("raw")}
-                      className={clsx(
-                        "px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
-                        logView === "raw"
-                          ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                      )}
-                    >
-                      {td.toolRawTab}{logs.length > 0 && ` (${logs.length})`}
-                    </button>
-                  </div>
-
-                  {logView === "timeline" && (
-                    task.status === "doing" && task.agent.status === "idle" ? (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-3 border border-dashed border-[var(--border)] text-sm text-[var(--text-muted)]">
-                        <span className="flex gap-1">
-                          {[0, 1, 2].map((i) => (
-                            <span
-                              key={i}
-                              className="h-1.5 w-1.5 animate-pulse bg-[var(--text-faint)]"
-                              style={{ animationDelay: `${i * 200}ms` }}
-                            />
-                          ))}
-                        </span>
-                        <span className="t-quote text-base">{td.queueWaiting}</span>
-                      </div>
-                    ) : (
-                      <div className="flex-1 overflow-y-auto">
-                        <ToolCallTimeline
-                          toolCalls={toolCalls}
-                          agentTexts={agentTexts}
-                          compact
-                          emptyMessage={td.toolTimelineEmpty}
-                          isAgentRunning={task?.status === "doing"}
-                          thinkingMessage={td.toolThinking}
-                        />
-                      </div>
-                    )
-                  )}
-
-                  {logView === "raw" && (
-                    task.status === "doing" && task.agent.status === "idle" ? (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-3 border border-dashed border-[var(--border)] text-sm text-[var(--text-muted)]">
-                        <span className="flex gap-1">
-                          {[0, 1, 2].map((i) => (
-                            <span
-                              key={i}
-                              className="h-1.5 w-1.5 animate-pulse bg-[var(--text-faint)]"
-                              style={{ animationDelay: `${i * 200}ms` }}
-                            />
-                          ))}
-                        </span>
-                        <span className="t-quote text-base">{td.queueWaiting}</span>
-                      </div>
-                    ) : logs.length > 0 ? (
-                      <div className="relative flex-1 overflow-hidden">
-                        <pre
-                          ref={logRef}
-                          onScroll={handleLogScroll}
-                          className="h-full overflow-auto border border-[var(--border)] bg-[var(--bg-sunken)] p-4 font-mono text-[12px] leading-relaxed text-[var(--accent-primary)]"
-                        >
-                          {logs.join("\n")}
-                        </pre>
-                        {!logAutoFollow && (
-                          <button
-                            type="button"
-                            onClick={scrollToBottom}
-                            className="absolute bottom-3 right-3 flex items-center gap-1.5 border border-[var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--text-secondary)] shadow-lg transition hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden>
-                              <path d="M5 7.5 L1 3 L9 3 Z" />
-                            </svg>
-                            Follow
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex flex-1 items-center justify-center border border-dashed border-[var(--border)] text-sm text-[var(--text-faint)]">
-                        {td.logsEmpty}
-                      </div>
-                    )
-                  )}
-
-                  {task.agent.status === "error" && task.agent.error && (
-                    <div className="shrink-0 border border-[var(--status-error)] bg-[var(--status-error-ink)] px-4 py-3 font-mono text-[12px] leading-relaxed text-[var(--status-error)]">
-                      <span className="mr-2 font-bold">✖ {td.logsErrorPrefix}</span>
-                      <span className="whitespace-pre-wrap">{task.agent.error}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <footer className="flex items-center justify-between gap-2 border-t border-[var(--border)] bg-[var(--bg-surface)] px-6 py-4">
-              {editing ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={cancelEdit}
-                    disabled={saving}
-                    className="btn-ghost px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] disabled:opacity-50"
-                  >
-                    {td.cancelButton}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={saveEdit}
-                    disabled={saving}
-                    className="btn-ink px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] disabled:opacity-50"
-                  >
-                    {saving ? td.savingButton : td.saveButton}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDelete(true)}
-                    disabled={deleting}
-                    className="border border-[var(--status-error)] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-50"
-                  >
-                    {deleting ? td.deletingButton : td.deleteButton}
-                  </button>
-
-                  {costPill && (
-                    <span
-                      className="border border-[var(--border)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--text-muted)]"
-                      title="Approximate cost"
-                    >
-                      {costPill.tokens} {td.costTokens} · ~${costPill.cost}
-                    </span>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={beginEdit}
-                    className="btn-ink px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em]"
-                  >
-                    {td.editButton}
-                  </button>
-                </>
-              )}
-            </footer>
+              </>
+            )}
           </>
-        ) : null}
-      </aside>
-      </div>
+        }
+        title={
+          editing && draft ? (
+            <Input
+              value={draft.title}
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+              placeholder={td.titlePlaceholder}
+              aria-label={td.titlePlaceholder}
+              className="!h-11 !text-[18px] !font-bold"
+              autoFocus
+            />
+          ) : (
+            task.title
+          )
+        }
+        meta={
+          <>
+            <StatusPill status={STATUS_KIND[task.status]} variant="solid" live={agentActive} size="md">
+              {tt.board.columns[task.status]}
+            </StatusPill>
+            {!editing && (
+              <span className="inline-flex h-[1.875rem] items-center rounded-pill border-2 border-line bg-panel px-2.5">
+                <PriorityMark level={priority} label={tt.addTask.priorities[priority]} showLabel />
+              </span>
+            )}
+            {showAgentBadge && <AgentBadge agent={task.agent} taskTitle={task.title} />}
+            {budget?.tokens && (
+              <span
+                title={td.costApprox}
+                className="inline-flex h-[1.875rem] items-center gap-1.5 rounded-pill border-2 border-line bg-panel px-2.5 font-mono text-[11.5px] font-semibold"
+                style={{ color: budget.exceeded ? "var(--red-text)" : "var(--ink-2)" }}
+              >
+                <IconCoin size={13} />
+                {budget.tokens} {td.costTokens} · ~${budget.spent.toFixed(2)}
+              </span>
+            )}
+            {editing && (
+              <StatusPill status="info" variant="solid" icon={<IconPencil size={12} />} size="md">
+                {td.editingBadge}
+              </StatusPill>
+            )}
+          </>
+        }
+        tabs={
+          <Tabs
+            items={tabItems}
+            value={tab}
+            onChange={setTab}
+            label={td.tabsLabel}
+            idBase="task-detail"
+          />
+        }
+        aside={meta}
+        bodyKey={tab}
+        bodyClassName={tab === "details" ? undefined : "flex flex-col px-5 py-5"}
+        footer={
+          editing ? (
+            <>
+              <span className="mr-auto text-[12px] text-ink-3">{td.editingBadge}…</span>
+              <Button variant="secondary" onClick={cancelEdit} disabled={saving}>
+                {td.cancelButton}
+              </Button>
+              <Button variant="primary" icon={<IconCheck size={16} />} onClick={saveEdit} loading={saving}>
+                {saving ? td.savingButton : td.saveButton}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="danger"
+                icon={<IconTrash size={15} />}
+                onClick={() => setConfirmDelete(true)}
+                loading={deleting}
+                className="mr-auto"
+              >
+                {deleting ? td.deletingButton : td.deleteButton}
+              </Button>
+              <Button variant="primary" icon={<IconPencil size={15} />} onClick={beginEdit}>
+                {td.editButton}
+              </Button>
+            </>
+          )
+        }
+      >
+        <div
+          role="tabpanel"
+          id={`task-detail-panel-${tab}`}
+          aria-labelledby={`task-detail-tab-${tab}`}
+          className={tab === "details" ? undefined : "flex min-h-0 flex-1 flex-col"}
+        >
+          {tab === "comments" ? (
+            <CommentsTab task={task} />
+          ) : tab === "flow" ? (
+            <MiniDagView
+              taskId={task.id}
+              noNodesLabel={td.flowNoNodes}
+              nodeLogsTitle={td.flowNodeLogsTitle}
+              nodeNoLogLabel={td.flowNodeNoLog}
+            />
+          ) : tab === "log" ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <Segmented
+                  size="sm"
+                  label={td.logViewLabel}
+                  value={logView}
+                  onChange={setLogView}
+                  options={[
+                    { value: "timeline", label: td.toolTimelineTab, count: toolCalls.length || undefined },
+                    { value: "raw", label: td.toolRawTab, count: logs.length || undefined },
+                  ]}
+                />
+                {agentActive && (
+                  <StatusPill status="doing" live className="ml-auto">
+                    {td.agentStatus[task.agent.status as keyof typeof td.agentStatus] ?? task.agent.status}
+                  </StatusPill>
+                )}
+              </div>
+
+              {queued ? (
+                <QueueWaiting label={td.queueWaiting} />
+              ) : logView === "timeline" ? (
+                <ToolCallTimeline
+                  toolCalls={toolCalls}
+                  agentTexts={agentTexts}
+                  compact
+                  emptyMessage={td.toolTimelineEmpty}
+                  isAgentRunning={task.status === "doing"}
+                  thinkingMessage={td.toolThinking}
+                />
+              ) : (
+                <LogViewer
+                  lines={logs}
+                  follow
+                  live={agentActive}
+                  followLabel={td.follow}
+                  emptyLabel={td.logsEmpty}
+                  ariaLabel={td.toolRawTab}
+                  className="min-h-[320px] flex-1"
+                />
+              )}
+
+              {task.agent.status === "error" && task.agent.error && (
+                <div role="alert" className="ui-banner ui-banner--error shrink-0 font-mono text-[12px]">
+                  <IconAlert size={15} className="mt-0.5 shrink-0" />
+                  <span>
+                    <strong className="mr-1.5">{td.logsErrorPrefix}</strong>
+                    <span className="whitespace-pre-wrap">{task.agent.error}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              {error && (
+                <div role="alert" className="ui-banner ui-banner--error mb-5">
+                  <IconAlert size={15} className="mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Agent: retry / abort */}
+              {task.status === "doing" && (
+                <Panel
+                  className="mb-7"
+                  title={td.agentLabel}
+                  icon={<IconRobot size={15} />}
+                  meter={
+                    queued ? (
+                      <StatusPill status="todo">{td.queueWaiting}</StatusPill>
+                    ) : task.agent.status === "error" ? (
+                      <StatusPill status="error" variant="solid">{td.errorOccurred}</StatusPill>
+                    ) : (
+                      <StatusPill status="doing" live>
+                        {td.agentStatus[task.agent.status as keyof typeof td.agentStatus] ?? task.agent.status}
+                      </StatusPill>
+                    )
+                  }
+                  padding="sm"
+                >
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {task.agent.status !== "error" && task.agent.status !== "done" && (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        icon={<IconStop size={14} />}
+                        onClick={() => setConfirmAbort(true)}
+                        loading={aborting}
+                      >
+                        {aborting ? td.abortingButton : td.abortButton}
+                      </Button>
+                    )}
+                    <Button
+                      variant={agentActive ? "secondary" : "primary"}
+                      size="sm"
+                      icon={<IconRetry size={14} />}
+                      onClick={doRetry}
+                      loading={retrying}
+                    >
+                      {retrying ? td.retryingButton : agentActive ? td.restartButton : td.retryButton}
+                    </Button>
+                  </div>
+                </Panel>
+              )}
+
+              {parentTask && (
+                <Section n="↑" label={td.parentLabel}>
+                  <TaskLinkRow task={parentTask} t={tt} onOpen={() => selectTask(parentTask.id)} />
+                </Section>
+              )}
+
+              <Section n={next()} label={td.descriptionLabel}>
+                {editing && draft ? (
+                  <Textarea
+                    value={draft.description}
+                    onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                    rows={4}
+                    placeholder={td.descriptionPlaceholder}
+                    aria-label={td.descriptionLabel}
+                    className="resize-y"
+                  />
+                ) : task.description ? (
+                  <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-ink-2">{task.description}</p>
+                ) : (
+                  <EmptyLine>{td.descriptionEmpty}</EmptyLine>
+                )}
+              </Section>
+
+              <Section n={next()} label={td.analysisLabel}>
+                {editing && draft ? (
+                  <Textarea
+                    mono
+                    value={draft.analysis}
+                    onChange={(e) => setDraft({ ...draft, analysis: e.target.value })}
+                    rows={9}
+                    placeholder={td.analysisPlaceholder}
+                    aria-label={td.analysisLabel}
+                    className="resize-y"
+                  />
+                ) : task.analysis ? (
+                  <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 font-mono text-[12.5px] leading-relaxed text-ink">
+                    {task.analysis}
+                  </pre>
+                ) : (
+                  <EmptyLine>{td.analysisEmpty}</EmptyLine>
+                )}
+              </Section>
+
+              {editing && draft && (
+                <>
+                  <Section n={next()} label={td.priorityLabel}>
+                    <Segmented
+                      label={td.priorityLabel}
+                      value={draft.priority}
+                      onChange={(v) => setDraft({ ...draft, priority: v })}
+                      options={PRIORITY_BUTTONS.map((value) => ({
+                        value,
+                        label: tt.addTask.priorities[value],
+                        icon: <PriorityMark level={value} label={tt.addTask.priorities[value]} />,
+                      }))}
+                    />
+                  </Section>
+                  <Section n={next()} label={td.budgetLabel}>
+                    <div className="flex max-w-xs flex-col gap-1.5">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        icon={<span className="font-mono text-[13px] font-bold">$</span>}
+                        placeholder={td.budgetInputPlaceholder.replace(
+                          "{v}",
+                          (task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_BUDGET_USD).toFixed(2),
+                        )}
+                        value={draft.budgetUsd}
+                        onChange={(e) => setDraft({ ...draft, budgetUsd: e.target.value })}
+                        aria-label={td.budgetLabel}
+                        className="font-mono"
+                      />
+                      <p className="text-xs text-ink-3">{td.budgetHint}</p>
+                    </div>
+                  </Section>
+                </>
+              )}
+
+              {!editing && subtasks.length > 0 && (
+                <Section
+                  n={next()}
+                  label={td.subtasksLabel}
+                  trailing={
+                    <span className="flex items-center gap-2 font-mono text-[11px] font-semibold text-ink-3">
+                      <DotMeter
+                        size="sm"
+                        value={subtasks.filter((s) => s.status === "done").length}
+                        max={subtasks.length}
+                        color="var(--green)"
+                        label={td.subtasksLabel}
+                      />
+                      {subtasks.filter((s) => s.status === "done").length}/{subtasks.length}
+                    </span>
+                  }
+                >
+                  <ul className="flex flex-col gap-2">
+                    {subtasks.map((sub) => (
+                      <li key={sub.id}>
+                        <TaskLinkRow task={sub} t={tt} onOpen={() => selectTask(sub.id)} />
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+
+              {/* Below lg the split aside is hidden, so its sections move inline */}
+              <div className="mb-7 rounded-[14px] border-2 border-line bg-panel p-4 lg:hidden">{meta}</div>
+
+              {!editing && (
+                <div className="mb-2">
+                  {!showBreakdown ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBreakdown(true);
+                        setBreakdownPrompt([task.title, task.description, task.analysis].filter(Boolean).join("\n\n"));
+                      }}
+                      className="ui-focus group flex w-full items-center gap-3 rounded-[12px] border-2 border-dashed border-line px-4 py-3 text-left transition hover:border-solid hover:bg-panel hover:shadow-hard"
+                    >
+                      <span
+                        aria-hidden
+                        className="grid h-8 w-8 place-items-center rounded-[9px] border-2 border-line bg-sunken text-ink-2 transition group-hover:bg-mustard group-hover:text-[var(--on-mustard)]"
+                      >
+                        <IconSubtask size={15} />
+                      </span>
+                      <span className="text-[13.5px] font-semibold text-ink">{td.breakdownLabel}</span>
+                      <IconArrowUpRight size={14} className="ml-auto text-ink-3" />
+                    </button>
+                  ) : (
+                    <Panel title={td.breakdownLabel} icon={<IconSubtask size={15} />} padding="sm">
+                      <div className="flex flex-col gap-2.5">
+                        <Textarea
+                          mono
+                          value={breakdownPrompt}
+                          onChange={(e) => setBreakdownPrompt(e.target.value)}
+                          rows={5}
+                          disabled={breakdownStatus === "breaking"}
+                          placeholder={td.breakdownPromptPlaceholder}
+                          aria-label={td.breakdownLabel}
+                          className="resize-y"
+                        />
+                        {breakdownError && (
+                          <p role="alert" className="ui-banner ui-banner--error">{breakdownError}</p>
+                        )}
+                        {breakdownStatus === "done" && (
+                          <StatusPill status="done" icon={<IconCheck size={12} />} className="self-start">
+                            {td.breakdownDone}
+                          </StatusPill>
+                        )}
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setShowBreakdown(false);
+                              setBreakdownError(null);
+                            }}
+                          >
+                            {td.breakdownCancel}
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<IconSubtask size={14} />}
+                            onClick={doBreakdown}
+                            loading={breakdownStatus === "breaking"}
+                            disabled={!breakdownPrompt.trim()}
+                          >
+                            {breakdownStatus === "breaking" ? td.breakdowning : td.breakdownButton}
+                          </Button>
+                        </div>
+                      </div>
+                    </Panel>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Drawer>
 
       <ConfirmDialog
         open={confirmDelete}
@@ -1029,34 +801,268 @@ export function TaskDetailDrawer() {
   );
 }
 
+/* ─── Split-pane meta column ─────────────────────────────────────────────── */
+
+function TaskMeta({
+  task,
+  project,
+  graphs,
+  graphsLoading,
+  editing,
+  budget,
+  lang,
+  t,
+  onModeChange,
+}: {
+  task: Task;
+  project: Project | null;
+  graphs: GraphRecord[];
+  graphsLoading: boolean;
+  editing: boolean;
+  budget: BudgetView | null;
+  lang: string;
+  t: Translations;
+  onModeChange: (mode: "simple" | "graph", graphId?: string | null) => void;
+}) {
+  const td = t.taskDetail;
+  const mode = task.executionMode === "graph" ? "graph" : "simple";
+  const activeGraph = task.graphId ?? graphs[0]?.id;
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "tr-TR", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const gaugeColor = !budget
+    ? "var(--green)"
+    : budget.exceeded
+      ? "var(--red)"
+      : budget.pct >= 0.9
+        ? "var(--orange)"
+        : budget.pct >= 0.6
+          ? "var(--mustard)"
+          : "var(--green)";
+
+  return (
+    <div className="flex flex-col">
+      {/* Budget */}
+      {budget && (
+        <div className="ui-meta">
+          <MetaLabel icon={<IconCoin size={12} />}>{td.budgetLabel}</MetaLabel>
+          <div className="flex items-center gap-4">
+            <RingGauge
+              value={Math.min(budget.spent, budget.limit)}
+              max={budget.limit}
+              size={84}
+              thickness={9}
+              color={gaugeColor}
+              ariaLabel={td.budgetUsed}
+            >
+              <span className="text-[15px]">{Math.round(budget.pct * 100)}%</span>
+            </RingGauge>
+            <div className="min-w-0 flex-1">
+              <div className="font-mono text-[20px] font-bold leading-none tracking-tight text-ink">
+                ${budget.spent.toFixed(2)}
+              </div>
+              <div className="mt-1 font-mono text-[11.5px] text-ink-3">
+                / ${budget.limit.toFixed(2)} {td.budgetLimit.toLowerCase()}
+              </div>
+              <DotMeter
+                className="mt-2.5"
+                size="sm"
+                max={10}
+                value={budget.spent > 0 ? Math.max(1, budget.pct * 10) : 0}
+                color={gaugeColor}
+                label={td.budgetUsed}
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-2">
+            {budget.exceeded ? (
+              <StatusPill status="error" variant="solid" icon={<IconAlert size={12} />}>
+                {td.budgetExceeded}
+              </StatusPill>
+            ) : (
+              <span>
+                {budget.ownBudget
+                  ? td.budgetPerTask.replace("{v}", `$${budget.limit.toFixed(2)}`)
+                  : td.budgetProjectDefault}
+                {budget.spent === 0 && <span className="text-ink-3"> · {td.budgetNoUsage}</span>}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Execution mode */}
+      {!editing && (
+        <div className="ui-meta">
+          <MetaLabel icon={<IconFlow size={12} />}>{td.executionModeLabel}</MetaLabel>
+          <Segmented
+            size="sm"
+            label={td.executionModeLabel}
+            value={mode}
+            onChange={(v) => onModeChange(v, v === "graph" ? task.graphId ?? graphs[0]?.id ?? null : null)}
+            options={[
+              { value: "simple", label: td.modeSimple },
+              { value: "graph", label: td.modeGraph },
+            ]}
+            className="self-start"
+          />
+          {mode === "graph" && (
+            <div className="mt-1 flex flex-col gap-1.5">
+              <span className="text-[12px] font-semibold text-ink-2">{td.graphSelect}</span>
+              {graphsLoading ? (
+                <p className="font-mono text-[12px] text-ink-3">{td.graphsLoading}</p>
+              ) : graphs.length === 0 ? (
+                <p className="text-[12px] text-ink-3">{td.graphsEmpty}</p>
+              ) : (
+                <div role="radiogroup" aria-label={td.graphSelect} className="flex flex-col gap-1.5">
+                  {graphs.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={activeGraph === g.id}
+                      onClick={() => onModeChange("graph", g.id)}
+                      className="ui-option !py-1.5 font-mono text-[12px]"
+                    >
+                      <span
+                        aria-hidden
+                        className="ui-dot"
+                        style={{ "--dot": activeGraph === g.id ? "var(--mustard)" : "var(--sunken)" } as CSSProperties}
+                      />
+                      <span className="min-w-0 truncate">{g.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Links */}
+      <div className="ui-meta">
+        <MetaLabel icon={<IconBranch size={12} />}>{td.connectionsLabel}</MetaLabel>
+        {!task.branch && !task.prUrl && <p className="text-[12px] text-ink-3">{td.noLinks}</p>}
+        {task.branch && (
+          <code
+            title={task.branch}
+            className="flex items-center gap-1.5 truncate rounded-[8px] border-2 border-line bg-sunken px-2 py-1.5 font-mono text-[11.5px] text-ink"
+          >
+            <IconBranch size={13} className="shrink-0 text-ink-3" />
+            <span className="truncate">{task.branch}</span>
+          </code>
+        )}
+        {task.prUrl && (
+          <a
+            href={task.prUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ui-btn ui-btn--secondary ui-btn--sm ui-focus !justify-start"
+          >
+            <IconPR size={14} />
+            <span className="min-w-0 flex-1 truncate text-left">
+              {td.openPr} {task.prNumber ? `#${task.prNumber}` : ""}
+            </span>
+            <IconArrowUpRight size={13} />
+          </a>
+        )}
+        {task.prUrl && task.status === "done" && (
+          <StatusPill status="done" className="self-start">{td.merged}</StatusPill>
+        )}
+        {task.prUrl && task.agent.status === "error" && task.status !== "done" && (
+          <StatusPill status="error" className="self-start">{td.mergeError}</StatusPill>
+        )}
+      </div>
+
+      {/* Dates */}
+      <div className="ui-meta">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
+          <dt className="text-ink-3">{td.createdLabel}</dt>
+          <dd className="text-right font-mono text-ink-2">{fmt(task.createdAt)}</dd>
+          <dt className="text-ink-3">{td.updatedLabel}</dt>
+          <dd className="text-right font-mono text-ink-2">{fmt(task.updatedAt)}</dd>
+          {project && (
+            <>
+              <dt className="text-ink-3">{td.projectLabel}</dt>
+              <dd className="truncate text-right font-medium text-ink-2">{project.name}</dd>
+            </>
+          )}
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Small pieces ───────────────────────────────────────────────────────── */
+
+function MetaLabel({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
+  return (
+    <span className="t-label flex items-center gap-1.5 !text-ink-2">
+      {icon}
+      {children}
+    </span>
+  );
+}
+
 function Section({
+  n,
   label,
+  trailing,
   children,
 }: {
+  n: string;
   label: string;
-  numeral?: string;
-  children: React.ReactNode;
+  trailing?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <section className="mb-6">
-      <header className="mb-2.5">
-        <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-          {label}
-        </span>
+    <section className="mb-7">
+      <header className="ui-sechead">
+        <span className="ui-sechead__n">§{n}</span>
+        <h3 className="ui-sechead__t">{label}</h3>
+        {trailing && <span className="order-last">{trailing}</span>}
       </header>
       {children}
     </section>
   );
 }
 
-function Pill({ ink, label }: { ink: string; label: string }) {
+function EmptyLine({ children }: { children: ReactNode }) {
   return (
-    <span
-      className="inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium capitalize"
-      style={{ borderColor: ink, color: ink }}
-    >
-      <span className="h-1 w-1" style={{ background: ink }} />
-      {label}
-    </span>
+    <p className="ui-hatch rounded-[10px] border-2 border-dashed border-hair px-3 py-2.5 text-[13px] italic text-ink-3">
+      {children}
+    </p>
+  );
+}
+
+function TaskLinkRow({ task, t, onOpen }: { task: Task; t: Translations; onOpen: () => void }) {
+  const kind = STATUS_KIND[task.status];
+  return (
+    <button type="button" onClick={onOpen} className="ui-linkrow">
+      <span aria-hidden className="ui-dot" style={{ "--dot": STATUS_COLOR[kind].fill } as CSSProperties} />
+      {task.displayId && <span className="shrink-0 font-mono text-[11px] font-bold text-ink-3">{task.displayId}</span>}
+      <span className="min-w-0 flex-1 truncate font-medium text-ink">{task.title}</span>
+      <StatusPill status={kind} className="shrink-0 !h-5 !text-[11px]">
+        {t.board.columns[task.status]}
+      </StatusPill>
+    </button>
+  );
+}
+
+function QueueWaiting({ label }: { label: string }) {
+  return (
+    <div className="ui-hatch flex flex-1 flex-col items-center justify-center gap-3 rounded-[14px] border-2 border-dashed border-line py-14">
+      <span className="flex gap-1.5" aria-hidden>
+        <span className="animate-dot-1 h-2 w-2 rounded-full bg-ink-3" />
+        <span className="animate-dot-2 h-2 w-2 rounded-full bg-ink-3" />
+        <span className="animate-dot-3 h-2 w-2 rounded-full bg-ink-3" />
+      </span>
+      <span className="t-display text-[18px] text-ink-2">{label}</span>
+    </div>
   );
 }

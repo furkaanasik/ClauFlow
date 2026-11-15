@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ReactFlow,
   Background,
+  BackgroundVariant,
   Controls,
+  MarkerType,
   addEdge,
   useEdgesState,
   useNodesState,
@@ -18,9 +20,24 @@ import { api, ApiError, type ClaudeAgent, type InstalledPlugin } from "@/lib/api
 import type { AgentGraph, GraphRecord, NodeRun } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useTranslation } from "@/hooks/useTranslation";
+import { Button, IconButton } from "@/components/ui/Button";
+import { Input, Select } from "@/components/ui/Input";
+import { DotMeter } from "@/components/ui/Meters";
+import { SectionPill } from "@/components/ui/Pills";
+import { Tooltip } from "@/components/ui/Tooltip";
+import {
+  IconAlert,
+  IconCheck,
+  IconClose,
+  IconFlow,
+  IconInfo,
+  IconPlus,
+  IconRetry,
+  IconSpinner,
+  IconTrash,
+} from "@/components/ui/icons";
 import { AgentNode, type AgentNodeData } from "./AgentNode";
-
-const EMPTY_NODE_RUNS: Record<string, NodeRun> = Object.freeze({}) as Record<string, NodeRun>;
 import { AgentEditDrawer } from "./AgentEditDrawer";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { NodeRunPanel } from "./NodeRunPanel";
@@ -37,7 +54,16 @@ interface ValidationState {
   ids: Set<string>;
 }
 
+const EMPTY_NODE_RUNS: Record<string, NodeRun> = Object.freeze({}) as Record<string, NodeRun>;
+
 const NODE_TYPES: NodeTypes = { agent: AgentNode };
+
+/** Edges read as ink wires with a closed arrow head (token colour via CSS var). */
+const EDGE_DEFAULTS = {
+  markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "var(--ink-2)" },
+};
+
+const RECOMMENDED_MAX_AGENTS = 5;
 
 function buildNodes(
   agents: ClaudeAgent[],
@@ -66,6 +92,7 @@ function buildNodes(
 }
 
 export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvasProps) {
+  const st = useTranslation().studio;
   const [agents, setAgents] = useState<ClaudeAgent[]>([]);
   const [graph, setGraph] = useState<AgentGraph>({ nodes: [], edges: [] });
   const [installedSkills, setInstalledSkills] = useState<InstalledPlugin[]>([]);
@@ -263,14 +290,14 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
       setNodes(buildNodes(agentList, graphData.nodes, onEdit, onRemoveSkill, onAddSkill));
       setEdges(graphData.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load canvas");
+      setError(err instanceof Error ? err.message : st.loadError);
     } finally {
       setLoading(false);
       setIsDirty(false);
     }
     // Also refresh graph records
     void loadGraphRecords();
-  }, [projectId, onEdit, onRemoveSkill, onAddSkill, setNodes, setEdges, loadGraphRecords]);
+  }, [projectId, onEdit, onRemoveSkill, onAddSkill, setNodes, setEdges, loadGraphRecords, st.loadError]);
 
   useEffect(() => {
     // Fires on initial mount (prev=null !== projectId) AND on projectId
@@ -471,32 +498,6 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
     }
   }, [newGraphName, projectId, loadGraphData]);
 
-  const handleSaveCurrentGraph = useCallback(async () => {
-    const currentGraphData: AgentGraph = {
-      nodes: nodes.map((n) => ({
-        id: n.id,
-        type: "agent" as const,
-        position: n.position,
-        data: { slug: n.id },
-      })),
-      edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
-    };
-    if (activeGraphId) {
-      try {
-        const updated = await api.updateGraph(projectId, activeGraphId, {
-          data: currentGraphData,
-        });
-        setGraphRecords((prev) =>
-          prev.map((g) => (g.id === activeGraphId ? updated : g)),
-        );
-        setIsDirty(false);
-        setValidation(null);
-      } catch {
-        // leave dirty
-      }
-    }
-  }, [activeGraphId, projectId, nodes, edges]);
-
   const handleDeleteGraph = useCallback(async () => {
     if (!activeGraphId) return;
     setDeletingGraph(true);
@@ -634,34 +635,53 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-[12px] text-[var(--text-muted)]">
-        Loading canvas...
+      <div className="studio-canvas flex h-full min-h-[420px] flex-1 flex-col items-center justify-center gap-3 text-ink-2">
+        <span
+          aria-hidden
+          className="grid h-11 w-11 place-items-center rounded-[12px] border-2 border-line bg-panel shadow-hard"
+        >
+          <IconSpinner size={18} />
+        </span>
+        <span className="text-[13px] font-medium">{st.loading}</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3">
-        <div className="text-[12px] text-[var(--status-error)]">{error}</div>
-        <button
-          type="button"
-          onClick={() => void loadAll()}
-          className="border border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
-        >
-          Retry
-        </button>
+      <div className="studio-canvas flex h-full min-h-[420px] flex-1 items-center justify-center p-6">
+        <div className="flex max-w-md flex-col items-center gap-3 rounded-[14px] border-2 border-line bg-panel px-6 py-8 text-center shadow-hard">
+          <span
+            aria-hidden
+            className="grid h-11 w-11 place-items-center rounded-[12px] border-2 border-line bg-red text-[var(--on-red)] shadow-hard"
+          >
+            <IconAlert size={20} />
+          </span>
+          <p className="t-display text-[18px] text-ink">{st.loadError}</p>
+          <p className="font-mono text-[12px] leading-relaxed text-ink-2">{error}</p>
+          <Button size="sm" variant="secondary" icon={<IconRetry size={13} />} onClick={() => void loadAll()}>
+            {st.retryLoad}
+          </Button>
+        </div>
       </div>
     );
   }
 
   const activeGraphName =
     activeGraphId
-      ? (graphRecords.find((g) => g.id === activeGraphId)?.name ?? "Graph")
-      : "Default";
+      ? (graphRecords.find((g) => g.id === activeGraphId)?.name ?? st.graphFallback)
+      : st.graphDefault;
+  const activeRecord = graphRecords.find((g) => g.id === activeGraphId);
+  const isDefaultGraph = !activeGraphId || activeRecord?.name === "default";
+  const overLimit = nodes.length > RECOMMENDED_MAX_AGENTS;
+  const runCount = Object.keys(nodeRuns).length;
+  const cancelNewGraph = () => {
+    setShowNewGraphInput(false);
+    setNewGraphName("");
+  };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       <StudioToolbar
         projectId={projectId}
         installedSkills={installedSkills}
@@ -670,82 +690,113 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
         onSetGenOpen={setGenOpen}
       />
 
-      {/* Graph selector toolbar */}
-      <div className="flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-base)] px-4 py-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
-          Graph:
-        </span>
-        <select
+      {/* Graph bar */}
+      <div className="flex flex-wrap items-center gap-2 border-b-2 border-line bg-panel px-4 py-2">
+        <SectionPill size="sm" icon={<IconFlow size={12} />}>
+          {st.graph}
+        </SectionPill>
+        <Select
+          size="sm"
           value={activeGraphId ?? graphRecords[0]?.id ?? ""}
           onChange={(e) => handleSelectGraph(e.target.value || null)}
-          className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 font-mono text-[11px] text-[var(--text-secondary)] focus:border-[var(--text-secondary)] focus:outline-none"
-          title="Select graph"
+          aria-label={st.selectGraph}
+          className="w-[200px] font-mono"
         >
+          {graphRecords.length === 0 && <option value="">{st.graphDefault}</option>}
           {graphRecords.map((g) => (
             <option key={g.id} value={g.id}>
               {g.name}
             </option>
           ))}
-        </select>
+        </Select>
 
-        {/* New graph inline input */}
         {showNewGraphInput ? (
           <>
-            <input
-              type="text"
+            <Input
+              size="sm"
               value={newGraphName}
               onChange={(e) => setNewGraphName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void handleCreateGraph();
-                if (e.key === "Escape") { setShowNewGraphInput(false); setNewGraphName(""); }
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  cancelNewGraph();
+                }
               }}
-              placeholder="Graph name..."
+              placeholder={st.graphNamePlaceholder}
+              aria-label={st.graphNamePlaceholder}
               autoFocus
-              className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--text-secondary)] focus:outline-none"
+              className="w-[190px] font-mono"
             />
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<IconCheck size={13} />}
               onClick={() => void handleCreateGraph()}
-              disabled={creatingGraph || !newGraphName.trim()}
-              className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
+              disabled={!newGraphName.trim()}
+              loading={creatingGraph}
             >
-              {creatingGraph ? "..." : "Create"}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowNewGraphInput(false); setNewGraphName(""); }}
-              className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-            >
-              Cancel
-            </button>
+              {st.create}
+            </Button>
+            <IconButton label={st.cancel} size="sm" variant="ghost" onClick={cancelNewGraph}>
+              <IconClose size={13} />
+            </IconButton>
           </>
         ) : (
-          <button
-            type="button"
-            onClick={() => setShowNewGraphInput(true)}
-            title="Create new graph"
-            className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          >
-            + New
-          </button>
+          <Button size="sm" variant="secondary" icon={<IconPlus size={13} />} onClick={() => setShowNewGraphInput(true)}>
+            {st.newGraph}
+          </Button>
         )}
 
-        {/* Delete current graph — disabled for default */}
-        {(() => {
-          const activeRecord = graphRecords.find((g) => g.id === activeGraphId);
-          const isDefault = !activeGraphId || activeRecord?.name === "default";
-          return (
-            <button
-              type="button"
-              onClick={() => setConfirmDeleteGraph(true)}
-              disabled={isDefault || deletingGraph}
-              title={isDefault ? "Cannot delete the default graph" : "Delete this graph"}
-              className="border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--text-muted)] transition hover:border-[var(--status-error)] hover:text-[var(--status-error)] disabled:opacity-30 disabled:cursor-not-allowed"
+        <Tooltip content={isDefaultGraph ? st.cannotDeleteDefault : st.deleteGraph} side="bottom">
+          <IconButton
+            label={isDefaultGraph ? st.cannotDeleteDefault : st.deleteGraph}
+            size="sm"
+            variant="danger"
+            onClick={() => setConfirmDeleteGraph(true)}
+            disabled={isDefaultGraph || deletingGraph}
+          >
+            <IconTrash size={13} />
+          </IconButton>
+        </Tooltip>
+
+        <div className="ml-auto flex items-center gap-3">
+          <span
+            title={overLimit ? st.agentLimitOver : st.agentLimit}
+            className="inline-flex items-center gap-2"
+          >
+            <span className="t-label !text-[10px]">{st.agentsMeter}</span>
+            <DotMeter
+              value={Math.min(nodes.length, RECOMMENDED_MAX_AGENTS)}
+              max={RECOMMENDED_MAX_AGENTS}
+              size="sm"
+              color={overLimit ? "var(--orange)" : "var(--mustard)"}
+              label={st.agentsMeter}
+            />
+            <span
+              className="font-mono text-[12px] font-semibold tabular-nums"
+              style={{ color: overLimit ? "var(--orange-text)" : "var(--ink-2)" }}
             >
-              Del
-            </button>
-          );
-        })()}
+              {nodes.length}/{RECOMMENDED_MAX_AGENTS}
+            </span>
+          </span>
+          {isDirty && (
+            <span className="hidden items-center gap-1.5 text-[12px] font-semibold text-[var(--orange-text)] lg:inline-flex">
+              <span aria-hidden className="ui-dot ui-dot--live !h-2 !w-2" style={{ "--dot": "var(--orange)" } as CSSProperties} />
+              {st.unsaved}
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant={isDirty ? "primary" : "secondary"}
+            icon={<IconCheck size={13} />}
+            onClick={() => void handleSave()}
+            disabled={!isDirty}
+            loading={saving}
+          >
+            {saving ? st.saving : st.saveLayout}
+          </Button>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1">
@@ -754,52 +805,40 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
           onSkillsChanged={() => void loadAll()}
         />
 
-        <div className="relative flex-1">
-          {/* Run-trace banner */}
-          {taskId && (
-            <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-[11px] text-blue-300 shadow">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
-              <span className="font-mono">
-                Live: {taskRef ?? taskId}
-                {!explicitTaskId && (
-                  <span className="ml-1 text-[10px] text-blue-400/60">(auto)</span>
-                )}
-                <span className="ml-1 text-[10px] text-blue-400/60">
-                  ({Object.keys(nodeRuns).length} runs:{" "}
-                  {Object.keys(nodeRuns).join(",") || "—"})
-                </span>
-              </span>
+        <div className="studio-canvas relative min-w-0 flex-1">
+          {(taskId || validation) && (
+            <div className="pointer-events-none absolute left-4 top-4 z-10 flex max-w-[440px] flex-col items-start gap-2">
+              {taskId && (
+                <div className="studio-live pointer-events-auto">
+                  <span aria-hidden className="ui-dot ui-dot--live !h-2 !w-2" style={{ "--dot": "var(--orange)" } as CSSProperties} />
+                  <span className="font-bold">{st.live}</span>
+                  <span className="ui-keyplate !h-5 !text-[10px]">{taskRef ?? taskId}</span>
+                  {!explicitTaskId && <span className="text-ink-3">{st.autoBound}</span>}
+                  <span className="font-mono text-[11px] text-ink-3">· {st.runCount(runCount)}</span>
+                </div>
+              )}
+              {validation && (
+                <div role="alert" className="ui-banner ui-banner--error pointer-events-auto !bg-panel shadow-hard">
+                  <IconAlert size={14} className="mt-0.5 shrink-0" />
+                  <span>
+                    <span className="font-semibold">{st.graphInvalid}</span>{" "}
+                    <span className="font-mono">{validation.reason}</span>
+                    {validation.ids.size > 0 && (
+                      <span className="ml-1 font-mono text-[11px] text-ink-3">
+                        ({[...validation.ids].join(", ")})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
           )}
-
-          {/* Agent count + Save button */}
-          <div className="absolute right-4 top-4 z-10 flex flex-col items-end gap-1.5">
-            <span
-              title={nodes.length > 5 ? "Recommended max is 5 agents — coordinator overhead grows beyond this." : "Recommended max for Claude orchestration: 5 agents."}
-              className={[
-                "inline-flex items-center gap-1 border px-2 py-0.5 font-mono text-[10px]",
-                nodes.length > 5
-                  ? "border-[var(--status-warning)] text-[var(--status-warning)]"
-                  : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)]",
-              ].join(" ")}
-            >
-              {nodes.length}<span className="text-[var(--text-faint)]">/5</span>
-              <span className="text-[var(--text-faint)]">agents</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={!isDirty || saving}
-              className="border border-[var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] shadow transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
-            >
-              {saving ? "Saving..." : "Save layout"}
-            </button>
-          </div>
 
           <ReactFlow
             nodes={nodes}
             edges={edges}
             nodeTypes={NODE_TYPES}
+            defaultEdgeOptions={EDGE_DEFAULTS}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onConnect={handleConnect}
@@ -838,21 +877,20 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
               if (nodeId) void handleDropOnNode(nodeId, skillId);
             }}
             fitView
+            fitViewOptions={{ padding: 0.25, maxZoom: 1.1 }}
             proOptions={{ hideAttribution: true }}
-            className="bg-[var(--bg-surface)]"
+            className="studio-flow"
           >
-            <Background color="var(--border)" gap={20} />
+            <Background variant={BackgroundVariant.Dots} gap={22} size={2} />
             <Controls />
           </ReactFlow>
 
-          {validation && (
-            <div className="absolute left-4 top-4 z-10 max-w-[400px] rounded border border-rose-500 bg-[var(--bg-base)] px-3 py-2 text-[11px] text-rose-500 shadow">
-              Graph invalid: <span className="font-mono">{validation.reason}</span>
-              {validation.ids.size > 0 && (
-                <span className="ml-1 font-mono text-[10px] text-[var(--text-muted)]">
-                  ({[...validation.ids].join(", ")})
-                </span>
-              )}
+          {nodes.length <= 1 && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex justify-center px-6">
+              <div className="studio-hint">
+                <IconInfo size={14} className="shrink-0 text-[var(--cobalt-text)]" />
+                <span>{st.emptyCanvasHint}</span>
+              </div>
             </div>
           )}
         </div>
@@ -873,10 +911,13 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
         )}
       </div>
 
-      <div className="flex items-center gap-1.5 border-t border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5">
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--text-muted)]"><circle cx="8" cy="8" r="7"/><path d="M8 7v4M8 5h.01"/></svg>
-        <span className="font-mono text-[10px] text-[var(--text-faint)]">
-          Project CLAUDE.md and hooks remain active during graph execution — they may influence node behavior.
+      <div className="flex items-center gap-2 border-t-2 border-line bg-panel px-4 py-2 text-[12px] text-ink-3">
+        <IconInfo size={13} className="shrink-0" />
+        <span className="truncate">{st.hooksNote}</span>
+        <span className="ml-auto hidden shrink-0 items-center gap-3 font-mono text-[11px] xl:inline-flex">
+          <span>{st.tipConnect}</span>
+          <span aria-hidden>·</span>
+          <span>{st.tipDelete}</span>
         </span>
       </div>
 
@@ -898,10 +939,10 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
 
       <ConfirmDialog
         open={confirmDeleteGraph}
-        title="Delete graph?"
-        description={`"${activeGraphName}" will be permanently deleted. This cannot be undone.`}
-        confirmLabel={deletingGraph ? "Deleting..." : "Delete"}
-        cancelLabel="Cancel"
+        title={st.confirmDeleteGraphTitle}
+        description={st.confirmDeleteGraphDescription.replace("{name}", activeGraphName)}
+        confirmLabel={deletingGraph ? st.deleting : st.delete}
+        cancelLabel={st.cancel}
         variant="danger"
         onConfirm={() => void handleDeleteGraph()}
         onCancel={() => setConfirmDeleteGraph(false)}
@@ -909,10 +950,10 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
 
       <ConfirmDialog
         open={confirmSaveEmpty}
-        title="Save graph with no edges?"
-        description="This graph has multiple nodes but no edges. Saving will overwrite the existing connections on disk. Continue?"
-        confirmLabel="Save anyway"
-        cancelLabel="Cancel"
+        title={st.confirmEmptyTitle}
+        description={st.confirmEmptyDescription}
+        confirmLabel={st.saveAnyway}
+        cancelLabel={st.cancel}
         variant="warning"
         onConfirm={() => {
           setConfirmSaveEmpty(false);

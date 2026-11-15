@@ -1,12 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useNotificationStore } from "@/hooks/useNotification";
+import { useTranslation } from "@/hooks/useTranslation";
+import { Button, IconButton } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Switch } from "@/components/ui/Toggle";
+import { IconBell, IconCheck } from "@/components/ui/icons";
+import { useDismiss } from "@/components/ui/overlay";
 
 export function NotificationPopover() {
+  const t = useTranslation().notifications;
   const [open, setOpen] = useState(false);
   const [webhookInput, setWebhookInput] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+  const hookId = useId();
 
   const browserEnabled = useNotificationStore((s) => s.browserEnabled);
   const webhookUrl = useNotificationStore((s) => s.webhookUrl);
@@ -14,23 +23,13 @@ export function NotificationPopover() {
   const setWebhookUrl = useNotificationStore((s) => s.setWebhookUrl);
   const requestPermission = useNotificationStore((s) => s.requestPermission);
 
-  const permission =
-    typeof Notification !== "undefined" ? Notification.permission : "default";
+  const permission = typeof Notification !== "undefined" ? Notification.permission : "default";
 
   useEffect(() => {
     setWebhookInput(webhookUrl);
   }, [webhookUrl]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  useDismiss(ref, open, () => setOpen(false));
 
   const handleEnable = async () => {
     await requestPermission();
@@ -49,101 +48,96 @@ export function NotificationPopover() {
     }
   };
 
+  const active = (permission === "granted" && browserEnabled) || Boolean(webhookUrl);
+
+  const browserState =
+    permission === "denied"
+      ? { text: t.blocked, tone: "var(--red-text)" }
+      : permission === "granted" && browserEnabled
+        ? { text: t.enabled, tone: "var(--green-text)" }
+        : permission === "granted"
+          ? { text: t.grantedHint, tone: "var(--ink-3)" }
+          : { text: t.notRequested, tone: "var(--ink-3)" };
+
   return (
     <div className="relative" ref={ref}>
-      <button
-        type="button"
+      <IconButton
+        label={t.title}
+        size="sm"
+        variant="ghost"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 w-9 items-center justify-center text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-        title="Notifications"
+        className="relative"
       >
-        <BellIcon />
-      </button>
+        <IconBell size={16} />
+        {active && (
+          <span
+            aria-hidden
+            className="absolute right-1 top-1 h-2 w-2 rounded-full border-[1.5px] border-line bg-green"
+          />
+        )}
+      </IconButton>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-72 border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
-          <div className="border-b border-[var(--border)] px-4 py-2.5">
-            <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-              Notifications
+        <div id={panelId} role="dialog" aria-label={t.title} className="ui-menu right-0 top-[calc(100%+10px)] w-[320px] overflow-hidden">
+          <header className="flex items-center gap-2 border-b-2 border-line px-4 py-3">
+            <span
+              aria-hidden
+              className="grid h-7 w-7 place-items-center rounded-[8px] border-2 border-line bg-mustard text-[var(--on-mustard)]"
+            >
+              <IconBell size={14} />
             </span>
-          </div>
+            <span className="text-[14px] font-bold text-ink">{t.title}</span>
+          </header>
 
-          <div className="px-4 py-3 space-y-4">
-            {/* Browser notifications row */}
+          <div className="flex flex-col gap-4 px-4 py-4">
+            {/* Browser notifications */}
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[13px] text-[var(--text-primary)]">Browser notifications</p>
-                {permission === "denied" && (
-                  <p className="mt-0.5 text-[11px] text-[var(--status-error)]">Blocked by browser</p>
-                )}
-                {permission === "granted" && browserEnabled && (
-                  <p className="mt-0.5 text-[11px] text-[var(--accent-primary)]">Enabled</p>
-                )}
-                {permission === "granted" && !browserEnabled && (
-                  <p className="mt-0.5 text-[11px] text-[var(--text-faint)]">Permission granted — toggle to enable</p>
-                )}
-                {permission === "default" && (
-                  <p className="mt-0.5 text-[11px] text-[var(--text-faint)]">Not yet requested</p>
-                )}
+              <div className="min-w-0">
+                <p className="text-[13.5px] font-semibold text-ink">{t.browser}</p>
+                <p className="mt-0.5 text-[12px] leading-snug text-ink-3">{t.browserHint}</p>
+                <p className="mt-1 flex items-center gap-1 text-[12px] font-semibold" style={{ color: browserState.tone }}>
+                  {permission === "granted" && browserEnabled && <IconCheck size={12} />}
+                  {browserState.text}
+                </p>
               </div>
               {permission === "denied" ? null : permission === "default" ? (
-                <button
-                  type="button"
-                  onClick={handleEnable}
-                  className="shrink-0 border border-[var(--border)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-                >
-                  Enable
-                </button>
+                <Button size="sm" variant="secondary" onClick={handleEnable}>
+                  {t.enable}
+                </Button>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleBrowserToggle}
-                  className={`relative shrink-0 h-5 w-9 rounded-full border transition ${
-                    browserEnabled
-                      ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]"
-                      : "border-[var(--border)] bg-[var(--bg-base)]"
-                  }`}
-                  title={browserEnabled ? "Disable" : "Enable"}
-                >
-                  <span
-                    className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${
-                      browserEnabled ? "left-[18px]" : "left-0.5"
-                    }`}
-                  />
-                </button>
+                <Switch checked={browserEnabled} onCheckedChange={handleBrowserToggle} label={t.toggle} className="mt-0.5" />
               )}
             </div>
 
-            {/* Webhook URL row */}
-            <div className="space-y-1.5">
-              <label className="block text-[13px] text-[var(--text-primary)]">Webhook URL</label>
-              <input
+            <span aria-hidden className="h-[2px] rounded bg-hair" />
+
+            {/* Webhook */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={hookId} className="text-[13.5px] font-semibold text-ink">
+                {t.webhook}
+              </label>
+              <p className="text-[12px] leading-snug text-ink-3">{t.webhookHint}</p>
+              <Input
+                id={hookId}
                 type="url"
+                size="sm"
                 value={webhookInput}
                 onChange={(e) => setWebhookInput(e.target.value)}
-                placeholder="https://hooks.slack.com/..."
-                className="w-full border border-[var(--border)] bg-[var(--bg-base)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent-primary)]"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSave();
+                }}
+                placeholder={t.webhookPlaceholder}
+                className="font-mono !text-[12px]"
               />
-              <button
-                type="button"
-                onClick={handleSave}
-                className="w-full border border-[var(--border)] py-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-              >
-                Save
-              </button>
+              <Button size="sm" variant="primary" block onClick={handleSave} className="mt-1">
+                {t.save}
+              </Button>
             </div>
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
   );
 }

@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { StatusPill } from "@/components/ui/Pills";
+import { IconAlert, IconArrowUpRight, IconCheck, IconCopy, IconGithub, IconRetry, IconSpinner } from "@/components/ui/icons";
 import {
   startGithubAuth,
   type GithubAuthStart,
   type GithubAuthStatus,
 } from "@/lib/api";
 import { useGithubAuth } from "@/hooks/useGithubAuth";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface GithubConnectModalProps {
   open: boolean;
@@ -15,11 +19,8 @@ interface GithubConnectModalProps {
   onConnected?: (status: GithubAuthStatus) => void;
 }
 
-export function GithubConnectModal({
-  open,
-  onClose,
-  onConnected,
-}: GithubConnectModalProps) {
+export function GithubConnectModal({ open, onClose, onConnected }: GithubConnectModalProps) {
+  const t = useTranslation().githubConnect;
   const { status, refresh } = useGithubAuth(open);
 
   const [startData, setStartData] = useState<GithubAuthStart | null>(null);
@@ -64,8 +65,7 @@ export function GithubConnectModal({
   }, [open, status, onConnected, onClose]);
 
   const userCode = startData?.userCode ?? status.userCode ?? null;
-  const verificationUri =
-    startData?.verificationUri ?? status.verificationUri ?? null;
+  const verificationUri = startData?.verificationUri ?? status.verificationUri ?? null;
 
   const handleCopy = async () => {
     if (!userCode) return;
@@ -84,89 +84,113 @@ export function GithubConnectModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Connect GitHub">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t.title}
+      description={t.intro}
+      icon={<IconGithub size={18} />}
+      footerStart={
+        userCode ? (
+          <StatusPill status="info" live>
+            {t.waiting}
+          </StatusPill>
+        ) : undefined
+      }
+    >
       <div className="flex flex-col gap-5">
         {startLoading && !userCode && (
-          <p className="text-[12px] text-[var(--text-muted)]">
-            Requesting code…
+          <p className="flex items-center gap-2 text-[13px] text-ink-2">
+            <IconSpinner size={14} />
+            {t.requesting}
           </p>
         )}
 
         {startError && (
-          <div className="flex flex-col gap-2 border border-[var(--status-error)] bg-[var(--status-error-ink)] p-3">
-            <p className="text-xs text-[var(--status-error)]">{startError}</p>
-            <button
-              type="button"
-              onClick={beginFlow}
-              className="btn-ghost self-start px-3 py-1.5 text-[12px] font-medium"
-            >
-              Retry
-            </button>
+          <div role="alert" className="ui-banner ui-banner--error items-center">
+            <IconAlert size={15} className="shrink-0" />
+            <span className="min-w-0 flex-1">{startError}</span>
+            <Button size="sm" variant="secondary" icon={<IconRetry size={13} />} onClick={beginFlow}>
+              {t.retry}
+            </Button>
           </div>
         )}
 
         {userCode && (
-          <>
-            <Step label="Copy this code">
+          <ol className="flex flex-col gap-4">
+            <Step n={1} label={t.step1}>
               <div className="flex items-stretch gap-2">
-                <div className="flex flex-1 items-center justify-center border border-[var(--border)] bg-[var(--bg-surface)] py-3 text-center font-mono text-2xl font-bold tracking-[0.4em] text-[var(--text-primary)]">
-                  {userCode}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="btn-ghost px-4 text-[12px] font-medium"
+                <div
+                  className="flex flex-1 items-center justify-center gap-[0.35em] rounded-[12px] border-2 border-line bg-sunken py-3.5 font-mono text-[26px] font-bold text-ink"
+                  aria-label={userCode}
                 >
-                  {copied ? "Copied ✓" : "Copy"}
-                </button>
+                  {userCode.split("").map((ch, i) =>
+                    ch === "-" ? (
+                      <span key={i} aria-hidden className="text-ink-3">
+                        –
+                      </span>
+                    ) : (
+                      <span
+                        key={i}
+                        aria-hidden
+                        className="grid h-11 w-8 place-items-center rounded-[7px] border-2 border-line bg-panel"
+                        style={{ boxShadow: "2px 2px 0 var(--shadow-ink)" }}
+                      >
+                        {ch}
+                      </span>
+                    ),
+                  )}
+                </div>
+                <Button
+                  variant="secondary"
+                  className="!h-auto"
+                  icon={copied ? <IconCheck size={15} /> : <IconCopy size={15} />}
+                  onClick={handleCopy}
+                >
+                  {copied ? t.copied : t.copy}
+                </Button>
               </div>
             </Step>
 
-            <Step label="Open GitHub & paste">
-              <button
-                type="button"
+            <Step n={2} label={t.step2}>
+              <Button
+                variant="primary"
+                icon={<IconGithub size={15} />}
+                iconRight={<IconArrowUpRight size={14} />}
                 onClick={handleOpenGithub}
                 disabled={!verificationUri}
-                className="btn-ink inline-flex items-center gap-3 px-4 py-2 text-[12px] font-medium disabled:opacity-50"
+                className="self-start"
               >
-                {verificationUri
-                  ? `${stripProtocol(verificationUri)}`
-                  : "Link unavailable"}
-                <span aria-hidden>↗</span>
-              </button>
+                <span className="font-mono">{verificationUri ? stripProtocol(verificationUri) : t.linkUnavailable}</span>
+              </Button>
             </Step>
 
-            <div className="flex items-center gap-2 border-t border-[var(--border)] pt-3">
-              <span className="h-1.5 w-1.5 animate-pulse bg-[var(--accent-primary)]" />
-              <span className="text-[12px] text-[var(--text-muted)]">
-                Waiting for confirmation…
-              </span>
-            </div>
-
             {status.error && (
-              <p className="text-xs text-[var(--status-error)]">{status.error}</p>
+              <p role="alert" className="ui-banner ui-banner--error">
+                {status.error}
+              </p>
             )}
-          </>
+          </ol>
         )}
       </div>
     </Modal>
   );
 }
 
-function Step({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Step({ n, label, children }: { n: number; label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-[12px] font-medium text-[var(--text-secondary)]">
-        {label}
+    <li className="flex gap-3">
+      <span
+        aria-hidden
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 border-line bg-mustard font-mono text-[12px] font-bold text-[var(--on-mustard)]"
+      >
+        {n}
       </span>
-      {children}
-    </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5 pt-0.5">
+        <span className="text-[14px] font-semibold text-ink">{label}</span>
+        {children}
+      </div>
+    </li>
   );
 }
 

@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { api, type PrereqItem } from "@/lib/api";
 import { useTranslation } from "@/hooks/useTranslation";
+import { IconButton } from "@/components/ui/Button";
+import { DotMeter } from "@/components/ui/Meters";
+import { IconArrowUpRight, IconCheck, IconClose, IconCopy, IconRetry, IconSpinner } from "@/components/ui/icons";
+import { useDismiss } from "@/components/ui/overlay";
 
 type State =
   | { kind: "loading" }
@@ -14,7 +18,8 @@ export function PrereqIndicator() {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const popRef = useRef<HTMLDivElement | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const panelId = useId();
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -27,39 +32,30 @@ export function PrereqIndicator() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useDismiss(ref, open, () => setOpen(false));
 
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (!popRef.current) return;
-      if (!popRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener("mousedown", onClick);
-    return () => window.removeEventListener("mousedown", onClick);
-  }, [open]);
-
-  const missing =
-    state.kind === "ok" ? state.items.filter((i) => !i.found).length : 0;
+  const total = state.kind === "ok" ? state.items.length : 0;
+  const missing = state.kind === "ok" ? state.items.filter((i) => !i.found).length : 0;
   const allOk = state.kind === "ok" && missing === 0;
-  const dotColor =
+  const dot =
     state.kind === "loading"
-      ? "bg-[var(--text-faint)]"
+      ? "var(--ink-3)"
       : state.kind === "error"
-      ? "bg-[var(--status-error)]"
-      : allOk
-      ? "bg-[var(--accent-primary)]"
-      : "bg-[var(--status-warning)]";
+        ? "var(--red)"
+        : allOk
+          ? "var(--green)"
+          : "var(--orange)";
 
   const labelText =
     state.kind === "loading"
       ? t.checking
       : state.kind === "error"
-      ? t.error
-      : allOk
-      ? t.allGood
-      : missing === 1
-      ? t.missingOne
-      : t.missingMany.replace("{n}", String(missing));
+        ? t.error
+        : allOk
+          ? t.allGood
+          : missing === 1
+            ? t.missingOne
+            : t.missingMany.replace("{n}", String(missing));
 
   const copy = async (cmd: string, key: string) => {
     try {
@@ -70,90 +66,119 @@ export function PrereqIndicator() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 items-center gap-1.5 px-2 text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        aria-label={`${t.title}: ${labelText}`}
         title={`${t.title}: ${labelText}`}
+        className="ui-focus flex h-8 items-center gap-1.5 rounded-[8px] px-2 text-ink-2 transition hover:bg-hair hover:text-ink"
       >
-        <span className={`h-1.5 w-1.5 ${dotColor}`} />
-        <span className="hidden text-[11px] font-mono uppercase tracking-[0.1em] md:inline">
-          ENV
-        </span>
+        <span
+          aria-hidden
+          className={state.kind === "ok" && !allOk ? "ui-dot ui-dot--live" : "ui-dot"}
+          style={{ "--dot": dot } as CSSProperties}
+        />
+        <span className="hidden font-mono text-[11px] font-bold tracking-[0.1em] md:inline">{t.envLabel}</span>
       </button>
 
       {open && (
-        <div
-          ref={popRef}
-          className="absolute right-0 top-full z-40 mt-2 w-[360px] border border-[var(--border)] bg-[var(--bg-base)] shadow-xl"
-        >
-          <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-              {t.title}
-            </span>
-            <button
-              type="button"
+        <div id={panelId} role="dialog" aria-label={t.title} className="ui-menu right-0 top-[calc(100%+10px)] w-[380px] overflow-hidden">
+          <header className="flex items-center gap-3 border-b-2 border-line px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] font-bold text-ink">{t.title}</div>
+              <div className="mt-1 flex items-center gap-2">
+                {state.kind === "ok" ? (
+                  <>
+                    <DotMeter
+                      size="sm"
+                      value={total - missing}
+                      max={Math.max(total, 1)}
+                      color={allOk ? "var(--green)" : "var(--orange)"}
+                      label={labelText}
+                    />
+                    <span className="font-mono text-[11px] font-semibold text-ink-2">
+                      {t.readyCount.replace("{n}", String(total - missing)).replace("{total}", String(total))}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[12px] text-ink-3">{labelText}</span>
+                )}
+              </div>
+            </div>
+            <IconButton
+              label={t.rerun}
+              size="sm"
+              variant="secondary"
+              loading={state.kind === "loading"}
               onClick={() => void load()}
-              className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
-              {t.rerun}
-            </button>
-          </div>
+              <IconRetry size={14} />
+            </IconButton>
+          </header>
 
           <div className="max-h-[60vh] overflow-y-auto p-2">
             {state.kind === "loading" && (
-              <div className="px-2 py-3 text-[12px] text-[var(--text-muted)]">{t.checking}</div>
+              <div className="flex items-center gap-2 px-2 py-3 text-[13px] text-ink-2">
+                <IconSpinner size={14} />
+                {t.checking}
+              </div>
             )}
             {state.kind === "error" && (
-              <div className="px-2 py-3 text-[12px] text-[var(--status-error)]">
+              <div role="alert" className="ui-banner ui-banner--error m-1">
                 {t.error}: {state.message}
               </div>
             )}
-            {state.kind === "ok" && state.items.map((item) => (
-              <div
-                key={item.name}
-                className="border-b border-[var(--border)] px-2 py-2 last:border-b-0"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
+            {state.kind === "ok" &&
+              state.items.map((item) => (
+                <div key={item.name} className="rounded-[10px] px-2 py-2 transition hover:bg-hair">
+                  <div className="flex items-center gap-2.5">
                     <span
-                      className={`h-1.5 w-1.5 shrink-0 ${
-                        item.found ? "bg-[var(--accent-primary)]" : "bg-[var(--status-error)]"
-                      }`}
-                    />
-                    <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
-                      {item.name}
+                      aria-hidden
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded-[7px] border-2 border-line"
+                      style={{
+                        background: item.found ? "var(--green)" : "var(--red)",
+                        color: item.found ? "var(--on-green)" : "var(--on-red)",
+                      }}
+                    >
+                      {item.found ? <IconCheck size={12} /> : <IconClose size={11} />}
                     </span>
-                    <span className="truncate text-[11px] text-[var(--text-muted)]">
+                    <span className="font-mono text-[13px] font-bold text-ink">{item.name}</span>
+                    <span
+                      className="min-w-0 flex-1 truncate font-mono text-[11.5px]"
+                      style={{ color: item.found ? "var(--ink-3)" : "var(--red-text)" }}
+                    >
                       {item.found ? item.version ?? t.found : t.missing}
                     </span>
-                  </div>
-                  <a
-                    href={item.docsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] text-[var(--text-muted)] hover:text-[var(--accent-primary)]"
-                  >
-                    {t.docs} ↗
-                  </a>
-                </div>
-                {!item.found && (
-                  <div className="mt-2 flex items-stretch gap-1">
-                    <code className="flex-1 overflow-x-auto whitespace-nowrap border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[11px] text-[var(--text-secondary)]">
-                      {item.installCmd}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => void copy(item.installCmd, item.name)}
-                      className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-[11px] text-[var(--text-muted)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    <a
+                      href={item.docsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ui-focus inline-flex items-center gap-0.5 rounded-[6px] px-1.5 py-0.5 text-[12px] font-semibold text-[var(--cobalt-text)] hover:bg-hair"
                     >
-                      {copied === item.name ? t.copied : t.copy}
-                    </button>
+                      {t.docs}
+                      <IconArrowUpRight size={11} />
+                    </a>
                   </div>
-                )}
-              </div>
-            ))}
+                  {!item.found && (
+                    <div className="mt-2 flex items-stretch gap-1.5 pl-[2.1rem]">
+                      <code className="flex-1 overflow-x-auto whitespace-nowrap rounded-[8px] border-2 border-line bg-sunken px-2.5 py-1.5 font-mono text-[11.5px] text-ink">
+                        {item.installCmd}
+                      </code>
+                      <IconButton
+                        label={copied === item.name ? t.copied : t.copy}
+                        size="sm"
+                        variant={copied === item.name ? "primary" : "secondary"}
+                        onClick={() => void copy(item.installCmd, item.name)}
+                      >
+                        {copied === item.name ? <IconCheck size={13} /> : <IconCopy size={13} />}
+                      </IconButton>
+                    </div>
+                  )}
+                </div>
+              ))}
           </div>
         </div>
       )}

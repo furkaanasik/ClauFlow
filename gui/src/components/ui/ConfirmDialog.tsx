@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-import clsx from "clsx";
+import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
+import { Button } from "./Button";
+import { IconAlert, IconInfo } from "./icons";
+import { useEscapeLayer, useFocusTrap, usePresence } from "./overlay";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -14,6 +17,12 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
+const BADGE = {
+  danger: { bg: "var(--red)", fg: "var(--on-red)" },
+  warning: { bg: "var(--orange)", fg: "var(--on-orange)" },
+  default: { bg: "var(--cobalt)", fg: "var(--on-cobalt)" },
+} as const;
+
 export function ConfirmDialog({
   open,
   title,
@@ -24,73 +33,76 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const titleId = useId();
+  const descId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { mounted, state } = usePresence(open, 140);
+  useFocusTrap(panelRef, open && mounted);
+  useEscapeLayer(open, onCancel);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-      if (e.key === "Enter") onConfirm();
+      // a focused button handles Enter itself — avoid a double confirm
+      if (e.key === "Enter" && !(e.target instanceof HTMLButtonElement)) onConfirm();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onCancel, onConfirm]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
-  const variantInk = {
-    danger:  "var(--status-error)",
-    warning: "var(--status-warning)",
-    default: "var(--accent-primary)",
-  }[variant];
+  const badge = BADGE[variant];
 
-  const confirmCls = clsx(
-    "border px-4 py-2 text-[12px] font-medium transition",
-    variant === "danger"  && "border-[var(--status-error)] bg-[var(--status-error)] text-[var(--bg-base)] hover:bg-[var(--bg-base)] hover:text-[var(--status-error)]",
-    variant === "warning" && "border-[var(--status-warning)] bg-[var(--status-warning)] text-[var(--bg-base)] hover:bg-[var(--bg-base)] hover:text-[var(--status-warning)]",
-    variant === "default" && "btn-ink",
-  );
-
-  return (
+  /* Portalled to <body>: a dialog opened from inside a transformed parent
+     (drawer, tab panel, React Flow node) would otherwise be trapped by it. */
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="ui-scrim" data-state={state} onClick={open ? onCancel : undefined} aria-hidden="true" />
+
       <div
-        className="absolute inset-0 bg-black/65 backdrop-blur-sm"
-        onClick={onCancel}
-        aria-hidden="true"
-      />
-
-      <div className="relative w-full max-w-md animate-fade-up border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
-        <div
-          aria-hidden
-          className="h-1 w-full"
-          style={{ background: variantInk }}
-        />
-        <div className="px-5 py-5">
-          <h3 className="t-display text-2xl leading-tight text-[var(--text-primary)]">
-            {title}
-          </h3>
-          {description && (
-            <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
-              {description}
-            </p>
-          )}
-
-          <div className="mt-6 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="btn-ghost px-4 py-2 text-[12px] font-medium"
-            >
-              {cancelLabel}
-            </button>
-            <button
-              type="button"
-              onClick={onConfirm}
-              className={confirmCls}
-            >
-              {confirmLabel}
-            </button>
+        ref={panelRef}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descId : undefined}
+        tabIndex={-1}
+        data-state={state}
+        className="ui-modal relative w-full max-w-md rounded-panel border-2 border-line bg-panel outline-none"
+      >
+        <div className="flex gap-4 px-5 pb-5 pt-5">
+          <span
+            aria-hidden
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border-2 border-line"
+            style={{ background: badge.bg, color: badge.fg, boxShadow: "2px 2px 0 var(--shadow-ink)" }}
+          >
+            {variant === "default" ? <IconInfo size={18} /> : <IconAlert size={18} />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 id={titleId} className="t-display text-[22px] leading-tight text-ink">
+              {title}
+            </h3>
+            {description && (
+              <p id={descId} className="mt-2 text-sm leading-relaxed text-ink-2">
+                {description}
+              </p>
+            )}
           </div>
         </div>
+        <div className="flex justify-end gap-2.5 border-t-2 border-line bg-sunken px-5 py-3.5" style={{ borderRadius: "0 0 12px 12px" }}>
+          <Button variant="secondary" onClick={open ? onCancel : undefined}>
+            {cancelLabel}
+          </Button>
+          <Button
+            variant={variant === "danger" ? "danger" : "primary"}
+            onClick={open ? onConfirm : undefined}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

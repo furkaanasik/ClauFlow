@@ -1,117 +1,107 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useState } from "react";
 import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
+import { useTranslation } from "@/hooks/useTranslation";
+import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Input";
+import { Kbd } from "@/components/ui/Kbd";
+import { StatusPill, type StatusKind } from "@/components/ui/Pills";
+import { Avatar } from "@/components/ui/Avatar";
+import { IconChat, IconChevronRight, IconLock } from "@/components/ui/icons";
+import { LogViewer } from "@/components/Card/LogViewer";
 import type { Comment, CommentStatus, Task } from "@/types";
 
 function looksLikeMarkdown(text: string): boolean {
   return /^#{1,6} |^\*\*|^- |^```|\*\*|\[.+\]\(|^>/m.test(text);
 }
 
-function formatDate(isoString: string): string {
+function formatDate(isoString: string, yesterdayLabel: string): string {
   const date = new Date(isoString);
   const now = new Date();
-  const isToday =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  const time = `${hh}:${mm}`;
-
-  if (isToday) return time;
-
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  if (sameDay(date, now)) return time;
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  const isYesterday =
-    date.getFullYear() === yesterday.getFullYear() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getDate() === yesterday.getDate();
-
-  if (isYesterday) return `Y'day ${time}`;
-
-  const dd = String(date.getDate()).padStart(2, "0");
-  const mo = String(date.getMonth() + 1).padStart(2, "0");
-  return `${dd}.${mo} ${time}`;
+  if (sameDay(date, yesterday)) return `${yesterdayLabel} ${time}`;
+  return `${String(date.getDate()).padStart(2, "0")}.${String(date.getMonth() + 1).padStart(2, "0")} ${time}`;
 }
 
-const STATUS_LABEL: Record<CommentStatus, { label: string; ink: string; pulse: boolean }> = {
-  pending: { label: "Queued",        ink: "var(--text-muted)",     pulse: false },
-  running: { label: "Agent working", ink: "var(--status-doing)",   pulse: true  },
-  done:    { label: "Applied",       ink: "var(--accent-primary)", pulse: false },
-  error:   { label: "Error",         ink: "var(--status-error)",   pulse: false },
+const STATUS_KIND: Record<CommentStatus, StatusKind> = {
+  pending: "todo",
+  running: "doing",
+  done: "done",
+  error: "error",
 };
 
-function StatusIndicator({ status }: { status: CommentStatus }) {
-  const s = STATUS_LABEL[status];
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 text-[11px] font-medium"
-      style={{ color: s.ink }}
-    >
-      <span
-        className={clsx("h-1.5 w-1.5", s.pulse && "animate-pulse")}
-        style={{ background: s.ink }}
-      />
-      {s.label}
-    </span>
-  );
-}
-
 function CommentCard({ comment }: { comment: Comment }) {
+  const t = useTranslation();
+  const c = t.comments;
   const autoOpen = comment.status === "running" || comment.status === "error";
   const [logOpen, setLogOpen] = useState(autoOpen);
-  const logRef = useRef<HTMLPreElement | null>(null);
+  const logId = useId();
+  const label: Record<CommentStatus, string> = {
+    pending: c.queued,
+    running: c.working,
+    done: c.applied,
+    error: c.failed,
+  };
 
-  const hasLog =
-    (comment.status === "running" || comment.status === "error") &&
-    comment.agentLog.length > 0;
+  const hasLog = (comment.status === "running" || comment.status === "error") && comment.agentLog.length > 0;
 
   return (
-    <div className="border border-[var(--border)] bg-[var(--bg-surface)] p-4">
-      {comment.status === "done" && looksLikeMarkdown(comment.body) ? (
-        <div className="comment-markdown mb-3 text-sm leading-relaxed text-[var(--text-primary)]">
-          <ReactMarkdown>{comment.body}</ReactMarkdown>
-        </div>
-      ) : (
-        <p className="mb-3 whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-primary)]">
-          {comment.body}
-        </p>
-      )}
-      <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] pt-2.5">
-        <StatusIndicator status={comment.status} />
-        <span className="font-mono text-[10px] text-[var(--text-faint)]">
-          {formatDate(comment.createdAt)}
-        </span>
-      </div>
-
-      {hasLog && (
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => setLogOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-          >
-            <span aria-hidden className={clsx("transition-transform", logOpen ? "rotate-90" : "rotate-0")}>
-              ▸
-            </span>
-            {logOpen ? "Hide log" : "Show log"}
-          </button>
-          {logOpen && (
-            <pre
-              ref={logRef}
-              className="mt-2 max-h-48 overflow-auto border border-[var(--border)] bg-[var(--bg-sunken)] p-3 font-mono text-[11px] leading-relaxed text-[var(--accent-primary)]"
-            >
-              {comment.agentLog.join("\n")}
-            </pre>
+    <li className="flex gap-3">
+      <Avatar name={c.you} size="sm" />
+      <article className="cmt min-w-0 flex-1" data-status={comment.status}>
+        <div className="px-4 pb-3 pt-3.5">
+          {comment.status === "done" && looksLikeMarkdown(comment.body) ? (
+            <div className="comment-markdown text-[13.5px] leading-relaxed text-ink">
+              <ReactMarkdown>{comment.body}</ReactMarkdown>
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink">{comment.body}</p>
           )}
         </div>
-      )}
-    </div>
+        <footer className="flex items-center justify-between gap-2 border-t-2 border-dashed border-hair px-4 py-2">
+          <StatusPill status={STATUS_KIND[comment.status]} live={comment.status === "running"}>
+            {label[comment.status]}
+          </StatusPill>
+          <span className="flex items-center gap-2">
+            {hasLog && (
+              <button
+                type="button"
+                aria-expanded={logOpen}
+                aria-controls={logId}
+                onClick={() => setLogOpen((v) => !v)}
+                className="ui-focus inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 text-[12px] font-semibold text-ink-2 transition hover:bg-hair hover:text-ink"
+              >
+                <IconChevronRight size={12} className={clsx("transition-transform", logOpen && "rotate-90")} />
+                {logOpen ? c.hideLog : c.showLog}
+              </button>
+            )}
+            <time dateTime={comment.createdAt} className="font-mono text-[11px] text-ink-3">
+              {formatDate(comment.createdAt, c.yesterday)}
+            </time>
+          </span>
+        </footer>
+        {hasLog && logOpen && (
+          <div id={logId} className="px-3 pb-3">
+            <LogViewer
+              lines={comment.agentLog}
+              follow
+              live={comment.status === "running"}
+              followLabel={t.taskDetail.follow}
+              className="h-48"
+            />
+          </div>
+        )}
+      </article>
+    </li>
   );
 }
 
@@ -120,8 +110,11 @@ interface CommentsTabProps {
 }
 
 export function CommentsTab({ task }: CommentsTabProps) {
+  const t = useTranslation();
+  const c = t.comments;
   const upsertComment = useBoardStore((s) => s.upsertComment);
   const comments = task.comments ?? [];
+  const inputId = useId();
 
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -139,7 +132,7 @@ export function CommentsTab({ task }: CommentsTabProps) {
       upsertComment(comment);
       setBody("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send.");
+      setError(err instanceof Error ? err.message : c.sendFailed);
     } finally {
       setSending(false);
     }
@@ -153,52 +146,71 @@ export function CommentsTab({ task }: CommentsTabProps) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 p-4">
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-1 pr-1">
         {comments.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 border border-dashed border-[var(--border)] py-12">
-            <p className="t-display text-xl text-[var(--text-secondary)]">
-              No comments yet
-            </p>
-            <p className="text-[12px] text-[var(--text-faint)]">
-              Write feedback — the agent re-runs the branch
-            </p>
+          <div className="ui-hatch flex flex-1 flex-col items-center justify-center gap-3 rounded-[14px] border-2 border-dashed border-line px-6 py-12 text-center">
+            <span
+              aria-hidden
+              className="grid h-11 w-11 place-items-center rounded-[12px] border-2 border-line bg-panel text-ink-2 shadow-hard"
+            >
+              <IconChat size={20} />
+            </span>
+            <p className="t-display text-[19px] text-ink">{c.emptyTitle}</p>
+            <p className="max-w-xs text-[13px] text-ink-2">{c.emptyHint}</p>
           </div>
         ) : (
-          comments.map((c) => <CommentCard key={c.id} comment={c} />)
+          <ol className="flex flex-col gap-4">
+            {comments.map((cm) => (
+              <CommentCard key={cm.id} comment={cm} />
+            ))}
+          </ol>
         )}
       </div>
 
-      {canComment && (
-        <div className="flex shrink-0 flex-col gap-2 border-t border-[var(--border)] pt-3">
+      {canComment ? (
+        <div className="shrink-0 rounded-[14px] border-2 border-line bg-panel p-3 shadow-hard">
           {error && (
-            <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-1.5 text-xs text-[var(--status-error)]">
+            <div role="alert" className="ui-banner ui-banner--error mb-2.5">
               {error}
             </div>
           )}
-          <textarea
+          <label htmlFor={inputId} className="t-label mb-1.5 block">
+            {c.composerLabel}
+          </label>
+          <Textarea
+            id={inputId}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={sending}
             rows={3}
-            placeholder="Write a fix instruction for the agent…"
-            className="w-full resize-none border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--text-secondary)] focus:outline-none disabled:opacity-50"
+            placeholder={c.placeholder}
+            className="resize-none"
           />
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-[var(--text-faint)]">
-              ⌘ / Ctrl + ↵ to send
+          <div className="mt-2.5 flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5 text-[12px] text-ink-3">
+              <Kbd>Ctrl</Kbd>
+              <Kbd>↵</Kbd>
+              {c.sendHint}
             </span>
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<IconChat size={14} />}
+              loading={sending}
+              disabled={!body.trim()}
               onClick={() => void handleSend()}
-              disabled={sending || !body.trim()}
-              className="btn-ink px-4 py-1.5 text-[12px] font-medium disabled:opacity-50"
             >
-              {sending ? "Sending…" : "Send"}
-            </button>
+              {sending ? c.sending : c.send}
+            </Button>
           </div>
         </div>
+      ) : (
+        <p className="flex shrink-0 items-center gap-2 rounded-[10px] border-2 border-dashed border-hair px-3 py-2 text-[12.5px] text-ink-3">
+          <IconLock size={13} />
+          {c.readOnly}
+        </p>
       )}
     </div>
   );

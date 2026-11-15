@@ -1,476 +1,280 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { FactoryHero } from "@/components/Landing/FactoryHero";
+import { IconButton } from "@/components/ui/Button";
+import { SectionPill } from "@/components/ui/Pills";
+import { IconArrowUpRight, IconChevronRight, IconGithub, IconMoon, IconSun } from "@/components/ui/icons";
+import { useTheme } from "@/hooks/useTheme";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useBoardStore } from "@/store/boardStore";
 
-const STAGES = ["TODO", "DOING", "REVIEW", "DONE"] as const;
-const STAGE_NUMS = ["01", "02", "03", "04"];
-const STAGE_NOTES = ["queued", "agent writes", "human reads", "merged"];
-
-const DEMO_TITLE = "Add user authentication";
-const DEMO_ID = "CLF-87";
-
-const STAGE_INTERVAL = 2600;
+const REPO = "https://github.com/furkaanasik/ClauFlow";
 
 export default function LandingPage() {
   const t = useTranslation();
-  const [stage, setStage] = useState(0);
-  const [isLight, setIsLight] = useState(false);
-
-  useEffect(() => {
-    const id = window.setInterval(
-      () => setStage((s) => (s + 1) % STAGES.length),
-      STAGE_INTERVAL,
-    );
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    setIsLight(document.documentElement.classList.contains("light"));
-  }, []);
-
-  const toggleTheme = () => {
-    const html = document.documentElement;
-    html.classList.toggle("light");
-    const nowLight = html.classList.contains("light");
-    setIsLight(nowLight);
-    localStorage.setItem("theme", nowLight ? "light" : "dark");
-  };
+  const L = t.landing;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)]">
-      {/* ─── Top bar ───────────────────────────────────────────────────── */}
-      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 pt-6 md:px-12 md:pt-8">
-        <Link href="/" className="flex items-center gap-2.5">
-          <Monogram />
-          <span className="text-[14px] font-semibold tracking-tight text-[var(--text-primary)]">
-            ClauFlow
-          </span>
-        </Link>
-        <nav className="flex items-center gap-5">
-          <Link
-            href="https://github.com/furkaanasik/ClauFlow"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="t-label hidden transition hover:text-[var(--text-primary)] sm:inline"
-          >
-            github ↗
-          </Link>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="flex h-9 w-9 items-center justify-center text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-            title={isLight ? t.header.themeToDark : t.header.themeToLight}
-            aria-label={isLight ? t.header.themeToDark : t.header.themeToLight}
-          >
-            {isLight ? <MoonIcon /> : <SunIcon />}
-          </button>
-          <Link
-            href="/board"
-            className="btn-ink inline-flex items-center gap-2 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em]"
-          >
-            <span>open board</span>
-            <span aria-hidden>→</span>
-          </Link>
-        </nav>
-      </header>
+    <main className="relative min-h-screen text-ink">
+      <LandingNav />
 
-      {/* ─── Hero ──────────────────────────────────────────────────────── */}
-      <section className="relative z-10 mx-auto max-w-7xl px-6 pt-16 md:px-12 md:pt-24">
-        <div className="grid gap-10 md:grid-cols-12 md:gap-10 lg:gap-14">
-          {/* Left — pitch */}
-          <div className="md:col-span-6 lg:col-span-5">
-            <span className="t-label">§ agentic kanban · v 1.0</span>
-            <h1 className="t-display mt-6 text-[clamp(2.75rem,6.8vw,5.75rem)]">
-              Drag a task.
-              <br />
-              <span className="italic text-[var(--text-secondary)]">
-                The agent
+      <FactoryHero>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end lg:gap-12">
+          <div>
+            <SectionPill size="sm">{L.eyebrow}</SectionPill>
+            <h1 className="t-display mt-4 text-[clamp(2.3rem,4.6vw,4.1rem)] leading-[0.98]">
+              <span className="block">{L.titleA}</span>
+              <span className="block">
+                <span className="landing-mark">{L.titleB}</span>
               </span>
-              <br />
-              ships the PR.
+              <span className="block">{L.titleC}</span>
             </h1>
-            <p className="mt-6 max-w-md text-base leading-relaxed text-[var(--text-secondary)]">
-              {t.landing.tagline}
+          </div>
+          <div className="lg:pb-1">
+            <p className="max-w-[500px] text-[15px] leading-relaxed text-ink-2 md:text-[16px]">
+              <strong className="font-semibold text-ink">{L.tagline}</strong> {L.subtitle}
             </p>
-            <p className="mt-2 max-w-md text-sm text-[var(--text-muted)]">
-              {t.landing.subtitle}
-            </p>
-            <div className="mt-9 flex flex-wrap items-center gap-5">
-              <Link
-                href="/board"
-                className="btn-ink inline-flex items-center gap-3 px-6 py-3 text-sm uppercase tracking-[0.18em]"
-              >
-                <span>{t.landing.cta}</span>
-                <span aria-hidden className="font-mono text-base leading-none">
-                  ↗
-                </span>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link href="/board" className="ui-btn ui-btn--primary ui-btn--lg ui-focus">
+                {L.cta}
+                <IconChevronRight size={18} />
               </Link>
               <Link
-                href="https://github.com/furkaanasik/ClauFlow"
+                href={REPO}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="t-label transition hover:text-[var(--text-primary)]"
+                className="ui-btn ui-btn--secondary ui-btn--lg ui-focus"
               >
-                read the source · github
+                <IconGithub size={18} />
+                {L.ctaSecondary}
               </Link>
             </div>
-
-            {/* Quick stats row */}
-            <dl className="mt-10 grid grid-cols-3 gap-px border border-[var(--border)] bg-[var(--border)]">
-              <Stat k="next" v="15" />
-              <Stat k="agent" v="opus 4.7" />
-              <Stat k="vcs" v="git · gh" />
-            </dl>
-          </div>
-
-          {/* Right — animated mini kanban */}
-          <div className="md:col-span-6 lg:col-span-7">
-            <MiniKanban activeStage={stage} />
           </div>
         </div>
-      </section>
+      </FactoryHero>
 
-      {/* ─── How it works ──────────────────────────────────────────────── */}
-      <section className="relative z-10 mx-auto mt-32 max-w-7xl px-6 md:mt-40 md:px-12">
-        <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <p className="t-label mb-3">§ how it works</p>
-            <h2 className="t-display text-3xl md:text-5xl">
-              three motions.
-              <br />
-              <span className="italic text-[var(--text-secondary)]">
-                no scripts.
-              </span>
-            </h2>
-          </div>
-          <p className="max-w-sm text-sm text-[var(--text-muted)]">
-            Drag, comment, merge. Everything between is the agent — branching,
-            writing, pushing, opening pull requests.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-px border border-[var(--border)] bg-[var(--border)] md:grid-cols-3">
-          <Feature
-            num="i."
-            verb="drag"
-            title="dispatch the agent"
-            body="Move a card from TODO to DOING. Claude branches off main, runs your analysis, commits, pushes, opens a PR."
-            ink="var(--accent-primary)"
-          />
-          <Feature
-            num="ii."
-            verb="comment"
-            title="iterate on the same branch"
-            body="Leave a review comment. The agent re-runs against the same branch and pushes new commits — no churn."
-            ink="var(--status-review)"
-          />
-          <Feature
-            num="iii."
-            verb="merge"
-            title="close the loop"
-            body="Drop the card in DONE. ClauFlow calls gh pr merge and your task is shipped to main."
-            ink="var(--status-done)"
-          />
-        </div>
-      </section>
-
-      {/* ─── Closing ───────────────────────────────────────────────────── */}
-      <section className="relative z-10 mx-auto mt-32 max-w-7xl border-t border-[var(--border)] px-6 pt-16 md:px-12">
-        <div className="flex flex-wrap items-end justify-between gap-8">
-          <h3 className="t-display text-3xl md:text-5xl">
-            built for tonight,
-            <br />
-            <span className="italic text-[var(--text-secondary)]">
-              not the roadmap.
-            </span>
-          </h3>
-          <Link
-            href="/board"
-            className="btn-ink inline-flex items-center gap-3 px-6 py-3 text-sm uppercase tracking-[0.18em]"
-          >
-            <span>open the board</span>
-            <span aria-hidden>→</span>
-          </Link>
-        </div>
-      </section>
-
-      {/* ─── Footer ────────────────────────────────────────────────────── */}
-      <footer className="relative z-10 mt-24 border-t border-[var(--border)] px-6 py-6 md:px-12">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
-          <span className="t-numeral">© ClauFlow · agentic kanban</span>
-          <div className="flex items-center gap-6">
-            <Link
-              href="/board"
-              className="t-label transition hover:text-[var(--text-primary)]"
-            >
-              board
-            </Link>
-            <Link
-              href="https://github.com/furkaanasik/ClauFlow"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="t-label transition hover:text-[var(--text-primary)]"
-            >
-              github
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <HowItWorks />
+      <Closing />
+      <Footer />
     </main>
   );
 }
 
-/* ────────────────────────────────────────────────────────────────────── */
-/*  Mini kanban — auto-cycles a card across 4 columns                     */
-/* ────────────────────────────────────────────────────────────────────── */
+/* ─── nav ──────────────────────────────────────────────────────────────── */
 
-function MiniKanban({ activeStage }: { activeStage: number }) {
+function LandingNav() {
+  const t = useTranslation();
+  const { isNight, toggleTheme } = useTheme();
+  const lang = useBoardStore((s) => s.lang);
+  const setLang = useBoardStore((s) => s.setLang);
+
   return (
-    <div className="border border-[var(--border)] bg-[var(--bg-surface)] p-3 md:p-4">
-      {/* mini header */}
-      <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-2.5">
-        <div className="flex items-center gap-3">
-          <span className="t-label">§ live demo</span>
-          <span className="hidden font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)] sm:inline">
-            ws://localhost:3001 · streaming
-          </span>
-        </div>
-        <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--accent-primary)]">
-          <span className="h-1 w-1 animate-pulse bg-[var(--accent-primary)]" />
-          live
-        </span>
+    <header className="absolute inset-x-0 top-0 z-20">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 pt-5 md:px-12 md:pt-7">
+        <Link href="/" className="ui-focus flex items-center gap-2.5 rounded-[10px]">
+          <Monogram />
+          <span className="text-[17px] font-extrabold tracking-tight">ClauFlow</span>
+        </Link>
+        <nav className="flex items-center gap-1.5 sm:gap-2">
+          <Link
+            href={REPO}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ui-focus hidden h-9 items-center gap-1.5 rounded-[8px] px-2.5 text-[14px] font-semibold text-ink-2 transition hover:bg-hair hover:text-ink sm:inline-flex"
+          >
+            <IconGithub size={16} />
+            {t.landing.navGithub}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setLang(lang === "tr" ? "en" : "tr")}
+            aria-label={t.shell.switchLang}
+            title={t.shell.switchLang}
+            className="ui-focus grid h-9 min-w-9 place-items-center rounded-[8px] px-1.5 font-mono text-[12px] font-bold text-ink-2 transition hover:bg-hair hover:text-ink"
+          >
+            {lang === "tr" ? "TR" : "EN"}
+          </button>
+          <IconButton
+            label={isNight ? t.header.themeToLight : t.header.themeToDark}
+            variant="ghost"
+            size="md"
+            onClick={toggleTheme}
+          >
+            {isNight ? <IconSun size={17} /> : <IconMoon size={17} />}
+          </IconButton>
+          <Link href="/board" className="ui-btn ui-btn--primary ui-btn--md ui-focus ml-1">
+            {t.landing.navBoard}
+            <IconChevronRight size={16} />
+          </Link>
+        </nav>
       </div>
-
-      {/* columns */}
-      <div className="grid grid-cols-4 gap-1.5 md:gap-2">
-        {STAGES.map((label, idx) => {
-          const isActive = activeStage === idx;
-          return (
-            <div
-              key={label}
-              className={`flex h-72 flex-col border bg-[var(--bg-base)] transition-colors duration-500 md:h-80 ${
-                isActive
-                  ? "border-[var(--accent-primary)]"
-                  : "border-[var(--border)]"
-              }`}
-            >
-              <header className="relative flex items-center justify-between border-b border-[var(--border)] px-2.5 py-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-[9px] tracking-widest text-[var(--text-faint)]">
-                    {STAGE_NUMS[idx]}
-                  </span>
-                  <span
-                    className={`font-mono text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors ${
-                      isActive
-                        ? "text-[var(--accent-primary)]"
-                        : "text-[var(--text-muted)]"
-                    }`}
-                  >
-                    {label}
-                  </span>
-                </div>
-                {isActive && (
-                  <span
-                    aria-hidden
-                    className="h-1 w-1 animate-pulse bg-[var(--accent-primary)]"
-                  />
-                )}
-                {/* scan line on active doing column */}
-                {isActive && idx === 1 && (
-                  <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-x-0 bottom-0 h-px overflow-hidden"
-                  >
-                    <span className="absolute inset-y-0 left-0 w-1/3 animate-scan bg-[var(--accent-primary)]" />
-                  </span>
-                )}
-              </header>
-
-              {/* card slot */}
-              <div className="relative flex-1 p-2">
-                {/* placeholder — visible when slot is empty */}
-                <div
-                  aria-hidden
-                  className={`absolute inset-2 flex items-center justify-center border border-dashed border-[var(--border)] transition-opacity duration-500 ${
-                    isActive ? "opacity-0" : "opacity-100"
-                  }`}
-                >
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
-                    —
-                  </span>
-                </div>
-
-                {/* card */}
-                <div
-                  className={`absolute inset-2 overflow-hidden border border-[var(--border)] bg-[var(--bg-surface)] p-2.5 transition-all duration-700 ease-out ${
-                    isActive
-                      ? "translate-y-0 opacity-100"
-                      : "pointer-events-none -translate-y-2 opacity-0"
-                  }`}
-                  aria-hidden={!isActive}
-                >
-                  <span
-                    aria-hidden
-                    className="absolute inset-y-0 left-0 w-[2px] bg-[var(--prio-medium)]"
-                  />
-                  <div className="pl-1.5">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--text-faint)]">
-                        {DEMO_ID}
-                      </span>
-                      <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--prio-medium)]">
-                        p2
-                      </span>
-                    </div>
-                    <h4 className="t-display text-[15px] leading-snug text-[var(--text-primary)]">
-                      {DEMO_TITLE}
-                    </h4>
-                    <div className="mt-2 border-t border-[var(--border)] pt-1.5">
-                      <StageStatus idx={idx} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* footer note */}
-              <footer className="border-t border-[var(--border)] px-2.5 py-1.5">
-                <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--text-faint)]">
-                  {STAGE_NOTES[idx]}
-                </span>
-              </footer>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* caption */}
-      <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2.5">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
-          card cycles every {(STAGE_INTERVAL * STAGES.length) / 1000}s
-        </span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
-          fig. 01
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function StageStatus({ idx }: { idx: number }) {
-  if (idx === 0) {
-    return (
-      <span className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-[var(--text-muted)]">
-        <span className="h-1 w-1 bg-[var(--text-faint)]" />
-        queued
-      </span>
-    );
-  }
-  if (idx === 1) {
-    return (
-      <span className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-[var(--status-doing)]">
-        <span className="flex gap-[2px]">
-          <span className="h-[3px] w-[3px] animate-dot-1 bg-[var(--status-doing)]" />
-          <span className="h-[3px] w-[3px] animate-dot-2 bg-[var(--status-doing)]" />
-          <span className="h-[3px] w-[3px] animate-dot-3 bg-[var(--status-doing)]" />
-        </span>
-        agent writes
-      </span>
-    );
-  }
-  if (idx === 2) {
-    return (
-      <span className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-[var(--status-review)]">
-        <span className="h-1 w-1 bg-[var(--status-review)]" />
-        pr #87 · diff ready
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-[var(--accent-primary)]">
-      <span className="h-1 w-1 bg-[var(--accent-primary)]" />
-      merged ✓
-    </span>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────────────── */
-/*  Small atoms                                                            */
-/* ────────────────────────────────────────────────────────────────────── */
-
-function Feature({
-  num,
-  verb,
-  title,
-  body,
-  ink,
-}: {
-  num: string;
-  verb: string;
-  title: string;
-  body: string;
-  ink: string;
-}) {
-  return (
-    <article className="group relative flex flex-col gap-4 bg-[var(--bg-surface)] p-6 transition-colors hover:bg-[var(--bg-elevated)]">
-      <div className="flex items-baseline justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
-          {num}
-        </span>
-        <span
-          className="font-mono text-[10px] uppercase tracking-widest"
-          style={{ color: ink }}
-        >
-          {verb}
-        </span>
-      </div>
-      <h3 className="t-display text-2xl leading-tight text-[var(--text-primary)]">
-        {title}
-      </h3>
-      <p className="text-sm leading-relaxed text-[var(--text-muted)]">{body}</p>
-      <span
-        aria-hidden
-        className="mt-auto h-px w-12 transition-all duration-500 group-hover:w-full"
-        style={{ background: ink }}
-      />
-    </article>
-  );
-}
-
-function Stat({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="flex flex-col gap-1 bg-[var(--bg-base)] px-3 py-2.5">
-      <dt className="font-mono text-[9px] uppercase tracking-widest text-[var(--text-faint)]">
-        {k}
-      </dt>
-      <dd className="font-mono text-[12px] text-[var(--text-primary)]">{v}</dd>
-    </div>
-  );
-}
-
-function SunIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-    </svg>
+    </header>
   );
 }
 
 function Monogram() {
   return (
-    <div className="relative flex h-7 w-7 items-center justify-center overflow-hidden border border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-base)]">
-      <span className="font-mono text-[12px] font-bold leading-none">cf</span>
-      <span className="absolute inset-y-0 right-0 w-[2px] bg-[var(--accent-primary)]" />
-    </div>
+    <span
+      aria-hidden
+      className="relative grid h-9 w-9 flex-none place-items-center rounded-[10px] border-2 border-line bg-mustard font-mono text-[14px] font-extrabold leading-none text-[var(--on-mustard)] shadow-[2px_2px_0_var(--shadow-ink)]"
+    >
+      cf
+      <span className="absolute -right-[3px] -top-[3px] h-2.5 w-2.5 rounded-full border-2 border-line bg-orange" />
+    </span>
+  );
+}
+
+/* ─── how it works ─────────────────────────────────────────────────────── */
+
+const STEP_TONE = {
+  drag: { fill: "var(--orange)", on: "var(--on-orange)" },
+  comment: { fill: "var(--mustard)", on: "var(--on-mustard)" },
+  merge: { fill: "var(--green)", on: "var(--on-green)" },
+} as const;
+
+function HowItWorks() {
+  const t = useTranslation();
+  const H = t.landing.how;
+  const steps = (["drag", "comment", "merge"] as const).map((k) => ({ k, ...H.steps[k] }));
+
+  return (
+    <section className="relative z-10 mx-auto max-w-7xl px-6 pb-8 pt-24 md:px-12 md:pt-32">
+      <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <SectionPill size="sm">{H.eyebrow}</SectionPill>
+          <h2 className="t-display mt-4 text-[clamp(2rem,4vw,3.25rem)] leading-[1.02]">
+            {H.title}
+            <br />
+            <span className="text-ink-3">{H.titleAccent}</span>
+          </h2>
+        </div>
+        <p className="max-w-sm text-[15px] leading-relaxed text-ink-2">{H.body}</p>
+      </div>
+
+      <ol className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        {steps.map((s, i) => (
+          <li key={s.k} className="ui-panel ui-panel--raised flex flex-col overflow-hidden">
+            <div className="ui-hatch relative grid h-36 place-items-center border-b-2 border-line bg-sunken">
+              <span
+                className="absolute left-4 top-4 grid h-9 w-9 place-items-center rounded-[10px] border-2 border-line font-mono text-[15px] font-extrabold"
+                style={{ background: STEP_TONE[s.k].fill, color: STEP_TONE[s.k].on, boxShadow: "2px 2px 0 var(--shadow-ink)" }}
+              >
+                {i + 1}
+              </span>
+              <StepArt kind={s.k} />
+            </div>
+            <div className="flex flex-1 flex-col gap-2 p-5">
+              <span
+                className="ui-pill ui-pill--sm self-start font-mono font-bold uppercase tracking-[0.08em]"
+                style={{ background: STEP_TONE[s.k].fill, color: STEP_TONE[s.k].on } as CSSProperties}
+              >
+                {s.verb}
+              </span>
+              <h3 className="t-h2 mt-1 !text-[1.3rem]">{s.title}</h3>
+              <p className="text-[14px] leading-relaxed text-ink-2">{s.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+const ART = { stroke: "var(--line)", strokeWidth: 2.5, strokeLinejoin: "round" as const, strokeLinecap: "round" as const };
+
+function StepArt({ kind }: { kind: "drag" | "comment" | "merge" }) {
+  let body: ReactNode;
+  if (kind === "drag") {
+    body = (
+      <>
+        <rect x="8" y="22" width="50" height="62" rx="8" fill="var(--panel)" {...ART} strokeDasharray="5 5" />
+        <rect x="102" y="22" width="50" height="62" rx="8" fill="var(--panel)" {...ART} />
+        <rect x="106" y="30" width="42" height="26" rx="5" fill="var(--panel)" {...ART} style={{ fill: "color-mix(in srgb, var(--orange) 22%, var(--panel))" }} />
+        <rect x="58" y="18" width="46" height="30" rx="6" fill="var(--panel)" {...ART} transform="rotate(-6 81 33)" />
+        <path d="M66 28h22M66 36h14" {...ART} transform="rotate(-6 81 33)" />
+        <path d="M60 66 h34 m-8 -7 l8 7 l-8 7" fill="none" {...ART} stroke="var(--orange-text)" strokeWidth={3} />
+        <text x="33" y="100" textAnchor="middle" fontSize="9" fontWeight="800" fontFamily="var(--font-mono)" fill="var(--ink-3)">TODO</text>
+        <text x="127" y="100" textAnchor="middle" fontSize="9" fontWeight="800" fontFamily="var(--font-mono)" fill="var(--orange-text)">DOING</text>
+      </>
+    );
+  } else if (kind === "comment") {
+    body = (
+      <>
+        <rect x="18" y="14" width="88" height="50" rx="10" fill="var(--panel)" {...ART} />
+        <path d="M38 64 l-6 14 l18 -14" fill="var(--panel)" {...ART} />
+        <path d="M32 30h58M32 42h40" {...ART} />
+        <circle cx="122" cy="72" r="18" fill="var(--mustard)" {...ART} />
+        <path d="M114 72 a8 8 0 1 1 3 6" fill="none" {...ART} />
+        <path d="M113 66 v7 h7" fill="none" {...ART} />
+        <path d="M36 96 h88" {...ART} strokeDasharray="4 6" stroke="var(--ink-3)" />
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <path d="M24 92 V22" {...ART} strokeWidth={4} stroke="var(--ink-2)" />
+        <path d="M24 70 C24 50 70 52 70 34 V22" fill="none" {...ART} strokeWidth={4} stroke="var(--green-text)" />
+        <circle cx="24" cy="92" r="7" fill="var(--panel)" {...ART} />
+        <circle cx="70" cy="34" r="7" fill="var(--green)" {...ART} />
+        <circle cx="24" cy="22" r="7" fill="var(--panel)" {...ART} />
+        <g transform="translate(92 34) rotate(-8)">
+          <rect width="50" height="34" rx="6" fill="var(--panel)" {...ART} stroke="var(--red-text)" strokeWidth={3} />
+          <text x="25" y="24" textAnchor="middle" fontSize="18" fontWeight="900" fill="var(--red-text)">PR</text>
+        </g>
+        <path d="M100 84 l8 8 l16 -18" fill="none" {...ART} stroke="var(--green-text)" strokeWidth={4} />
+      </>
+    );
+  }
+  return (
+    <svg viewBox="0 0 160 108" className="h-28 w-auto" aria-hidden>
+      {body}
+    </svg>
+  );
+}
+
+/* ─── closing + footer ─────────────────────────────────────────────────── */
+
+function Closing() {
+  const t = useTranslation();
+  const C = t.landing.closing;
+  return (
+    <section className="relative z-10 mx-auto max-w-7xl px-6 py-20 md:px-12 md:py-28">
+      <div className="ui-panel relative flex flex-wrap items-end justify-between gap-8 overflow-hidden bg-mustard p-8 text-[var(--on-mustard)] shadow-[6px_6px_0_var(--shadow-ink)] md:p-12">
+        <div>
+          <span className="t-label !text-[var(--on-mustard)] opacity-70">{C.eyebrow}</span>
+          <h2 className="t-display mt-3 text-[clamp(1.9rem,4vw,3.25rem)] leading-[1.02]">
+            {C.title}
+            <br />
+            {C.titleAccent}
+          </h2>
+        </div>
+        <Link href="/board" className="ui-btn ui-btn--secondary ui-btn--lg ui-focus">
+          {C.cta}
+          <IconArrowUpRight size={18} />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  const t = useTranslation();
+  return (
+    <footer className="relative z-10 border-t-2 border-hair">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-6 py-6 md:px-12">
+        <span className="font-mono text-[12px] font-semibold text-ink-3">{t.landing.footer.tagline}</span>
+        <span className="font-mono text-[12px] text-ink-3">{t.landing.footer.stack}</span>
+        <div className="flex items-center gap-5 text-[13px] font-semibold text-ink-2">
+          <Link href="/board" className="ui-focus rounded hover:text-ink">
+            {t.landing.navBoard}
+          </Link>
+          <Link href={REPO} target="_blank" rel="noopener noreferrer" className="ui-focus rounded hover:text-ink">
+            {t.landing.navGithub}
+          </Link>
+        </div>
+      </div>
+    </footer>
   );
 }

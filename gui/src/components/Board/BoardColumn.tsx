@@ -1,79 +1,93 @@
 "use client";
 
 import clsx from "clsx";
+import type { CSSProperties } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { TaskCard } from "@/components/Card/TaskCard";
+import { Button, IconButton } from "@/components/ui/Button";
+import { STATUS_COLOR } from "@/components/ui/Pills";
+import { IconChevronLeft, IconChevronRight, IconPlus } from "@/components/ui/icons";
 import { useTranslation } from "@/hooks/useTranslation";
+import { isAgentWorking, type SubtaskStats } from "@/lib/boardView";
 import type { Task, TaskStatus } from "@/types";
 
 interface BoardColumnProps {
   status: TaskStatus;
   title: string;
-  numeral: string;
+  numeral?: string;
   tasks: Task[];
   onAddTask?: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** While a card is being dragged: can it land here without a confirm? */
+  dropTarget?: "allowed" | "confirm" | null;
+  subtaskStats?: Record<string, SubtaskStats>;
+  keyById?: Record<string, string>;
+  /** First load: show card skeletons instead of the empty state. */
+  loading?: boolean;
 }
 
-const COLUMN_TONE: Record<TaskStatus, { dot: string; ink: string }> = {
-  todo:    { dot: "var(--status-todo)",   ink: "var(--text-secondary)" },
-  doing:   { dot: "var(--status-doing)",  ink: "var(--status-doing)" },
-  ci:      { dot: "var(--status-ci, var(--status-review))", ink: "var(--status-ci, var(--status-review))" },
-  review:  { dot: "var(--status-review)", ink: "var(--status-review)" },
-  done:    { dot: "var(--status-done)",   ink: "var(--status-done)" },
-  nothing: { dot: "var(--text-faint, #94a3b8)", ink: "var(--text-muted, #64748b)" },
-};
-
-export function BoardColumn({ status, title, tasks, onAddTask, collapsed, onToggleCollapse }: BoardColumnProps) {
+export function BoardColumn({
+  status,
+  title,
+  tasks,
+  onAddTask,
+  collapsed,
+  onToggleCollapse,
+  dropTarget = null,
+  subtaskStats = {},
+  keyById = {},
+  loading = false,
+}: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { status } });
   const t = useTranslation();
   const emptyState = t.board.emptyStates[status];
-  const tone = COLUMN_TONE[status];
+  const tone = STATUS_COLOR[status];
+  const laneStyle = { "--lane": status === "nothing" ? "var(--ink-3)" : tone.fill } as CSSProperties;
 
-  const hasActiveAgent =
-    status === "doing" &&
-    tasks.some(
-      (t) =>
-        t.agent.status !== "idle" &&
-        t.agent.status !== "done" &&
-        t.agent.status !== "error",
-    );
+  const hasActiveAgent = status === "doing" && tasks.some(isAgentWorking);
+  const overState = isOver && dropTarget ? dropTarget : undefined;
 
   if (collapsed) {
     return (
       <section
         ref={setNodeRef}
         onClick={onToggleCollapse}
-        title={title}
-        className={clsx(
-          "kanban-column relative flex min-h-[60vh] w-10 shrink-0 cursor-pointer flex-col border border-[var(--border)] transition-all",
-          isOver && "border-[var(--accent-primary)] bg-[var(--bg-sunken)]",
-        )}
+        data-over={overState}
+        data-target={dropTarget ?? undefined}
+        aria-label={`${title} · ${tasks.length}`}
+        className="lane lane--strip"
+        style={laneStyle}
       >
-        <SortableContext id={status} items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          <div className="flex flex-1 flex-col items-center py-3">
+        <SortableContext id={status} items={tasks.map((x) => x.id)} strategy={verticalListSortingStrategy}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCollapse?.();
+            }}
+            title={t.board.expandColumn}
+            aria-label={`${t.board.expandColumn}: ${title}`}
+            aria-expanded={false}
+            className="ui-focus flex flex-1 flex-col items-center gap-3 rounded-[12px] pb-3 pt-4"
+          >
             <span
-              className={clsx("h-1.5 w-1.5 shrink-0", hasActiveAgent && "animate-pulse")}
-              style={{ backgroundColor: tone.dot }}
               aria-hidden
+              className={clsx("ui-dot", status === "nothing" && "ui-dot--hatched", hasActiveAgent && "ui-dot--live")}
+              style={{ "--dot": tone.fill } as CSSProperties}
             />
-            <span className="mt-2 font-mono text-[11px] tabular-nums text-[var(--text-muted)]">
-              {tasks.length}
-            </span>
+            <span className="lane__count">{tasks.length}</span>
             <span
-              className="mt-4 text-[11px] font-semibold"
-              style={{
-                color: tone.ink,
-                writingMode: "vertical-rl",
-                transform: "rotate(180deg)",
-                letterSpacing: "0.06em",
-              }}
+              className="text-[13px] font-bold tracking-[0.02em] text-ink"
+              style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
             >
               {title}
             </span>
-          </div>
+            <span className="mt-auto text-ink-3" aria-hidden>
+              <IconChevronRight size={14} />
+            </span>
+          </button>
         </SortableContext>
       </section>
     );
@@ -82,83 +96,83 @@ export function BoardColumn({ status, title, tasks, onAddTask, collapsed, onTogg
   return (
     <section
       ref={setNodeRef}
-      className={clsx(
-        "kanban-column relative flex min-h-[60vh] min-w-[200px] flex-1 flex-col border border-[var(--border)] transition-all",
-        isOver && "border-[var(--accent-primary)]",
-      )}
+      data-over={overState}
+      data-target={dropTarget ?? undefined}
+      aria-label={`${title} · ${tasks.length}`}
+      className="lane min-w-[272px] max-w-[380px] flex-1 basis-0"
+      style={laneStyle}
     >
-      {/* header */}
-      <header className="relative flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <span
-            className={clsx(
-              "h-1.5 w-1.5",
-              hasActiveAgent && "animate-pulse",
-            )}
-            style={{ backgroundColor: tone.dot }}
-            aria-hidden
-          />
-          <h2
-            className="text-[13px] font-semibold"
-            style={{ color: tone.ink }}
-          >
-            {title}
-          </h2>
-          <span className="font-mono text-[11px] tabular-nums text-[var(--text-muted)]">
-            {tasks.length}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {status === "todo" && (
-            <button
-              type="button"
-              onClick={onAddTask}
-              className="text-[12px] text-[var(--text-muted)] transition hover:text-[var(--accent-primary)]"
-            >
-              + Add
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="text-[var(--text-faint)] transition hover:text-[var(--text-secondary)]"
-            aria-label="Collapse column"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-              <path d="M2 4h8M2 6h6M2 8h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
+      {hasActiveAgent && <span aria-hidden className="lane__scan" />}
 
-        {hasActiveAgent && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-px overflow-hidden"
-          >
-            <span className="absolute inset-y-0 left-0 w-1/3 animate-scan bg-[var(--accent-primary)]" />
+      <header className="lane__head">
+        <span
+          aria-hidden
+          className={clsx("ui-dot", status === "nothing" && "ui-dot--hatched", hasActiveAgent && "ui-dot--live")}
+          style={{ "--dot": tone.fill } as CSSProperties}
+        />
+        <h2 className="min-w-0 truncate text-[14px] font-bold tracking-[-0.01em] text-ink">{title}</h2>
+        <span className="lane__count">{tasks.length}</span>
+        <span className="flex-1" />
+        {isOver && dropTarget === "confirm" && (
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--orange-text)]">
+            {t.board.needsConfirm}
           </span>
         )}
+        {onAddTask && (
+          <IconButton label={t.board.addTask} size="sm" variant="ghost" onClick={onAddTask}>
+            <IconPlus size={15} />
+          </IconButton>
+        )}
+        <IconButton
+          label={t.board.collapseColumn}
+          size="sm"
+          variant="ghost"
+          onClick={onToggleCollapse}
+          aria-expanded
+        >
+          <IconChevronLeft size={15} />
+        </IconButton>
       </header>
 
-      <SortableContext
-        id={status}
-        items={tasks.map((t) => t.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-3">
-          {tasks.length === 0 && (
-            <div className="flex flex-col items-start gap-2 border border-dashed border-[var(--border)] bg-[var(--bg-sunken)] p-5 text-left">
-              <p className="t-display text-xl text-[var(--text-secondary)]">
-                {emptyState.title}
-              </p>
-              <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                {emptyState.hint}
-              </p>
+      <SortableContext id={status} items={tasks.map((x) => x.id)} strategy={verticalListSortingStrategy}>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2.5 pb-3 pt-1">
+          {loading && tasks.length === 0 &&
+            [0, 1].map((i) => (
+              <div
+                key={i}
+                aria-hidden
+                className="ui-hatch h-[96px] shrink-0 animate-pulse rounded-[12px] border-2 border-dashed border-[color-mix(in_srgb,var(--line)_30%,transparent)]"
+              />
+            ))}
+          {!loading && tasks.length === 0 && (
+            <div className="ui-hatch flex flex-col items-start gap-1.5 rounded-[12px] border-2 border-dashed border-[color-mix(in_srgb,var(--line)_35%,transparent)] px-4 py-5">
+              <p className="text-[14px] font-bold text-ink-2">{emptyState.title}</p>
+              <p className="text-[12px] leading-relaxed text-ink-3">{emptyState.hint}</p>
+              {onAddTask && (
+                <Button size="sm" variant="secondary" icon={<IconPlus size={14} />} onClick={onAddTask} className="mt-2">
+                  {t.board.addTask}
+                </Button>
+              )}
             </div>
           )}
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              subtasks={subtaskStats[task.id]}
+              parentKey={task.parentTaskId ? keyById[task.parentTaskId] : undefined}
+            />
           ))}
+          {onAddTask && tasks.length > 0 && (
+            <button
+              type="button"
+              onClick={onAddTask}
+              className="ui-focus flex h-9 shrink-0 items-center gap-2 rounded-[10px] px-2.5 text-[13px] font-semibold text-ink-3 transition hover:bg-hair hover:text-ink"
+            >
+              <IconPlus size={14} />
+              {t.board.addTask}
+            </button>
+          )}
         </div>
       </SortableContext>
     </section>

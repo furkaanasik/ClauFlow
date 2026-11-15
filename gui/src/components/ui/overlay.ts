@@ -1,0 +1,142 @@
+"use client";
+
+import { useEffect, useRef, useState, type RefObject } from "react";
+
+/**
+ * Keeps an overlay mounted for `exitMs` after `open` turns false so it can
+ * play its exit animation. Returns the render flag and the data-state value.
+ */
+export function usePresence(open: boolean, exitMs = 180) {
+  const [mounted, setMounted] = useState(open);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      setClosing(false);
+      return;
+    }
+    if (!mounted) return;
+    setClosing(true);
+    const t = window.setTimeout(() => {
+      setMounted(false);
+      setClosing(false);
+    }, exitMs);
+    return () => window.clearTimeout(t);
+  }, [open, exitMs, mounted]);
+
+  return { mounted, state: closing ? ("closing" as const) : ("open" as const) };
+}
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Dialog focus handling: moves focus into `ref` on open, keeps Tab inside,
+ * restores the previously focused element on close.
+ */
+export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean) {
+  const restoreRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    restoreRef.current = document.activeElement as HTMLElement | null;
+    const node = ref.current;
+    if (node && !node.contains(document.activeElement)) {
+      const first = node.querySelector<HTMLElement>("[data-autofocus]") ?? node;
+      first.focus({ preventScroll: true });
+    }
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !ref.current) return;
+      const items = Array.from(ref.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.offsetParent !== null,
+      );
+      if (items.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === ref.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      restoreRef.current?.focus?.({ preventScroll: true });
+    };
+  }, [active, ref]);
+}
+
+/**
+ * Closes a popover on outside pointer-down or Escape. `ref` wraps both the
+ * trigger and the panel so clicking the trigger again toggles normally.
+ */
+export function useDismiss(
+  ref: RefObject<HTMLElement | null>,
+  open: boolean,
+  onClose: () => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [ref, open, onClose]);
+}
+
+/* ─── Escape layering ─────────────────────────────────────────────────────────
+   Overlays stack (drawer → modal → confirm). Esc must close only the top one,
+   so a single capture-phase listener dispatches to the most recent layer and
+   stops the event before the board's global Esc shortcut sees it. With no
+   layer open, Esc passes through untouched. */
+
+type EscEntry = { fn: () => void };
+const escStack: EscEntry[] = [];
+let escListening = false;
+
+function onEscapeKey(e: KeyboardEvent) {
+  if (e.key !== "Escape" || escStack.length === 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  escStack[escStack.length - 1].fn();
+}
+
+/** Registers `onEscape` as an overlay layer while `active`. */
+export function useEscapeLayer(active: boolean, onEscape: () => void) {
+  const fnRef = useRef(onEscape);
+  useEffect(() => {
+    fnRef.current = onEscape;
+  });
+  useEffect(() => {
+    if (!active) return;
+    const entry: EscEntry = { fn: () => fnRef.current() };
+    escStack.push(entry);
+    if (!escListening) {
+      window.addEventListener("keydown", onEscapeKey, true);
+      escListening = true;
+    }
+    return () => {
+      const i = escStack.indexOf(entry);
+      if (i >= 0) escStack.splice(i, 1);
+    };
+  }, [active]);
+}

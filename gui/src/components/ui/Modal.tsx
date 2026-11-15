@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
+import { IconButton } from "./Button";
+import { IconClose } from "./icons";
+import { useEscapeLayer, useFocusTrap, usePresence } from "./overlay";
 
 interface ModalProps {
   open: boolean;
@@ -9,54 +14,89 @@ interface ModalProps {
   title?: string;
   children: ReactNode;
   size?: "md" | "lg" | "xl";
+  /** Glyph in a mustard plate before the title. */
+  icon?: ReactNode;
+  /** Small line under the title. */
+  description?: ReactNode;
+  /** Sticky action bar under the body (buttons). */
+  footer?: ReactNode;
+  /** Footer start slot (status text, hints). */
+  footerStart?: ReactNode;
 }
 
 const SIZE_CLS: Record<string, string> = {
-  md: "max-w-2xl",
+  md: "max-w-xl",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
 };
 
-export function Modal({ open, onClose, title, children, size = "md" }: ModalProps) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  size = "md",
+  icon,
+  description,
+  footer,
+  footerStart,
+}: ModalProps) {
+  const t = useTranslation();
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { mounted, state } = usePresence(open, 140);
+  useFocusTrap(panelRef, open && mounted);
 
-  if (!open) return null;
+  useEscapeLayer(open, onClose);
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
+  if (!mounted) return null;
+
+  /* Portalled to <body> so a modal opened from inside a drawer / tab panel
+     (both carry a transform) is not trapped by that containing block. */
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="ui-scrim" data-state={state} onClick={onClose} aria-hidden />
       <div
-        className={`max-h-[85vh] w-full overflow-hidden border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl ${SIZE_CLS[size]}`}
-        onClick={(e) => e.stopPropagation()}
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
+        data-state={state}
+        className={`ui-modal relative flex max-h-[85vh] w-full flex-col overflow-hidden rounded-panel border-2 border-line bg-panel outline-none ${SIZE_CLS[size]}`}
       >
         {title && (
-          <header className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
-            <h2 className="t-display text-xl text-[var(--text-primary)]">
-              {title}
-            </h2>
-            <button
-              type="button"
-              className="border border-[var(--border)] p-1.5 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <path d="M1 1l12 12M13 1L1 13" />
-              </svg>
-            </button>
-          </header>
+          <div className="flex items-center gap-3 border-b-2 border-line px-5 py-3.5">
+            {icon && (
+              <span
+                aria-hidden
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border-2 border-line bg-mustard text-[var(--on-mustard)]"
+                style={{ boxShadow: "2px 2px 0 var(--shadow-ink)" }}
+              >
+                {icon}
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <h2 id={titleId} className="t-display text-xl leading-tight text-ink">
+                {title}
+              </h2>
+              {description && <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{description}</p>}
+            </div>
+            <IconButton label={t.common.close} size="sm" onClick={onClose}>
+              <IconClose size={14} />
+            </IconButton>
+          </div>
         )}
-        <div className="max-h-[70vh] overflow-auto p-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-auto p-5">{children}</div>
+        {(footer || footerStart) && (
+          <footer className="flex items-center gap-2.5 border-t-2 border-line bg-sunken px-5 py-3">
+            <div className="min-w-0 flex-1 text-[12px] text-ink-3">{footerStart}</div>
+            {footer}
+          </footer>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
