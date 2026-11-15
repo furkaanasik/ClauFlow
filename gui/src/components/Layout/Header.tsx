@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useBoardStore } from "@/store/boardStore";
 import { useGithubAuth } from "@/hooks/useGithubAuth";
@@ -8,6 +8,7 @@ import { GithubConnectModal } from "@/components/Auth/GithubConnectModal";
 import { PrereqIndicator } from "@/components/Layout/PrereqIndicator";
 import { NotificationPopover } from "@/components/Layout/NotificationPopover";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useTheme } from "@/hooks/useTheme";
 
 export function Header() {
   const wsConnected       = useBoardStore((s) => s.wsConnected);
@@ -21,21 +22,11 @@ export function Header() {
 
   const [githubModalOpen, setGithubModalOpen] = useState(false);
   const { status: githubStatus } = useGithubAuth(githubModalOpen);
-  const [isLight, setIsLight] = useState(false);
+  const { isNight, toggleTheme } = useTheme();
 
   const t = useTranslation();
 
-  useEffect(() => {
-    setIsLight(document.documentElement.classList.contains("light"));
-  }, []);
 
-  const toggleTheme = () => {
-    const html = document.documentElement;
-    html.classList.toggle("light");
-    const nowLight = html.classList.contains("light");
-    setIsLight(nowLight);
-    localStorage.setItem("theme", nowLight ? "light" : "dark");
-  };
 
   const toggleLang = () => {
     setLang(lang === "tr" ? "en" : "tr");
@@ -147,9 +138,9 @@ export function Header() {
             type="button"
             onClick={toggleTheme}
             className="flex h-9 w-9 items-center justify-center text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-            title={isLight ? t.header.themeToDark : t.header.themeToLight}
+            title={isNight ? t.header.themeToLight : t.header.themeToDark}
           >
-            {isLight ? <MoonIcon /> : <SunIcon />}
+            {isNight ? <SunIcon /> : <MoonIcon />}
           </button>
 
           <div className="mx-1 h-5 w-px bg-[var(--border)]" />

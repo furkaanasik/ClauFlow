@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useTheme } from "@/hooks/useTheme";
 
 const STAGES = ["TODO", "DOING", "REVIEW", "DONE"] as const;
 const STAGE_NUMS = ["01", "02", "03", "04"];
@@ -16,7 +17,7 @@ const STAGE_INTERVAL = 2600;
 export default function LandingPage() {
   const t = useTranslation();
   const [stage, setStage] = useState(0);
-  const [isLight, setIsLight] = useState(false);
+  const { isNight, toggleTheme } = useTheme();
 
   useEffect(() => {
     const id = window.setInterval(
@@ -26,17 +27,7 @@ export default function LandingPage() {
     return () => window.clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    setIsLight(document.documentElement.classList.contains("light"));
-  }, []);
 
-  const toggleTheme = () => {
-    const html = document.documentElement;
-    html.classList.toggle("light");
-    const nowLight = html.classList.contains("light");
-    setIsLight(nowLight);
-    localStorage.setItem("theme", nowLight ? "light" : "dark");
-  };
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)]">
@@ -61,10 +52,10 @@ export default function LandingPage() {
             type="button"
             onClick={toggleTheme}
             className="flex h-9 w-9 items-center justify-center text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-            title={isLight ? t.header.themeToDark : t.header.themeToLight}
-            aria-label={isLight ? t.header.themeToDark : t.header.themeToLight}
+            title={isNight ? t.header.themeToLight : t.header.themeToDark}
+            aria-label={isNight ? t.header.themeToLight : t.header.themeToDark}
           >
-            {isLight ? <MoonIcon /> : <SunIcon />}
+            {isNight ? <SunIcon /> : <MoonIcon />}
           </button>
           <Link
             href="/board"

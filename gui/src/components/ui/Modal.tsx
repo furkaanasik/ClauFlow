@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
+import { IconButton } from "./Button";
+import { IconClose } from "./icons";
+import { useFocusTrap, usePresence } from "./overlay";
 
 interface ModalProps {
   open: boolean;
@@ -18,6 +22,12 @@ const SIZE_CLS: Record<string, string> = {
 };
 
 export function Modal({ open, onClose, title, children, size = "md" }: ModalProps) {
+  const t = useTranslation();
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { mounted, state } = usePresence(open, 140);
+  useFocusTrap(panelRef, open && mounted);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -27,35 +37,31 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="ui-scrim" data-state={state} onClick={onClose} aria-hidden />
       <div
-        className={`max-h-[85vh] w-full overflow-hidden border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl ${SIZE_CLS[size]}`}
-        onClick={(e) => e.stopPropagation()}
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
+        className={`ui-modal relative flex max-h-[85vh] w-full flex-col overflow-hidden rounded-panel border-2 border-line bg-panel outline-none ${SIZE_CLS[size]}`}
+        style={state === "closing" ? { opacity: 0, transition: "opacity 140ms ease" } : undefined}
       >
         {title && (
-          <header className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
-            <h2 className="t-display text-xl text-[var(--text-primary)]">
+          <header className="flex items-center justify-between gap-4 border-b-2 border-line px-5 py-3.5">
+            <h2 id={titleId} className="t-display text-xl text-ink">
               {title}
             </h2>
-            <button
-              type="button"
-              className="border border-[var(--border)] p-1.5 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <path d="M1 1l12 12M13 1L1 13" />
-              </svg>
-            </button>
+            <IconButton label={t.common.close} size="sm" onClick={onClose}>
+              <IconClose size={14} />
+            </IconButton>
           </header>
         )}
-        <div className="max-h-[70vh] overflow-auto p-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-auto p-5">{children}</div>
       </div>
     </div>
   );

@@ -4,6 +4,38 @@ export interface Translations {
     subtitle: string;
     cta: string;
   };
+  common: {
+    close: string;
+    dismiss: string;
+    remove: string;
+    toastSuccess: string;
+    toastError: string;
+    toastInfo: string;
+  };
+  styleguide: {
+    title: string;
+    subtitle: string;
+    viewLabel: string;
+    modeSplit: string;
+    modeCream: string;
+    modeNight: string;
+    cream: string;
+    night: string;
+    colors: string;
+    type: string;
+    buttons: string;
+    pills: string;
+    chips: string;
+    segmented: string;
+    panels: string;
+    meters: string;
+    tabs: string;
+    inputs: string;
+    keys: string;
+    avatars: string;
+    overlays: string;
+    legacy: string;
+  };
   header: {
     wsConnected: string;
     wsConnecting: string;
