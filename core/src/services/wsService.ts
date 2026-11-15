@@ -154,15 +154,6 @@ export function broadcastCloneProgress(
   });
 }
 
-export function broadcastStudioGeneration(payload: {
-  generationId: string;
-  status: "running" | "done" | "error";
-  chunk?: string;
-  error?: string;
-}): void {
-  broadcast({ type: "studio_generation", payload });
-}
-
 export function broadcastSkillInstallProgress(
   projectId: string,
   pluginId: string,

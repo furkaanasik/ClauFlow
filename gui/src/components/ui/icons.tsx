@@ -118,3 +118,6 @@ export const IconClipboard = (p: IconProps) => <Svg {...p}><rect x="3" y="3" wid
 export const IconCode = (p: IconProps) => <Svg {...p}><path d="M5.25 4.5L1.75 8l3.5 3.5M10.75 4.5L14.25 8l-3.5 3.5" /></Svg>;
 export const IconShieldCheck = (p: IconProps) => <Svg {...p}><path d="M8 1.75l5 2v4c0 3-2.2 5.3-5 6.5-2.8-1.2-5-3.5-5-6.5v-4z" /><path d="M5.75 8.25l1.6 1.5 3-3" /></Svg>;
 export const IconTeam = (p: IconProps) => <Svg {...p}><circle cx="6" cy="5.5" r="2.25" /><path d="M2 13.25c0-2.2 1.8-3.75 4-3.75s4 1.55 4 3.75" /><path d="M10.5 3.4a2.25 2.25 0 0 1 0 4.2M11.75 9.8c1.4.45 2.25 1.7 2.25 3.45" /></Svg>;
+// Team editor: "make default" and "save as template"
+export const IconStar = (p: IconProps) => <Svg {...p}><path d="M8 2.25l1.7 3.6 3.9.5-2.85 2.7.7 3.9L8 11.1l-3.45 1.85.7-3.9L2.4 6.35l3.9-.5z" /></Svg>;
+export const IconUpload = (p: IconProps) => <Svg {...p}><path d="M8 10.5V3M4.75 6.25L8 3l3.25 3.25M2.75 13.25h10.5" /></Svg>;

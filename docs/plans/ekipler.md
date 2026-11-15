@@ -260,18 +260,18 @@ Solo'nun Yazılımcı'sı bugünkü `testingInstructions` metnini (`executor.ts:
 - [x] Faz sonu: doğrulamalar + build, commit `feat: faz 3 - görev detayında ekip`.
 
 ### Faz 4: Ekip editörü ve Studio'nun silinmesi
-- [ ] `ClaudeConfigTab` segmentleri "Talimatlar | Ekip", `TeamEditor` iskeleti.
-- [ ] Şablon kartları, "Varsayılan yap", "Özelleştir" (kopya).
-- [ ] Rol listesi: sıralama, ekle/çıkar, doğrulama mesajları.
-- [ ] Rol düzenleyici: talimat, model, danışman, araçlar, skill'ler (katalog), "Skill yöneticisi".
-- [ ] Proje ayarları: QA tur sınırı (Sınırsız dahil), şartname onayı.
-- [ ] "Şablon olarak kaydet" ve kullanıcı şablonunu silme (`ConfirmDialog`).
-- [ ] GUI'den Studio'yu sil: `components/Studio/*`, store `studio*` alanları, api'deki agents/graph/graphs/generate metotları, `studio_generation` olayı, i18n anahtarları, `.studio-*`/`.agent-node*` CSS, `@xyflow/react` (`npx -y pnpm@11.0.9 remove @xyflow/react`), AppRail bağlantısı.
-- [ ] Core'dan Studio'yu sil: `projectsClaude.ts` agents/generate/graph uçları, `ensureClaudeSettings`, `commitAgentChange`, GUI kullanmıyorsa `/claude/push`; `graphService.ts`, `routes/graphs.ts` + `index.ts:40`, `taskService` graf fonksiyonları (tablo kalır), `broadcastStudioGeneration`, `AgentGraph` tipleri, `claudeTopologySyncService.ts`.
-- [ ] Belgeler: `docs/graph-authoring.md` sil; README (`:85`, `:130`, `:257`), CLAUDE.md "Core Data Flow" 4. adım, DESIGN.md Studio satırları (`:304`, `:315`, `:335`, `:807`) Ekip editörüne göre.
-- [ ] Tarama: `rg -n -i "studio|graphRunner|executionMode|_graph\.json|xyflow" core/src gui/src README.md CLAUDE.md DESIGN.md` yalnızca bilinçli kalanları gösterir; §12'ye yaz.
-- [ ] Ekran görüntüleri: Ekip editörü (şablonlar, rol düzenleyici, ayarlar, doğrulama hatası). Krem + gece.
-- [ ] Faz sonu: doğrulamalar + build, commit `feat: faz 4 - ekip editörü, studio silindi`.
+- [x] `ClaudeConfigTab` segmentleri "Talimatlar | Ekip", `TeamEditor` iskeleti.
+- [x] Şablon kartları, "Varsayılan yap", "Özelleştir" (kopya).
+- [x] Rol listesi: sıralama, ekle/çıkar, doğrulama mesajları.
+- [x] Rol düzenleyici: talimat, model, danışman, araçlar, skill'ler (katalog), "Skill yöneticisi".
+- [x] Proje ayarları: QA tur sınırı (Sınırsız dahil), şartname onayı.
+- [x] "Şablon olarak kaydet" ve kullanıcı şablonunu silme (`ConfirmDialog`).
+- [x] GUI'den Studio'yu sil: `components/Studio/*`, store `studio*` alanları, api'deki agents/graph/graphs/generate metotları, `studio_generation` olayı, i18n anahtarları, `.studio-*`/`.agent-node*` CSS, `@xyflow/react` (`npx -y pnpm@11.0.9 remove @xyflow/react`), AppRail bağlantısı.
+- [x] Core'dan Studio'yu sil: `projectsClaude.ts` agents/generate/graph uçları, `ensureClaudeSettings`, `commitAgentChange`, GUI kullanmıyorsa `/claude/push`; `graphService.ts`, `routes/graphs.ts` + `index.ts:40`, `taskService` graf fonksiyonları (tablo kalır), `broadcastStudioGeneration`, `AgentGraph` tipleri, `claudeTopologySyncService.ts`.
+- [x] Belgeler: `docs/graph-authoring.md` sil; README (`:85`, `:130`, `:257`), CLAUDE.md "Core Data Flow" 4. adım, DESIGN.md Studio satırları (`:304`, `:315`, `:335`, `:807`) Ekip editörüne göre.
+- [x] Tarama: `rg -n -i "studio|graphRunner|executionMode|_graph\.json|xyflow" core/src gui/src README.md CLAUDE.md DESIGN.md` yalnızca bilinçli kalanları gösterir; §12'ye yaz.
+- [x] Ekran görüntüleri: Ekip editörü (şablonlar, rol düzenleyici, ayarlar, doğrulama hatası). Krem + gece.
+- [x] Faz sonu: doğrulamalar + build, commit `feat: faz 4 - ekip editörü, studio silindi`.
 
 ### Faz 5: Cila, gerçek koşu, rapor
 - [ ] (İsteğe bağlı) Fabrika: DOING istasyonunun tabelası/pili etkin rolü gösterir (`components/Factory/`).
@@ -291,6 +291,8 @@ _(Faz 1: takılan yok.)_
 _(Faz 2: takılan yok.)_
 
 _(Faz 3: takılan yok.)_
+
+_(Faz 4: takılan yok.)_
 
 ## 12. Kendi kararlarım (otonom çalışırken verilen)
 
@@ -370,6 +372,23 @@ _(Diğer kararlar buraya, faz etiketiyle.)_
 - **F3 · Kilitli kartlara Playwright tıklaması `force` ister.** dnd-kit kilitli kartlara `aria-disabled="true"` veriyor; kullanıcı tıklayınca çekmece açılıyor (davranış öncekiyle aynı), yalnızca test betiğinde `force: true` gerekti.
 - **F3 · Kullanılmayan i18n anahtarları silindi.** `executionModeLabel`, `graphLabel`, `modeSimple`, `modeGraph`, `graphSelect`, `graphsLoading`, `graphsEmpty`, `openInStudio`, `tabFlow` (tr/en/types). `TaskPatch`/`Task`/`CreateTaskInput`'tan `executionMode`/`graphId` çıktı; StudioCanvas'taki görev-graf bağı `null`'a sabitlendi (Studio Faz 4'te siliniyor).
 
+- **F4 · Editör yerleşimi.** Claude Config → "Yönergeler | Ekip". Ekip segmenti: üstte "Proje ayarları" paneli (varsayılan ekip `Select`, QA tur sınırı `Segmented` 1/2/3/5/Sınırsız + 0–20 sayı kutusu, şartname onayı `Switch`; her biri değişince `PATCH /projects/:id`, hata olursa geri alınır), solda gruplu ekip kartları (`.ui-option`), sağda seçili ekip: rol listesi + rol düzenleyici. Yeni CSS sınıfı yok.
+- **F4 · Kullanıcı şablonları da burada salt okunur.** §3 yalnızca yerleşikleri salt okunur sayıyor; global şablonu düzenlemek bütün projeleri etkileyeceği için düzenleme yalnızca proje ekiplerinde. Şablonda "Özelleştir" (projeye kopya) ve "Sil" (`ConfirmDialog`) var. API şablon PUT'unu hâlâ kabul ediyor.
+- **F4 · "Şablon olarak kaydet" kaydedilmiş hali kopyalar** (`fromTeamId`); kaydedilmemiş değişiklik varken devre dışı ("Önce değişiklikleri kaydet"). "Varsayılan yap" da aynı kuralla.
+- **F4 · "Rol ekle" eksik türleri düğme olarak gösterir** ve rolü Yazılım Ekibi yerleşiğindeki aynı türden tohumlar (talimat, model, danışman, araçlar). Ekleme kanonik sıraya (CEO → Analist → Yazılımcı → QA) oturur; sonra yukarı/aşağı ile değiştirilebilir. Rol id'si tür adı, çakışırsa `-2`.
+- **F4 · İstemci doğrulaması core'un `teamRolesSchema`'sını aynalar** (`teamDraft.validateDraft`): ekip/rol adı boş, araç yok, 30'dan fazla skill, model, danışman sırası, Haiku danışman, QA ⇒ Yazılımcı ve sonra. Sorun varken Kaydet kapalı; sunucunun 400 `issues` mesajları da aynı i18n kodlarına eşlenir. Ana model danışmanın üstüne çıkarsa danışman sessizce "Yok" olur. Danışman alanı `capabilities.advisor` kapalıysa gizli.
+- **F4 · Kaydedilmemiş değişiklikle başka ekibe geçiş `ConfirmDialog` sorar** ("Değişiklikleri at"). Proje varsayılanı olan ekipte "Sil" devre dışı (409'u beklemeden); başka projenin varsayılanı olan şablonda 409 → "önce başka varsayılan seç".
+- **F4 · "Ekibi düzenle" görevin ekibini seçili açar.** `teamEditorRequest` artık `{ projectId, teamId }` (görevin `teamId`'si, yoksa proje varsayılanı). Çekmece doğrudan Claude Config → Ekip'te açılıyor (Faz 3'teki geçici "Talimatlar" inişi kalktı).
+- **F4 · Skill seçici.** Katalog `GET …/claude/skills/catalog`, aranabilir liste ilk 60 sonucu gösterir ("+N sonuç daha"), seçilenler kaynak noktalı `Tag`. "Skill yöneticisi" `SkillsManagerModal`'ı açar, kapanınca katalog yeniden çekilir. Katalogda olmayan seçili id kırmızı noktayla kalır.
+- **F4 · Yeni ikonlar** `IconStar` (varsayılan yap), `IconUpload` (şablon olarak kaydet); DESIGN.md §5.20.
+- **F4 · GUI'den kalkanlar.** `components/Studio/*` (8 dosya), store `studioRequest`/`studioGeneration`/`graphs` ve eylemleri, `api` agents/graph/graphs/generate/`pushClaude`/`listSkillItems`/`getProjectSkills`/`abortNode`/`retryNode` (uçları F2'de gitmişti) ve `ClaudeAgent`/`SkillItem` tipleri, `AgentGraph*`/`GraphRecord`, `studio_generation` WS tipi ve işleyicisi, i18n `studio` ve `claudeAgents` ad alanları + `claudeConfig.studio*`/`segment{Agents,Skills,Studio}`/`notImplemented`, `.studio-*`/`.agent-node*`/React Flow CSS'i ve `node-pulse`, `@xyflow/react`. `/board` First Load 322 kB → 276 kB. `MiniDagView` (Teknik akış) xyflow kullanmıyor, kaldı.
+- **F4 · Core'dan kalkanlar (alt ajan).** `graphService.ts`, `routes/graphs.ts` + mount, `claudeTopologySyncService.ts`, `projectsClaude.ts` agents/generate/graph uçları, `commitAgentChange`, `isMinimalBootstrappedSettings`, `/claude/push` (GUI'de çağıran yoktu), `taskService` graf fonksiyonları (tablo DDL'i kaldı), `broadcastStudioGeneration`, `AgentGraph*` tipleri. Üç agents/graph testi tek teste indi: dokuz uç 404, repo HEAD'i ve ağacı aynı. Testler 151 → 149. Core'da `/claude/skills/installed-skills` ucu kaldı (GUI artık kullanmıyor, skill uçları plan gereği dokunulmadı).
+- **F4 · Tarama (`rg -i "studio|graphRunner|executionMode|_graph\.json|xyflow"`) bilinçli kalanlar:** `taskService.ts:348-352` (`executionMode`/`graphId` kolon göçü, kolonlar §3 gereği duruyor), `ekiplerMigration.ts:86-88` + testi (graf → Solo eşlemesi), `projectTeamFields.test.ts` (alanların atıldığını doğruluyor), `projectsClaude.repoWrites.test.ts` (kalkan uçların 404 testi). GUI, README, CLAUDE.md, DESIGN.md'de iz yok.
+- **F4 · Belgeler.** `docs/graph-authoring.md` kalktı. README: DOING satırı ekip koşusu, görev çekmecesi "Team" sekmesi ve ekip seçicisi, proje paneli iki segment (Instructions, Team; Skill manager oradan), gui yığınından React Flow ve "Agent Studio" çıktı. CLAUDE.md "Core Data Flow" 4. adım `runTeam`. DESIGN.md Studio satırları (`:304`, `:315`, `:335`, `:809`) temizlendi, §5.16'ya Ekip editörü satırı eklendi.
+- **F4 · Küçük ek: `remark-gfm` eklendi** (`npx -y pnpm@11.0.9 add remark-gfm`, 4.0.1). Üç `ReactMarkdown` (zaman çizelgesi, yorumlar, CLAUDE.md önizleme) `remarkPlugins={[remarkGfm]}` alıyor. `.comment-markdown`'a tablo (`1px var(--border)` hücre, `sunken` başlık, taşınca yatay kayma), üstü çizili metin ve görev listesi stili eklendi; `.prose-claude` tablo stili zaten vardı. Ayrı ekran görüntüsü alınmadı (typecheck/lint/build yeşil).
+- **F4 · Görüntüler yalıtılmış core'da.** `scripts/shots-ekipler-faz4.mjs` :3000 GUI'yi `page.route` ile :3101'e yönlendirir (WS boş taklit), her koşuda yeni remote'suz repo + "Ekip Editörü" projesi açar (önceki koşununkini fake DB'den kaldırır). Akış gerçekten yazar (yalnızca fake DB): Özelleştir → rol düzenle + `project:release-notes` skill'i → Yazılımcı'yı çıkar (doğrulama) → geri ekle → Kaydet → Sınırsız + şartname onayı + Varsayılan yap → Şablon olarak kaydet → şablonu kaldır → görevden "Ekibi düzenle". Doğrulandı: proje `qaMaxRounds 0`, `specApproval true`, varsayılan kopya ekip; kopyada Yazılımcı skill'i kayıtlı; şablon kalktı; repo HEAD'i ve ağacı aynı; sayfa hatası yok; "Ekibi düzenle" Ekip segmentinde, görevin ekibi (Hata Avı) seçili. :3001'e istek gitmedi, :3101 iş bitince durduruldu.
+- **F4 · Oturumda kapı yine çıktı.** "Fact-Forcing Gate" `git rm` komutlarında (Studio dizini, `graph-authoring.md`) ve plan güncellemesinde istenen bilgiler (etkilenen dosyalar, geri alma `git checkout a6e11c5 -- <yol>`, talimat) verilince geçti.
+
 ## 13. İlerleme günlüğü
 
 - 2026-11-15: Plan yazıldı. Çalışma başlamadı; Furkan'ın "başla" demesi bekleniyor.
@@ -421,3 +440,15 @@ _(Diğer kararlar buraya, faz etiketiyle.)_
 - 2026-11-15 F3: Başlıktaki "Studio'da aç" → "Ekibi düzenle" (`openTeamEditor`); AppRail ve ProjectDetailDrawer `teamEditorRequest`'i işliyor (Claude Config sekmesi). Typecheck + lint yeşil.
 - 2026-11-15 F3: Görüntüler `scripts/shots-ekipler-faz3.mjs` (yalnızca GET, run/artifact/node-run `page.route`, kart turu `routeWebSocket`): `ekipler-3-{kartlar,kart-onay,board,qa-tur2,onay,onay-detay,takildi,bitti-ust,bitti-alt,secici,addtask}-{krem,gece}.png`, engellenen yazma yok. Canlı: `scripts/shots-ekipler-faz3-canli.mjs`, yalıtılmış core (:3101, `fail_then_pass`, 3 sn gecikme, onay kapısı açık) → `ekipler-3-canli-{kart,onay,calisiyor,bitti}-{krem,gece}.png`. GUI'den şartname düzenlenip onaylandı (`approved`, düzenleme gövdede), koşu `delivered`/`qaRound 1`, 7 artifact = 7 DOM balonu, sayfa hatası yok. :3101 öldürüldü, :3001 dokunulmadı.
 - 2026-11-15 F3: Faz sonu doğrulamaları yeşil (core typecheck + 151 test / 24 dosya; gui typecheck + lint 0 uyarı; scratchpad kopyasında `node_modules/.bin/next build`: `/board` 322 kB, `/` 143 kB First Load); faz 3 commit'i.
+- 2026-11-15 F4: Claude Config segmentleri "Yönergeler | Ekip" (`claudeConfig.segmentTeam`/`teamHint`), `Team/TeamEditor.tsx` iskeleti; `api.createTeam`/`updateTeam`/`deleteTeam`/`listSkillCatalog`/`getCapabilities`; `teamEditorRequest { projectId, teamId }`, AppRail/ProjectDetailDrawer Ekip segmentine iniyor. i18n `team.editor.*` (+ `TeamValidationCode`) tr/en/types. Typecheck + lint yeşil.
+- 2026-11-15 F4: `Team/TeamList.tsx` (Hazır ekipler / Şablonlarım / Bu projenin ekipleri, rol plakaları, Varsayılan rozeti), başlıkta "Varsayılan yap" (`PATCH defaultTeamId`) ve "Özelleştir" (`POST /teams fromTeamId`, projeye kopya, kopya seçilir). Typecheck + lint yeşil; :3101'de kopya oluştu.
+- 2026-11-15 F4: `Team/RoleList.tsx` + `teamDraft.ts`: sıra numarası, rol rengi şeridi, QA ⇄ Yazılımcı döngü ikonu, yukarı/aşağı, çıkar, eksik türler için "+ <rol>", doğrulama banner'ı (istemci + sunucu kodları). Typecheck + lint yeşil; :3101'de "QA için ekipte Yazılımcı olmalı" göründü, Kaydet kapandı.
+- 2026-11-15 F4: `Team/RoleEditor.tsx`: rol adı, model, danışman (sıraya göre süzülür, yetenek kapalıysa gizli), talimat, 10 araç kutusu, aranabilir skill çoklu seçimi + "Skill yöneticisi" (`SkillsManagerModal`); salt okunurda `dl` görünümü. Typecheck + lint yeşil; :3101'de skill kaydedildi.
+- 2026-11-15 F4: `Team/TeamSettings.tsx`: varsayılan ekip, QA tur sınırı (1/2/3/5/Sınırsız + 0–20), şartname onayı `Switch`; değişince kaydeder, hata olursa geri alır. :3101'de `qaMaxRounds 0`, `specApproval true` doğrulandı.
+- 2026-11-15 F4: "Şablon olarak kaydet" (kaydedilmiş halden, `projectId: null`) ve şablon/proje ekibi kaldırma (`ConfirmDialog`, varsayılansa kapalı, 409 mesajı), kaydedilmemiş değişiklikte geçiş onayı; `IconStar`, `IconUpload`. :3101'de şablon oluştu ve kalktı.
+- 2026-11-15 F4: GUI'den Studio kalktı (8 bileşen, store, api, tipler, WS, i18n, CSS, `@xyflow/react`). Typecheck + lint yeşil.
+- 2026-11-15 F4: Core'dan Studio kalktı (alt ajan): `graphService`, `routes/graphs`, `claudeTopologySyncService`, agents/generate/graph/push uçları, graf fonksiyonları, `broadcastStudioGeneration`, `AgentGraph*`. Core typecheck + 149 test yeşil, :3001 sağlıklı, kalkan uçlar 404.
+- 2026-11-15 F4: Belgeler: `docs/graph-authoring.md` kalktı; README, CLAUDE.md "Core Data Flow", DESIGN.md güncellendi. Ek: `remark-gfm` + `.comment-markdown` tablo stili.
+- 2026-11-15 F4: Tarama yalnızca bilinçli kalanları gösteriyor (§12 F4 listesi).
+- 2026-11-15 F4: Görüntüler `scripts/shots-ekipler-faz4.mjs` (yalıtılmış core :3101): `ekipler-4-{sablonlar,rol-duzenleyici,dogrulama,ayarlar,sablon-kaydedildi,sil-onay,ekibi-duzenle}-{krem,gece}.png`, sayfa hatası yok, repo değişmedi.
+- 2026-11-15 F4: Faz sonu doğrulamaları yeşil (core typecheck + 149 test / 24 dosya; gui typecheck + lint 0 uyarı; scratchpad kopyasında `node_modules/.bin/next build`: `/board` 276 kB, `/` 143 kB First Load; ortak DB'de yalnızca 4 yerleşik ekip); faz 4 commit'i.

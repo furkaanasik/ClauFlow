@@ -2,7 +2,6 @@ import http from "node:http";
 import cors from "cors";
 import express from "express";
 import tasksRouter from "./routes/tasks.js";
-import graphsRouter from "./routes/graphs.js";
 import teamsRouter from "./routes/teams.js";
 import projectsRouter from "./routes/projects.js";
 import projectsClaudeRouter from "./routes/projectsClaude.js";
@@ -39,7 +38,6 @@ app.get("/health", (_req, res) => {
 app.use("/api/tasks", tasksRouter);
 app.use("/api/tasks/:id/comments", commentsRouter);
 app.use("/api/teams", teamsRouter);
-app.use("/api/projects/:id/graphs", graphsRouter);
 app.use("/api/projects", projectsClaudeRouter);
 app.use("/api/projects", projectsGithubRouter);
 app.use("/api/projects", projectsRouter);

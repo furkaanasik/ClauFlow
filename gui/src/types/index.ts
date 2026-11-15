@@ -210,14 +210,6 @@ export type TaskPatch = Partial<
   >
 > & { agent?: Partial<AgentState> };
 
-export interface GraphRecord {
-  id: string;
-  projectId: string;
-  name: string;
-  data: AgentGraph;
-  createdAt: string;
-}
-
 export type CommentStatus = "pending" | "running" | "done" | "error";
 
 export interface Comment {
@@ -315,24 +307,6 @@ export interface CloneProgress {
   project?: Project;
 }
 
-export interface AgentGraphNode {
-  id: string;
-  type: "agent";
-  position: { x: number; y: number };
-  data: { slug: string };
-}
-
-export interface AgentGraphEdge {
-  id: string;
-  source: string;
-  target: string;
-}
-
-export interface AgentGraph {
-  nodes: AgentGraphNode[];
-  edges: AgentGraphEdge[];
-}
-
 export interface CiFailure {
   jobName: string;
   conclusion: "FAILURE" | "CANCELLED" | "TIMED_OUT" | "ACTION_REQUIRED";
@@ -392,15 +366,6 @@ export type WsMessage =
         pluginId: string;
         status: "running" | "done" | "error";
         message?: string;
-      };
-    }
-  | {
-      type: "studio_generation";
-      payload: {
-        generationId: string;
-        status: "running" | "done" | "error";
-        chunk?: string;
-        error?: string;
       };
     }
   | {

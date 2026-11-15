@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProject, db } from "../services/taskService.js";
@@ -52,30 +52,30 @@ afterAll(async () => {
 });
 
 describe("Claude config routes do not write to the repo on their own", () => {
-  it("GET /claude/agents lists without bootstrapping main.md or settings.json and without commits", async () => {
+  it("Studio agent, graph and push endpoints are gone", async () => {
     const before = git("rev-parse", "HEAD");
-    const res = await call("GET", `/api/projects/${projectId}/claude/agents`);
-    expect(res.status).toBe(200);
-    expect(res.json.agents.map((a: { slug: string }) => a.slug)).toEqual(["coder"]);
+    const base = `/api/projects/${projectId}/claude`;
+    const calls: Array<[string, string, unknown?]> = [
+      ["GET", `${base}/agents`],
+      ["GET", `${base}/agents/coder`],
+      ["POST", `${base}/agents`, { slug: "tester", body: "Test." }],
+      ["PUT", `${base}/agents/coder`, { body: "x" }],
+      ["DELETE", `${base}/agents/coder`],
+      ["POST", `${base}/agents/studio/generate`, { prompt: "x" }],
+      ["GET", `${base}/graph`],
+      ["PUT", `${base}/graph`, { nodes: [], edges: [] }],
+      ["POST", `${base}/push`],
+    ];
+    for (const [method, path, body] of calls) {
+      const res = await fetch(`${server.url}${path}`, {
+        method,
+        headers: body === undefined ? undefined : { "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      expect(res.status, `${method} ${path}`).toBe(404);
+    }
     expect(git("status", "--porcelain")).toBe("");
     expect(git("rev-parse", "HEAD")).toBe(before);
-    expect(existsSync(join(repo, ".claude", "agents", "main.md"))).toBe(false);
-    expect(existsSync(join(repo, ".claude", "settings.json"))).toBe(false);
-  });
-
-  it("POST /claude/agents does not write settings.json", async () => {
-    const res = await call("POST", `/api/projects/${projectId}/claude/agents`, { slug: "tester", body: "Test." });
-    expect(res.status).toBe(201);
-    expect(existsSync(join(repo, ".claude", "settings.json"))).toBe(false);
-    expect(git("show", "--name-only", "--format=", "HEAD").split("\n")).toEqual([".claude/agents/tester.md"]);
-  });
-
-  it("PUT /claude/graph writes the file but does not commit", async () => {
-    const before = git("rev-parse", "HEAD");
-    const res = await call("PUT", `/api/projects/${projectId}/claude/graph`, { nodes: [], edges: [] });
-    expect(res.status).toBe(200);
-    expect(git("rev-parse", "HEAD")).toBe(before);
-    git("clean", "-fdq");
   });
 
   it("PUT /claude/instructions commits only on the base branch", async () => {

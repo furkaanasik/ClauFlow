@@ -285,15 +285,6 @@ export type WsMessage =
         project?: Project;
       };
     }
-  | {
-      type: "studio_generation";
-      payload: {
-        generationId: string;
-        status: "running" | "done" | "error";
-        chunk?: string;
-        error?: string;
-      };
-    }
   | { type: "hello"; payload: { serverVersion: string } }
   | {
       type: "ci_check_status";
@@ -365,24 +356,6 @@ export interface ClaudeMarketplaceSource {
 export interface ClaudeMarketplace {
   name: string;
   source: ClaudeMarketplaceSource;
-}
-
-export interface AgentGraphNode {
-  id: string;
-  type: "agent";
-  position: { x: number; y: number };
-  data: { slug: string };
-}
-
-export interface AgentGraphEdge {
-  id: string;
-  source: string;
-  target: string;
-}
-
-export interface AgentGraph {
-  nodes: AgentGraphNode[];
-  edges: AgentGraphEdge[];
 }
 
 export interface CiFailure {

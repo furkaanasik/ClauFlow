@@ -1375,7 +1375,7 @@ body::before {
   }
   .ui-modal[data-state="closing"] { animation: ui-pop-out 140ms ease-in both; }
 
-  /* ════ Faz 3b: project drawer, Studio, PRs, insights ════ */
+  /* ════ Faz 3b: project drawer, PRs, insights ════ */
 
   /* Static row card (skills manager, marketplaces) */
   .ui-row {
@@ -1393,253 +1393,6 @@ body::before {
 
   /* Fullscreen CLAUDE.md editor */
   .cc-full { animation: ui-fade 160ms ease both; }
-
-  /* ── Studio: side columns ── */
-  .studio-side {
-    display: flex;
-    flex-direction: column;
-    flex: none;
-    width: 14.5rem;
-    min-height: 0;
-    border-color: var(--line);
-    background: var(--panel);
-  }
-  .studio-side__head {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    height: 2.6rem;
-    padding: 0 0.85rem;
-    border-bottom: 2px solid var(--line);
-    font-size: 0.8125rem;
-    font-weight: 700;
-    color: var(--ink);
-  }
-  .studio-side__count {
-    min-width: 1.4rem;
-    padding: 0 0.35rem;
-    border: 1.5px solid var(--line);
-    border-radius: 999px;
-    background: var(--sunken);
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    line-height: 1.1rem;
-    text-align: center;
-  }
-  .studio-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 2.35rem;
-    padding: 0.35rem 0.55rem;
-    border: 2px solid var(--line);
-    border-radius: 9px;
-    background: var(--paper);
-    cursor: grab;
-    user-select: none;
-    box-shadow: 2px 2px 0 var(--shadow-ink);
-    transition: transform 110ms var(--ease-press), box-shadow 110ms var(--ease-press), background-color 120ms ease;
-  }
-  .studio-item:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--shadow-ink); background: color-mix(in srgb, var(--mustard) 14%, var(--paper)); }
-  .studio-item:active { cursor: grabbing; transform: translate(1px, 1px) rotate(-1.5deg); box-shadow: none; }
-  .studio-item[data-placed="true"] {
-    cursor: default;
-    border-style: dashed;
-    border-color: color-mix(in srgb, var(--line) 45%, transparent);
-    background: transparent;
-    box-shadow: none;
-    transform: none;
-  }
-  .studio-item[data-placed="true"] > :not(:last-child) { opacity: 0.6; }
-  /* 2×3 grip dots */
-  .studio-item__grip {
-    flex: none;
-    width: 6px;
-    height: 12px;
-    opacity: 0.55;
-    background-image: radial-gradient(circle, var(--ink) 1.2px, transparent 1.4px);
-    background-size: 3px 4px;
-  }
-  .studio-item__src {
-    flex: none;
-    padding: 0 0.35rem;
-    border: 1.5px solid var(--line);
-    border-radius: 999px;
-    font-family: var(--font-mono);
-    font-size: 0.5625rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    line-height: 0.95rem;
-    color: var(--ink-2);
-  }
-
-  /* ── Studio: canvas ── */
-  .studio-canvas { background: var(--paper); }
-  .studio-flow {
-    --xy-background-color: var(--paper);
-    --xy-background-pattern-color: color-mix(in srgb, var(--ink) 20%, transparent);
-    --xy-edge-stroke: var(--ink-2);
-    --xy-edge-stroke-width: 2.25;
-    --xy-edge-stroke-selected: var(--cobalt);
-    --xy-connectionline-stroke: var(--cobalt);
-    --xy-connectionline-stroke-width: 2.25;
-  }
-  .studio-flow .react-flow__edge:hover .react-flow__edge-path { stroke: var(--orange); }
-  .studio-flow .react-flow__edge.selected .react-flow__edge-path { stroke: var(--cobalt); stroke-dasharray: 6 4; }
-  .studio-flow .react-flow__controls {
-    border: 2px solid var(--line);
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: var(--shadow);
-  }
-  .studio-flow .react-flow__controls-button { border-bottom: 1.5px solid var(--hair); width: 28px; height: 28px; }
-  .studio-flow .react-flow__controls-button:last-child { border-bottom: 0; }
-  .studio-flow .react-flow__node { border-radius: 14px; }
-  .studio-flow .react-flow__node:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 4px; }
-
-  .studio-live {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.35rem 0.75rem 0.35rem 0.6rem;
-    border: 2px solid var(--line);
-    border-radius: 999px;
-    background: var(--panel);
-    font-size: 0.75rem;
-    color: var(--ink);
-    box-shadow: 3px 3px 0 var(--orange);
-  }
-  .studio-hint {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    max-width: 34rem;
-    padding: 0.55rem 0.9rem;
-    border: 2px dashed var(--line);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--panel) 92%, transparent);
-    font-size: 0.78rem;
-    line-height: 1.4;
-    color: var(--ink-2);
-  }
-
-  /* ── Studio: agent node ── */
-  .agent-node {
-    position: relative;
-    width: 15rem;
-    border: 2px solid var(--line);
-    border-radius: 14px;
-    background: var(--panel);
-    box-shadow: 4px 4px 0 var(--run, var(--shadow-ink));
-    transition: transform 120ms var(--ease-press), box-shadow 120ms var(--ease-press);
-  }
-  .react-flow__node:hover .agent-node { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--run, var(--shadow-ink)); }
-  .react-flow__node.dragging .agent-node { transform: rotate(-1.5deg); box-shadow: 8px 8px 0 var(--run, var(--shadow-ink)); }
-  .agent-node[data-selected="true"] { box-shadow: 5px 5px 0 var(--mustard); }
-  .agent-node[data-kind="main"] { border-width: 2.5px; }
-  .agent-node[data-run="running"] { animation: node-pulse 1.6s ease-in-out infinite; }
-  .agent-node[data-invalid="true"] { outline: 2.5px dashed var(--red); outline-offset: 4px; }
-  .agent-node[data-drop="true"] { outline: 2.5px dashed var(--mustard-text); outline-offset: 4px; background: color-mix(in srgb, var(--mustard) 12%, var(--panel)); }
-  .agent-node__cap {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    height: 1.85rem;
-    padding: 0 0.6rem 0 0.7rem;
-    border-bottom: 2px solid var(--line);
-    border-radius: 12px 12px 0 0;
-    background: var(--cap);
-    color: var(--cap-on);
-  }
-  .agent-node[data-kind="main"] .agent-node__cap {
-    background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--line) 16%, transparent) 0 2px, transparent 2px 8px);
-  }
-  .agent-node__kind {
-    flex: 1;
-    min-width: 0;
-    font-family: var(--font-mono);
-    font-size: 0.625rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-  .agent-node__model {
-    flex: none;
-    max-width: 7.5rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 0 0.4rem;
-    border: 1.5px solid var(--line);
-    border-radius: 999px;
-    background: var(--panel);
-    color: var(--ink);
-    font-family: var(--font-mono);
-    font-size: 0.5625rem;
-    font-weight: 600;
-    line-height: 0.95rem;
-  }
-  .agent-node__skill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    height: 1.25rem;
-    padding: 0 0.2rem 0 0.4rem;
-    border: 1.5px solid var(--line);
-    border-radius: 999px;
-    background: var(--sunken);
-    color: var(--ink);
-    font-family: var(--font-mono);
-    font-size: 0.625rem;
-    font-weight: 600;
-  }
-  .agent-node__skill--ghost {
-    padding-right: 0.45rem;
-    border-style: dashed;
-    border-color: var(--mustard-text);
-    background: color-mix(in srgb, var(--mustard) 25%, var(--panel));
-    color: var(--mustard-text);
-  }
-  .agent-node__foot {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.6rem 0.45rem 0.7rem;
-    border-top: 2px dashed var(--hair);
-    border-radius: 0 0 12px 12px;
-    background: color-mix(in srgb, var(--run, var(--red)) 10%, var(--panel));
-  }
-  .agent-node__btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    height: 1.35rem;
-    padding: 0 0.45rem;
-    border: 1.5px solid var(--line);
-    border-radius: 7px;
-    background: var(--panel);
-    font-family: var(--font-mono);
-    font-size: 0.625rem;
-    font-weight: 700;
-    color: var(--ink);
-    box-shadow: 1.5px 1.5px 0 var(--shadow-ink);
-  }
-  .agent-node__btn:hover { background: var(--ink); color: var(--on-ink); }
-  .agent-node__btn:active { transform: translate(1px, 1px); box-shadow: none; }
-  .react-flow__handle.agent-node__handle {
-    width: 13px;
-    height: 13px;
-    border: 2px solid var(--line);
-    border-radius: 999px;
-    background: var(--panel);
-    transition: background-color 120ms ease, transform 120ms var(--ease-press);
-  }
-  .react-flow__handle.agent-node__handle:hover,
-  .react-flow__handle.agent-node__handle.connectingfrom,
-  .react-flow__handle.agent-node__handle.valid { background: var(--mustard); transform: translate(-50%, var(--hy, 0)) scale(1.25); }
-  .react-flow__handle-top.agent-node__handle { --hy: -50%; }
-  .react-flow__handle-bottom.agent-node__handle { --hy: 50%; }
 
   /* ── PR list ── */
   .pr-row {
@@ -1852,10 +1605,6 @@ body::before {
 @keyframes ui-drawer-out {
   from { transform: translateX(0); }
   to { transform: translateX(104%); }
-}
-@keyframes node-pulse {
-  0%, 100% { box-shadow: 4px 4px 0 var(--run, var(--orange)); }
-  50% { box-shadow: 4px 4px 0 var(--run, var(--orange)), 0 0 0 5px color-mix(in srgb, var(--orange) 28%, transparent); }
 }
 @keyframes fade-up {
   from { transform: translateY(8px); opacity: 0; }
@@ -2172,24 +1921,6 @@ html.night .agent-core { --core-ink: var(--sunken); }
 .prose-claude strong { color: var(--ink); font-weight: 600; }
 .prose-claude em { font-style: italic; }
 
-/* ─── React Flow theming ──────────────────────────────────────────────────── */
-.react-flow {
-  --xy-background-color: var(--panel);
-  --xy-background-pattern-color: color-mix(in srgb, var(--ink) 22%, transparent);
-  --xy-controls-button-background-color: var(--panel);
-  --xy-controls-button-background-color-hover: var(--sunken);
-  --xy-controls-button-color: var(--ink);
-  --xy-controls-button-color-hover: var(--ink);
-  --xy-controls-button-border-color: var(--line);
-  --xy-controls-box-shadow: var(--shadow);
-  --xy-edge-stroke: var(--ink-2);
-  --xy-edge-stroke-selected: var(--cobalt);
-  --xy-minimap-background-color: var(--panel);
-  --xy-minimap-mask-background-color: color-mix(in srgb, var(--ink) 30%, transparent);
-  --xy-attribution-background-color: transparent;
-}
-.react-flow__controls-button svg { fill: var(--ink); }
-
 /* ─── Markdown in comments ────────────────────────────────────────────────── */
 .comment-markdown h1, .comment-markdown h2, .comment-markdown h3,
 .comment-markdown h4, .comment-markdown h5, .comment-markdown h6 {
@@ -2236,3 +1967,8 @@ html.night .agent-core { --core-ink: var(--sunken); }
 }
 .comment-markdown hr { border: none; border-top: 1px solid var(--border); margin: 0.75em 0; }
 .comment-markdown a { color: var(--cobalt-text); text-decoration: underline; }
+.comment-markdown table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 0.5em 0; font-size: 0.92em; }
+.comment-markdown th, .comment-markdown td { border: 1px solid var(--border); padding: 0.3rem 0.55rem; text-align: left; vertical-align: top; }
+.comment-markdown th { background: var(--sunken); font-weight: 600; color: var(--ink); }
+.comment-markdown del { color: var(--ink-3); }
+.comment-markdown li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.1em; }

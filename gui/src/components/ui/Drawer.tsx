@@ -20,7 +20,7 @@ export interface DrawerProps {
   /** Right-hand column of the split layout (meta, budget, links). */
   aside?: ReactNode;
   footer?: ReactNode;
-  /** md ≈ 40vw, lg ≈ 55vw (task detail), xl ≈ 72vw, full ≈ 94vw (Studio, diff). */
+  /** md ≈ 40vw, lg ≈ 55vw (task detail), xl ≈ 72vw, full ≈ 94vw (team editor, diff). */
   width?: "md" | "lg" | "xl" | "full";
   children: ReactNode;
   /** Accessible name when `title` isn't plain text. */

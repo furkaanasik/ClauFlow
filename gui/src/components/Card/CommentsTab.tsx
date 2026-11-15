@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -61,7 +62,7 @@ function CommentCard({ comment }: { comment: Comment }) {
         <div className="px-4 pb-3 pt-3.5">
           {comment.status === "done" && looksLikeMarkdown(comment.body) ? (
             <div className="comment-markdown text-[13.5px] leading-relaxed text-ink">
-              <ReactMarkdown>{comment.body}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{comment.body}</ReactMarkdown>
             </div>
           ) : (
             <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink">{comment.body}</p>

@@ -63,14 +63,9 @@ export function AppRail() {
   const [reposOpen, setReposOpen] = useState(true);
   const [reposAll, setReposAll] = useState(false);
 
-  // Studio / project-detail intents raised elsewhere (task drawer, insights)
-  const studioRequest = useBoardStore((s) => s.studioRequest);
-  const closeStudio = useBoardStore((s) => s.closeStudio);
+  // Team-editor / project-detail intents raised elsewhere (task drawer, insights)
   const projectDetailRequest = useBoardStore((s) => s.projectDetailRequest);
   const clearProjectDetailRequest = useBoardStore((s) => s.clearProjectDetailRequest);
-  useEffect(() => {
-    if (studioRequest) setDetailProjectId(studioRequest.projectId);
-  }, [studioRequest]);
   const teamEditorRequest = useBoardStore((s) => s.teamEditorRequest);
   const closeTeamEditor = useBoardStore((s) => s.closeTeamEditor);
   useEffect(() => {
@@ -282,7 +277,6 @@ export function AppRail() {
         projectId={detailProjectId}
         onClose={() => {
           setDetailProjectId(null);
-          closeStudio();
           closeTeamEditor();
         }}
       />

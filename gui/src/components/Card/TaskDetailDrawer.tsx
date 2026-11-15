@@ -386,7 +386,7 @@ export function TaskDetailDrawer() {
                 <button
                   type="button"
                   onClick={() => {
-                    openTeamEditor(task.projectId);
+                    openTeamEditor(task.projectId, task.teamId ?? project.defaultTeamId ?? null);
                     selectTask(null);
                   }}
                   className="ui-focus inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 font-sans text-[12px] font-semibold text-[var(--cobalt-text)] transition hover:bg-hair"

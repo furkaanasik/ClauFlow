@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, GraphRecord, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
 import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
 
 type Lang = "tr" | "en";
@@ -38,14 +38,10 @@ interface BoardState {
   ciIterations: Record<string, { iteration: number; maxIterations: number }>;
   budgetExceeded: Record<string, { spentUsd: number; budgetUsd: number }>;
   gitStatusByProject: Record<string, GitStatus>;
-  /** Graphs per project, keyed by projectId */
-  graphs: Record<string, GraphRecord[]>;
-  /** Open-Studio intent. ProjectSidebar opens the project drawer when non-null;
-   *  ClaudeConfigTab forces the Studio segment; StudioCanvas binds to taskId. */
-  studioRequest: { projectId: string; taskId: string } | null;
   projectDetailRequest: string | null;
-  /** "Edit team" intent from the task drawer: AppRail opens the project drawer on Claude Config. */
-  teamEditorRequest: { projectId: string } | null;
+  /** "Edit team" intent from the task drawer: AppRail opens the project drawer on
+   *  Claude Config → Ekip, with `teamId` (the task's team) preselected when given. */
+  teamEditorRequest: { projectId: string; teamId: string | null } | null;
 
   /** Teams usable by a project (built-ins, user templates, project teams), keyed by projectId. */
   teamsByProject: Record<string, Team[]>;
@@ -53,19 +49,6 @@ interface BoardState {
   teamRuns: Record<string, TeamRun[]>;
   /** Team artifacts per task, in creation order. */
   teamArtifacts: Record<string, TeamArtifact[]>;
-
-  studioGeneration: {
-    generationId: string | null;
-    status: "idle" | "running" | "done" | "error";
-    text: string;
-    error: string | null;
-  };
-
-  studioReset: () => void;
-  studioStart: (id: string) => void;
-  studioAppend: (chunk: string) => void;
-  studioFinish: () => void;
-  studioError: (msg: string) => void;
 
   setTasks: (tasks: Task[]) => void;
   upsertTask: (task: Task) => void;
@@ -121,13 +104,9 @@ interface BoardState {
   breakdownStatus: Record<string, "breaking" | "done" | "error">;
   setBreakdownStatus: (taskId: string, status: "breaking" | "done" | "error") => void;
 
-  setGraphs: (projectId: string, graphs: GraphRecord[]) => void;
-
-  openStudio: (projectId: string, taskId: string) => void;
-  closeStudio: () => void;
   openProjectDetail: (projectId: string) => void;
   clearProjectDetailRequest: () => void;
-  openTeamEditor: (projectId: string) => void;
+  openTeamEditor: (projectId: string, teamId?: string | null) => void;
   closeTeamEditor: () => void;
 
   setTeams: (projectId: string, teams: Team[]) => void;
@@ -169,45 +148,11 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   budgetExceeded: {},
   gitStatusByProject: {},
   breakdownStatus: {},
-  graphs: {},
-  studioRequest: null,
   projectDetailRequest: null,
   teamEditorRequest: null,
   teamsByProject: {},
   teamRuns: {},
   teamArtifacts: {},
-
-  studioGeneration: {
-    generationId: null,
-    status: "idle",
-    text: "",
-    error: null,
-  },
-
-  studioReset: () =>
-    set(() => ({
-      studioGeneration: { generationId: null, status: "idle", text: "", error: null },
-    })),
-
-  studioStart: (id) =>
-    set(() => ({
-      studioGeneration: { generationId: id, status: "running", text: "", error: null },
-    })),
-
-  studioAppend: (chunk) =>
-    set((state) => ({
-      studioGeneration: { ...state.studioGeneration, text: state.studioGeneration.text + chunk },
-    })),
-
-  studioFinish: () =>
-    set((state) => ({
-      studioGeneration: { ...state.studioGeneration, status: "done" },
-    })),
-
-  studioError: (msg) =>
-    set((state) => ({
-      studioGeneration: { ...state.studioGeneration, status: "error", error: msg },
-    })),
 
   setTasks: (tasks) =>
     set(() => ({
@@ -536,17 +481,9 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       breakdownStatus: { ...state.breakdownStatus, [taskId]: status },
     })),
 
-  setGraphs: (projectId, graphs) =>
-    set((s) => ({ graphs: { ...s.graphs, [projectId]: graphs } })),
-
-  openStudio: (projectId, taskId) =>
-    set(() => ({ studioRequest: { projectId, taskId } })),
-
-  closeStudio: () => set(() => ({ studioRequest: null })),
-
   openProjectDetail: (projectId) => set(() => ({ projectDetailRequest: projectId })),
   clearProjectDetailRequest: () => set(() => ({ projectDetailRequest: null })),
-  openTeamEditor: (projectId) => set(() => ({ teamEditorRequest: { projectId } })),
+  openTeamEditor: (projectId, teamId = null) => set(() => ({ teamEditorRequest: { projectId, teamId } })),
   closeTeamEditor: () => set(() => ({ teamEditorRequest: null })),
 
   setTeams: (projectId, teams) =>

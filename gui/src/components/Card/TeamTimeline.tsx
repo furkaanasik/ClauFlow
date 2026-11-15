@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Select } from "@/components/ui/Input";
 import { StatusPill, type StatusKind } from "@/components/ui/Pills";
 import { IconAlert, IconBranch, IconCheck, IconClose, IconCoin, IconTeam } from "@/components/ui/icons";
@@ -371,7 +372,7 @@ function MarkdownBody({ body, t }: { body: string; t: Translations }) {
         className="team-bubble__body comment-markdown text-[13.5px] leading-relaxed text-ink"
         data-clamped={!open || undefined}
       >
-        <ReactMarkdown>{text}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
       </div>
       {overflows && !open && <div className="team-bubble__more">{toggle}</div>}
       {open && <div className="px-[1.15rem] pb-2.5">{toggle}</div>}

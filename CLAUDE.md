@@ -108,7 +108,7 @@ cd gui && pnpm build
 1. User drags a card from `todo → doing`
 2. GUI sends `PATCH /api/tasks/:id` with `status: "doing"`
 3. The core route handler kicks off the executor fire-and-forget
-4. Executor: checkout → branch → `claude CLI` → commit → push → `gh pr create`
+4. Executor: checkout → branch → `runTeam` (one `claude -p` call per team role: CEO → Analyst → Developer ⇄ QA, commit after the Developer) → push → `gh pr create`. Teams live in the DB (`teams`, `task_team_runs`, `task_team_artifacts`), never in the repo; the task's `teamId` falls back to the project's `defaultTeamId`, then Solo
 5. Each step broadcasts `agent_log` / `agent_status` / `task_updated` over WebSocket
 6. The GUI's `useAgentSocket` hook receives events → the Zustand store updates
 7. If there is no remote, the task moves directly to `done`; if a remote exists, it goes to `review`
