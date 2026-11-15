@@ -89,6 +89,43 @@ describe("runRole", () => {
   });
 });
 
+describe("runRole · real cost (F3)", () => {
+  it("adds each role's total_cost_usd to the task and writes the node run cost", async () => {
+    const t = await createTask({ projectId: (await getTask(taskId))!.projectId, title: "cost" });
+    process.env.FAKE_CLAUDE_COST_USD = "0.125";
+    const a = await runRole({ ...base(), taskId: t.id });
+    process.env.FAKE_CLAUDE_COST_USD = "0.0375";
+    const b = await runRole({ ...base(), taskId: t.id, nodeId: "role:analyst:1", nodeType: "analyst" });
+    expect((await getTask(t.id))!.costUsd).toBeCloseTo(0.1625, 9);
+    expect(getNodeRun(a.nodeRunId)!.costUsd).toBeCloseTo(0.125, 9);
+    expect(getNodeRun(b.nodeRunId)!.costUsd).toBeCloseTo(0.0375, 9);
+  });
+
+  it("ends with result.usage tokens even when the per-turn numbers differ", async () => {
+    const t = await createTask({ projectId: (await getTask(taskId))!.projectId, title: "tokens" });
+    process.env.FAKE_CLAUDE_TURN_USAGE = "30,7,0,1";
+    try {
+      await runRole({ ...base(), taskId: t.id });
+      await runRole({ ...base(), taskId: t.id });
+    } finally {
+      delete process.env.FAKE_CLAUDE_TURN_USAGE;
+    }
+    expect((await getTask(t.id))!.usage).toEqual({
+      inputTokens: 200,
+      outputTokens: 100,
+      cacheReadTokens: 20,
+      cacheWriteTokens: 10,
+    });
+  });
+
+  it("adds nothing for a role that failed before reporting any usage", async () => {
+    const t = await createTask({ projectId: (await getTask(taskId))!.projectId, title: "err" });
+    process.env.FAKE_CLAUDE_SCENARIO = "exit_error";
+    await runRole({ ...base(), taskId: t.id }).catch(() => undefined);
+    expect((await getTask(t.id))!.costUsd).toBe(0);
+  });
+});
+
 describe("costFromResult", () => {
   it("prefers total_cost_usd, then modelUsage, then token pricing", () => {
     expect(costFromResult({ total_cost_usd: 0.4, modelUsage: { a: { costUSD: 9 } } }, "sonnet")).toBe(0.4);

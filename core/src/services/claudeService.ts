@@ -226,7 +226,7 @@ export interface ClaudeRunOptions {
   bare?: boolean;
   /** Passed as `--model`. CLI aliases (`sonnet`, `opus`) are accepted. */
   model?: string;
-  /** Passed as `--tools`, which restricts the built-in tool set (unlike `--allowedTools`). */
+  /** Passed as `--tools`, which restricts the built-in tool set (unlike `--allowedTools`); `[]` disables all tools. */
   tools?: string[];
   appendSystemPrompt?: string;
   /** Passed as `--advisor` only while ADVISOR_SUPPORTED is true. */
@@ -357,9 +357,8 @@ function buildClaudeArgsRaw(options: ClaudeRunOptions): string[] {
   const args = ["-p", options.prompt, "--permission-mode", "bypassPermissions"];
   if (options.bare) args.push("--bare");
   if (options.model) args.push("--model", options.model);
-  if (options.tools && options.tools.length > 0) {
-    args.push("--tools", options.tools.join(","));
-  }
+  // An explicit empty list disables every built-in tool (`--tools ""`).
+  if (options.tools) args.push("--tools", options.tools.join(","));
   if (options.allowedTools && options.allowedTools.length > 0) {
     args.push("--allowedTools", options.allowedTools.join(","));
   }

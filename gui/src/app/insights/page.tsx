@@ -187,16 +187,6 @@ function InsightsContent() {
 
       {!loading && !error && data && s && (
         <>
-          {s.pricingStale === true && (
-            <div className="ui-banner ui-banner--warn">
-              <IconAlert size={15} className="mt-0.5 shrink-0" />
-              <span>
-                {ti.pricingStaleBanner}{" "}
-                <span className="opacity-75">{ti.pricingStaleDate.replace("{date}", "2026-05-04")}</span>
-              </span>
-            </div>
-          )}
-
           {/* KPI tiles */}
           <section aria-label={ti.kpis} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiTile icon={<IconList size={15} />} label={ti.statTasks} value={String(s.totalTasks)} accent="var(--ink)">
@@ -215,7 +205,7 @@ function InsightsContent() {
               />
             </KpiTile>
 
-            <KpiTile icon={<IconCoin size={15} />} label={ti.statCost} value={`$${s.estimatedUsd.toFixed(2)}`} accent="var(--mustard)">
+            <KpiTile icon={<IconCoin size={15} />} label={ti.statCost} value={`$${s.costUsd.toFixed(2)}`} accent="var(--mustard)">
               <SplitBar
                 parts={[
                   { v: tokens.input, c: "var(--cobalt)" },
@@ -227,6 +217,11 @@ function InsightsContent() {
               <span className="font-mono text-[11.5px] text-ink-3">
                 {ti.tokensTotal.replace("{n}", formatTokens(tokenTotal))}
               </span>
+              {s.planningCostUsd > 0 && (
+                <span className="font-mono text-[11.5px] text-ink-3">
+                  {ti.statCostPlanning.replace("{v}", `$${s.planningCostUsd.toFixed(2)}`)}
+                </span>
+              )}
             </KpiTile>
 
             <KpiTile
@@ -293,7 +288,7 @@ function InsightsContent() {
                           <td>
                             <span className="inline-flex items-center gap-2 font-mono text-[13px] font-semibold text-ink">
                               <span aria-hidden className="h-3 w-3 rounded-[3px] border-[1.5px] border-line" style={{ background: swatch(n.nodeType) }} />
-                              {n.nodeType}
+                              {(t.team.roles as Record<string, string>)[n.nodeType] ?? n.nodeType}
                             </span>
                           </td>
                           <td className="text-right font-mono tabular-nums">{n.runCount}</td>
@@ -312,7 +307,9 @@ function InsightsContent() {
                               <span className="w-14 text-right font-mono text-[12px] tabular-nums">{tok > 0 ? formatTokens(tok) : "—"}</span>
                             </span>
                           </td>
-                          <td className="text-right font-mono tabular-nums">${n.estimatedUsd.toFixed(3)}</td>
+                          <td className="text-right font-mono tabular-nums" title={n.estimated ? ti.costEstimated : undefined}>
+                            {n.estimated ? "~" : ""}${n.costUsd.toFixed(3)}
+                          </td>
                         </tr>
                       );
                     })}
@@ -344,12 +341,12 @@ function InsightsContent() {
                   return (
                     <li key={task.id}>
                       <button type="button" onClick={() => void openTask(task.id)} className="ui-linkrow !min-h-[3.25rem] !px-3.5">
-                        <span className="ui-keyplate !shadow-none">#{task.id.replace(/^task_/, "").slice(0, 6)}</span>
+                        <span className="ui-keyplate !shadow-none">{task.displayId ?? `#${task.id.slice(0, 7)}`}</span>
                         <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">{task.title}</span>
                         <StatusPill status={kind}>{label}</StatusPill>
                         <span className="hidden w-[84px] items-center justify-end gap-1 font-mono text-[12px] tabular-nums text-ink-2 sm:inline-flex">
                           <IconCoin size={12} className="text-ink-3" />
-                          ${task.estimatedUsd.toFixed(3)}
+                          ${task.costUsd.toFixed(3)}
                         </span>
                         <span className="hidden w-[78px] items-center justify-end gap-1 font-mono text-[12px] tabular-nums text-ink-3 md:inline-flex">
                           <IconClock size={12} />

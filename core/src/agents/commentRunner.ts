@@ -1,7 +1,9 @@
 import { run as gitRun, commitAll, pushBranch } from "../services/gitService.js";
 import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
 import { acquireRepoLock } from "../services/repoLock.js";
+import { costFromResult } from "./roleRunner.js";
 import {
+  addTaskCost,
   getTask,
   insertAgentText,
   insertToolCall,
@@ -183,6 +185,16 @@ async function runCommentInner(
     };
 
     const onClaudeResult = (raw: unknown): void => {
+      // F3: the comment's real spend goes to the task's lifetime cost.
+      const cost = costFromResult(raw, null);
+      if (cost !== null && cost > 0) {
+        try {
+          const t = addTaskCost(comment.taskId, cost);
+          if (t) broadcastTaskUpdated(t);
+        } catch (e) {
+          console.error(`[commentRunner] addTaskCost failed:`, e);
+        }
+      }
       const usage = parseUsageFromResult(raw);
       if (!usage) return;
       updateTaskUsage(comment.taskId, usage)

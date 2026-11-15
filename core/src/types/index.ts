@@ -48,6 +48,8 @@ export interface Task {
   budgetUsd?: number | null;
   parentTaskId?: string | null;
   teamId?: string | null;
+  /** Lifetime spend in USD: sum of every CLI call's `total_cost_usd` (roles, comments, breakdowns). */
+  costUsd?: number;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -68,6 +70,8 @@ export interface Project {
   defaultTeamId?: string | null;
   qaMaxRounds?: number;
   specApproval?: boolean;
+  /** Project planner spend in USD (belongs to no task). */
+  planningCostUsd?: number;
 }
 
 export type RoleKind = "ceo" | "analyst" | "developer" | "qa";
@@ -219,6 +223,8 @@ export interface NodeRun {
   ciIteration: number | null;
   errorMessage: string | null;
   createdAt: string;
+  /** CLI-reported cost of this node (role) run; null for legacy rows and subagents. */
+  costUsd: number | null;
 }
 
 export type ToolCallStatus = "running" | "done" | "error";

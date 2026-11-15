@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { runComment } from "./commentRunner.js";
 import { createComment, getComment } from "../services/commentService.js";
 import { acquireRepoLock } from "../services/repoLock.js";
-import { updateTask } from "../services/taskService.js";
+import { getTask, updateTask } from "../services/taskService.js";
 import { git } from "../test-utils/fakeRepo.js";
 import { startTestServer } from "../test-utils/httpApp.js";
 import { cleanupTeamCases, makeTeamCase, type TeamCase } from "../test-utils/teamHarness.js";
@@ -38,6 +38,24 @@ async function reviewCase(scenario = "pass"): Promise<TeamCase & { branch: strin
   await updateTask(c.task.id, { status: "review", branch });
   return { ...c, branch };
 }
+
+describe("comment runner cost (F3)", () => {
+  it("adds the comment's total_cost_usd to the task and its result.usage tokens", async () => {
+    const c = await reviewCase();
+    const before = (await getTask(c.task.id))!;
+    process.env.FAKE_CLAUDE_COST_USD = "0.0425";
+    try {
+      await runComment(createComment(c.task.id, "tweak"), c.project);
+    } finally {
+      delete process.env.FAKE_CLAUDE_COST_USD;
+    }
+    await sleep(20);
+    const after = (await getTask(c.task.id))!;
+    expect(after.costUsd! - (before.costUsd ?? 0)).toBeCloseTo(0.0425, 9);
+    expect(after.usage!.inputTokens - before.usage!.inputTokens).toBe(100);
+    expect(after.usage!.outputTokens - before.usage!.outputTokens).toBe(50);
+  });
+});
 
 describe("comment runner and the repo lock (A1f)", () => {
   it("waits for the repo lock, commits on the branch and returns to base", async () => {

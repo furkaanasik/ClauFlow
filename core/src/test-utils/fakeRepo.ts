@@ -32,6 +32,7 @@ export function writeRepoFile(repo: string, rel: string, body: string): void {
 }
 
 export interface FakeCall {
+  cwd: string;
   role: string | null;
   round: number;
   prompt: string;
@@ -41,6 +42,9 @@ export interface FakeCall {
   appendSystemPrompt: string | null;
   settingSources: string | null;
   strictMcpConfig: boolean;
+  allowedTools?: string | null;
+  outputFormat?: string;
+  permissionMode?: string | null;
   argv: string[];
 }
 

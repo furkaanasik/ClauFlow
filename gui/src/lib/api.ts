@@ -60,16 +60,19 @@ export interface InsightsByNodeType {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
-  estimatedUsd: number;
+  /** CLI-reported cost; legacy rows without one are token-priced and flag `estimated`. */
+  costUsd: number;
+  estimated: boolean;
 }
 
 export interface InsightsRecentTask {
   id: string;
+  displayId: string | null;
   title: string;
   status: string;
   agentStatus: string;
   createdAt: string;
-  estimatedUsd: number;
+  costUsd: number;
   timeToGreenMs: number | null;
   nodeRunCount: number;
 }
@@ -83,9 +86,11 @@ export interface InsightsSummary {
   totalOutputTokens: number;
   totalCacheReadTokens: number;
   totalCacheWriteTokens: number;
-  estimatedUsd: number;
+  /** Tasks' lifetime spend + project planner spend. */
+  costUsd: number;
+  tasksCostUsd: number;
+  planningCostUsd: number;
   avgTimeToGreenMs: number | null;
-  pricingStale?: boolean;
 }
 
 export interface InsightsData {
@@ -361,11 +366,6 @@ export const api = {
       .then((r) => handle<{ nodeRuns: NodeRun[] }>(r))
       .then((d) => d.nodeRuns ?? []),
 
-  getPricing: async (): Promise<PricingResponse> => {
-    const res = await fetch(`${BASE}/pricing`, { cache: "no-store" });
-    return handle<PricingResponse>(res);
-  },
-
   getInsights: (projectId: string): Promise<InsightsData> =>
     fetch(`${BASE}/insights?projectId=${encodeURIComponent(projectId)}`, {
       cache: "no-store",
@@ -403,19 +403,6 @@ export interface DirListing {
   parent: string | null;
   home: string;
   entries: DirEntry[];
-}
-
-export interface ModelPricing {
-  model: string;
-  inputPerM: number;
-  outputPerM: number;
-  cacheCreationPerM: number;
-  cacheReadPerM: number;
-}
-
-export interface PricingResponse {
-  defaultModel: string;
-  pricing: ModelPricing[];
 }
 
 // ─── Skill / Plugin types ─────────────────────────────────────────────────────

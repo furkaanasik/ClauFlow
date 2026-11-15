@@ -1,6 +1,5 @@
 import type { Task, TaskStatus } from "@/types";
 import type { QuickFilters } from "@/store/viewStore";
-import { calculateCost, totalTokens } from "@/lib/cost";
 
 /**
  * Pure, UI-side selectors shared by the Board and List views. They only read
@@ -69,10 +68,9 @@ export function visibleTasks(
   return out;
 }
 
-/** USD cost of a task, or null when it has not used any tokens yet. */
+/** Lifetime USD spend of a task (CLI `total_cost_usd`), or null when nothing has been spent yet. */
 export function taskCost(task: Task): number | null {
-  if (!task.usage || totalTokens(task.usage) === 0) return null;
-  return calculateCost(task.usage);
+  return task.costUsd && task.costUsd > 0 ? task.costUsd : null;
 }
 
 export function formatUsd(n: number): string {

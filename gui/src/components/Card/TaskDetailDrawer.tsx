@@ -37,12 +37,12 @@ import { ApprovalGate } from "@/components/Card/ApprovalGate";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
 import { errorText } from "@/lib/errorText";
-import { calculateCost, formatTokens, totalTokens } from "@/lib/cost";
+import { formatTokens, totalTokens } from "@/lib/cost";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { TeamPicker } from "@/components/Team/TeamPicker";
 import { agentStepLabel, teamStepKind } from "@/components/Team/roleMeta";
-import { isAgentWorking } from "@/lib/boardView";
+import { formatUsd, isAgentWorking, taskCost } from "@/lib/boardView";
 import type { AgentText, Project, Task, TaskPatch, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
@@ -89,6 +89,7 @@ function makeDraft(task: Task): DraftState {
 const PRIORITY_BUTTONS: EditPriority[] = ["low", "medium", "high", "critical"];
 
 interface BudgetView {
+  /** Latest team run's spend: the budget is per run (§3/9). */
   spent: number;
   limit: number;
   pct: number;
@@ -307,12 +308,16 @@ export function TaskDetailDrawer() {
     const runs = task ? s.teamRuns[task.id] : undefined;
     return runs?.[runs.length - 1]?.qaRound ?? 0;
   });
+  const lastRunCost = useBoardStore((s) => {
+    const runs = task ? s.teamRuns[task.id] : undefined;
+    return runs?.[runs.length - 1]?.costUsd ?? 0;
+  });
 
   const budget = useMemo<BudgetView | null>(() => {
     if (!task) return null;
     const exceeded = budgetExceeded[task.id];
     const total = task.usage ? totalTokens(task.usage) : 0;
-    const spent = exceeded?.spentUsd ?? (task.usage && total > 0 ? calculateCost(task.usage) : 0);
+    const spent = exceeded?.spentUsd ?? lastRunCost;
     const limit = exceeded?.budgetUsd ?? task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_BUDGET_USD;
     const pct = limit > 0 ? spent / limit : 0;
     return {
@@ -323,7 +328,7 @@ export function TaskDetailDrawer() {
       ownBudget: task.budgetUsd != null,
       tokens: total > 0 ? formatTokens(total) : null,
     };
-  }, [task, budgetExceeded, project?.budgetUsd]);
+  }, [task, budgetExceeded, project?.budgetUsd, lastRunCost]);
 
   if (!task) {
     return null;
@@ -367,7 +372,7 @@ export function TaskDetailDrawer() {
         ariaLabel={task.title}
         eyebrow={
           <>
-            <span className="ui-keyplate">{task.displayId ?? `#${task.id.slice(0, 8)}`}</span>
+            <span className="ui-keyplate">{task.displayId ?? `#${task.id.slice(0, 7)}`}</span>
             {project && (
               <>
                 <span className="truncate font-sans text-[13px] font-semibold text-ink-2">{project.name}</span>
@@ -412,14 +417,15 @@ export function TaskDetailDrawer() {
               </span>
             )}
             {showAgentBadge && <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />}
-            {budget?.tokens && (
+            {(budget?.tokens || taskCost(task) !== null) && (
               <span
-                title={td.costApprox}
+                title={td.costReported}
                 className="inline-flex h-[1.875rem] items-center gap-1.5 rounded-pill border-2 border-line bg-panel px-2.5 font-mono text-[11.5px] font-semibold"
-                style={{ color: budget.exceeded ? "var(--red-text)" : "var(--ink-2)" }}
+                style={{ color: budget?.exceeded ? "var(--red-text)" : "var(--ink-2)" }}
               >
                 <IconCoin size={13} />
-                {budget.tokens} {td.costTokens} · ~${budget.spent.toFixed(2)}
+                {budget?.tokens && `${budget.tokens} ${td.costTokens} · `}
+                {formatUsd(task.costUsd ?? 0)}
               </span>
             )}
             {editing && (
@@ -853,7 +859,9 @@ function TaskMeta({
       {/* Budget */}
       {budget && (
         <div className="ui-meta">
-          <MetaLabel icon={<IconCoin size={12} />}>{td.budgetLabel}</MetaLabel>
+          <MetaLabel icon={<IconCoin size={12} />}>
+            {td.budgetLabel} · {td.budgetThisRun}
+          </MetaLabel>
           <div className="flex items-center gap-4">
             <RingGauge
               value={Math.min(budget.spent, budget.limit)}

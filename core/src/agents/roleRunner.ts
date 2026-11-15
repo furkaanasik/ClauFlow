@@ -7,6 +7,7 @@ import {
 } from "../services/claudeService.js";
 import { calculateCostUsd } from "../services/pricingService.js";
 import {
+  addTaskCost,
   appendAgentLog,
   insertAgentText,
   insertNodeRun,
@@ -243,19 +244,20 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
   };
 
   let midRunCost = 0;
-  let usageTurnFired = false;
+  /** Sum of the per-turn usage already written to the task (live counters). */
+  let turnUsage: ClaudeUsage = { ...EMPTY_USAGE };
   let usage: ClaudeUsage = { ...EMPTY_USAGE };
   let resultCost: number | null = null;
   let resultText: string | null = null;
 
   const onUsageTurn = (turn: ClaudeUsage): void => {
-    usageTurnFired = true;
-    usage = {
-      inputTokens: usage.inputTokens + turn.inputTokens,
-      outputTokens: usage.outputTokens + turn.outputTokens,
-      cacheReadTokens: usage.cacheReadTokens + turn.cacheReadTokens,
-      cacheWriteTokens: usage.cacheWriteTokens + turn.cacheWriteTokens,
+    turnUsage = {
+      inputTokens: turnUsage.inputTokens + turn.inputTokens,
+      outputTokens: turnUsage.outputTokens + turn.outputTokens,
+      cacheReadTokens: turnUsage.cacheReadTokens + turn.cacheReadTokens,
+      cacheWriteTokens: turnUsage.cacheWriteTokens + turn.cacheWriteTokens,
     };
+    usage = { ...turnUsage };
     midRunCost += calculateCostUsd(turn, opts.model);
     updateTaskUsage(taskId, turn)
       .then((t) => {
@@ -274,9 +276,18 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
     if (final) usage = final;
     const spent = opts.spentBeforeUsd + (resultCost ?? midRunCost);
     if (opts.budgetUsd != null && spent >= opts.budgetUsd) exceedBudget(spent);
-    // Only write to DB if onUsageTurn never fired — avoids double-count.
-    if (usageTurnFired || !final) return;
-    updateTaskUsage(taskId, final)
+    if (!final) return;
+    // Turns were written live; the final `result.usage` is authoritative, so
+    // write only the difference. The task ends up with exactly `result.usage`.
+    const delta: ClaudeUsage = {
+      inputTokens: final.inputTokens - turnUsage.inputTokens,
+      outputTokens: final.outputTokens - turnUsage.outputTokens,
+      cacheReadTokens: final.cacheReadTokens - turnUsage.cacheReadTokens,
+      cacheWriteTokens: final.cacheWriteTokens - turnUsage.cacheWriteTokens,
+    };
+    turnUsage = { ...final };
+    if (Object.values(delta).every((v) => v === 0)) return;
+    updateTaskUsage(taskId, delta)
       .then((t) => {
         if (t) broadcastTaskUpdated(t);
       })
@@ -295,7 +306,10 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
     onLine: onLogLine,
   };
 
+  // Every exit path (done, aborted, error) records what the call cost: the
+  // CLI's `total_cost_usd` when it reported one, else the per-turn estimate.
   const finalize = (patch: Parameters<typeof updateNodeRun>[1]): void => {
+    const costUsd = resultCost ?? midRunCost;
     try {
       const updated = updateNodeRun(nodeRunId, {
         finishedAt: new Date().toISOString(),
@@ -303,11 +317,18 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
         outputTokens: usage.outputTokens,
         cacheReadTokens: usage.cacheReadTokens,
         cacheWriteTokens: usage.cacheWriteTokens,
+        costUsd,
         ...patch,
       });
       if (updated) broadcastNodeFinished(updated);
     } catch (e) {
       console.error(`[roleRunner] updateNodeRun(${nodeId}) failed:`, e);
+    }
+    try {
+      const t = addTaskCost(taskId, costUsd);
+      if (t && costUsd > 0) broadcastTaskUpdated(t);
+    } catch (e) {
+      console.error(`[roleRunner] addTaskCost failed:`, e);
     }
   };
 

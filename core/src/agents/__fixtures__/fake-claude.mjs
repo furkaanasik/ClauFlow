@@ -114,6 +114,13 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
       return qaReport(scenario, priorCalls(stateDir, "qa"));
     default:
       // Comment runs (no role marker) apply the feedback by touching a file.
+      // Planner / breakdown calls (plannerShared.runPlannerCli) get a two-task plan.
+      if (prompt.includes("Return ONLY a JSON array")) {
+        return JSON.stringify([
+          { title: "Fake task one", description: "First.", analysis: "a", priority: "high", tags: ["core"] },
+          { title: "Fake task two", description: "Second.", analysis: "b", priority: "low" },
+        ]);
+      }
       if (prompt.includes("<user_feedback>")) {
         appendFileSync(join(cwd, "fake-comment.txt"), "feedback applied\n");
         return "Feedback applied.";
@@ -201,7 +208,13 @@ async function main() {
   if (outputFormat === "stream-json") {
     const emit = (o) => process.stdout.write(JSON.stringify(o) + "\n");
     emit({ type: "system", subtype: "init", cwd, model, permissionMode: flags["--permission-mode"] ?? "default", tools: (flags["--tools"] ?? "").split(",").filter(Boolean) });
-    emit({ type: "assistant", message: { model, content: [{ type: "text", text }], usage } });
+    // FAKE_CLAUDE_TURN_USAGE="in,out,cacheRead,cacheWrite": per-turn usage that differs from
+    // the final `result.usage` (the CLI's per-turn numbers are partial; the result is authoritative).
+    const turnRaw = (process.env.FAKE_CLAUDE_TURN_USAGE ?? "").split(",").map(Number);
+    const turnUsage = turnRaw.length === 4 && turnRaw.every(Number.isFinite)
+      ? { input_tokens: turnRaw[0], output_tokens: turnRaw[1], cache_read_input_tokens: turnRaw[2], cache_creation_input_tokens: turnRaw[3] }
+      : usage;
+    emit({ type: "assistant", message: { model, content: [{ type: "text", text }], usage: turnUsage } });
     emit({ type: "result", subtype: "success", is_error: false, result: text, total_cost_usd: costUsd, num_turns: 1, usage, modelUsage });
   } else if (outputFormat === "json") {
     process.stdout.write(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: text, total_cost_usd: costUsd, usage, modelUsage }) + "\n");

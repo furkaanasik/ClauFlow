@@ -406,6 +406,7 @@ interface ProjectRow {
   defaultTeamId: string | null;
   qaMaxRounds: number | null;
   specApproval: number | null;
+  planningCostUsd: number | null;
 }
 
 interface TaskRow {
@@ -436,6 +437,7 @@ interface TaskRow {
   budgetUsd: number | null;
   parentTaskId: string | null;
   teamId: string | null;
+  costUsd: number | null;
 }
 
 function rowToProject(row: ProjectRow): Project {
@@ -456,6 +458,7 @@ function rowToProject(row: ProjectRow): Project {
     defaultTeamId: row.defaultTeamId ?? null,
     qaMaxRounds: row.qaMaxRounds ?? DEFAULT_QA_MAX_ROUNDS,
     specApproval: row.specApproval === 1,
+    planningCostUsd: row.planningCostUsd ?? 0,
   };
 }
 
@@ -514,6 +517,7 @@ function rowToTask(row: TaskRow): Task {
     budgetUsd: row.budgetUsd ?? null,
     parentTaskId: row.parentTaskId ?? null,
     teamId: row.teamId ?? null,
+    costUsd: row.costUsd ?? 0,
   };
 }
 
@@ -1461,6 +1465,37 @@ export async function updateTaskUsage(
   return next ? rowToTask(next) : null;
 }
 
+// ─── Real cost (F3) ───────────────────────────────────────────────────────
+
+const stmtAddTaskCost = db.prepare(
+  `UPDATE tasks SET costUsd = costUsd + @usd, updatedAt = @updatedAt WHERE id = @id`,
+);
+const stmtAddProjectPlanningCost = db.prepare(
+  `UPDATE projects SET planningCostUsd = planningCostUsd + @usd WHERE id = @id`,
+);
+
+/**
+ * Adds a CLI call's `total_cost_usd` to the task's lifetime spend (roles,
+ * comments, breakdowns). Never reset: retries keep adding. The caller
+ * broadcasts the returned task. Non-positive or non-finite amounts are ignored.
+ */
+export function addTaskCost(taskId: string, usd: number): Task | null {
+  if (Number.isFinite(usd) && usd > 0) {
+    stmtAddTaskCost.run({ id: taskId, usd, updatedAt: new Date().toISOString() });
+  }
+  const row = stmtGetTask.get(taskId) as TaskRow | undefined;
+  return row ? rowToTask(row) : null;
+}
+
+/** Project planner spend: it belongs to no task. */
+export function addProjectPlanningCost(projectId: string, usd: number): Project | null {
+  if (Number.isFinite(usd) && usd > 0) {
+    stmtAddProjectPlanningCost.run({ id: projectId, usd });
+  }
+  const row = stmtGetProject.get(projectId) as ProjectRow | undefined;
+  return row ? rowToProject(row) : null;
+}
+
 // ─── Node Runs ────────────────────────────────────────────────────────────
 
 interface NodeRunRow {
@@ -1481,6 +1516,7 @@ interface NodeRunRow {
   ciIteration: number | null;
   errorMessage: string | null;
   createdAt: string;
+  costUsd: number | null;
 }
 
 function parseArtifact(raw: string | null): Record<string, unknown> | null {
@@ -1514,6 +1550,7 @@ function rowToNodeRun(row: NodeRunRow): NodeRun {
     ciIteration: row.ciIteration,
     errorMessage: row.errorMessage,
     createdAt: row.createdAt,
+    costUsd: row.costUsd ?? null,
   };
 }
 
@@ -1549,7 +1586,8 @@ const stmtUpdateNodeRun = db.prepare(
     cacheWriteTokens = @cacheWriteTokens,
     model = @model,
     ciIteration = @ciIteration,
-    errorMessage = @errorMessage
+    errorMessage = @errorMessage,
+    costUsd = @costUsd
    WHERE id = @id`,
 );
 
@@ -1622,6 +1660,7 @@ export interface UpdateNodeRunPatch {
   model?: string | null;
   ciIteration?: number | null;
   errorMessage?: string | null;
+  costUsd?: number | null;
 }
 
 export function updateNodeRun(
@@ -1649,6 +1688,7 @@ export function updateNodeRun(
     model: patch.model ?? row.model,
     ciIteration: patch.ciIteration ?? row.ciIteration,
     errorMessage: patch.errorMessage ?? row.errorMessage,
+    costUsd: patch.costUsd ?? row.costUsd ?? null,
   });
   const next = stmtGetNodeRun.get(id) as NodeRunRow | undefined;
   return next ? rowToNodeRun(next) : null;

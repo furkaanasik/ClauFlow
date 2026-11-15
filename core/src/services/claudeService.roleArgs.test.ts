@@ -94,7 +94,12 @@ describe("runClaude role options", () => {
   });
 
   it("omits optional role flags when not given", () => {
-    const args = buildClaudeArgs({ prompt: "x", cwd: dir, advisorModel: null, tools: [] });
+    const args = buildClaudeArgs({ prompt: "x", cwd: dir, advisorModel: null });
     expect(args).toEqual(["-p", "x", "--permission-mode", "bypassPermissions"]);
+  });
+
+  it("an explicit empty tool list disables every tool (--tools \"\")", () => {
+    const args = buildClaudeArgs({ prompt: "x", cwd: dir, tools: [] });
+    expect(args).toEqual(["-p", "x", "--permission-mode", "bypassPermissions", "--tools", ""]);
   });
 });

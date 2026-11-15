@@ -348,8 +348,11 @@ export interface Translations {
     budgetExceeded: string;
     budgetUsed: string;
     budgetNoUsage: string;
+    /** Budget ring scope: the latest team run (the task total is in the header). */
+    budgetThisRun: string;
     tokensLabel: string;
-    costApprox: string;
+    /** Tooltip on CLI-reported costs (task header, role chips). */
+    costReported: string;
     follow: string;
     abortFailed: string;
     statusLabel: string;
@@ -588,6 +591,10 @@ export interface Translations {
     statTasks: string;
     statTasksSub: string;
     statCost: string;
+    /** Cost tile footnote when the project planner spent something: "{v}". */
+    statCostPlanning: string;
+    /** Tooltip on node-type costs that include token estimates for older runs. */
+    costEstimated: string;
     statCompletion: string;
     statCompletionSub: string;
     statAvgRunTime: string;
@@ -603,8 +610,6 @@ export interface Translations {
     emptyTasks: string;
     emptyTasksHint: string;
     navInsights: string;
-    pricingStaleBanner: string;
-    pricingStaleDate: string;
   };
   projectDetail: {
     nameRequired: string;

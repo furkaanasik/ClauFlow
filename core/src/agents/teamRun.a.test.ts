@@ -70,6 +70,9 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     expect(r.artifacts[3]!.verdict).toBe("pass");
     expect(r.runs[0]).toMatchObject({ status: "delivered", qaRound: 0 });
     expect(r.runs[0]!.costUsd).toBeCloseTo(0.04, 6);
+    // F3: the task's lifetime cost is the sum of the four roles' total_cost_usd.
+    expect(task.costUsd).toBeCloseTo(0.04, 9);
+    expect(task.usage).toMatchObject({ inputTokens: 400, outputTokens: 200 });
     expect(r.branchLog(task.branch!)).toHaveLength(1);
     expect(r.currentBranch).toBe("main");
     const summary = r.comments.find((x) => x.body.startsWith("## Ekip özeti"))!;

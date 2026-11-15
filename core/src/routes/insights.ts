@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db } from "../services/taskService.js";
-import { calculateCostUsd, DEFAULT_MODEL, isPricingStale } from "../services/pricingService.js";
+import { calculateCostUsd } from "../services/pricingService.js";
 import { errorMessage } from "../utils/error.js";
 
 interface SummaryRow {
@@ -13,6 +13,7 @@ interface SummaryRow {
   totalCacheReadTokens: number;
   totalCacheWriteTokens: number;
   avgTimeToGreenMs: number | null;
+  tasksCostUsd: number | null;
 }
 
 interface NodeAggRow {
@@ -24,18 +25,21 @@ interface NodeAggRow {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  knownUsd: number;
+  legacyInputTokens: number;
+  legacyOutputTokens: number;
+  legacyCacheReadTokens: number;
+  legacyCacheWriteTokens: number;
 }
 
 interface RecentRow {
   id: string;
+  displayId: string | null;
   title: string;
   status: string;
   agentStatus: string;
   createdAt: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
+  costUsd: number;
   agentStartedAt: string | null;
   agentFinishedAt: string | null;
   nodeRunCount: number;
@@ -56,30 +60,36 @@ interface ExportRow {
   prNumber: number | null;
 }
 
-function aggregateByNodeType(rows: NodeAggRow[]) {
-  const map = new Map<
-    string,
-    {
-      nodeType: string;
-      runCount: number;
-      doneCount: number;
-      inputTokens: number;
-      outputTokens: number;
-      cacheReadTokens: number;
-      cacheWriteTokens: number;
-      estimatedUsd: number;
-    }
-  >();
+export interface NodeTypeCost {
+  nodeType: string;
+  runCount: number;
+  doneCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  /** CLI-reported `task_node_runs.costUsd`, plus a token-priced estimate for legacy rows without one. */
+  costUsd: number;
+  /** True when part of `costUsd` is a token estimate (rows written before F3). */
+  estimated: boolean;
+}
+
+/**
+ * Cost per node type. Rows with a CLI-reported `costUsd` are summed as-is;
+ * older rows (NULL) fall back to token pricing with their own model and the
+ * group is flagged `estimated`.
+ */
+function aggregateByNodeType(rows: NodeAggRow[]): NodeTypeCost[] {
+  const map = new Map<string, NodeTypeCost>();
   for (const r of rows) {
-    const usd = calculateCostUsd(
-      {
-        inputTokens: r.inputTokens,
-        outputTokens: r.outputTokens,
-        cacheReadTokens: r.cacheReadTokens,
-        cacheWriteTokens: r.cacheWriteTokens,
-      },
-      r.model,
-    );
+    const legacy = {
+      inputTokens: r.legacyInputTokens,
+      outputTokens: r.legacyOutputTokens,
+      cacheReadTokens: r.legacyCacheReadTokens,
+      cacheWriteTokens: r.legacyCacheWriteTokens,
+    };
+    const hasLegacy = Object.values(legacy).some((v) => v > 0);
+    const usd = r.knownUsd + (hasLegacy ? calculateCostUsd(legacy, r.model) : 0);
     const existing = map.get(r.nodeType);
     if (existing) {
       existing.runCount += r.runCount;
@@ -88,7 +98,8 @@ function aggregateByNodeType(rows: NodeAggRow[]) {
       existing.outputTokens += r.outputTokens;
       existing.cacheReadTokens += r.cacheReadTokens;
       existing.cacheWriteTokens += r.cacheWriteTokens;
-      existing.estimatedUsd += usd;
+      existing.costUsd += usd;
+      existing.estimated ||= hasLegacy;
     } else {
       map.set(r.nodeType, {
         nodeType: r.nodeType,
@@ -98,7 +109,8 @@ function aggregateByNodeType(rows: NodeAggRow[]) {
         outputTokens: r.outputTokens,
         cacheReadTokens: r.cacheReadTokens,
         cacheWriteTokens: r.cacheWriteTokens,
-        estimatedUsd: usd,
+        costUsd: usd,
+        estimated: hasLegacy,
       });
     }
   }
@@ -130,11 +142,16 @@ router.get("/", (req: Request, res: Response) => {
         AVG(CASE
           WHEN agentStartedAt IS NOT NULL AND agentFinishedAt IS NOT NULL
           THEN (julianday(agentFinishedAt) - julianday(agentStartedAt)) * 86400000.0
-          ELSE NULL END) as avgTimeToGreenMs
+          ELSE NULL END) as avgTimeToGreenMs,
+        SUM(COALESCE(costUsd, 0)) as tasksCostUsd
       FROM tasks WHERE projectId = ?
     `,
       )
       .get(projectId) as SummaryRow;
+
+    const planningRow = db
+      .prepare(`SELECT COALESCE(planningCostUsd, 0) as planningCostUsd FROM projects WHERE id = ?`)
+      .get(projectId) as { planningCostUsd: number } | undefined;
 
     const nodeRows = db
       .prepare(
@@ -147,7 +164,12 @@ router.get("/", (req: Request, res: Response) => {
         SUM(COALESCE(nr.inputTokens, 0)) as inputTokens,
         SUM(COALESCE(nr.outputTokens, 0)) as outputTokens,
         SUM(COALESCE(nr.cacheReadTokens, 0)) as cacheReadTokens,
-        SUM(COALESCE(nr.cacheWriteTokens, 0)) as cacheWriteTokens
+        SUM(COALESCE(nr.cacheWriteTokens, 0)) as cacheWriteTokens,
+        SUM(COALESCE(nr.costUsd, 0)) as knownUsd,
+        SUM(CASE WHEN nr.costUsd IS NULL THEN COALESCE(nr.inputTokens, 0) ELSE 0 END) as legacyInputTokens,
+        SUM(CASE WHEN nr.costUsd IS NULL THEN COALESCE(nr.outputTokens, 0) ELSE 0 END) as legacyOutputTokens,
+        SUM(CASE WHEN nr.costUsd IS NULL THEN COALESCE(nr.cacheReadTokens, 0) ELSE 0 END) as legacyCacheReadTokens,
+        SUM(CASE WHEN nr.costUsd IS NULL THEN COALESCE(nr.cacheWriteTokens, 0) ELSE 0 END) as legacyCacheWriteTokens
       FROM task_node_runs nr
       JOIN tasks t ON t.id = nr.taskId
       WHERE t.projectId = ?
@@ -160,11 +182,8 @@ router.get("/", (req: Request, res: Response) => {
       .prepare(
         `
       SELECT
-        t.id, t.title, t.status, t.agentStatus, t.createdAt,
-        COALESCE(t.inputTokens, 0) as inputTokens,
-        COALESCE(t.outputTokens, 0) as outputTokens,
-        COALESCE(t.cacheReadTokens, 0) as cacheReadTokens,
-        COALESCE(t.cacheWriteTokens, 0) as cacheWriteTokens,
+        t.id, t.displayId, t.title, t.status, t.agentStatus, t.createdAt,
+        COALESCE(t.costUsd, 0) as costUsd,
         t.agentStartedAt, t.agentFinishedAt,
         COUNT(nr.id) as nodeRunCount
       FROM tasks t
@@ -177,33 +196,17 @@ router.get("/", (req: Request, res: Response) => {
       )
       .all(projectId) as RecentRow[];
 
-    const summaryUsd = calculateCostUsd(
-      {
-        inputTokens: summaryRow.totalInputTokens,
-        outputTokens: summaryRow.totalOutputTokens,
-        cacheReadTokens: summaryRow.totalCacheReadTokens,
-        cacheWriteTokens: summaryRow.totalCacheWriteTokens,
-      },
-      DEFAULT_MODEL,
-    );
-
-    const byNodeType = aggregateByNodeType(nodeRows);
+    const tasksCostUsd = summaryRow.tasksCostUsd ?? 0;
+    const planningCostUsd = planningRow?.planningCostUsd ?? 0;
 
     const recentTasks = recentRows.map((r) => ({
       id: r.id,
+      displayId: r.displayId,
       title: r.title,
       status: r.status,
       agentStatus: r.agentStatus,
       createdAt: r.createdAt,
-      estimatedUsd: calculateCostUsd(
-        {
-          inputTokens: r.inputTokens,
-          outputTokens: r.outputTokens,
-          cacheReadTokens: r.cacheReadTokens,
-          cacheWriteTokens: r.cacheWriteTokens,
-        },
-        DEFAULT_MODEL,
-      ),
+      costUsd: r.costUsd,
       timeToGreenMs:
         r.agentStartedAt && r.agentFinishedAt
           ? new Date(r.agentFinishedAt).getTime() -
@@ -223,11 +226,12 @@ router.get("/", (req: Request, res: Response) => {
         totalOutputTokens: summaryRow.totalOutputTokens,
         totalCacheReadTokens: summaryRow.totalCacheReadTokens,
         totalCacheWriteTokens: summaryRow.totalCacheWriteTokens,
-        estimatedUsd: summaryUsd,
+        costUsd: tasksCostUsd + planningCostUsd,
+        tasksCostUsd,
+        planningCostUsd,
         avgTimeToGreenMs: summaryRow.avgTimeToGreenMs ?? null,
-        pricingStale: isPricingStale(),
       },
-      byNodeType,
+      byNodeType: aggregateByNodeType(nodeRows),
       recentTasks,
     });
   } catch (err) {

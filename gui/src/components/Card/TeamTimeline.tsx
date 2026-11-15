@@ -278,7 +278,7 @@ function ArtifactBubble({
         {(a.costUsd != null || tokens > 0 || a.commitSha) && (
           <footer className="team-bubble__foot">
             {a.costUsd != null && (
-              <span className="team-chip" title={t.taskDetail.costApprox}>
+              <span className="team-chip" title={t.taskDetail.costReported}>
                 <IconCoin size={12} />${a.costUsd.toFixed(2)}
               </span>
             )}
