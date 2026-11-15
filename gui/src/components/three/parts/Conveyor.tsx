@@ -60,7 +60,7 @@ export function Conveyor({ from, to, z = 0, top = 0.86, width = 1.7, travelRef }
     legs.current.instanceMatrix.needsUpdate = true;
   }, [from, len, cx, legCount, width, frameY]);
 
-  const rollerAngle = useRef(0);
+  const rollerAngle = useRef(Number.NaN); // NaN: lay the rollers out on the first frame even if the belt never moves
   useFrame(() => {
     tread.offset.x = -(travelRef.current / TREAD) % 1;
     const a = travelRef.current / 0.09;

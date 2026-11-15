@@ -15,7 +15,7 @@ import { BoardColumn } from "@/components/Board/BoardColumn";
 import { BoardStats } from "@/components/Board/BoardStats";
 import { QuickFilters } from "@/components/Board/QuickFilters";
 import { TaskList } from "@/components/Board/TaskList";
-import { FactoryPlaceholder } from "@/components/Board/FactoryPlaceholder";
+import { FactoryView } from "@/components/Factory/FactoryView";
 import { TaskCardView } from "@/components/Card/TaskCard";
 import { TaskDetailDrawer } from "@/components/Card/TaskDetailDrawer";
 import { AddTaskModal } from "@/components/Modals/AddTaskModal";
@@ -44,6 +44,7 @@ import { useAgentSocket } from "@/hooks/useAgentSocket";
 import { useBoardStore } from "@/store/boardStore";
 import { useViewStore, activeFilterCount, BOARD_VIEWS, type BoardView } from "@/store/viewStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useDoneBurstWatcher } from "@/lib/doneBurst";
 import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
 import {
@@ -76,6 +77,7 @@ const VIEW_ICON: Record<BoardView, typeof IconBoard> = {
 export function Board() {
   const { loading, error } = useBoardTasks();
   useAgentSocket();
+  useDoneBurstWatcher();
   const t = useTranslation();
 
   const tasks             = useBoardStore((s) => s.tasks);
@@ -99,6 +101,13 @@ export function Board() {
   const setFilterText = useBoardStore((s) => s.setFilterText);
 
   const toast = useToast();
+
+  // Dev-only: lets screenshot scripts fake live agent states in the browser
+  // (never reaches core). Stripped from production builds.
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    (window as unknown as { __clauflowStore?: typeof useBoardStore }).__clauflowStore = useBoardStore;
+  }, []);
 
   /* ── URL: ?projectId=…&view=… ─────────────────────────────────────────── */
   useEffect(() => {
@@ -406,7 +415,10 @@ export function Board() {
       ) : view === "list" ? (
         <TaskList tasks={listRows} subtaskStats={subStats} keyById={keyById} />
       ) : (
-        <FactoryPlaceholder counts={stats.counts} />
+        <FactoryView
+          tasks={visible}
+          epoch={`${selectedProjectId}|${filterText}|${filters.priorities.join(",")}|${filters.tags.join(",")}|${filters.agentRunning}|${filters.prOpen}`}
+        />
       )}
 
       <TaskDetailDrawer />

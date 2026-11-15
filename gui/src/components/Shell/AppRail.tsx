@@ -180,11 +180,7 @@ export function AppRail() {
                       {inner}
                     </button>
                   ),
-                  v === "factory" ? (
-                    <span className="rounded-pill border-[1.5px] border-current px-1.5 font-mono text-[9px] font-bold uppercase leading-[15px] tracking-[0.08em] opacity-70">
-                      {t.shell.soon}
-                    </span>
-                  ) : undefined,
+                  undefined,
                 ),
               )}
               {item("prs", t.shell.viewNames.prs, <IconPR size={17} />, (cls, inner) => (

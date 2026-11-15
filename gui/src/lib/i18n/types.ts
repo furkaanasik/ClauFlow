@@ -72,7 +72,7 @@ export interface Translations {
     offline: string;
     searchLabel: string;
     switchLang: string;
-    soon: string;
+    core: { runningOne: string; idle: string; running: string };
     showAll: string;
     showLess: string;
     home: string;
@@ -237,11 +237,18 @@ export interface Translations {
       none: string;
     };
     factory: {
-      badge: string;
-      title: string;
-      body: string;
+      sceneLabel: string;
+      fallbackNote: string;
       toBoard: string;
       toList: string;
+      stationsLabel: string;
+      focusStation: string;
+      resetView: string;
+      legendLabel: string;
+      legend: { running: string; queued: string; error: string; budget: string };
+      controlsHint: string;
+      notes: Record<"todo" | "doing" | "ci" | "review" | "done" | "nothing", string>;
+      tooltip: { open: string; openList: string; error: string; budget: string; more: string };
     };
     loadError: string;
     agentStarted: string;

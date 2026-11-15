@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import { GithubConnectModal } from "@/components/Auth/GithubConnectModal";
 import { PrereqIndicator } from "@/components/Layout/PrereqIndicator";
 import { NotificationPopover } from "@/components/Layout/NotificationPopover";
+import { AgentCore } from "@/components/Shell/AgentCore";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -109,6 +110,8 @@ export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
             {wsConnected ? t.shell.live : t.shell.offline}
           </StatusPill>
         </span>
+
+        <AgentCore />
 
         <div className="flex flex-none items-center">
           <NotificationPopover />

@@ -11,6 +11,7 @@ import { IconArrowUpRight, IconClose, IconCoin, IconPR, IconSubtask } from "@/co
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { api } from "@/lib/api";
+import { justArrivedDone } from "@/lib/doneBurst";
 import {
   formatUsd,
   isAgentWorking,
@@ -103,6 +104,13 @@ export function TaskCardView({
 
   const isNew = !overlay && newTaskIds.has(task.id);
   const [entered, setEntered] = useState(!isNew);
+  // DONE drop: a short confetti burst when the card lands in DONE
+  const [burst, setBurst] = useState(() => !overlay && task.status === "done" && justArrivedDone(task.id));
+  useEffect(() => {
+    if (!burst) return;
+    const timer = setTimeout(() => setBurst(false), 900);
+    return () => clearTimeout(timer);
+  }, [burst]);
 
   useEffect(() => {
     if (!isNew) return;
@@ -158,8 +166,10 @@ export function TaskCardView({
       data-locked={working || undefined}
       data-dragging={dragging || undefined}
       data-task-id={task.id}
+      data-burst={burst || undefined}
       className={clsx("task-card group", overlay && "task-card--overlay")}
     >
+      {burst && <DoneBurst />}
       {working ? (
         <span aria-hidden className="task-card__edge" />
       ) : (
@@ -331,5 +341,29 @@ export function TaskCardView({
         )}
       </div>
     </article>
+  );
+}
+
+const BURST_COLORS = ["var(--green)", "var(--mustard)", "var(--cobalt)", "var(--orange)"];
+
+/** Confetti squares with ink edges that pop out of a card landing in DONE. */
+function DoneBurst() {
+  return (
+    <span aria-hidden className="done-burst">
+      {Array.from({ length: 14 }, (_, i) => (
+        <i
+          key={i}
+          style={
+            {
+              "--a": `${i * (360 / 14) + (i % 2 ? 9 : -6)}deg`,
+              "--d": `${46 + (i % 3) * 18}px`,
+              "--c": BURST_COLORS[i % BURST_COLORS.length],
+              "--s": `${i % 3 === 0 ? 11 : 8}px`,
+              animationDelay: `${(i % 4) * 18}ms`,
+            } as CSSProperties
+          }
+        />
+      ))}
+    </span>
   );
 }

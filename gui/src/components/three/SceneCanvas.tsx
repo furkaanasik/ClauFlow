@@ -30,6 +30,15 @@ export interface SceneCanvasProps {
   label: string;
   /** Fires after the first rendered frame. */
   onReady?: () => void;
+  /** DPR range (default [1, 1.75]). */
+  dpr?: [number, number];
+  /**
+   * Drop DPR to 1 on a sustained fps decline (default true). Turn off for
+   * demand-driven scenes: sparse frames would read as a slow GPU.
+   */
+  adaptive?: boolean;
+  /** Extra props for the canvas (pointer handlers etc.). */
+  onPointerMissed?: (e: MouseEvent) => void;
 }
 
 const DPR_RANGE: [number, number] = [1, 1.75];
@@ -44,9 +53,12 @@ export default function SceneCanvas({
   className,
   label,
   onReady,
+  dpr: dprRange = DPR_RANGE,
+  adaptive = true,
+  onPointerMissed,
 }: SceneCanvasProps) {
   const [failed, setFailed] = useState(false);
-  const [dpr, setDpr] = useState<number | [number, number]>(DPR_RANGE);
+  const [dpr, setDpr] = useState<number | [number, number]>(dprRange);
 
   if (failed) return <>{fallback}</>;
 
@@ -59,6 +71,7 @@ export default function SceneCanvas({
         dpr={dpr}
         flat
         frameloop={frameloop}
+        onPointerMissed={onPointerMissed}
         camera={{ fov: 30, near: 0.5, far: 120, position: [0, 8, 18], ...camera }}
         gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
         onCreated={({ gl }) => {
@@ -74,7 +87,7 @@ export default function SceneCanvas({
         }}
       >
         <SceneProvider reducedMotion={reducedMotion} posterTime={posterTime}>
-          {!reducedMotion && (
+          {adaptive && !reducedMotion && (
             <PerformanceMonitor flipflops={2} onDecline={() => setDpr(1)} onFallback={() => setDpr(1)} />
           )}
           {onReady && <FirstFrame onReady={onReady} />}
