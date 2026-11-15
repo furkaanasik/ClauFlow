@@ -802,6 +802,8 @@ Ekranlara özel diğer sınıflar da `globals.css` içinde tanımlı. Aynı dili
 | `.logpane`, `.logpane__*` | Mono log paneli: satır no oluğu ve tonlar (`error`/`ok`/`cmd`/`warn` → `--*-text`), canlıyken yanıp sönen `▍` imleç |
 | `.flow-node` | Mini DAG düğümü (üstte 7px renk şapkası `--flow`) |
 | `.cmt` | Yorum balonu (`14px 14px 14px 4px` köşe) |
+| `.team-bubble`, `.team-chip` | Ekip zaman çizelgesi balonu (`4px 14px 14px 14px` köşe, solda `--role` renk şeridi; `data-tone` = `stuck` kırmızı taralı, `live` kesik çizgili, `summary` sunken) ve mono meta çipi |
+| `.ui-banner--approval` | Şartname onay kapısı: hardal zeminli banner ("sıra sende") |
 | `.pr-row`, `.diff-*` | PR listesi ve split diff |
 | `.kpi-tile` | Üstünde 6px renk şeridi (`--kpi`) olan KPI kartı |
 | `.studio-*`, `.agent-node*` | React Flow tabanlı Studio tuvali ve ajan düğümleri |
@@ -851,7 +853,7 @@ Elle ayarlanmış küçük stroke ikon seti: *"16px grid, 2px stroke, round caps
   strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false" />
 ```
 
-Varsayılan `size` 16. Mevcut ikonlar: `IconPlus`, `IconClose`, `IconCheck`, `IconChevronDown/Right/Left/Up`, `IconSearch`, `IconBolt`, `IconPlay`, `IconStop`, `IconRetry`, `IconTrash`, `IconGear`, `IconBranch`, `IconPR`, `IconEye`, `IconSun`, `IconMoon`, `IconAlert`, `IconInfo`, `IconCoin`, `IconClock`, `IconBoard`, `IconList`, `IconFactory`, `IconChart`, `IconBell`, `IconRobot`, `IconSpinner`, `IconRail`, `IconFolder`, `IconSubtask`, `IconTag`, `IconFilter`, `IconDots` (`strokeWidth={2.6}`), `IconDownload`, `IconArrowUpRight`, `IconSort`, `IconLock`, `IconGithub`, `IconTerminal`, `IconChat`, `IconCopy`, `IconFlow`, `IconFile`, `IconPencil`.
+Varsayılan `size` 16. Mevcut ikonlar: `IconPlus`, `IconClose`, `IconCheck`, `IconChevronDown/Right/Left/Up`, `IconSearch`, `IconBolt`, `IconPlay`, `IconStop`, `IconRetry`, `IconTrash`, `IconGear`, `IconBranch`, `IconPR`, `IconEye`, `IconSun`, `IconMoon`, `IconAlert`, `IconInfo`, `IconCoin`, `IconClock`, `IconBoard`, `IconList`, `IconFactory`, `IconChart`, `IconBell`, `IconRobot`, `IconSpinner`, `IconRail`, `IconFolder`, `IconSubtask`, `IconTag`, `IconFilter`, `IconDots` (`strokeWidth={2.6}`), `IconDownload`, `IconArrowUpRight`, `IconSort`, `IconLock`, `IconGithub`, `IconTerminal`, `IconChat`, `IconCopy`, `IconFlow`, `IconFile`, `IconPencil`. Ekip rolleri: `IconBriefcase` (CEO), `IconClipboard` (Analist), `IconCode` (Yazılımcı), `IconShieldCheck` (QA), `IconTeam` (ekip).
 
 `IconSpinner`: `r=6` daire, `strokeOpacity 0.25`, `strokeWidth 2.5`, üstünde `M8 2a6 6 0 0 1 6 6` yayı. `ui-spin` sınıfıyla döner (`0.8s linear infinite`).
 

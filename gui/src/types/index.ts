@@ -40,9 +40,8 @@ export interface Task {
   comments?: Comment[];
   usage?: TaskUsage;
   budgetUsd?: number | null;
-  executionMode?: "simple" | "graph";
-  graphId?: string | null;
   parentTaskId?: string | null;
+  /** Team chosen for this task; null = the project's default team. */
   teamId?: string | null;
 }
 
@@ -124,6 +123,21 @@ export type TeamArtifactKind =
 
 export type QaVerdict = "pass" | "fail";
 
+/** Why a team run stopped early (`TeamRun.stopReason`). Other values are free text (errors). */
+export type TeamStopReason =
+  | "stalled"
+  | "round_limit"
+  | "budget"
+  | "aborted"
+  | "superseded"
+  | "server_restart";
+
+/** `GET /api/tasks/:id/team` */
+export interface TaskTeamState {
+  runs: TeamRun[];
+  artifacts: TeamArtifact[];
+}
+
 export interface TeamArtifact {
   id: string;
   runId: string;
@@ -191,8 +205,6 @@ export type TaskPatch = Partial<
     | "prUrl"
     | "prNumber"
     | "budgetUsd"
-    | "executionMode"
-    | "graphId"
     | "parentTaskId"
     | "teamId"
   >

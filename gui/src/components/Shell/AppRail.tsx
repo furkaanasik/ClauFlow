@@ -71,6 +71,11 @@ export function AppRail() {
   useEffect(() => {
     if (studioRequest) setDetailProjectId(studioRequest.projectId);
   }, [studioRequest]);
+  const teamEditorRequest = useBoardStore((s) => s.teamEditorRequest);
+  const closeTeamEditor = useBoardStore((s) => s.closeTeamEditor);
+  useEffect(() => {
+    if (teamEditorRequest) setDetailProjectId(teamEditorRequest.projectId);
+  }, [teamEditorRequest]);
   useEffect(() => {
     if (projectDetailRequest) {
       setDetailProjectId(projectDetailRequest);
@@ -278,6 +283,7 @@ export function AppRail() {
         onClose={() => {
           setDetailProjectId(null);
           closeStudio();
+          closeTeamEditor();
         }}
       />
       <CloneRepoModal repo={cloneRepo} onClose={() => setCloneRepo(null)} />

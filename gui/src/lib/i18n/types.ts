@@ -134,8 +134,6 @@ export interface Translations {
     };
   };
   addTask: {
-    executionModeLabel: string;
-    graphLabel: string;
     budgetLabel: string;
     optional: string;
     budgetPlaceholder: string;
@@ -332,13 +330,6 @@ export interface Translations {
     projectLabel: string;
     parentLabel: string;
     subtasksLabel: string;
-    executionModeLabel: string;
-    modeSimple: string;
-    modeGraph: string;
-    graphSelect: string;
-    graphsLoading: string;
-    graphsEmpty: string;
-    openInStudio: string;
     budgetLabel: string;
     budgetPerTask: string;
     budgetProjectDefault: string;
@@ -416,7 +407,6 @@ export interface Translations {
       confirm: string;
       cancel: string;
     };
-    tabFlow: string;
     flowLabel: string;
     flowNoNodes: string;
     flowNodeLogsTitle: string;
@@ -965,5 +955,70 @@ export interface Translations {
     confirmMergeTitle: string;
     confirmMergeDescription: string;
     cancel: string;
+  };
+  team: {
+    roles: Record<"ceo" | "analyst" | "developer" | "qa", string>;
+    /** Card / badge activity while a role runs. */
+    activity: Record<"ceo" | "analyst" | "developer" | "qa", string>;
+    /** Appended to the developer/QA activity from round 2 on: "{n}". */
+    roundSuffix: string;
+    round: string;
+    awaitingApproval: string;
+    builtinNames: Record<"solo" | "yazilim_ekibi" | "hata_avi" | "kesif", string>;
+    builtinDescriptions: Record<"solo" | "yazilim_ekibi" | "hata_avi" | "kesif", string>;
+    artifactKinds: Record<"brief" | "spec" | "delivery" | "qa_report" | "stuck" | "summary", string>;
+    runStatus: Record<"running" | "awaiting_approval" | "delivered" | "explored" | "stuck" | "error" | "aborted", string>;
+    stopReasons: Record<"stalled" | "round_limit" | "budget" | "aborted" | "superseded" | "server_restart", string>;
+    verdict: Record<"pass" | "fail", string>;
+    picker: {
+      label: string;
+      hint: string;
+      projectDefault: string;
+      groupBuiltin: string;
+      groupTemplates: string;
+      groupProject: string;
+      locked: string;
+      loading: string;
+      saveError: string;
+      chainLabel: string;
+    };
+    editTeam: string;
+    tabTeam: string;
+    technicalFlow: string;
+    timeline: {
+      label: string;
+      empty: string;
+      emptyHint: string;
+      runSelect: string;
+      runOption: string;
+      teamLabel: string;
+      qaRounds: string;
+      totalCost: string;
+      showMore: string;
+      showLess: string;
+      commit: string;
+      tokens: string;
+      working: string;
+      stuckTitle: string;
+      summaryTitle: string;
+      system: string;
+      edited: string;
+      approved: string;
+    };
+    approval: {
+      title: string;
+      hint: string;
+      specLabel: string;
+      approve: string;
+      approving: string;
+      cancel: string;
+      reset: string;
+      confirmTitle: string;
+      confirmDescription: string;
+      confirm: string;
+      keep: string;
+      error: string;
+      review: string;
+    };
   };
 }

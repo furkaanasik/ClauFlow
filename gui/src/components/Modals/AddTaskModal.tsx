@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Input";
-import { Segmented } from "@/components/ui/Segmented";
 import { Checkbox } from "@/components/ui/Toggle";
 import { PriorityMark } from "@/components/ui/Pills";
-import { IconAlert, IconArrowUpRight, IconFlow, IconPlus } from "@/components/ui/icons";
+import { IconAlert, IconArrowUpRight, IconPlus } from "@/components/ui/icons";
 import { api, githubApi } from "@/lib/api";
-import type { GraphRecord } from "@/types";
+import { TeamPicker } from "@/components/Team/TeamPicker";
 import { useBoardStore } from "@/store/boardStore";
 import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -40,26 +39,14 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const [analysis, setAnalysis] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [budgetUsd, setBudgetUsd] = useState<string>("");
-  const [executionMode, setExecutionMode] = useState<"simple" | "graph">("simple");
-  const [graphId, setGraphId] = useState<string | null>(null);
-  const [graphs, setGraphs] = useState<GraphRecord[]>([]);
+  const [teamId, setTeamId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createGhIssue, setCreateGhIssue] = useState(false);
 
-  useEffect(() => {
-    if (!open || !selectedProjectId) return;
-    api.listGraphs(selectedProjectId)
-      .then((r) => {
-        setGraphs(r.graphs);
-        setGraphId(r.graphs[0]?.id ?? null);
-      })
-      .catch(() => {});
-  }, [open, selectedProjectId]);
-
   const reset = () => {
     setTitle(""); setDescription(""); setAnalysis(""); setPriority("medium");
-    setBudgetUsd(""); setExecutionMode("simple"); setGraphId(null); setError(null);
+    setBudgetUsd(""); setTeamId(null); setError(null);
     setCreateGhIssue(false);
   };
 
@@ -80,8 +67,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
         analysis:    analysis.trim()    || undefined,
         priority,
         budgetUsd:     parsedBudget && !isNaN(parsedBudget) ? parsedBudget : null,
-        executionMode,
-        graphId: executionMode === "graph" ? graphId : null,
+        teamId,
       });
       upsertTask(task);
       if (createGhIssue && selectedProjectId) {
@@ -192,39 +178,12 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <span className="text-[13px] font-semibold text-ink">{t.addTask.executionModeLabel}</span>
-            <Segmented
-              size="sm"
-              label={t.addTask.executionModeLabel}
-              value={executionMode}
-              onChange={setExecutionMode}
-              options={[
-                { value: "simple", label: t.taskDetail.modeSimple },
-                { value: "graph", label: t.taskDetail.modeGraph, icon: <IconFlow size={13} /> },
-              ]}
-              className="self-start"
-            />
-            {executionMode === "graph" && graphs.length > 0 && (
-              <div role="radiogroup" aria-label={t.addTask.graphLabel} className="mt-1 flex flex-col gap-1.5">
-                {graphs.map((g) => (
-                  <button
-                    key={g.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={graphId === g.id}
-                    onClick={() => setGraphId(g.id)}
-                    className="ui-option !py-1.5 font-mono text-[12px]"
-                  >
-                    {g.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            {executionMode === "graph" && graphs.length === 0 && (
-              <p className="text-xs text-ink-3">{t.taskDetail.graphsEmpty}</p>
-            )}
-          </div>
+          <TeamPicker
+            project={selectedProject ?? null}
+            value={teamId}
+            onChange={setTeamId}
+            refreshKey={open}
+          />
 
           <Field label={t.addTask.budgetLabel} aside={t.addTask.optional}>
             {({ id }) => (

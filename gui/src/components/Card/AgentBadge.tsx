@@ -7,6 +7,8 @@ import { StatusPill, type StatusKind } from "@/components/ui/Pills";
 import { useTranslation } from "@/hooks/useTranslation";
 import { IconTerminal } from "@/components/ui/icons";
 import { LogViewer } from "@/components/Card/LogViewer";
+import { agentStepLabel, roleIcon, teamStepKind } from "@/components/Team/roleMeta";
+import { useBoardStore } from "@/store/boardStore";
 import type { AgentState, AgentStatus } from "@/types";
 
 /** The four live executor steps, in order (spec §5). */
@@ -26,6 +28,8 @@ const STEP_KIND: Record<AgentStatus, StatusKind> = {
 interface AgentBadgeProps {
   agent: AgentState;
   taskTitle?: string;
+  /** Lets the badge read the live team run (QA round) from the store. */
+  taskId?: string;
 }
 
 /**
@@ -33,13 +37,22 @@ interface AgentBadgeProps {
  * the executor runs. Clicking opens the agent log (portalled so a transformed
  * card never traps the fixed overlay).
  */
-export function AgentBadge({ agent, taskTitle }: AgentBadgeProps) {
+export function AgentBadge({ agent, taskTitle, taskId }: AgentBadgeProps) {
   const t = useTranslation();
   const [open, setOpen] = useState(false);
+  const qaRound = useBoardStore((s) => {
+    const runs = taskId ? s.teamRuns[taskId] : undefined;
+    return runs?.[runs.length - 1]?.qaRound ?? 0;
+  });
   const hasLog = (agent.log?.length ?? 0) > 0;
   const stepIdx = AGENT_STEPS.indexOf(agent.status);
   const live = stepIdx >= 0;
-  const label = t.taskCard.agentSteps[agent.status] ?? agent.status;
+  // Team runs: "QA kontrol ediyor · tur 2" with the role glyph in place of the dot.
+  const roleKind = agent.status === "running" ? teamStepKind(agent.currentStep) : null;
+  const awaiting = agent.status === "awaiting_approval";
+  const label = agentStepLabel(agent, t, qaRound);
+  const variant = live || awaiting ? "solid" : "soft";
+  const icon = roleKind ? roleIcon(roleKind, 12) : undefined;
 
   return (
     <>
@@ -54,7 +67,7 @@ export function AgentBadge({ agent, taskTitle }: AgentBadgeProps) {
         title={hasLog ? t.taskCard.openLog : label}
         className="ui-focus inline-flex items-center gap-1.5 rounded-pill disabled:cursor-default"
       >
-        <StatusPill status={STEP_KIND[agent.status]} variant={live ? "solid" : "soft"} live={live}>
+        <StatusPill status={STEP_KIND[agent.status]} variant={variant} live={live} icon={icon}>
           {label}
           {live && (
             <span className="ml-0.5 inline-flex items-center gap-[3px]" aria-hidden>
@@ -82,7 +95,7 @@ export function AgentBadge({ agent, taskTitle }: AgentBadgeProps) {
             size="xl"
             footerStart={t.taskDetail.lines((agent.log ?? []).length)}
             footer={
-              <StatusPill status={STEP_KIND[agent.status]} variant={live ? "solid" : "soft"} live={live}>
+              <StatusPill status={STEP_KIND[agent.status]} variant={variant} live={live} icon={icon}>
                 {label}
               </StatusPill>
             }

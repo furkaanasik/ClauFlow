@@ -164,6 +164,10 @@ async function main() {
     await sleep(Number(process.env.FAKE_CLAUDE_SLOW_MS || 30000));
   }
 
+  // Optional per-call delay so a GUI can watch roles run live (screenshots); off by default.
+  const delayMs = Number(process.env.FAKE_CLAUDE_DELAY_MS || 0);
+  if (delayMs > 0) await sleep(delayMs);
+
   if (scenario === "exit_error") {
     process.stderr.write("fake-claude: simulated failure\n");
     process.exit(1);

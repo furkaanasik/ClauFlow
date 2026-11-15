@@ -15,6 +15,7 @@ import { justArrivedDone } from "@/lib/doneBurst";
 import {
   formatUsd,
   isAgentWorking,
+  isAwaitingApproval,
   isQueued,
   tagDot,
   taskCost,
@@ -48,12 +49,13 @@ export interface TaskCardProps {
 /** Sortable board card. Listeners sit on the whole card (spec §7). */
 export function TaskCard({ task, subtasks, parentKey }: TaskCardProps) {
   const selectTask = useBoardStore((s) => s.selectTask);
-  const working = isAgentWorking(task);
+  // A run paused at the spec gate still owns the card: no drag until approve/cancel.
+  const locked = isAgentWorking(task) || isAwaitingApproval(task);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { status: task.status },
-    disabled: working,
+    disabled: locked,
   });
 
   return (
@@ -124,6 +126,7 @@ export function TaskCardView({
   }, []);
 
   const working = isAgentWorking(task);
+  const awaiting = isAwaitingApproval(task);
   const queued = isQueued(task);
   const prio = (task.priority ?? "").toLowerCase() as PriorityLevel | "";
   const prioLabel = prio ? t.addTask.priorities[prio] : "";
@@ -161,9 +164,9 @@ export function TaskCardView({
         }
       }}
       aria-label={`${cardKey} ${task.title}`}
-      title={working ? t.taskCard.dragLocked : undefined}
+      title={working || awaiting ? t.taskCard.dragLocked : undefined}
       data-running={working || undefined}
-      data-locked={working || undefined}
+      data-locked={working || awaiting || undefined}
       data-dragging={dragging || undefined}
       data-task-id={task.id}
       data-burst={burst || undefined}
@@ -229,7 +232,7 @@ export function TaskCardView({
         {/* live agent step — full row while the executor runs */}
         {working && agentPill && (
           <div className="mt-3 flex items-center" {...stop}>
-            <AgentBadge agent={task.agent} taskTitle={task.title} />
+            <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />
           </div>
         )}
 
@@ -289,7 +292,7 @@ export function TaskCardView({
 
             {agentPill && !working && (
               <span {...stop}>
-                <AgentBadge agent={task.agent} taskTitle={task.title} />
+                <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />
               </span>
             )}
 

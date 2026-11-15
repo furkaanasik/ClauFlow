@@ -131,9 +131,8 @@ export function StudioCanvas({ projectId, taskId: explicitTaskId }: StudioCanvas
     taskId ? s.tasks[taskId]?.displayId ?? taskId : undefined,
   );
 
-  const boundTaskGraphId = useBoardStore((s) =>
-    taskId ? (s.tasks[taskId]?.graphId ?? null) : null,
-  );
+  // Tasks no longer carry a graph (Ekipler); Studio is removed in Faz 4.
+  const boundTaskGraphId: string | null = null;
 
   const upsertNodeRun = useBoardStore((s) => s.upsertNodeRun);
   const appendNodeLog = useBoardStore((s) => s.appendNodeLog);

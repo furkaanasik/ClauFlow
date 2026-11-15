@@ -248,16 +248,16 @@ Solo'nun Yazılımcı'sı bugünkü `testingInstructions` metnini (`executor.ts:
 - [x] Faz sonu: doğrulamalar, commit `feat: faz 2 - teamRunner motoru`.
 
 ### Faz 3: Görev detayı arayüzü
-- [ ] GUI tipleri, `lib/api.ts` uçları, store dilimleri, `useAgentSocket` yeni olaylar; `TaskPatch`'ten `executionMode`/`graphId` çıkar.
-- [ ] i18n: `team.*` (rol adları, etkinlikler, durma nedenleri, onay kapısı, seçici), tr + en + types.
-- [ ] Ekip seçicisi bileşeni (`Team/TeamPicker.tsx`) ve `TaskDetailDrawer` entegrasyonu (§8).
-- [ ] AddTaskModal'da aynı seçici.
-- [ ] `TeamTimeline.tsx` ve "Ekip" sekmesi (altta "Teknik akış").
-- [ ] Onay kapısı arayüzü.
-- [ ] Kart rozeti: `AgentBadge` `STEP_KIND` + `team:<kind>` etiketleri + `awaiting_approval`.
-- [ ] "Studio'da aç" → "Ekibi düzenle" (`teamEditorRequest`).
-- [ ] Ekran görüntüleri (taklit GET + WS): QA 2. tur çalışıyor, onay bekliyor, takıldı, bitmiş zaman çizelgesi, kart rozetleri. Krem + gece. Ayrıca bir kez yalıtılmış core'a `page.route` 3001→3101 yönlendirmesiyle canlı akış.
-- [ ] Faz sonu: doğrulamalar + build, commit `feat: faz 3 - görev detayında ekip`.
+- [x] GUI tipleri, `lib/api.ts` uçları, store dilimleri, `useAgentSocket` yeni olaylar; `TaskPatch`'ten `executionMode`/`graphId` çıkar.
+- [x] i18n: `team.*` (rol adları, etkinlikler, durma nedenleri, onay kapısı, seçici), tr + en + types.
+- [x] Ekip seçicisi bileşeni (`Team/TeamPicker.tsx`) ve `TaskDetailDrawer` entegrasyonu (§8).
+- [x] AddTaskModal'da aynı seçici.
+- [x] `TeamTimeline.tsx` ve "Ekip" sekmesi (altta "Teknik akış").
+- [x] Onay kapısı arayüzü.
+- [x] Kart rozeti: `AgentBadge` `STEP_KIND` + `team:<kind>` etiketleri + `awaiting_approval`.
+- [x] "Studio'da aç" → "Ekibi düzenle" (`teamEditorRequest`).
+- [x] Ekran görüntüleri (taklit GET + WS): QA 2. tur çalışıyor, onay bekliyor, takıldı, bitmiş zaman çizelgesi, kart rozetleri. Krem + gece. Ayrıca bir kez yalıtılmış core'a `page.route` 3001→3101 yönlendirmesiyle canlı akış.
+- [x] Faz sonu: doğrulamalar + build, commit `feat: faz 3 - görev detayında ekip`.
 
 ### Faz 4: Ekip editörü ve Studio'nun silinmesi
 - [ ] `ClaudeConfigTab` segmentleri "Talimatlar | Ekip", `TeamEditor` iskeleti.
@@ -289,6 +289,8 @@ _(Faz 0: takılan yok.)_
 _(Faz 1: takılan yok.)_
 
 _(Faz 2: takılan yok.)_
+
+_(Faz 3: takılan yok.)_
 
 ## 12. Kendi kararlarım (otonom çalışırken verilen)
 
@@ -353,6 +355,21 @@ _(Diğer kararlar buraya, faz etiketiyle.)_
 - **F2 · Testlerde gh yalıtımı.** Executor her koşuda `gh auth setup-git` çağırıyor. Entegrasyon testleri ve yalıtılmış core `GH_CONFIG_DIR`'i geçici dizine çekiyor: gh "giriş yok" deyip çıkıyor, global git ayarına yazmıyor.
 - **F2 · Oturumdaki kapı yine çıktı.** "Fact-Forcing Gate" fake-core sıfırlamasını (dizin silme + `RESET=1`) iki kez engelledi, plan güncellemesini de bir kez (karar metnindeki komut örneği yüzünden). İstenen bilgiler verildi; silme yerine yeni bir state dizini kullanıldı, plan güncellemesi betik dosyasından çalıştırıldı. Sonuca etkisi yok.
 
+- **F3 · Onay bekleyen görev "çalışıyor" sayılmaz.** `isAgentWorking` artık `awaiting_approval`'ı dışlıyor (yeni `isAwaitingApproval`). Kart turuncu yürüyen kenar yerine altta hardal "Onay bekliyor" pili gösterir; "Ajan çalışıyor" filtresi, board istatistiği ve AgentCore sayacı onu saymaz. Kartın sürükleme kilidi ayrı tutuldu: onay bekleyen kart da sürüklenemez (onay ya da iptal ile çıkılır).
+- **F3 · "Ekibi düzenle" şimdilik Claude Config sekmesine iner.** `teamEditorRequest { projectId }` eklendi; AppRail proje çekmecesini açar, çekmece Claude Config sekmesine geçer. "Ekip" segmenti Faz 4'te geliyor; o zamana kadar "Talimatlar" segmentinde açılıyor. `studioRequest`/`openStudio` store'da Studio için Faz 4'e kadar duruyor, görev çekmecesi artık çağırmıyor.
+- **F3 · Ekip seçicisi yerel `Select`.** Klavye ve mobil davranışı için native select, `optgroup`'lar: Hazır ekipler, Şablonlarım, Bu projenin ekipleri. İlk seçenek "Proje varsayılanı (X)" (`teamId = null`). Altında seçili ekibin rol sırası (`RoleChain`, QA→Yazılımcı döngüsü yeniden-dene ikonuyla) ve açıklaması. Görev `doing`'deyken (kuyruk, çalışma, onay bekleme) kilitli. Silinmiş bir id seçiliyse ham id olarak görünür.
+- **F3 · Yerleşik ekip ve rol adları çevrilir.** DB'deki adlar Türkçe. `templateKey` ile yerleşik ekiplerin adı/açıklaması, varsayılan rol adları (`Yazılımcı` vb.) i18n'den gelir; kullanıcının verdiği özel adlar olduğu gibi gösterilir.
+- **F3 · Zaman çizelgesi gövdesi.** Balon başlığı çıktıyı adlandırdığı ve QA pili kararı taşıdığı için gövdenin ilk `##` başlığı ve `VERDICT:` satırı gösterimde atılır (veri değişmez, onay kapısındaki düzenlenebilir metin ham). Gövde 15rem'de kesilir, "Tamamını göster" şeridi kesiği örter; taşma `ResizeObserver` ile ölçülür. Token sayısı artifact'ın `nodeRunId`'sindeki düğüm koşusundan, model çipi de oradan. Birden fazla koşu varsa "Koşu" seçicisi çıkar, varsayılan en yenisi. Koşu `running` iken etkin rol için kesik çizgili "yazıyor" balonu.
+- **F3 · Markdown tabloları ham görünür.** `react-markdown` GFM'siz kullanılıyor (yorumlarda da öyle); `remark-gfm` yerelde yok, gece bağımlılık eklemek yerine bırakıldı. Rol çıktıları tablo içerirse çizelgede düz metin olur. §1/15'e aday (küçük iş: `remark-gfm` ekle, `ReactMarkdown remarkPlugins`).
+- **F3 · `.comment-markdown` liste işaretleri.** Tailwind preflight `ul/ol` işaretlerini siliyordu; disc/decimal ve ilk/son çocuk boşlukları eklendi. Yorum sekmesi de bundan yararlanır.
+- **F3 · Onay kapısı.** Çekmece onay bekleyen bir görevde doğrudan "Ekip" sekmesinde açılır; kapı şartname balonunun hemen altında. Metin düzenlenmediyse `specBody` gönderilmez. "İptal" `ConfirmDialog` → `/abort`. Detay sekmesindeki ajan panelinde "Yeniden dene" yerine "Şartnameyi incele" çıkar.
+- **F3 · Kart rozetinde tur.** `AgentBadge` turu store'daki son `TeamRun.qaRound`'dan okur (WS `team_run_updated` ya da çekmece açılışında `GET /team`). Sayfa koşu ortasında yenilenirse tur eki bir sonraki `team_run_updated`'a (her rol sonunda gelir) kadar görünmez. Bilinen küçük sınır.
+- **F3 · Yeni ikonlar ve sınıflar.** `ui/icons.tsx`: `IconBriefcase`, `IconClipboard`, `IconCode`, `IconShieldCheck`, `IconTeam`. `globals.css`: `.team-bubble*`, `.team-chip`, `.ui-banner--approval`. DESIGN.md §5.16 ve §5.20'ye eklendi. Rol renkleri: CEO kobalt, Analist hardal, Yazılımcı turuncu, QA yeşil (`--on-*` ile).
+- **F3 · `core/`'a tek dokunuş: sahte CLI'ye `FAKE_CLAUDE_DELAY_MS`.** Canlı akış görüntüsünde rollerin çalışırken görünmesi için isteğe bağlı gecikme (varsayılan 0). Yalnızca test fikstürü; core testleri (151) değişmeden yeşil.
+- **F3 · Canlı akışta WS aktarımı.** `routeWebSocket` başka bir porta yönlendiremediği için sayfanın `:3001/ws` bağlantısı sunucuya hiç bağlanmıyor; Node'daki bir `ws` istemcisi `:3101`'in olaylarını sayfaya aktarıyor. HTTP `page.route` ile `:3101`'e yeniden yazılıyor. Koşuda `:3001`'e istek gitmedi.
+- **F3 · Kilitli kartlara Playwright tıklaması `force` ister.** dnd-kit kilitli kartlara `aria-disabled="true"` veriyor; kullanıcı tıklayınca çekmece açılıyor (davranış öncekiyle aynı), yalnızca test betiğinde `force: true` gerekti.
+- **F3 · Kullanılmayan i18n anahtarları silindi.** `executionModeLabel`, `graphLabel`, `modeSimple`, `modeGraph`, `graphSelect`, `graphsLoading`, `graphsEmpty`, `openInStudio`, `tabFlow` (tr/en/types). `TaskPatch`/`Task`/`CreateTaskInput`'tan `executionMode`/`graphId` çıktı; StudioCanvas'taki görev-graf bağı `null`'a sabitlendi (Studio Faz 4'te siliniyor).
+
 ## 13. İlerleme günlüğü
 
 - 2026-11-15: Plan yazıldı. Çalışma başlamadı; Furkan'ın "başla" demesi bekleniyor.
@@ -394,3 +411,13 @@ _(Diğer kararlar buraya, faz etiketiyle.)_
 - 2026-11-15 F2: `teamRun.c.test.ts` (5 test): Keşif (commit/dal/PR yok, HEAD aynı, brief + şartname yorumda, `done`), onay kapısı (duraklat → `recoverOrphanedTasks` dokunmuyor → `GET /team` → düzenlenmiş şartnameyle onay → Yazılımcı ve QA düzenlenmiş metni görüyor, aynı run `delivered`, ikinci onay 409), duraklatılmışı iptal, `calls.jsonl`'da `--model`, `--tools`, `--strict-mcp-config`, `--setting-sources project,local`, `project:` skill metni, `--advisor` (yetenek açık: dev `fable`, QA `opus`), PR `## Ekip` bölümü (Solo'da yok).
 - 2026-11-15 F2: Yalıtılmış core (:3101, ayrı DB, sahte CLI `fail_then_pass`, `GH_CONFIG_DIR` geçici): `atolye-lab/fake/scripts/e2e-faz2.mjs` proje (varsayılan `team_yazilim_ekibi`) + görev açtı, `PATCH doing`, `ws` istemcisi 7 `team_artifact` saydı = `GET /team` 7 artifact (aynı id'ler: brief, spec, delivery 1, qa FAIL, delivery 2, qa PASS, summary). Son `team_run_updated` `delivered` = API. Adımlar `team:ceo/analyst/developer/qa`. Repo `main`de ve temiz, dalda 2 commit. :3101 öldürüldü, :3001 ayakta.
 - 2026-11-15 F2: Faz sonu doğrulamaları yeşil (core typecheck + 151 test / 24 dosya; graphRunner'ın 32 testi silindi, 48 yeni test; gui typecheck + lint 0 uyarı; ortak DB integrity ok, testlerden satır yok); faz 2 commit'i (ara commit `57fdc40` faz 2a).
+- 2026-11-15 F3: GUI tipleri (`TeamStopReason`, `TaskTeamState`; `executionMode`/`graphId` `Task`/`TaskPatch`/`CreateTaskInput`'tan çıktı), `api.listTeams`/`getTaskTeam`/`approveTeamSpec`, store `teamsByProject`/`teamRuns`/`teamArtifacts`/`teamEditorRequest`, `useAgentSocket` `team_run_updated`/`team_artifact`. Typecheck çekmece ve AddTask'teki eski seçici kalkınca (madde 3–4) yeşil.
+- 2026-11-15 F3: i18n `team.*` (roller, etkinlikler, tur eki, yerleşik ad/açıklamalar, artifact türleri, koşu durumları, durma nedenleri, karar, seçici, zaman çizelgesi, onay kapısı) tr + en + types; ölü çalışma modu/graf anahtarları silindi. Typecheck yeşil.
+- 2026-11-15 F3: `Team/TeamPicker.tsx` (+ `RoleChain`, `roleMeta`, `hooks/useTeams.ts`, 5 rol/ekip ikonu) ve çekmecede "Bu görevi kim yapsın?" (`PATCH teamId`, `doing`'de kilitli, hata satırı). Typecheck yeşil.
+- 2026-11-15 F3: AddTaskModal'da aynı seçici (`teamId` POST'ta), graf yüklemesi silindi. Typecheck + lint (0 uyarı) yeşil.
+- 2026-11-15 F3: `Card/TeamTimeline.tsx` (koşu başlığı, rol balonları, QA kararı, commit/maliyet/token/model çipleri, takıldı ve özet kartları, canlı rol balonu, koşu seçici) + "Ekip" sekmesi, altta katlanır "Teknik akış" (`MiniDagView`). Typecheck + lint yeşil.
+- 2026-11-15 F3: `Card/ApprovalGate.tsx` (hardal banner, düzenlenebilir şartname, "Onayla ve devam et", `ConfirmDialog`'lu İptal); çekmece onay bekleyende Ekip sekmesinde açılıyor, ajan panelinde "Şartnameyi incele". Typecheck + lint yeşil.
+- 2026-11-15 F3: `AgentBadge` `team:<kind>` → rol ikonu + "QA kontrol ediyor · tur 2", `awaiting_approval` hardal dolu pil; `isAgentWorking` onay bekleyeni dışlıyor, kart kilidi ayrı. Typecheck + lint yeşil.
+- 2026-11-15 F3: Başlıktaki "Studio'da aç" → "Ekibi düzenle" (`openTeamEditor`); AppRail ve ProjectDetailDrawer `teamEditorRequest`'i işliyor (Claude Config sekmesi). Typecheck + lint yeşil.
+- 2026-11-15 F3: Görüntüler `scripts/shots-ekipler-faz3.mjs` (yalnızca GET, run/artifact/node-run `page.route`, kart turu `routeWebSocket`): `ekipler-3-{kartlar,kart-onay,board,qa-tur2,onay,onay-detay,takildi,bitti-ust,bitti-alt,secici,addtask}-{krem,gece}.png`, engellenen yazma yok. Canlı: `scripts/shots-ekipler-faz3-canli.mjs`, yalıtılmış core (:3101, `fail_then_pass`, 3 sn gecikme, onay kapısı açık) → `ekipler-3-canli-{kart,onay,calisiyor,bitti}-{krem,gece}.png`. GUI'den şartname düzenlenip onaylandı (`approved`, düzenleme gövdede), koşu `delivered`/`qaRound 1`, 7 artifact = 7 DOM balonu, sayfa hatası yok. :3101 öldürüldü, :3001 dokunulmadı.
+- 2026-11-15 F3: Faz sonu doğrulamaları yeşil (core typecheck + 151 test / 24 dosya; gui typecheck + lint 0 uyarı; scratchpad kopyasında `node_modules/.bin/next build`: `/board` 322 kB, `/` 143 kB First Load); faz 3 commit'i.

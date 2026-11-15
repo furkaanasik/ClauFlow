@@ -1,4 +1,4 @@
-import type { AgentGraph, AgentText, Comment, GithubRepo, GitStatus, GraphRecord, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
+import type { AgentGraph, AgentText, Comment, GithubRepo, GitStatus, GraphRecord, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, TaskTeamState, Team, TeamArtifact, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -36,8 +36,8 @@ export interface CreateTaskInput {
   priority?: TaskPriority | string;
   status?: Task["status"];
   budgetUsd?: number | null;
-  executionMode?: "simple" | "graph";
-  graphId?: string | null;
+  /** null / omitted = the project's default team. */
+  teamId?: string | null;
 }
 
 export interface CreateProjectInput {
@@ -411,6 +411,24 @@ export const api = {
     }).then((r) => {
       if (!r.ok) return handle<void>(r);
     }),
+
+  listTeams: (projectId: string): Promise<Team[]> =>
+    fetch(`${BASE}/teams?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" })
+      .then((r) => handle<{ teams: Team[] }>(r))
+      .then((d) => d.teams ?? []),
+
+  getTaskTeam: (taskId: string): Promise<TaskTeamState> =>
+    fetch(`${BASE}/tasks/${taskId}/team`, { cache: "no-store" })
+      .then((r) => handle<TaskTeamState>(r))
+      .then((d) => ({ runs: d.runs ?? [], artifacts: d.artifacts ?? [] })),
+
+  /** Resume a run paused at the spec gate. `specBody` replaces the spec when the user edited it. */
+  approveTeamSpec: (taskId: string, specBody?: string): Promise<{ task: Task; artifact: TeamArtifact }> =>
+    fetch(`${BASE}/tasks/${taskId}/team/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(specBody ? { specBody } : {}),
+    }).then((r) => handle<{ task: Task; artifact: TeamArtifact }>(r)),
 
   getNodeRuns: (taskId: string): Promise<NodeRun[]> =>
     fetch(`${BASE}/tasks/${taskId}/node-runs`, { cache: "no-store" })

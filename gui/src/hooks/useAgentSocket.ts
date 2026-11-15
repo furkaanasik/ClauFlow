@@ -57,6 +57,8 @@ export function useAgentSocket(url?: string) {
       setCiIteration,
       setBudgetExceeded,
       setBreakdownStatus,
+      upsertTeamRun,
+      upsertTeamArtifact,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -146,6 +148,16 @@ useNotificationStore.getState().notify(
             case "node_log": {
               const m = msg as Extract<WsMessage, { type: "node_log" }>;
               appendNodeLog(m.taskId, m.payload.nodeId, m.payload.line);
+              break;
+            }
+            case "team_run_updated": {
+              const m = msg as Extract<WsMessage, { type: "team_run_updated" }>;
+              upsertTeamRun(m.payload);
+              break;
+            }
+            case "team_artifact": {
+              const m = msg as Extract<WsMessage, { type: "team_artifact" }>;
+              upsertTeamArtifact(m.payload);
               break;
             }
             case "comment_updated": {

@@ -11,7 +11,12 @@ export const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "ci", "review", "
 
 export function isAgentWorking(task: Task): boolean {
   const s = task.agent?.status;
-  return Boolean(s) && s !== "idle" && s !== "done" && s !== "error";
+  return Boolean(s) && s !== "idle" && s !== "done" && s !== "error" && s !== "awaiting_approval";
+}
+
+/** Team run paused after the Analyst until the user approves the spec. */
+export function isAwaitingApproval(task: Task): boolean {
+  return task.status === "doing" && task.agent?.status === "awaiting_approval";
 }
 
 export function isQueued(task: Task): boolean {

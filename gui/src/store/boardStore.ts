@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, GraphRecord, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, GraphRecord, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
 import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
 
 type Lang = "tr" | "en";
@@ -44,6 +44,15 @@ interface BoardState {
    *  ClaudeConfigTab forces the Studio segment; StudioCanvas binds to taskId. */
   studioRequest: { projectId: string; taskId: string } | null;
   projectDetailRequest: string | null;
+  /** "Edit team" intent from the task drawer: AppRail opens the project drawer on Claude Config. */
+  teamEditorRequest: { projectId: string } | null;
+
+  /** Teams usable by a project (built-ins, user templates, project teams), keyed by projectId. */
+  teamsByProject: Record<string, Team[]>;
+  /** Team runs per task, oldest first. */
+  teamRuns: Record<string, TeamRun[]>;
+  /** Team artifacts per task, in creation order. */
+  teamArtifacts: Record<string, TeamArtifact[]>;
 
   studioGeneration: {
     generationId: string | null;
@@ -118,11 +127,25 @@ interface BoardState {
   closeStudio: () => void;
   openProjectDetail: (projectId: string) => void;
   clearProjectDetailRequest: () => void;
+  openTeamEditor: (projectId: string) => void;
+  closeTeamEditor: () => void;
+
+  setTeams: (projectId: string, teams: Team[]) => void;
+  setTaskTeam: (taskId: string, state: TaskTeamState) => void;
+  upsertTeamRun: (run: TeamRun) => void;
+  upsertTeamArtifact: (artifact: TeamArtifact) => void;
 
   getByStatus: (status: TaskStatus) => Task[];
 }
 
 const LOG_LIMIT = 500;
+
+/** Replace the item with the same id in place, or append it. */
+function upsertById<T extends { id: string }>(list: T[] | undefined, item: T): T[] {
+  const existing = list ?? [];
+  const idx = existing.findIndex((x) => x.id === item.id);
+  return idx >= 0 ? [...existing.slice(0, idx), item, ...existing.slice(idx + 1)] : [...existing, item];
+}
 
 export const useBoardStore = create<BoardState>((set, get) => ({
   tasks: {},
@@ -149,6 +172,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   graphs: {},
   studioRequest: null,
   projectDetailRequest: null,
+  teamEditorRequest: null,
+  teamsByProject: {},
+  teamRuns: {},
+  teamArtifacts: {},
 
   studioGeneration: {
     generationId: null,
@@ -519,6 +546,28 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   openProjectDetail: (projectId) => set(() => ({ projectDetailRequest: projectId })),
   clearProjectDetailRequest: () => set(() => ({ projectDetailRequest: null })),
+  openTeamEditor: (projectId) => set(() => ({ teamEditorRequest: { projectId } })),
+  closeTeamEditor: () => set(() => ({ teamEditorRequest: null })),
+
+  setTeams: (projectId, teams) =>
+    set((s) => ({ teamsByProject: { ...s.teamsByProject, [projectId]: teams } })),
+
+  setTaskTeam: (taskId, { runs, artifacts }) =>
+    set((s) => ({
+      teamRuns: { ...s.teamRuns, [taskId]: runs },
+      teamArtifacts: { ...s.teamArtifacts, [taskId]: artifacts },
+    })),
+
+  upsertTeamRun: (run) =>
+    set((s) => ({ teamRuns: { ...s.teamRuns, [run.taskId]: upsertById(s.teamRuns[run.taskId], run) } })),
+
+  upsertTeamArtifact: (artifact) =>
+    set((s) => ({
+      teamArtifacts: {
+        ...s.teamArtifacts,
+        [artifact.taskId]: upsertById(s.teamArtifacts[artifact.taskId], artifact),
+      },
+    })),
 
   setWsConnected: (connected) => set(() => ({ wsConnected: connected })),
   setFilterText: (text) => set(() => ({ filterText: text })),

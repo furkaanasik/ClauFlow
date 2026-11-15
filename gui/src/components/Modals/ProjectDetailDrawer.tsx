@@ -110,7 +110,11 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
 
   // Studio intents land straight on the Claude Config tab.
   const studioRequest = useBoardStore((s) => s.studioRequest);
-  const wantsStudio = !!studioRequest && studioRequest.projectId === projectId;
+  const teamEditorRequest = useBoardStore((s) => s.teamEditorRequest);
+  // "Edit team" (task drawer) also lands on Claude Config; Faz 4 adds the Team segment there.
+  const wantsStudio =
+    (!!studioRequest && studioRequest.projectId === projectId) ||
+    (!!teamEditorRequest && teamEditorRequest.projectId === projectId);
 
   useEffect(() => {
     if (liveProject) {
