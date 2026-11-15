@@ -4,10 +4,12 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { PriorityMark, StatusPill, type PriorityLevel } from "@/components/ui/Pills";
 import { IconChevronDown, IconChevronUp, IconPR, IconSort, IconSubtask } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
+import { ChainBadge } from "@/components/Card/ChainBadge";
 import { useTranslation } from "@/hooks/useTranslation";
 import {
   COLUMN_STATUSES,
   isAgentWorking,
+  isWaitingDeps,
   tagDot,
   taskCost,
   type SubtaskStats,
@@ -160,6 +162,9 @@ export function TaskList({ tasks, subtaskStats, keyById }: TaskListProps) {
                         </span>
                       )}
                       <span className="min-w-0 truncate text-[14px] font-semibold text-ink">{task.title}</span>
+                      <span className="flex-none">
+                        <ChainBadge task={task} compact />
+                      </span>
                       {sub && sub.total > 0 && (
                         <span className="task-card__meta flex-none">
                           <IconSubtask size={12} />
@@ -181,6 +186,8 @@ export function TaskList({ tasks, subtaskStats, keyById }: TaskListProps) {
                       <StatusPill status="doing" variant="solid" live>
                         {t.taskCard.agentSteps[task.agent.status]}
                       </StatusPill>
+                    ) : isWaitingDeps(task) ? (
+                      <StatusPill status="todo">{t.taskCard.agentSteps.waiting_deps}</StatusPill>
                     ) : (
                       <StatusPill status={task.status}>{t.board.columns[task.status]}</StatusPill>
                     )}

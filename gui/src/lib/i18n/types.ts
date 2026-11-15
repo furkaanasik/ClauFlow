@@ -43,7 +43,16 @@ export type ErrorCode =
   | "pr_create_failed"
   | "claude_exit"
   | "run_failed"
-  | "task_in_review";
+  | "task_in_review"
+  | "dependency_cycle"
+  | "dependency_self"
+  | "dependency_not_found"
+  | "dependency_cross_project"
+  | "dependencies_locked"
+  | "too_many_dependencies"
+  | "aborted_while_waiting"
+  | "not_waiting"
+  | "dependencies_unmet";
 
 export interface Translations {
   errors: Record<ErrorCode, string>;
@@ -163,6 +172,19 @@ export interface Translations {
     agentLog: string;
     logEmpty: string;
     openLog: string;
+    /** zincir: chain badge on a card that waits for one task ("Waiting for CLF-2"). */
+    waitingOne: (key: string) => string;
+    /** zincir: chain badge for several unmet dependencies. */
+    waitingMany: (n: number) => string;
+    /** zincir: first line of the badge tooltip (the list of dependencies follows). */
+    waitingTitle: string;
+    /** zincir: badge when a dependency failed, got stuck or was aborted (§3/11). */
+    blockerProblem: (key: string) => string;
+    /** zincir: pill on a waiting card (in Doing, no run yet). */
+    waitingDeps: string;
+    cancelWaitingTitle: string;
+    /** zincir E5: pill on a waiting card whose dependencies are all done. */
+    readyToStart: string;
     agentSteps: {
       idle: string;
       branching: string;
@@ -170,6 +192,7 @@ export interface Translations {
       pushing: string;
       pr_opening: string;
       awaiting_approval: string;
+      waiting_deps: string;
       done: string;
       error: string;
     };
@@ -336,6 +359,26 @@ export interface Translations {
     loadError: string;
     /** A move to Doing was accepted; the run is queued (it may wait for the repo lock). */
     taskQueued: (key: string) => string;
+    /** zincir: a move to Doing went into waiting; `deps` are the unmet dependency keys. */
+    waitingToast: (key: string, deps: string[]) => string;
+    /** zincir: `chain_advanced` toast ("CLF-2 merged → CLF-3 started"). */
+    chainAdvanced: (from: string, started: string[], merged: boolean) => string;
+    /** zincir E4: Review → Done confirmation. */
+    mergeConfirm: {
+      title: string;
+      local: (branch: string, base: string) => string;
+      pr: (n: number) => string;
+      /** Review task without a branch: nothing to merge. */
+      noMerge: string;
+      dirty: string;
+      starts: (n: number, keys: string[]) => string;
+      confirm: string;
+      cancel: string;
+    };
+    /** zincir E5: waiting tasks whose dependencies are met but did not start. */
+    readyWaiting: (n: number) => string;
+    readyWaitingStart: string;
+    readyWaitingStarted: (n: number) => string;
     columns: {
       todo:   string;
       doing:  string;
@@ -472,6 +515,17 @@ export interface Translations {
     breakdownError: string;
     breakdownCancel: string;
     analysisFromSpec: string;
+    /** zincir: the "Waiting on" section and its editor (§5.6). */
+    dependsLabel: string;
+    dependentsLabel: string;
+    addDependency: string;
+    removeDependency: (key: string) => string;
+    dependsLockedHint: string;
+    dependsEmpty: string;
+    /** Log tab of a waiting task. */
+    depsWaiting: (keys: string[]) => string;
+    /** Agent panel button of a waiting task whose dependencies are met (E5). */
+    startWaiting: string;
     analysisOpenTeam: string;
   };
   cloneModal: {
@@ -732,6 +786,8 @@ export interface Translations {
     taskDoneBody: string;
     /** In-app toast when a run fails (the browser notification may be off or unseen). */
     runFailedToast: (ref: string, reason: string) => string;
+    /** zincir D6: a dependency of a waiting task got into trouble (once per failure). */
+    chainBlocked: (blocker: string, waiting: string[]) => string;
   };
   prs: {
     state: {

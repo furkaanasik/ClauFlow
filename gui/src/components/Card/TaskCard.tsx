@@ -5,6 +5,7 @@ import { useEffect, useState, type CSSProperties, type HTMLAttributes, type Poin
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AgentBadge } from "@/components/Card/AgentBadge";
+import { ChainBadge } from "@/components/Card/ChainBadge";
 import { PriorityMark, StatusPill, type PriorityLevel } from "@/components/ui/Pills";
 import { IconArrowUpRight, IconBranch, IconClose, IconCoin, IconPR, IconSubtask } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
@@ -15,7 +16,9 @@ import {
   isAgentWorking,
   isAwaitingApproval,
   isQueued,
+  isWaitingDeps,
   tagDot,
+  unmetDeps,
   taskCost,
   type SubtaskStats,
 } from "@/lib/boardView";
@@ -32,7 +35,7 @@ const PRIORITY_FILL: Record<PriorityLevel, string> = {
 function showAgentBadge(task: Task): boolean {
   if (isQueued(task)) return false;
   const s = task.agent.status;
-  if (s === "idle") return false;
+  if (s === "idle" || s === "waiting_deps") return false;
   if (task.status === "doing") return true;
   return s === "done" || s === "error";
 }
@@ -49,7 +52,8 @@ interface TaskCardProps {
 export function TaskCard({ task, subtasks, parentKey }: TaskCardProps) {
   const selectTask = useBoardStore((s) => s.selectTask);
   // A run paused at the spec gate still owns the card: no drag until approve/cancel.
-  const locked = isAgentWorking(task) || isAwaitingApproval(task);
+  // zincir: a waiting card does not drag either (leaving Doing is its cancel button).
+  const locked = isAgentWorking(task) || isAwaitingApproval(task) || isWaitingDeps(task);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -100,6 +104,7 @@ export function TaskCardView({
   const newTaskIds = useBoardStore((s) => s.newTaskIds);
   const clearNewTaskId = useBoardStore((s) => s.clearNewTaskId);
   const overBudget = useBoardStore((s) => Boolean(s.budgetExceeded[task.id]));
+  const tasks = useBoardStore((s) => s.tasks);
   const [cancelling, setCancelling] = useState(false);
 
   const isNew = !overlay && newTaskIds.has(task.id);
@@ -126,6 +131,10 @@ export function TaskCardView({
   const working = isAgentWorking(task);
   const awaiting = isAwaitingApproval(task);
   const queued = isQueued(task);
+  // zincir: waiting for dependencies (§5.6); `ready` = all done but not started (E5).
+  const waiting = isWaitingDeps(task);
+  const unmet = task.status === "todo" || waiting ? unmetDeps(task, tasks) : [];
+  const ready = waiting && unmet.length === 0;
   const prio = (task.priority ?? "").toLowerCase() as PriorityLevel | "";
   const prioLabel = prio ? t.addTask.priorities[prio] : "";
   const tags = task.tags ?? [];
@@ -141,7 +150,15 @@ export function TaskCardView({
   const agentPill = showAgentBadge(task);
 
   const hasFooter =
-    hasSubtasks || cost !== null || queued || openPR || mergedPR || localBranch || (agentPill && !working);
+    hasSubtasks ||
+    cost !== null ||
+    queued ||
+    waiting ||
+    unmet.length > 0 ||
+    openPR ||
+    mergedPR ||
+    localBranch ||
+    (agentPill && !working);
 
   const stop = {
     onPointerDown: (e: PointerEvent) => e.stopPropagation(),
@@ -166,7 +183,8 @@ export function TaskCardView({
       aria-label={`${cardKey} ${task.title}`}
       title={working || awaiting ? t.taskCard.dragLocked : undefined}
       data-running={working || undefined}
-      data-locked={working || awaiting || undefined}
+      data-locked={working || awaiting || waiting || undefined}
+      data-waiting={waiting || undefined}
       data-dragging={dragging || undefined}
       data-task-id={task.id}
       data-burst={burst || undefined}
@@ -238,6 +256,7 @@ export function TaskCardView({
 
         {hasFooter && (
           <footer className="mt-3 flex flex-wrap items-center gap-1.5 border-t-[1.5px] border-hair pt-2.5">
+            <ChainBadge task={task} />
             {hasSubtasks && subtasks && (
               <span className="task-card__meta" title={t.taskCard.subtasks.replace("{done}", String(subtasks.done)).replace("{total}", String(subtasks.total))}>
                 <IconSubtask size={12} />
@@ -264,6 +283,31 @@ export function TaskCardView({
                   type="button"
                   aria-label={t.taskCard.cancelQueuedTitle}
                   title={t.taskCard.cancelQueuedTitle}
+                  disabled={cancelling}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setCancelling(true);
+                    try {
+                      await api.abortTask(task.id);
+                    } catch {
+                      /* ignore */
+                    }
+                    setCancelling(false);
+                  }}
+                  className="task-card__btn !w-6 !justify-center !px-0 hover:!bg-red hover:!text-[var(--on-red)]"
+                >
+                  <IconClose size={11} />
+                </button>
+              </span>
+            )}
+
+            {waiting && (
+              <span className="inline-flex items-center gap-1" {...stop}>
+                <StatusPill status="todo">{ready ? t.taskCard.readyToStart : t.taskCard.waitingDeps}</StatusPill>
+                <button
+                  type="button"
+                  aria-label={t.taskCard.cancelWaitingTitle}
+                  title={t.taskCard.cancelWaitingTitle}
                   disabled={cancelling}
                   onClick={async (e) => {
                     e.stopPropagation();

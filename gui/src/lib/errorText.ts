@@ -11,13 +11,25 @@ export function apiErrorCode(err: unknown): string | null {
   return null;
 }
 
-/** The hint a 422 carries next to its code (`current` for a run, `detected` for a project). */
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((x): x is string => typeof x === "string" && x.length > 0) : [];
+}
+
+/**
+ * The hint an error body carries next to its code: `current` for a run,
+ * `detected` for a project (422), zincir's cycle `path` ("CLF-3 → CLF-2 → CLF-3")
+ * and `unmet` dependency keys.
+ */
 function bodyDetail(raw: unknown): string | null {
   if (!(raw instanceof ApiError)) return null;
-  const body = raw.body as { current?: unknown; detected?: unknown } | null;
+  const body = raw.body as { current?: unknown; detected?: unknown; path?: unknown; unmet?: unknown } | null;
   if (!body || typeof body !== "object") return null;
   if (typeof body.current === "string" && body.current) return body.current;
   if (typeof body.detected === "string" && body.detected) return body.detected;
+  const path = stringList(body.path);
+  if (path.length > 0) return path.join(" → ");
+  const unmet = stringList(body.unmet);
+  if (unmet.length > 0) return unmet.join(", ");
   return null;
 }
 

@@ -9,6 +9,8 @@ export type AgentStatus =
   | "pushing"
   | "pr_opening"
   | "awaiting_approval"
+  /** zincir: dragged to Doing but a dependency is not done yet; holds no repo lock. */
+  | "waiting_deps"
   | "done"
   | "error";
 
@@ -45,6 +47,8 @@ export interface Task {
   teamId?: string | null;
   /** Lifetime spend in USD from the CLI's `total_cost_usd` (roles, comments, breakdowns). */
   costUsd?: number;
+  /** zincir: ids of same-project tasks this one waits for (in board order). */
+  dependsOn?: string[];
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -351,7 +355,17 @@ export type WsMessage =
     }
   | { type: "task_breakdown_started"; taskId: string }
   | { type: "task_breakdown_done"; taskId: string; taskCount: number }
-  | { type: "task_breakdown_error"; taskId: string; error: string };
+  | { type: "task_breakdown_error"; taskId: string; error: string }
+  | { type: "chain_advanced"; taskId: string; payload: ChainAdvancedPayload };
+
+/** zincir: a done task started its waiting dependents (core `broadcastChainAdvanced`). */
+export interface ChainAdvancedPayload {
+  projectId: string;
+  displayId: string | null;
+  /** true when the done transition came from review (a merge). */
+  merged: boolean;
+  started: Array<{ id: string; displayId: string | null }>;
+}
 
 interface BudgetExceededPayload {
   spentUsd: number;

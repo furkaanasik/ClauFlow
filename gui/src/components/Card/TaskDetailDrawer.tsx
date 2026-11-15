@@ -349,8 +349,13 @@ export function TaskDetailDrawer() {
   const priority = normalizePriority(task.priority);
   const agentActive = (ACTIVE_STEPS as readonly string[]).includes(task.agent.status);
   const queued = task.status === "doing" && task.agent.status === "idle";
+  // zincir: waiting for dependencies is neither queued nor a live run.
+  const waitingDeps = task.status === "doing" && task.agent.status === "waiting_deps";
   const awaitingApproval = task.status === "doing" && task.agent.status === "awaiting_approval";
-  const showAgentBadge = task.agent.status !== "idle" && (task.status === "doing" || task.agent.status === "error");
+  const showAgentBadge =
+    task.agent.status !== "idle" &&
+    !waitingDeps &&
+    (task.status === "doing" || task.agent.status === "error");
 
   // D1: no PR → the branch is reviewed here, on its local diff.
   const showChanges = Boolean(task.branch) && !task.prNumber && (task.status === "review" || task.status === "done");

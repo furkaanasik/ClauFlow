@@ -157,6 +157,22 @@ export const api = {
       .then((r) => handle<{ task: Task }>(r))
       .then((d) => d.task),
 
+  /** zincir: replace the task's whole dependency set (`PUT /tasks/:id/dependencies`). */
+  setDependencies: (id: string, dependsOn: string[]): Promise<Task> =>
+    fetch(`${BASE}/tasks/${id}/dependencies`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dependsOn }),
+    })
+      .then((r) => handle<{ task: Task }>(r))
+      .then((d) => d.task),
+
+  /** zincir E5: start a waiting task whose dependencies are all done. */
+  startWaiting: (id: string): Promise<Task> =>
+    fetch(`${BASE}/tasks/${id}/start-waiting`, { method: "POST" })
+      .then((r) => handle<{ task: Task }>(r))
+      .then((d) => d.task),
+
   abortTask: (id: string): Promise<{ aborted: boolean; source: string }> =>
     fetch(`${BASE}/tasks/${id}/abort`, { method: "POST" }).then((r) =>
       handle<{ aborted: boolean; source: string }>(r),

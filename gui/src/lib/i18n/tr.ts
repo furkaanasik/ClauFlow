@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { accusative } from "@/lib/trSuffix";
 
 export const tr: Translations = {
   errors: {
@@ -43,6 +44,15 @@ export const tr: Translations = {
     claude_exit: "Claude CLI hatayla çıktı. Ayrıntı ajan logunda.",
     run_failed: "Koşu başarısız: {detail}",
     task_in_review: "Görev incelemede; önce birleştir ya da geri al, sonra parçala.",
+    dependency_cycle: "Bu bağımlılık bir döngü oluşturur: {detail}.",
+    dependency_self: "Bir görev kendini bekleyemez.",
+    dependency_not_found: "Bağımlılık olarak seçilen görev bulunamadı.",
+    dependency_cross_project: "Bağımlılık yalnızca aynı projenin görevleri arasında olabilir.",
+    dependencies_locked: "Bağımlılıklar yalnızca görev Yapılacak'tayken ya da beklerken değiştirilebilir.",
+    too_many_dependencies: "Bir görev en çok 20 göreve bağlı olabilir.",
+    aborted_while_waiting: "Bağımlılıklarını beklerken kullanıcı tarafından durduruldu.",
+    not_waiting: "Görev artık bağımlılık beklemiyor.",
+    dependencies_unmet: "Bağımlılıkları henüz bitmedi: {detail}.",
   },
   landing: {
     tagline: "ClauFlow, Claude Code'u bir kanban panosuna bağlar.",
@@ -261,6 +271,13 @@ export const tr: Translations = {
     agentLog: "Ajan logu",
     logEmpty: "Log boş.",
     openLog: "Logu aç",
+    waitingOne: (key) => `${accusative(key)} bekliyor`,
+    waitingMany: (n) => `${n} görev bekliyor`,
+    waitingTitle: "Bekliyor:",
+    blockerProblem: (key) => `${key} sorunlu`,
+    waitingDeps: "Bağımlılık bekliyor",
+    cancelWaitingTitle: "Beklemeyi iptal et",
+    readyToStart: "Başlatılmayı bekliyor",
     agentSteps: {
       idle: "Beklemede",
       branching: "Dal açıyor",
@@ -268,6 +285,7 @@ export const tr: Translations = {
       pushing: "Push ediyor",
       pr_opening: "PR açıyor",
       awaiting_approval: "Onay bekliyor",
+      waiting_deps: "Bağımlılık bekliyor",
       done: "Tamamlandı",
       error: "Hata",
     },
@@ -436,6 +454,24 @@ export const tr: Translations = {
     },
     loadError: "Board yüklenemedi",
     taskQueued: (key) => `Sıraya alındı: ${key}`,
+    waitingToast: (key, deps) =>
+      deps.length === 1
+        ? `${key} bekliyor: ${deps[0]} bitince başlar`
+        : `${key} bekliyor: ${deps.length} görev bitince başlar`,
+    chainAdvanced: (from, started, merged) => `${from} ${merged ? "birleşti" : "bitti"} → ${started.join(", ")} başladı`,
+    mergeConfirm: {
+      title: "Ana dala birleştirilsin mi?",
+      local: (branch, base) => `${branch} dalı ${base} dalına birleştirilecek ve dal silinecek.`,
+      pr: (n) => `PR #${n} gh ile birleştirilecek ve dal silinecek.`,
+      noMerge: "Görevin dalı yok; birleştirme olmadan Bitti'ye taşınacak.",
+      dirty: "Repodaki commit'lenmemiş değişiklikler stash'e alınacak.",
+      starts: (n, keys) => `Bekleyen ${n} görev başlayacak: ${keys.join(", ")}.`,
+      confirm: "Birleştir",
+      cancel: "İptal",
+    },
+    readyWaiting: (n) => `${n} görevin bağımlılıkları karşılandı ama başlamadı`,
+    readyWaitingStart: "Başlat",
+    readyWaitingStarted: (n) => `${n} görev başlatıldı`,
     columns: {
       todo:   "Yapılacak",
       doing:  "Yapılıyor",
@@ -576,6 +612,14 @@ export const tr: Translations = {
     breakdownError: "Parçalama başarısız",
     breakdownCancel: "İptal",
     analysisFromSpec: "Analist şartnamesi",
+    dependsLabel: "Bekliyor",
+    dependentsLabel: "Bunu bekleyenler",
+    addDependency: "Görev ekle…",
+    removeDependency: (key) => `${key} bağımlılığını kaldır`,
+    dependsLockedHint: "Yalnızca Yapılacak'ta ya da beklerken değiştirilebilir.",
+    dependsEmpty: "Bağımsız: bu görev hiçbir görevi beklemiyor.",
+    depsWaiting: (keys) => `Bağımlılıklar bekleniyor: ${keys.join(", ")}`,
+    startWaiting: "Başlat",
     analysisOpenTeam: "Ekip sekmesinde gör",
   },
   cloneModal: {
@@ -753,6 +797,7 @@ export const tr: Translations = {
     taskDone: (title) => `Bitti: ${title}`,
     taskDoneBody: "Ajan işi başarıyla bitirdi.",
     runFailedToast: (ref, reason) => `${ref} durdu: ${reason}`,
+    chainBlocked: (blocker, waiting) => `${blocker} sorunlu: ${waiting.join(", ")} bekliyor`,
   },
   prs: {
     state: {
