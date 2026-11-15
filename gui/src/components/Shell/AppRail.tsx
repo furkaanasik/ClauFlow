@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { ProjectSwitcher } from "@/components/Shell/ProjectSwitcher";
 import { NewProjectModal } from "@/components/Modals/NewProjectModal";
@@ -46,6 +47,10 @@ export function AppRail() {
   const view = useViewStore((s) => s.view);
   const setView = useViewStore((s) => s.setView);
   useEffect(() => hydrateRail(), [hydrateRail]);
+  const pathname = usePathname();
+  const router = useRouter();
+  const onBoard = pathname === "/board";
+  const section = pathname?.startsWith("/github") ? "prs" : pathname?.startsWith("/insights") ? "insights" : null;
 
   const projects = useBoardStore((s) => s.projects);
   const selectedProjectId = useBoardStore((s) => s.selectedProjectId);
@@ -160,8 +165,17 @@ export function AppRail() {
                     <button
                       type="button"
                       className={cls}
-                      aria-current={view === v ? "page" : undefined}
-                      onClick={() => setView(v)}
+                      aria-current={onBoard && view === v ? "page" : undefined}
+                      onClick={() => {
+                        setView(v);
+                        if (!onBoard) {
+                          const qs = new URLSearchParams();
+                          if (selectedProjectId) qs.set("projectId", selectedProjectId);
+                          if (v !== "board") qs.set("view", v);
+                          const q = qs.toString();
+                          router.push(`/board${q ? `?${q}` : ""}`);
+                        }
+                      }}
                     >
                       {inner}
                     </button>
@@ -174,12 +188,12 @@ export function AppRail() {
                 ),
               )}
               {item("prs", t.shell.viewNames.prs, <IconPR size={17} />, (cls, inner) => (
-                <Link href={`/github${pq}`} className={cls}>
+                <Link href={`/github${pq}`} className={cls} aria-current={section === "prs" ? "page" : undefined}>
                   {inner}
                 </Link>
               ))}
               {item("insights", t.shell.viewNames.insights, <IconChart size={17} />, (cls, inner) => (
-                <Link href={`/insights${pq}`} className={cls}>
+                <Link href={`/insights${pq}`} className={cls} aria-current={section === "insights" ? "page" : undefined}>
                   {inner}
                 </Link>
               ))}

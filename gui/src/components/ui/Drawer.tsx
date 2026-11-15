@@ -20,8 +20,8 @@ export interface DrawerProps {
   /** Right-hand column of the split layout (meta, budget, links). */
   aside?: ReactNode;
   footer?: ReactNode;
-  /** md ≈ 40vw, lg ≈ 55vw (task detail), xl ≈ 72vw. */
-  width?: "md" | "lg" | "xl";
+  /** md ≈ 40vw, lg ≈ 55vw (task detail), xl ≈ 72vw, full ≈ 94vw (Studio, diff). */
+  width?: "md" | "lg" | "xl" | "full";
   children: ReactNode;
   /** Accessible name when `title` isn't plain text. */
   ariaLabel?: string;
@@ -37,6 +37,7 @@ const WIDTH = {
   md: "w-[min(560px,100vw)] md:w-[40vw] md:min-w-[480px]",
   lg: "w-[min(720px,100vw)] md:w-[55vw] md:min-w-[620px]",
   xl: "w-full md:w-[72vw] md:min-w-[760px]",
+  full: "w-full md:w-[94vw] md:min-w-[760px]",
 } as const;
 
 /**
@@ -81,7 +82,7 @@ export function Drawer({
         tabIndex={-1}
         data-state={state}
         className={clsx(
-          "ui-drawer absolute inset-y-0 right-0 flex max-w-full flex-col border-l-2 border-line bg-paper outline-none",
+          "ui-drawer absolute inset-y-0 right-0 flex max-w-full flex-col border-l-2 border-line bg-paper outline-none transition-[width] duration-300 ease-out",
           WIDTH[width],
         )}
       >

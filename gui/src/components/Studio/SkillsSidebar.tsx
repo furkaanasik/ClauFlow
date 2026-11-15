@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { api, type SkillItem } from "@/lib/api";
 import { SkillsManagerModal } from "@/components/Modals/SkillsManagerModal";
+import { useTranslation } from "@/hooks/useTranslation";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Segmented } from "@/components/ui/Segmented";
+import { IconGear, IconSearch, IconSpinner, IconTag, IconTerminal } from "@/components/ui/icons";
 import { skillDragState } from "./dragState";
 
 type FilterType = "all" | "skill" | "command";
@@ -13,6 +18,7 @@ interface SkillsSidebarProps {
 }
 
 export function SkillsSidebar({ projectId, onSkillsChanged }: SkillsSidebarProps) {
+  const st = useTranslation().studio;
   const [skills, setSkills] = useState<SkillItem[] | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -53,55 +59,46 @@ export function SkillsSidebar({ projectId, onSkillsChanged }: SkillsSidebarProps
     return sk.id.toLowerCase().includes(query.toLowerCase());
   });
 
-  const filterBtn = (label: string, value: FilterType) => (
-    <button
-      type="button"
-      onClick={() => setFilter(value)}
-      className={`flex-1 py-0.5 text-[9px] transition ${
-        filter === value
-          ? "bg-[var(--text-secondary)] text-[var(--bg-base)]"
-          : "text-[var(--text-faint)] hover:text-[var(--text-secondary)]"
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <>
-      <div className="flex w-48 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-surface)]">
-        <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-            Skills
-          </span>
+      <div className="studio-side border-r-2">
+        <div className="studio-side__head">
+          <IconTag size={14} />
+          <span className="flex-1">{st.skillsTitle}</span>
+          {skills && <span className="studio-side__count">{skills.length}</span>}
         </div>
 
-        <div className="border-b border-[var(--border)] px-2 py-1.5 flex flex-col gap-1.5">
-          <input
-            type="text"
+        <div className="flex flex-col gap-2 border-b-2 border-dashed border-hair p-2.5">
+          <Input
+            size="sm"
+            icon={<IconSearch size={13} />}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search…"
-            className="w-full rounded border border-[var(--border)] bg-[var(--bg-base)] px-2 py-1 text-[10px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--text-secondary)] focus:outline-none"
+            placeholder={st.searchSkills}
+            aria-label={st.searchSkills}
           />
-          <div className="flex rounded border border-[var(--border)] overflow-hidden">
-            {filterBtn("All", "all")}
-            {filterBtn("Skills", "skill")}
-            {filterBtn("Cmds", "command")}
-          </div>
+          <Segmented<FilterType>
+            label={st.skillFilter}
+            size="sm"
+            value={filter}
+            onChange={setFilter}
+            className="w-full [&>.ui-seg__item]:flex-1 [&>.ui-seg__item]:justify-center"
+            options={[
+              { value: "all", label: st.filterAll },
+              { value: "skill", label: st.filterSkills },
+              { value: "command", label: st.filterCommands },
+            ]}
+          />
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2.5">
           {skills === null ? (
-            <div className="flex justify-center py-4">
-              <svg className="h-4 w-4 animate-spin text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+            <div className="flex justify-center py-6 text-ink-3">
+              <IconSpinner size={16} />
             </div>
           ) : visible.length === 0 ? (
-            <div className="px-1 py-3 text-center text-[10px] text-[var(--text-faint)]">
-              No results
+            <div className="ui-hatch rounded-[10px] border-2 border-dashed border-hair px-3 py-6 text-center text-[12px] text-ink-3">
+              {st.noSkills}
             </div>
           ) : (
             visible.map((sk) => (
@@ -110,29 +107,31 @@ export function SkillsSidebar({ projectId, onSkillsChanged }: SkillsSidebarProps
                 draggable
                 onDragStart={(e) => handleDragStart(e, sk.id)}
                 onDragEnd={handleDragEnd}
-                className="cursor-grab rounded border border-[var(--border)] bg-[var(--bg-base)] px-2 py-1.5 font-mono text-[10px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] active:cursor-grabbing"
-                title={`Drag to add ${sk.id} to an agent${sk.pluginId ? ` (from ${sk.pluginId})` : ""}`}
+                className="studio-item"
+                title={
+                  sk.pluginId
+                    ? st.dragSkillFromTitle.replace("{skill}", sk.id).replace("{plugin}", sk.pluginId)
+                    : st.dragSkillTitle.replace("{skill}", sk.id)
+                }
               >
-                <span>{sk.id}</span>
-                {sk.source === "plugin" && (
-                  <span className="ml-1 text-[8px] text-[var(--text-faint)]">plugin</span>
+                <span aria-hidden className="studio-item__grip" />
+                {sk.source === "command" ? (
+                  <IconTerminal size={12} className="flex-none text-ink-3" />
+                ) : (
+                  <IconTag size={12} className="flex-none text-ink-3" />
                 )}
-                {sk.source === "command" && (
-                  <span className="ml-1 text-[8px] text-[var(--text-faint)]">cmd</span>
-                )}
+                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink">{sk.id}</span>
+                {sk.source === "plugin" && <span className="studio-item__src">{st.sourcePlugin}</span>}
+                {sk.source === "command" && <span className="studio-item__src">{st.sourceCommand}</span>}
               </div>
             ))
           )}
         </div>
 
-        <div className="border-t border-[var(--border)] p-2">
-          <button
-            type="button"
-            onClick={() => setManageOpen(true)}
-            className="w-full border border-[var(--border)] bg-[var(--bg-base)] px-2 py-1.5 text-[10px] text-[var(--text-muted)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          >
-            + Manage skills
-          </button>
+        <div className="border-t-2 border-line p-2.5">
+          <Button size="sm" variant="secondary" block icon={<IconGear size={13} />} onClick={() => setManageOpen(true)}>
+            {st.manageSkills}
+          </Button>
         </div>
       </div>
 

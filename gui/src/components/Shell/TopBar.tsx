@@ -22,7 +22,7 @@ import { useTranslation } from "@/hooks/useTranslation";
  * notifications, prerequisites, language, theme and the GitHub account.
  * Quick filters live in the board toolbar right under it.
  */
-export function TopBar() {
+export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
   const t = useTranslation();
   const wsConnected = useBoardStore((s) => s.wsConnected);
   const lang = useBoardStore((s) => s.lang);
@@ -39,8 +39,8 @@ export function TopBar() {
 
   const crumbs = [
     project?.name,
-    t.shell.viewNames[view],
-    selectedTask ? selectedTask.displayId ?? `#${selectedTask.id.slice(0, 7)}` : null,
+    t.shell.viewNames[section ?? view],
+    !section && selectedTask ? selectedTask.displayId ?? `#${selectedTask.id.slice(0, 7)}` : null,
   ].filter((x): x is string => Boolean(x));
 
   return (
@@ -68,12 +68,13 @@ export function TopBar() {
               </Fragment>
             ))}
           </ol>
-          {selectedTask?.title && (
+          {!section && selectedTask?.title && (
             <span className="hidden min-w-0 truncate text-[13px] text-ink-3 xl:inline">· {selectedTask.title}</span>
           )}
         </nav>
 
-        {/* Search */}
+        {/* Search (board views only — it filters the board's tasks) */}
+        {!section && (
         <div className="relative w-[300px] flex-none">
           <Input
             id="board-search"
@@ -101,6 +102,7 @@ export function TopBar() {
             )}
           </span>
         </div>
+        )}
 
         <span title={wsConnected ? t.header.wsConnected : t.header.wsConnecting} className="hidden flex-none md:inline-flex">
           <StatusPill status={wsConnected ? "done" : "nothing"} live={wsConnected}>

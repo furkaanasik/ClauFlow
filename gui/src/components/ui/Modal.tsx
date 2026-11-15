@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { IconButton } from "./Button";
@@ -50,7 +51,10 @@ export function Modal({
 
   if (!mounted) return null;
 
-  return (
+  /* Portalled to <body> so a modal opened from inside a drawer / tab panel
+     (both carry a transform) is not trapped by that containing block. */
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="ui-scrim" data-state={state} onClick={onClose} aria-hidden />
       <div
@@ -92,6 +96,7 @@ export function Modal({
           </footer>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

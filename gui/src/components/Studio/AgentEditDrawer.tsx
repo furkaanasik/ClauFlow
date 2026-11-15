@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { api, type ClaudeAgent } from "@/lib/api";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Select, Textarea } from "@/components/ui/Input";
+import { IconAlert, IconCheck, IconRobot, IconTrash } from "@/components/ui/icons";
 import { useTranslation } from "@/hooks/useTranslation";
 
 interface AgentEditDrawerProps {
@@ -93,13 +97,6 @@ export function AgentEditDrawer({
     return () => { cancelled = true; };
   }, [open, slug, projectId, isEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose]);
-
   const slugValid = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(newSlug);
   const slugDuplicate = !isEdit && existingSlugs.includes(newSlug);
 
@@ -163,179 +160,169 @@ export function AgentEditDrawer({
     }
   };
 
-  if (!open) return null;
+  const titleText = isEdit ? `${ca.editTitle} · ${slug}` : ca.createTitle;
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      {/* Modal */}
-      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-        <div className="relative flex h-[85vh] w-full max-w-[60rem] flex-col overflow-hidden border border-[var(--border)] bg-[var(--bg-base)] shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-          <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
-            {isEdit ? ca.save : ca.create}
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="border border-[var(--border)] p-1.5 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-            aria-label="Close"
-          >
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M1 1l12 12M13 1L1 13" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-          {error && (
-            <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-[12px] text-[var(--status-error)]">
-              {error}
-            </div>
-          )}
-
-          {savedFlash && (
-            <div className="border border-[var(--accent-primary)] px-3 py-2 text-[12px] text-[var(--accent-primary)]">
-              {ca.saving}
-            </div>
-          )}
-
-          {/* Slug + Name */}
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.slugLabel}</span>
-              <input
-                value={newSlug}
-                onChange={(e) => setNewSlug(e.target.value)}
-                disabled={isEdit || loading || saving}
-                placeholder={ca.slugPlaceholder}
-                spellCheck={false}
-                className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)] disabled:opacity-60"
-              />
-              {!isEdit && newSlug && !slugValid && (
-                <span className="text-[11px] text-[var(--status-error)]">{ca.slugError}</span>
-              )}
-              {!isEdit && slugValid && slugDuplicate && (
-                <span className="text-[11px] text-[var(--status-error)]">{ca.duplicate}</span>
-              )}
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.nameLabel}</span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={loading || saving}
-                placeholder={ca.namePlaceholder}
-                className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)]"
-              />
-            </label>
-          </div>
-
-          {/* Model */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.modelLabel}</span>
-            <div className="flex gap-2">
-              <select
-                value={modelSelectValue}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === "") setModel("");
-                  else if (v === "__custom__") setModel(isPresetModel ? "" : model || " ");
-                  else setModel(v);
-                }}
-                disabled={loading || saving}
-                className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)]"
-              >
-                <option value="">{ca.modelInherit}</option>
-                {MODEL_PRESETS.filter((m) => m.value !== "inherit").map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-                <option value="__custom__">{ca.modelCustom}</option>
-              </select>
-              {modelSelectValue === "__custom__" && (
-                <input
-                  value={model.trim()}
-                  onChange={(e) => setModel(e.target.value)}
-                  disabled={loading || saving}
-                  placeholder={ca.modelCustomPlaceholder}
-                  spellCheck={false}
-                  autoFocus
-                  className="flex-1 border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)]"
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Description */}
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.descriptionLabel}</span>
-            <input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              disabled={loading || saving}
-              placeholder={ca.descriptionPlaceholder}
-              className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)]"
-            />
-          </label>
-
-          {/* Body */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{ca.bodyLabel}</span>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              disabled={loading || saving}
-              rows={16}
-              spellCheck={false}
-              placeholder={ca.bodyPlaceholder}
-              className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-[12px] leading-relaxed text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)]"
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-3">
-          <div>
-            {isEdit && slug !== "main" && (
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                disabled={deleting || saving}
-                className="border border-[var(--status-error)] bg-transparent px-3 py-1.5 text-[12px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-40"
-              >
-                {deleting ? ca.deleting : ca.delete}
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
+      <Modal
+        open={open}
+        onClose={onClose}
+        size="xl"
+        icon={<IconRobot size={18} />}
+        title={titleText}
+        description={ca.modalHint}
+        footerStart={
+          isEdit && slug !== "main" ? (
+            <Button
+              size="sm"
+              variant="danger"
+              icon={<IconTrash size={13} />}
+              onClick={() => setConfirmDelete(true)}
               disabled={saving}
-              className="btn-ghost px-3 py-1.5 text-[12px] disabled:opacity-50"
+              loading={deleting}
             >
+              {deleting ? ca.deleting : ca.delete}
+            </Button>
+          ) : savedFlash ? (
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--green-text)]">
+              <IconCheck size={13} />
+              {ca.saved}
+            </span>
+          ) : null
+        }
+        footer={
+          <>
+            <Button variant="secondary" onClick={onClose} disabled={saving}>
               {ca.cancel}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              icon={<IconCheck size={15} />}
               onClick={() => void submit()}
               disabled={!canSave}
-              className="btn-ink px-4 py-1.5 text-[12px] disabled:opacity-50"
+              loading={saving}
             >
               {saving
                 ? (isEdit ? ca.saving : ca.creating)
                 : (isEdit ? ca.save : ca.create)}
-            </button>
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {error && (
+            <div role="alert" className="ui-banner ui-banner--error">
+              <IconAlert size={15} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={ca.slugLabel}
+              hint={isEdit ? undefined : ca.slugHint}
+              error={
+                !isEdit && newSlug && !slugValid
+                  ? ca.slugError
+                  : !isEdit && slugValid && slugDuplicate
+                    ? ca.duplicate
+                    : undefined
+              }
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  value={newSlug}
+                  onChange={(e) => setNewSlug(e.target.value)}
+                  disabled={isEdit || loading || saving}
+                  placeholder={ca.slugPlaceholder}
+                  spellCheck={false}
+                  className="font-mono"
+                />
+              )}
+            </Field>
+            <Field label={ca.nameLabel}>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={loading || saving}
+                  placeholder={ca.namePlaceholder}
+                />
+              )}
+            </Field>
           </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={ca.modelLabel}>
+              {({ id }) => (
+                <div className="flex flex-col gap-2">
+                  <Select
+                    id={id}
+                    value={modelSelectValue}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "") setModel("");
+                      else if (v === "__custom__") setModel(isPresetModel ? "" : model || " ");
+                      else setModel(v);
+                    }}
+                    disabled={loading || saving}
+                    className="font-mono"
+                  >
+                    <option value="">{ca.modelInherit}</option>
+                    {MODEL_PRESETS.filter((m) => m.value !== "inherit").map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                    <option value="__custom__">{ca.modelCustom}</option>
+                  </Select>
+                  {modelSelectValue === "__custom__" && (
+                    <Input
+                      value={model.trim()}
+                      onChange={(e) => setModel(e.target.value)}
+                      disabled={loading || saving}
+                      placeholder={ca.modelCustomPlaceholder}
+                      aria-label={ca.modelCustomPlaceholder}
+                      spellCheck={false}
+                      autoFocus
+                      className="font-mono"
+                    />
+                  )}
+                </div>
+              )}
+            </Field>
+            <Field label={ca.descriptionLabel}>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={loading || saving}
+                  placeholder={ca.descriptionPlaceholder}
+                />
+              )}
+            </Field>
+          </div>
+
+          <Field label={ca.bodyLabel} aside={ca.lines(body ? body.split("\n").length : 0)}>
+            {({ id }) => (
+              <Textarea
+                id={id}
+                mono
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                disabled={loading || saving}
+                rows={16}
+                spellCheck={false}
+                placeholder={ca.bodyPlaceholder}
+                className="resize-y !bg-sunken leading-relaxed"
+              />
+            )}
+          </Field>
         </div>
-        </div>
-      </div>
+      </Modal>
 
       <ConfirmDialog
         open={confirmDelete}

@@ -1,10 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import clsx from "clsx";
+import { useEffect, useState, type ReactNode } from "react";
 import { api, type AvailablePlugin, type ClaudeMarketplace, type InstalledPlugin } from "@/lib/api";
 import { useTranslation } from "@/hooks/useTranslation";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Modal } from "@/components/ui/Modal";
+import { Tabs } from "@/components/ui/Tabs";
+import { Button, IconButton } from "@/components/ui/Button";
+import { Input, Select } from "@/components/ui/Input";
+import { Switch } from "@/components/ui/Toggle";
+import { Tag } from "@/components/ui/Chip";
+import {
+  IconAlert,
+  IconArrowUpRight,
+  IconCheck,
+  IconDownload,
+  IconGithub,
+  IconPlus,
+  IconSearch,
+  IconSpinner,
+  IconTag,
+  IconTrash,
+} from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
 
 interface SkillsManagerModalProps {
@@ -16,25 +33,10 @@ interface SkillsManagerModalProps {
 type SkillsTab = "installed" | "registry" | "marketplaces";
 type PluginScope = "local" | "project" | "user";
 
-function SkillSpinner() {
-  return (
-    <svg
-      className="h-4 w-4 animate-spin text-[var(--text-muted)]"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  );
-}
-
-const SCOPE_COLORS: Record<PluginScope, string> = {
-  local:   "bg-blue-500/15 text-blue-400",
-  project: "bg-purple-500/15 text-purple-400",
-  user:    "bg-emerald-500/15 text-emerald-400",
+const SCOPE_DOT: Record<PluginScope, string> = {
+  local:   "var(--cobalt)",
+  project: "var(--mustard)",
+  user:    "var(--green)",
 };
 
 export function SkillsManagerModal({ projectId, open, onClose }: SkillsManagerModalProps) {
@@ -110,14 +112,6 @@ export function SkillsManagerModal({ projectId, open, onClose }: SkillsManagerMo
       .some(([, v]) => v.status === "done");
     if (done) void loadInstalled();
   }, [skillProgress, projectId, open]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Close on Escape
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose]);
 
   const handleInstall = async (pluginId: string) => {
     setActionError(null);
@@ -200,383 +194,322 @@ export function SkillsManagerModal({ projectId, open, onClose }: SkillsManagerMo
     );
   });
 
-  if (!open) return null;
+  const scopeLabel = (scope: PluginScope) =>
+    scope === "local" ? cs.scopeLocal : scope === "project" ? cs.scopeProject : cs.scopeUser;
+
+  const progressLine = (prog: ReturnType<typeof getProgress>, doneLabel: string) =>
+    prog ? (
+      <span
+        className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-medium"
+        style={{ color: prog.status === "error" ? "var(--red-text)" : prog.status === "done" ? "var(--green-text)" : "var(--orange-text)" }}
+      >
+        {prog.status === "running" ? <IconSpinner size={12} /> : prog.status === "done" ? <IconCheck size={12} /> : <IconAlert size={12} />}
+        {prog.status === "running" ? cs.running : prog.status === "done" ? doneLabel : prog.message ?? cs.error}
+      </span>
+    ) : null;
+
+  const loadingRows = (
+    <div className="flex flex-col gap-2" aria-busy>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="ui-hatch h-[3.75rem] rounded-[10px] border-2 border-dashed border-hair" />
+      ))}
+    </div>
+  );
+
+  const emptyState = (icon: ReactNode, text: string) => (
+    <div className="ui-hatch flex flex-col items-center gap-3 rounded-[14px] border-2 border-dashed border-line px-6 py-10 text-center">
+      <span aria-hidden className="grid h-11 w-11 place-items-center rounded-[12px] border-2 border-line bg-panel text-ink-2 shadow-hard">
+        {icon}
+      </span>
+      <p className="max-w-sm text-[13px] text-ink-2">{text}</p>
+    </div>
+  );
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="xl"
+      icon={<IconTag size={18} />}
+      title={cs.listTitle}
+      description={cs.modalHint}
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          {cs.close}
+        </Button>
+      }
+      footerStart={cs.footerHint}
     >
-      <div className="flex h-[80vh] w-full max-w-2xl flex-col bg-[var(--bg-base)] border border-[var(--border)] shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-          <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
-            {cs.listTitle}
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="border border-[var(--border)] p-1.5 text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-            aria-label="Close"
-          >
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M1 1l12 12M13 1L1 13" />
-            </svg>
-          </button>
-        </div>
+      <div className="-mx-5 -mt-5 mb-4 border-b-0 bg-panel px-5 pt-2">
+        <Tabs<SkillsTab>
+          label={cs.listTitle}
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: "installed", label: cs.tabInstalled, icon: <IconCheck size={13} />, count: installed?.length || undefined },
+            { value: "registry", label: cs.tabRegistry, icon: <IconDownload size={13} /> },
+            { value: "marketplaces", label: cs.tabMarketplaces, icon: <IconGithub size={13} /> },
+          ]}
+        />
+      </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-          {/* Tab bar */}
-          <div className="flex border border-[var(--border)]">
-            {(
-              [
-                { key: "installed"    as SkillsTab, label: cs.tabInstalled },
-                { key: "registry"     as SkillsTab, label: cs.tabRegistry },
-                { key: "marketplaces" as SkillsTab, label: cs.tabMarketplaces },
-              ] as const
-            ).map((tb) => (
-              <button
-                key={tb.key}
-                type="button"
-                onClick={() => setTab(tb.key)}
-                className={clsx(
-                  "flex-1 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] transition",
-                  tab === tb.key
-                    ? "bg-[var(--text-primary)] text-[var(--bg-base)]"
-                    : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                )}
-              >
-                {tb.label}
-                {tb.key === "installed" && (installed?.length ?? 0) > 0 && (
-                  <span className="ml-1.5 font-mono text-[10px] opacity-70">({installed!.length})</span>
-                )}
-              </button>
-            ))}
+      <div key={tab} className="ui-tabpanel flex min-h-[320px] flex-col gap-3">
+        {loadError && (
+          <div role="alert" className="ui-banner ui-banner--error">
+            <IconAlert size={15} className="mt-0.5 shrink-0" />
+            <span>{loadError}</span>
           </div>
+        )}
+        {actionError && (
+          <div role="alert" className="ui-banner ui-banner--error">
+            <IconAlert size={15} className="mt-0.5 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+        )}
 
-          {loadError && (
-            <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-[12px] text-[var(--status-error)]">
-              {loadError}
-            </div>
-          )}
-          {actionError && (
-            <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-[12px] text-[var(--status-error)]">
-              {actionError}
-            </div>
-          )}
-
-          {/* Installed tab */}
-          {tab === "installed" && (
-            <>
-              {installed === null ? (
-                <div className="flex justify-center py-6"><SkillSpinner /></div>
-              ) : installed.length === 0 ? (
-                <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
-                  {cs.emptyInstalled}
-                </div>
-              ) : (
-                <ul className="flex flex-col border border-[var(--border)]">
-                  {installed.map((plugin) => {
-                    const prog = getProgress(plugin.id);
-                    const isWorking = prog?.status === "running";
-                    const scopeLabel =
-                      plugin.scope === "local"   ? cs.scopeLocal   :
-                      plugin.scope === "project" ? cs.scopeProject :
-                      cs.scopeUser;
-                    return (
-                      <li
-                        key={plugin.id}
-                        className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
+        {/* Installed tab */}
+        {tab === "installed" && (
+          installed === null ? loadingRows
+          : installed.length === 0 ? emptyState(<IconTag size={20} />, cs.emptyInstalled)
+          : (
+            <ul className="flex flex-col gap-2">
+              {installed.map((plugin) => {
+                const prog = getProgress(plugin.id);
+                const isWorking = prog?.status === "running";
+                return (
+                  <li key={plugin.id} className="ui-row" data-muted={plugin.enabled ? undefined : "true"}>
+                    <div className="min-w-0 flex-1" title={plugin.installPath}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-[13px] font-bold text-ink">{plugin.id}</span>
+                        {plugin.version && (
+                          <span className="font-mono text-[11px] text-ink-3">v{plugin.version}</span>
+                        )}
+                        <Tag dot={SCOPE_DOT[plugin.scope]} className="!h-5 !text-[11px]">
+                          {scopeLabel(plugin.scope)}
+                        </Tag>
+                      </div>
+                      {plugin.projectPath && (
+                        <div className="mt-0.5 truncate font-mono text-[11px] text-ink-3">{plugin.projectPath}</div>
+                      )}
+                      {progressLine(prog, cs.done)}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2.5">
+                      <span
+                        className="w-[64px] text-right text-[11.5px] font-semibold"
+                        style={{ color: plugin.enabled ? "var(--green-text)" : "var(--ink-3)" }}
                       >
-                        <div className="min-w-0 flex-1" title={plugin.installPath}>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
-                              {plugin.id}
-                            </span>
-                            {plugin.version && (
-                              <span className="font-mono text-[10px] text-[var(--text-faint)]">
-                                v{plugin.version}
-                              </span>
-                            )}
-                            <span
-                              className={clsx(
-                                "rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]",
-                                SCOPE_COLORS[plugin.scope],
-                              )}
-                            >
-                              {scopeLabel}
-                            </span>
-                          </div>
-                          {plugin.projectPath && (
-                            <div className="mt-0.5 truncate font-mono text-[10px] text-[var(--text-faint)]">
-                              {plugin.projectPath}
-                            </div>
-                          )}
-                          {prog && (
-                            <div
-                              className={clsx(
-                                "mt-0.5 text-[11px]",
-                                prog.status === "error" ? "text-[var(--status-error)]" : "text-[var(--text-muted)]",
-                              )}
-                            >
-                              {prog.status === "running" ? cs.running :
-                               prog.status === "done"    ? cs.done    :
-                               prog.message ?? cs.error}
-                            </div>
+                        {plugin.enabled ? cs.enabled : cs.disabled}
+                      </span>
+                      <Switch
+                        checked={plugin.enabled}
+                        onCheckedChange={() => void handleToggleEnable(plugin)}
+                        label={plugin.enabled ? cs.disable : cs.enable}
+                        disabled={isWorking}
+                      />
+                      <IconButton
+                        label={cs.uninstall}
+                        size="sm"
+                        variant="danger"
+                        disabled={isWorking}
+                        loading={uninstallingId === plugin.id}
+                        onClick={() => setConfirmUninstall(plugin.id)}
+                      >
+                        <IconTrash size={13} />
+                      </IconButton>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )
+        )}
+
+        {/* Registry tab */}
+        {tab === "registry" && (
+          <>
+            <Input
+              icon={<IconSearch size={14} />}
+              value={registrySearch}
+              onChange={(e) => setRegistrySearch(e.target.value)}
+              placeholder={cs.searchRegistryPlaceholder}
+              aria-label={cs.searchRegistryPlaceholder}
+              spellCheck={false}
+            />
+            {registry === null ? loadingRows
+            : filteredRegistry.length === 0 ? emptyState(<IconSearch size={20} />, cs.emptyRegistry)
+            : (
+              <ul className="flex flex-col gap-2">
+                {filteredRegistry.map((avail) => {
+                  const alreadyInstalled = installedIds.has(avail.pluginId);
+                  const prog = getProgress(avail.pluginId);
+                  const isWorking = prog?.status === "running";
+                  const externalUrl = avail.homepage
+                    ?? avail.source.url
+                    ?? (avail.source.repo ? `https://github.com/${avail.source.repo}` : undefined);
+                  const scope = scopeMap[avail.pluginId] ?? "local";
+                  return (
+                    <li key={avail.pluginId} className="ui-row !items-start">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[13.5px] font-bold text-ink">{avail.name}</span>
+                          <span className="font-mono text-[11px] text-ink-3">{avail.pluginId}</span>
+                          {avail.marketplaceName && (
+                            <Tag className="!h-5 !text-[11px]">{avail.marketplaceName}</Tag>
                           )}
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span
-                            className={clsx(
-                              "text-[10px] uppercase tracking-[0.08em]",
-                              plugin.enabled ? "text-[var(--accent-primary)]" : "text-[var(--text-faint)]",
-                            )}
-                          >
-                            {plugin.enabled ? cs.enabled : cs.disabled}
-                          </span>
-                          <button
-                            type="button"
-                            disabled={isWorking}
-                            onClick={() => void handleToggleEnable(plugin)}
-                            className="border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--text-secondary)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
-                          >
-                            {plugin.enabled ? cs.disable : cs.enable}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isWorking || uninstallingId === plugin.id}
-                            onClick={() => setConfirmUninstall(plugin.id)}
-                            className="inline-flex items-center gap-1.5 border border-[var(--status-error)] bg-transparent px-2 py-1 text-[11px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)] disabled:opacity-60"
-                          >
-                            {uninstallingId === plugin.id && (
-                              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                              </svg>
-                            )}
-                            {uninstallingId === plugin.id ? cs.uninstalling : cs.uninstall}
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </>
-          )}
-
-          {/* Registry tab */}
-          {tab === "registry" && (
-            <>
-              <input
-                value={registrySearch}
-                onChange={(e) => setRegistrySearch(e.target.value)}
-                placeholder={cs.searchRegistryPlaceholder}
-                spellCheck={false}
-                className="w-full border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)] placeholder:text-[var(--text-faint)]"
-              />
-              {registry === null ? (
-                <div className="flex justify-center py-6"><SkillSpinner /></div>
-              ) : filteredRegistry.length === 0 ? (
-                <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
-                  {cs.emptyRegistry}
-                </div>
-              ) : (
-                <ul className="flex flex-col border border-[var(--border)]">
-                  {filteredRegistry.map((avail) => {
-                    const alreadyInstalled = installedIds.has(avail.pluginId);
-                    const prog = getProgress(avail.pluginId);
-                    const isWorking = prog?.status === "running";
-                    const externalUrl = avail.homepage
-                      ?? avail.source.url
-                      ?? (avail.source.repo ? `https://github.com/${avail.source.repo}` : undefined);
-                    const scope = scopeMap[avail.pluginId] ?? "local";
-                    return (
-                      <li
-                        key={avail.pluginId}
-                        className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
-                              {avail.name}
-                            </span>
-                            <span className="font-mono text-[10px] text-[var(--text-faint)]">
-                              {avail.pluginId}
-                            </span>
-                            {avail.marketplaceName && (
-                              <span className="text-[10px] text-[var(--text-faint)]">
-                                {avail.marketplaceName}
-                              </span>
-                            )}
-                          </div>
-                          {avail.description && (
-                            <div className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
-                              {avail.description}
-                            </div>
-                          )}
-                          <div className="mt-0.5 flex items-center gap-3 text-[10px] text-[var(--text-faint)]">
+                        {avail.description && (
+                          <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug text-ink-2">{avail.description}</p>
+                        )}
+                        {(avail.author || avail.installCount !== undefined) && (
+                          <div className="mt-1 flex items-center gap-3 font-mono text-[11px] text-ink-3">
                             {avail.author && <span>{cs.author}: {avail.author}</span>}
                             {avail.installCount !== undefined && (
                               <span>{cs.installCount.replace("{n}", String(avail.installCount))}</span>
                             )}
                           </div>
-                          {prog && (
-                            <div
-                              className={clsx(
-                                "mt-0.5 text-[11px]",
-                                prog.status === "error" ? "text-[var(--status-error)]" : "text-[var(--text-muted)]",
-                              )}
+                        )}
+                        {progressLine(prog, cs.installed)}
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-1.5 self-center">
+                        {externalUrl && (
+                          <a
+                            href={externalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={cs.viewSkill}
+                            aria-label={cs.viewSkill}
+                            className="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm ui-focus"
+                          >
+                            <IconArrowUpRight size={13} />
+                          </a>
+                        )}
+                        {alreadyInstalled ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-pill border-[1.5px] border-line bg-green px-2.5 py-0.5 text-[11.5px] font-bold text-[var(--on-green)]">
+                            <IconCheck size={12} />
+                            {cs.installed}
+                          </span>
+                        ) : (
+                          <>
+                            <Select
+                              size="sm"
+                              value={scope}
+                              onChange={(e) =>
+                                setScopeMap((prev) => ({ ...prev, [avail.pluginId]: e.target.value as PluginScope }))
+                              }
+                              disabled={isWorking}
+                              aria-label={cs.chooseScope}
+                              title={cs.chooseScope}
+                              className="w-[104px] font-mono"
                             >
-                              {prog.status === "running" ? cs.running :
-                               prog.status === "done"    ? cs.installed :
-                               prog.message ?? cs.error}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-1.5 self-center">
-                          {externalUrl && (
-                            <a
-                              href={externalUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={cs.viewSkill}
-                              className="flex items-center border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[var(--text-muted)] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              <option value="local">{cs.scopeLocal}</option>
+                              <option value="project">{cs.scopeProject}</option>
+                              <option value="user">{cs.scopeUser}</option>
+                            </Select>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              icon={<IconDownload size={13} />}
+                              loading={isWorking}
+                              onClick={() => void handleInstall(avail.pluginId)}
                             >
-                              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7" />
-                                <path d="M8 1h3v3" />
-                                <path d="M11 1L5.5 6.5" />
-                              </svg>
-                            </a>
-                          )}
-                          {alreadyInstalled ? (
-                            <span className="text-[11px] text-[var(--accent-primary)]">
-                              ✓ {cs.installed}
-                            </span>
-                          ) : (
-                            <>
-                              <select
-                                value={scope}
-                                onChange={(e) =>
-                                  setScopeMap((prev) => ({ ...prev, [avail.pluginId]: e.target.value as PluginScope }))
-                                }
-                                disabled={isWorking}
-                                title={cs.chooseScope}
-                                className="border border-[var(--border)] bg-[var(--bg-surface)] px-1.5 py-1 font-mono text-[10px] text-[var(--text-secondary)] outline-none transition focus:border-[var(--text-secondary)] disabled:opacity-40"
-                              >
-                                <option value="local">{cs.scopeLocal}</option>
-                                <option value="project">{cs.scopeProject}</option>
-                                <option value="user">{cs.scopeUser}</option>
-                              </select>
-                              <button
-                                type="button"
-                                disabled={isWorking}
-                                onClick={() => void handleInstall(avail.pluginId)}
-                                className="btn-ink px-3 py-1.5 text-[11px] disabled:opacity-50"
-                              >
-                                {isWorking ? cs.installing : cs.install}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </>
-          )}
+                              {isWorking ? cs.installing : cs.install}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
+        )}
 
-          {/* Marketplaces tab */}
-          {tab === "marketplaces" && (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <input
-                  value={mpSource}
-                  onChange={(e) => setMpSource(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") void handleAddMarketplace(); }}
-                  disabled={mpAdding}
-                  placeholder={cs.marketplaceSourcePlaceholder}
-                  spellCheck={false}
-                  className="flex-1 border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)] disabled:opacity-60"
-                />
-                <button
-                  type="button"
-                  onClick={() => void handleAddMarketplace()}
-                  disabled={mpAdding || !mpSource.trim()}
-                  className="btn-ink whitespace-nowrap px-3 py-1.5 text-[11px] disabled:opacity-50"
-                >
-                  {mpAdding ? "…" : cs.addMarketplace}
-                </button>
-              </div>
-
-              {marketplaces === null ? (
-                <div className="flex justify-center py-6"><SkillSpinner /></div>
-              ) : marketplaces.length === 0 ? (
-                <div className="border border-dashed border-[var(--border)] bg-[var(--bg-surface)] px-4 py-8 text-center text-[12px] text-[var(--text-muted)]">
-                  {cs.noMarketplaces}
-                </div>
-              ) : (
-                <ul className="flex flex-col border border-[var(--border)]">
-                  {marketplaces.map((mp) => {
-                    const src = mp.source.repo ?? mp.source.url ?? mp.source.path ?? mp.source.source;
-                    return (
-                      <li
-                        key={mp.name}
-                        className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2.5 last:border-b-0"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="font-mono text-[12px] font-semibold text-[var(--text-primary)]">
-                            {mp.name}
-                          </div>
-                          <div className="mt-0.5 truncate font-mono text-[10px] text-[var(--text-faint)]">
-                            {src}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmRemoveMarketplace(mp.name)}
-                          className="shrink-0 border border-[var(--status-error)] bg-transparent px-2 py-1 text-[11px] text-[var(--status-error)] transition hover:bg-[var(--status-error-ink)]"
-                        >
-                          {cs.removeMarketplace}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+        {/* Marketplaces tab */}
+        {tab === "marketplaces" && (
+          <>
+            <div className="flex items-center gap-2">
+              <Input
+                icon={<IconGithub size={14} />}
+                value={mpSource}
+                onChange={(e) => setMpSource(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleAddMarketplace(); }}
+                disabled={mpAdding}
+                placeholder={cs.marketplaceSourcePlaceholder}
+                aria-label={cs.marketplaceSource}
+                spellCheck={false}
+                className="font-mono"
+              />
+              <Button
+                variant="primary"
+                icon={<IconPlus size={14} />}
+                onClick={() => void handleAddMarketplace()}
+                disabled={!mpSource.trim()}
+                loading={mpAdding}
+                className="whitespace-nowrap"
+              >
+                {cs.addMarketplace}
+              </Button>
             </div>
-          )}
-        </div>
 
-        <ConfirmDialog
-          open={confirmUninstall !== null}
-          title={cs.confirmUninstallTitle}
-          description={cs.confirmUninstallDescription}
-          confirmLabel={cs.uninstall}
-          cancelLabel={cs.cancel}
-          variant="danger"
-          onConfirm={() => {
-            if (confirmUninstall) void handleUninstall(confirmUninstall);
-          }}
-          onCancel={() => setConfirmUninstall(null)}
-        />
-
-        <ConfirmDialog
-          open={confirmRemoveMarketplace !== null}
-          title={cs.confirmRemoveMarketplaceTitle}
-          description={cs.confirmRemoveMarketplaceDescription}
-          confirmLabel={cs.removeMarketplace}
-          cancelLabel={cs.cancel}
-          variant="danger"
-          onConfirm={() => {
-            if (confirmRemoveMarketplace) void handleRemoveMarketplace(confirmRemoveMarketplace);
-          }}
-          onCancel={() => setConfirmRemoveMarketplace(null)}
-        />
+            {marketplaces === null ? loadingRows
+            : marketplaces.length === 0 ? emptyState(<IconGithub size={20} />, cs.noMarketplaces)
+            : (
+              <ul className="flex flex-col gap-2">
+                {marketplaces.map((mp) => {
+                  const src = mp.source.repo ?? mp.source.url ?? mp.source.path ?? mp.source.source;
+                  return (
+                    <li key={mp.name} className="ui-row">
+                      <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border-2 border-line bg-sunken text-ink-2">
+                        <IconGithub size={14} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-mono text-[13px] font-bold text-ink">{mp.name}</div>
+                        <div className="mt-0.5 truncate font-mono text-[11px] text-ink-3">{src}</div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        icon={<IconTrash size={13} />}
+                        onClick={() => setConfirmRemoveMarketplace(mp.name)}
+                      >
+                        {cs.removeMarketplace}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
+        )}
       </div>
-    </div>
+
+      <ConfirmDialog
+        open={confirmUninstall !== null}
+        title={cs.confirmUninstallTitle}
+        description={cs.confirmUninstallDescription}
+        confirmLabel={cs.uninstall}
+        cancelLabel={cs.cancel}
+        variant="danger"
+        onConfirm={() => {
+          if (confirmUninstall) void handleUninstall(confirmUninstall);
+        }}
+        onCancel={() => setConfirmUninstall(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmRemoveMarketplace !== null}
+        title={cs.confirmRemoveMarketplaceTitle}
+        description={cs.confirmRemoveMarketplaceDescription}
+        confirmLabel={cs.removeMarketplace}
+        cancelLabel={cs.cancel}
+        variant="danger"
+        onConfirm={() => {
+          if (confirmRemoveMarketplace) void handleRemoveMarketplace(confirmRemoveMarketplace);
+        }}
+        onCancel={() => setConfirmRemoveMarketplace(null)}
+      />
+    </Modal>
   );
 }

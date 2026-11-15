@@ -1,11 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import clsx from "clsx";
 import { api, type InstalledPlugin } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useToastStore } from "@/hooks/useToast";
 import { slugify } from "@/lib/slug";
+import { useTranslation } from "@/hooks/useTranslation";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
+import { Field, Textarea } from "@/components/ui/Input";
+import { IconAlert, IconBolt, IconCheck } from "@/components/ui/icons";
 
 interface StudioToolbarProps {
   projectId: string;
@@ -14,8 +19,6 @@ interface StudioToolbarProps {
   genOpen: boolean;
   onSetGenOpen: (v: boolean) => void;
 }
-
-const RECOMMENDED_MAX_AGENTS = 5;
 
 function extractFrontmatterField(markdown: string, field: string): string {
   const match = markdown.match(/^---\s*\n([\s\S]*?)\n---/);
@@ -35,6 +38,7 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
   const studioStart = useBoardStore((s) => s.studioStart);
   const studioReset = useBoardStore((s) => s.studioReset);
   const toast = useToastStore((s) => s.push);
+  const cc = useTranslation().claudeConfig;
 
   const isRunning = studioGeneration.status === "running";
   const isDone = studioGeneration.status === "done";
@@ -59,7 +63,7 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
       });
     } catch (err) {
       useBoardStore.getState().studioError(
-        err instanceof Error ? err.message : "Generation failed",
+        err instanceof Error ? err.message : cc.studioGenerateError,
       );
     }
   };
@@ -72,129 +76,114 @@ export function StudioToolbar({ projectId, installedSkills, onAgentCreated, genO
     setSaving(true);
     try {
       await api.createClaudeAgent(projectId, { slug: generatedSlug, body: text });
-      toast("success", "Agent saved");
+      toast("success", cc.studioSaved);
       studioReset();
       setPrompt("");
       setSelectedSkills(new Set());
       setGenOpen(false);
       onAgentCreated(generatedSlug);
     } catch (err) {
-      toast("error", err instanceof Error ? err.message : "Save failed");
+      toast("error", err instanceof Error ? err.message : cc.studioSaveError);
     } finally {
       setSaving(false);
     }
   };
 
+  const close = () => {
+    studioReset();
+    setGenOpen(false);
+  };
+
   return (
-    <>
-      {/* Generate modal */}
-      {genOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={(e) => { if (e.target === e.currentTarget) { studioReset(); setGenOpen(false); } }}
-        >
-          <div className="flex w-full max-w-xl flex-col gap-4 border border-[var(--border)] bg-[var(--bg-base)] p-5 shadow-xl">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
-                Generate from prompt
-              </span>
-              <button
-                type="button"
-                onClick={() => { studioReset(); setGenOpen(false); }}
-                className="border border-[var(--border)] p-1.5 text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
-                aria-label="Close"
-              >
-                <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M1 1l12 12M13 1L1 13" />
-                </svg>
-              </button>
-            </div>
+    <Modal
+      open={genOpen}
+      onClose={close}
+      size="lg"
+      icon={<IconBolt size={18} />}
+      title={cc.studioGenerateTitle}
+      description={cc.studioGenerateHint}
+      footerStart={
+        isError && studioGeneration.error ? (
+          <span className="inline-flex items-center gap-1.5 font-medium text-[var(--red-text)]">
+            <IconAlert size={13} />
+            {studioGeneration.error}
+          </span>
+        ) : null
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={close}>
+            {cc.cancel}
+          </Button>
+          {isDone ? (
+            <Button
+              variant="primary"
+              icon={<IconCheck size={15} />}
+              onClick={() => void handleSave()}
+              disabled={!studioGeneration.text.trim()}
+              loading={saving}
+            >
+              {saving ? cc.studioSaving : cc.studioSave}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              icon={<IconBolt size={15} />}
+              onClick={() => void handleGenerate()}
+              disabled={!prompt.trim()}
+              loading={isRunning}
+            >
+              {isRunning ? cc.studioGenerating : cc.studioGenerate}
+            </Button>
+          )}
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Field label={cc.studioPromptLabel}>
+          {({ id }) => (
+            <Textarea
+              id={id}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              disabled={isRunning}
+              rows={4}
+              spellCheck={false}
+              data-autofocus
+              placeholder={cc.studioPromptPlaceholder}
+              className="resize-y"
+            />
+          )}
+        </Field>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                Describe the agent
-              </label>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                disabled={isRunning}
-                rows={4}
-                spellCheck={false}
-                placeholder="e.g. A backend agent that reviews API routes for security issues..."
-                className="w-full resize-y border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-[12px] leading-relaxed text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)] disabled:opacity-60"
-              />
-            </div>
-
-            {installedSkills.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                  Skills to include
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {installedSkills.map((sk) => (
-                    <button
-                      key={sk.id}
-                      type="button"
-                      onClick={() => toggleSkill(sk.id)}
-                      disabled={isRunning}
-                      className={clsx(
-                        "border px-2 py-0.5 font-mono text-[10px] transition disabled:opacity-50",
-                        selectedSkills.has(sk.id)
-                          ? "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-base)]"
-                          : "border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-                      )}
-                    >
-                      {sk.id}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => void handleGenerate()}
-                disabled={!prompt.trim() || isRunning}
-                className="btn-ink px-4 py-2 text-[12px] disabled:opacity-50"
-              >
-                {isRunning ? "Generating..." : "Generate"}
-              </button>
-              {isError && studioGeneration.error && (
-                <span className="text-[12px] text-[var(--status-error)]">
-                  {studioGeneration.error}
-                </span>
-              )}
-            </div>
-
-            {(isRunning || isDone) && (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                  Generated agent
-                </span>
-                <pre className="max-h-48 w-full overflow-auto border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
-                  {studioGeneration.text || (
-                    <span className="italic text-[var(--text-faint)]">Writing...</span>
-                  )}
-                </pre>
-              </div>
-            )}
-
-            {isDone && (
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={saving || !studioGeneration.text.trim()}
-                  className="btn-ink px-4 py-2 text-[12px] disabled:opacity-50"
+        {installedSkills.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-semibold text-ink">{cc.studioSkillsLabel}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {installedSkills.map((sk) => (
+                <Chip
+                  key={sk.id}
+                  selected={selectedSkills.has(sk.id)}
+                  onSelectedChange={() => toggleSkill(sk.id)}
+                  disabled={isRunning}
+                  className="font-mono !text-[11.5px]"
                 >
-                  {saving ? "Saving..." : "Save agent"}
-                </button>
-              </div>
-            )}
+                  {sk.id}
+                </Chip>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-    </>
+        )}
+
+        {(isRunning || isDone) && (
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-semibold text-ink">{cc.studioPreviewLabel}</span>
+            <pre className="logpane max-h-56 whitespace-pre-wrap !px-4 !py-3 text-[12px] leading-relaxed text-ink">
+              {studioGeneration.text || <span className="text-ink-3">{cc.studioWriting}</span>}
+            </pre>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }

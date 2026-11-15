@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "./Button";
 import { IconAlert, IconInfo } from "./icons";
 import { useEscapeLayer, useFocusTrap, usePresence } from "./overlay";
@@ -53,7 +54,10 @@ export function ConfirmDialog({
 
   const badge = BADGE[variant];
 
-  return (
+  /* Portalled to <body>: a dialog opened from inside a transformed parent
+     (drawer, tab panel, React Flow node) would otherwise be trapped by it. */
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="ui-scrim" data-state={state} onClick={open ? onCancel : undefined} aria-hidden="true" />
 
@@ -98,6 +102,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

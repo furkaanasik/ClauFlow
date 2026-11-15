@@ -1,9 +1,11 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, type CSSProperties } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { ClaudeAgent } from "@/lib/api";
 import type { NodeRunStatus } from "@/types";
+import { useTranslation } from "@/hooks/useTranslation";
+import { IconClose, IconRetry, IconStop, IconTag } from "@/components/ui/icons";
 import { skillDragState } from "./dragState";
 
 export interface AgentNodeRunState {
@@ -25,71 +27,26 @@ export interface AgentNodeData {
   onSelectNode?: (nodeId: string) => void;
 }
 
-const STATUS_RING: Record<NodeRunStatus, string> = {
-  running: "ring-2 ring-blue-500 animate-pulse",
-  done: "ring-2 ring-emerald-500",
-  error: "ring-2 ring-rose-500",
-  aborted: "ring-2 ring-amber-500",
+/** Run status → token colour (fill) + text-safe colour. */
+const RUN_TONE: Record<NodeRunStatus, { fill: string; text: string }> = {
+  running: { fill: "var(--orange)", text: "var(--orange-text)" },
+  done: { fill: "var(--green)", text: "var(--green-text)" },
+  error: { fill: "var(--red)", text: "var(--red-text)" },
+  aborted: { fill: "var(--mustard)", text: "var(--mustard-text)" },
 };
 
 type NodeKind = "main" | "planner" | "coder" | "reviewer" | "tester" | "ci" | "fix" | "custom";
 
-interface NodeAccent {
-  border: string;
-  header: string;
-  badge: string;
-  label: string;
-}
-
-const NODE_ACCENT: Record<NodeKind, NodeAccent> = {
-  main: {
-    border: "border-2 border-amber-400 shadow-[0_0_0_3px_rgba(251,191,36,0.15)]",
-    header: "bg-amber-400/15",
-    badge: "bg-amber-400/20 text-amber-300 border-amber-400/60",
-    label: "★ entry",
-  },
-  planner: {
-    border: "border-l-4 border-l-indigo-500",
-    header: "bg-indigo-500/10",
-    badge: "bg-indigo-500/15 text-indigo-300 border-indigo-500/40",
-    label: "planner",
-  },
-  coder: {
-    border: "border-l-4 border-l-emerald-500",
-    header: "bg-emerald-500/10",
-    badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
-    label: "coder",
-  },
-  reviewer: {
-    border: "border-l-4 border-l-amber-500",
-    header: "bg-amber-500/10",
-    badge: "bg-amber-500/15 text-amber-300 border-amber-500/40",
-    label: "reviewer",
-  },
-  tester: {
-    border: "border-l-4 border-l-cyan-500",
-    header: "bg-cyan-500/10",
-    badge: "bg-cyan-500/15 text-cyan-300 border-cyan-500/40",
-    label: "tester",
-  },
-  ci: {
-    border: "border-l-4 border-l-violet-500",
-    header: "bg-violet-500/10",
-    badge: "bg-violet-500/15 text-violet-300 border-violet-500/40",
-    label: "ci",
-  },
-  fix: {
-    border: "border-l-4 border-l-rose-500",
-    header: "bg-rose-500/10",
-    badge: "bg-rose-500/15 text-rose-300 border-rose-500/40",
-    label: "fix",
-  },
-  custom: {
-    border: "border-l-4 border-l-slate-500",
-    header: "bg-slate-500/10",
-    badge: "bg-slate-500/15 text-slate-300 border-slate-500/40",
-    label: "custom",
-  },
+/** Cap colour per role. Text label carries the meaning, colour supports it. */
+const KIND_CAP: Record<NodeKind, { fill: string; on: string }> = {
+  main: { fill: "var(--mustard)", on: "var(--on-mustard)" },
+  planner: { fill: "var(--cobalt)", on: "var(--on-cobalt)" },
+  coder: { fill: "var(--green)", on: "var(--on-green)" },
+  reviewer: { fill: "var(--orange)", on: "var(--on-orange)" },
+  tester: { fill: "var(--ink-2)", on: "var(--on-ink)" },
+  ci: { fill: "var(--cobalt)", on: "var(--on-cobalt)" },
+  fix: { fill: "var(--red)", on: "var(--on-red)" },
+  custom: { fill: "var(--ink-3)", on: "var(--on-ink)" },
 };
 
 const KNOWN_KINDS: NodeKind[] = ["planner", "coder", "reviewer", "tester", "ci", "fix"];
@@ -120,11 +77,20 @@ function parseSkillsFromBody(body: string): string[] {
   return skills;
 }
 
-function AgentNodeComponent({ data }: NodeProps) {
+function shortModel(model: string) {
+  return model.replace("claude-", "").replace(/-\d{8}$/, "");
+}
+
+/**
+ * Studio node: a tactile Atölye panel. Coloured role cap, ink rule, hard
+ * shadow; run state recolours the shadow and adds a status strip.
+ */
+function AgentNodeComponent({ data, selected }: NodeProps) {
+  const t = useTranslation();
+  const st = t.studio;
   const d = data as unknown as AgentNodeData;
   const {
     agent,
-    onEdit,
     onRemoveSkill,
     onAddSkill,
     runState,
@@ -137,16 +103,25 @@ function AgentNodeComponent({ data }: NodeProps) {
   const [hoverSkill, setHoverSkill] = useState<string | null>(null);
   const showGhost = hoverSkill !== null && !skills.includes(hoverSkill);
 
-  const ringClass = runState ? STATUS_RING[runState.status] : "";
-  const invalidClass = validationError
-    ? "ring-2 ring-rose-500 ring-offset-1 ring-offset-[var(--bg-surface)]"
-    : "";
   const kind = deriveNodeKind(agent.slug);
-  const accent = NODE_ACCENT[kind];
+  const cap = KIND_CAP[kind];
+  const tone = runState ? RUN_TONE[runState.status] : null;
+
+  const style = {
+    "--cap": cap.fill,
+    "--cap-on": cap.on,
+    ...(tone ? { "--run": tone.fill } : null),
+  } as CSSProperties;
 
   return (
     <div
-      className={`min-w-[180px] max-w-[240px] border border-[var(--border)] bg-[var(--bg-base)] shadow-sm ${accent.border} ${ringClass} ${invalidClass}`.trim()}
+      className="agent-node"
+      style={style}
+      data-kind={kind}
+      data-run={runState?.status}
+      data-invalid={validationError ? "true" : undefined}
+      data-drop={showGhost ? "true" : undefined}
+      data-selected={selected ? "true" : undefined}
       onClick={() => onSelectNode?.(agent.slug)}
       onDragOver={(e) => {
         const dragged = skillDragState.skillId;
@@ -166,37 +141,32 @@ function AgentNodeComponent({ data }: NodeProps) {
         if (sk && !skills.includes(sk)) onAddSkill(agent.slug, sk);
       }}
     >
-      <Handle type="target" position={Position.Top} className="!border-[var(--border)] !bg-[var(--bg-surface)]" />
+      <Handle type="target" position={Position.Top} className="agent-node__handle" />
 
-      {/* Header */}
-      <div
-        className={`flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2 ${accent.header}`}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide ${accent.badge}`}
-          >
-            {accent.label}
-          </span>
-          <span className="truncate font-mono text-[12px] font-semibold text-[var(--text-primary)]">
-            {agent.name || agent.slug}
-          </span>
-        </div>
-        {agent.model && (
-          <span className="shrink-0 rounded bg-[var(--bg-surface)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-faint)]">
-            {agent.model.replace("claude-", "").replace(/-\d{8}$/, "")}
-          </span>
+      {/* Role cap */}
+      <div className="agent-node__cap">
+        <span className="agent-node__kind">
+          {kind === "main" ? `★ ${st.kindEntry}` : st.kinds[kind]}
+        </span>
+        {agent.model && <span className="agent-node__model">{shortModel(agent.model)}</span>}
+      </div>
+
+      {/* Name */}
+      <div className="flex flex-col gap-0.5 px-3 pb-2 pt-2.5">
+        <span className="truncate text-[14px] font-bold leading-tight text-ink">
+          {agent.name || agent.slug}
+        </span>
+        {agent.name && agent.name !== agent.slug && (
+          <span className="truncate font-mono text-[10.5px] text-ink-3">{agent.slug}</span>
         )}
       </div>
 
       {/* Skills */}
       {(skills.length > 0 || showGhost) && (
-        <div className="flex flex-wrap gap-1 px-3 py-2">
+        <div className="flex flex-wrap gap-1 px-3 pb-2.5">
           {skills.map((sk) => (
-            <span
-              key={sk}
-              className="group inline-flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-surface)] py-0.5 pl-1.5 pr-1 font-mono text-[9px] text-[var(--text-muted)]"
-            >
+            <span key={sk} className="agent-node__skill group">
+              <IconTag size={9} className="text-ink-3" />
               {sk}
               <button
                 type="button"
@@ -204,39 +174,51 @@ function AgentNodeComponent({ data }: NodeProps) {
                   e.stopPropagation();
                   onRemoveSkill(agent.slug, sk);
                 }}
-                className="flex h-3 w-3 items-center justify-center text-[var(--text-faint)] opacity-0 transition hover:text-[var(--status-error)] group-hover:opacity-100"
-                aria-label={`Remove ${sk}`}
+                className="nodrag grid h-3.5 w-3.5 place-items-center rounded-full text-ink-3 opacity-0 transition hover:bg-red hover:text-[var(--on-red)] group-hover:opacity-100"
+                aria-label={st.removeSkill.replace("{skill}", sk)}
               >
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                  <path d="M1 1l6 6M7 1l-6 6" />
-                </svg>
+                <IconClose size={8} />
               </button>
             </span>
           ))}
           {showGhost && (
-            <span
-              key={`ghost-${hoverSkill}`}
-              className="rounded border border-dashed border-[var(--text-secondary)] bg-[var(--bg-surface)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-faint)] opacity-60"
-            >
-              {hoverSkill}
+            <span key={`ghost-${hoverSkill}`} className="agent-node__skill agent-node__skill--ghost">
+              + {hoverSkill}
             </span>
           )}
         </div>
       )}
+      {skills.length === 0 && !showGhost && (
+        <div className="px-3 pb-2.5">
+          <span className="block rounded-[7px] border-[1.5px] border-dashed border-hair px-2 py-1 text-center text-[10.5px] text-ink-3">
+            {st.dropSkillHint}
+          </span>
+        </div>
+      )}
 
       {(runState || validationError) && (
-        <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] px-3 py-1.5 text-[10px]">
+        <div className="agent-node__foot">
           {runState && (
-            <span className="font-mono text-[var(--text-muted)]">
-              {runState.status}
+            <span className="inline-flex min-w-0 items-center gap-1.5 font-mono text-[10.5px] font-semibold" style={{ color: tone?.text }}>
+              <span
+                aria-hidden
+                className={runState.status === "running" ? "ui-dot ui-dot--live !h-2 !w-2" : "ui-dot !h-2 !w-2"}
+                style={{ "--dot": tone?.fill } as CSSProperties}
+              />
+              {st.runStatus[runState.status]}
+              {runState.tokens && runState.tokens.input + runState.tokens.output > 0 && (
+                <span className="font-normal text-ink-3">
+                  · {Math.round((runState.tokens.input + runState.tokens.output) / 100) / 10}k
+                </span>
+              )}
             </span>
           )}
           {validationError && !runState && (
-            <span className="font-mono text-rose-500">
+            <span className="min-w-0 truncate font-mono text-[10.5px] font-semibold text-[var(--red-text)]">
               {validationError.reason}
             </span>
           )}
-          <span className="flex gap-1">
+          <span className="ml-auto flex gap-1">
             {runState?.status === "running" && onAbortNode && (
               <button
                 type="button"
@@ -244,9 +226,10 @@ function AgentNodeComponent({ data }: NodeProps) {
                   e.stopPropagation();
                   onAbortNode(agent.slug);
                 }}
-                className="rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-muted)] hover:text-rose-500"
+                className="agent-node__btn nodrag"
               >
-                abort
+                <IconStop size={9} />
+                {st.abort}
               </button>
             )}
             {runState &&
@@ -258,16 +241,17 @@ function AgentNodeComponent({ data }: NodeProps) {
                     e.stopPropagation();
                     onRetryNode(agent.slug);
                   }}
-                  className="rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-muted)] hover:text-emerald-500"
+                  className="agent-node__btn nodrag"
                 >
-                  retry
+                  <IconRetry size={9} />
+                  {st.retry}
                 </button>
               )}
           </span>
         </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} className="!border-[var(--border)] !bg-[var(--bg-surface)]" />
+      <Handle type="source" position={Position.Bottom} className="agent-node__handle" />
     </div>
   );
 }

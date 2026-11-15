@@ -1,8 +1,17 @@
-export const PR_STATE_STYLES: Record<
-  string,
-  { label: string; ink: string }
-> = {
-  OPEN:   { label: "open",   ink: "var(--accent-primary)" },
-  MERGED: { label: "merged", ink: "var(--status-review)" },
-  CLOSED: { label: "closed", ink: "var(--status-error)" },
+import type { StatusKind } from "@/components/ui/Pills";
+
+export type PRState = "OPEN" | "MERGED" | "CLOSED";
+
+/**
+ * PR state → Atölye status colour (matches the card PR badge: open cobalt,
+ * merged green, closed red). Labels come from i18n (`prs.state.*`).
+ */
+export const PR_STATE_STYLES: Record<PRState, { status: StatusKind; fill: string; text: string }> = {
+  OPEN:   { status: "ci",    fill: "var(--cobalt)", text: "var(--cobalt-text)" },
+  MERGED: { status: "done",  fill: "var(--green)",  text: "var(--green-text)" },
+  CLOSED: { status: "error", fill: "var(--red)",    text: "var(--red-text)" },
 };
+
+export function prState(state: string): PRState {
+  return state === "MERGED" || state === "CLOSED" ? state : "OPEN";
+}
