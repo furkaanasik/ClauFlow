@@ -432,8 +432,6 @@ interface TaskRow {
   cacheReadTokens: number | null;
   cacheWriteTokens: number | null;
   budgetUsd: number | null;
-  executionMode: string | null;
-  graphId: string | null;
   parentTaskId: string | null;
   teamId: string | null;
 }
@@ -512,8 +510,6 @@ function rowToTask(row: TaskRow): Task {
     agent,
     usage,
     budgetUsd: row.budgetUsd ?? null,
-    executionMode: (row.executionMode as 'simple' | 'graph' | null) ?? 'simple',
-    graphId: row.graphId ?? null,
     parentTaskId: row.parentTaskId ?? null,
     teamId: row.teamId ?? null,
   };
@@ -537,12 +533,12 @@ const stmtInsertTask = db.prepare(
     id, projectId, title, description, analysis, status, priority, tags,
     branch, prUrl, prNumber, displayId, createdAt, updatedAt,
     agentStatus, agentCurrentStep, agentLog, agentError, agentStartedAt, agentFinishedAt,
-    executionMode, graphId, parentTaskId, teamId
+    parentTaskId, teamId
   ) VALUES (
     @id, @projectId, @title, @description, @analysis, @status, @priority, @tags,
     @branch, @prUrl, @prNumber, @displayId, @createdAt, @updatedAt,
     @agentStatus, @agentCurrentStep, @agentLog, @agentError, @agentStartedAt, @agentFinishedAt,
-    @executionMode, @graphId, @parentTaskId, @teamId
+    @parentTaskId, @teamId
   )`,
 );
 const stmtBumpTaskCounter = db.prepare(
@@ -569,8 +565,6 @@ const stmtUpdateTaskWithLog = db.prepare(
     prNumber = @prNumber,
     displayId = @displayId,
     budgetUsd = @budgetUsd,
-    executionMode = @executionMode,
-    graphId = @graphId,
     parentTaskId = @parentTaskId,
     teamId = @teamId,
     updatedAt = @updatedAt,
@@ -596,8 +590,6 @@ const stmtUpdateTaskWithoutLog = db.prepare(
     prNumber = @prNumber,
     displayId = @displayId,
     budgetUsd = @budgetUsd,
-    executionMode = @executionMode,
-    graphId = @graphId,
     parentTaskId = @parentTaskId,
     teamId = @teamId,
     updatedAt = @updatedAt,
@@ -823,8 +815,6 @@ export interface CreateTaskInput {
   priority?: TaskPriority | null;
   tags?: string[];
   status?: TaskStatus;
-  executionMode?: "simple" | "graph";
-  graphId?: string | null;
   parentTaskId?: string | null;
   teamId?: string | null;
 }
@@ -874,8 +864,6 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       agentError: emptyAgent.error ?? null,
       agentStartedAt: emptyAgent.startedAt ?? null,
       agentFinishedAt: emptyAgent.finishedAt ?? null,
-      executionMode: input.executionMode ?? "simple",
-      graphId: input.graphId ?? null,
       parentTaskId: input.parentTaskId ?? null,
       teamId: input.teamId ?? null,
     });
@@ -903,8 +891,6 @@ export type TaskPatch = Partial<
     | "prNumber"
     | "displayId"
     | "budgetUsd"
-    | "executionMode"
-    | "graphId"
     | "parentTaskId"
     | "teamId"
   >
@@ -936,8 +922,6 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     prNumber: next.prNumber ?? null,
     displayId: next.displayId ?? null,
     budgetUsd: next.budgetUsd ?? null,
-    executionMode: next.executionMode ?? 'simple',
-    graphId: next.graphId ?? null,
     parentTaskId: next.parentTaskId ?? null,
     teamId: next.teamId ?? null,
     updatedAt: next.updatedAt,
@@ -970,7 +954,8 @@ export async function appendAgentLog(
 export async function recoverOrphanedTasks(): Promise<number> {
   const now = new Date().toISOString();
   // Any task left in "doing" after a server restart has no live executor
-  // (RUNNING map is in-memory). Roll all of them back to todo+error.
+  // (RUNNING map is in-memory). Roll all of them back to todo+error — except
+  // tasks paused for spec approval, which wait for the user on purpose.
   const result = db
     .prepare(
       `UPDATE tasks
@@ -979,9 +964,13 @@ export async function recoverOrphanedTasks(): Promise<number> {
              agentError = 'Sunucu yeniden başlatıldı; task otomatik kurtarıldı',
              agentFinishedAt = @now,
              updatedAt = @now
-       WHERE status = 'doing'`,
+       WHERE status = 'doing' AND agentStatus != 'awaiting_approval'`,
     )
     .run({ now });
+  db.prepare(
+    `UPDATE task_team_runs SET status = 'error', stopReason = 'server_restart', finishedAt = @now
+      WHERE status = 'running'`,
+  ).run({ now });
   return result.changes;
 }
 

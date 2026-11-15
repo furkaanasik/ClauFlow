@@ -36,7 +36,6 @@ import {
 import type { AgentGraph } from "../types/index.js";
 import { errorMessage } from "../utils/error.js";
 import { defaultSkillRoots, getSkillCatalog } from "../services/skillCatalogService.js";
-import { GraphValidationError, planGraph } from "../agents/graphRunner.js";
 
 const router = Router();
 
@@ -623,21 +622,6 @@ router.put("/:id/claude/graph", async (req: Request, res: Response) => {
     if (!project) return res.status(404).json({ error: "not_found" });
     if (!fs.existsSync(project.repoPath)) {
       return res.status(400).json({ error: "repo_path_missing" });
-    }
-
-    if (parsed.data.nodes.length > 0) {
-      try {
-        planGraph(parsed.data);
-      } catch (err) {
-        if (err instanceof GraphValidationError) {
-          return res.status(400).json({
-            error: "graph_invalid",
-            reason: err.reason,
-            offendingNodeIds: err.offendingNodeIds,
-          });
-        }
-        throw err;
-      }
     }
 
     const dir = agentsDir(project.repoPath);

@@ -46,8 +46,6 @@ export interface Task {
   agent: AgentState;
   usage?: TaskUsage;
   budgetUsd?: number | null;
-  executionMode?: 'simple' | 'graph';
-  graphId?: string | null;
   parentTaskId?: string | null;
   teamId?: string | null;
 }

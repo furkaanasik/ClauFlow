@@ -179,6 +179,16 @@ async function runFixIteration(
 
     const prompt = promptPrefix + failureSummary + promptSuffix;
 
+    // The executor returns the repo to the base branch after a run, so the
+    // fix must check out the task branch first (and go back afterwards).
+    if (state.branch) {
+      const co = await gitRun("git", ["checkout", state.branch], project.repoPath);
+      if (co.code !== 0) {
+        await pushWatchLog(taskId, `[ci] git checkout ${state.branch} failed — ${co.stderr.slice(0, 200)}`);
+        return;
+      }
+    }
+
     const claudeResult = await runClaude({
       prompt,
       cwd: project.repoPath,
@@ -228,7 +238,15 @@ async function runFixIteration(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await pushWatchLog(taskId, `[ci] fix iteration error: ${msg}`);
+  } finally {
+    if (state.branch) await returnToBaseIfClean(project).catch(() => {});
   }
+}
+
+async function returnToBaseIfClean(project: Project): Promise<void> {
+  const dirty = await gitRun("git", ["status", "--porcelain"], project.repoPath);
+  if (dirty.code !== 0 || dirty.stdout.trim()) return;
+  await gitRun("git", ["checkout", project.defaultBranch], project.repoPath);
 }
 
 async function moveToReview(taskId: string, project: Project): Promise<void> {
