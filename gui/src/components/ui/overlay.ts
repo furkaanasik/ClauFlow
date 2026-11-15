@@ -102,3 +102,41 @@ export function useDismiss(
     };
   }, [ref, open, onClose]);
 }
+
+/* ─── Escape layering ─────────────────────────────────────────────────────────
+   Overlays stack (drawer → modal → confirm). Esc must close only the top one,
+   so a single capture-phase listener dispatches to the most recent layer and
+   stops the event before the board's global Esc shortcut sees it. With no
+   layer open, Esc passes through untouched. */
+
+type EscEntry = { fn: () => void };
+const escStack: EscEntry[] = [];
+let escListening = false;
+
+function onEscapeKey(e: KeyboardEvent) {
+  if (e.key !== "Escape" || escStack.length === 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  escStack[escStack.length - 1].fn();
+}
+
+/** Registers `onEscape` as an overlay layer while `active`. */
+export function useEscapeLayer(active: boolean, onEscape: () => void) {
+  const fnRef = useRef(onEscape);
+  useEffect(() => {
+    fnRef.current = onEscape;
+  });
+  useEffect(() => {
+    if (!active) return;
+    const entry: EscEntry = { fn: () => fnRef.current() };
+    escStack.push(entry);
+    if (!escListening) {
+      window.addEventListener("keydown", onEscapeKey, true);
+      escListening = true;
+    }
+    return () => {
+      const i = escStack.indexOf(entry);
+      if (i >= 0) escStack.splice(i, 1);
+    };
+  }, [active]);
+}

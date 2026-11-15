@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useToastStore, type Toast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
 import { IconAlert, IconCheck, IconClose, IconInfo } from "./icons";
@@ -31,8 +32,8 @@ export function ToastContainer() {
           <div
             key={toast.id}
             role={toast.type === "error" ? "alert" : "status"}
-            className="ui-modal flex min-w-[280px] max-w-[420px] items-center gap-3 rounded-[12px] border-2 border-line bg-panel py-2.5 pl-2.5 pr-2"
-            style={{ boxShadow: "var(--shadow)" }}
+            className="ui-modal relative flex min-w-[280px] max-w-[420px] items-center gap-3 overflow-hidden rounded-[12px] border-2 border-line bg-panel py-2.5 pl-2.5 pr-2"
+            style={{ boxShadow: "var(--shadow)", "--toast": st.bg } as CSSProperties}
           >
             <span
               aria-hidden
@@ -55,6 +56,8 @@ export function ToastContainer() {
             >
               <IconClose size={12} />
             </button>
+            {/* drains over the store's 3s auto-dismiss */}
+            <span aria-hidden className="ui-toast__bar" />
           </div>
         );
       })}

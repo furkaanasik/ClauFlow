@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { Button } from "./Button";
 import { IconAlert, IconInfo } from "./icons";
-import { useFocusTrap } from "./overlay";
+import { useEscapeLayer, useFocusTrap, usePresence } from "./overlay";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -35,12 +35,13 @@ export function ConfirmDialog({
   const titleId = useId();
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(panelRef, open);
+  const { mounted, state } = usePresence(open, 140);
+  useFocusTrap(panelRef, open && mounted);
+  useEscapeLayer(open, onCancel);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
       // a focused button handles Enter itself — avoid a double confirm
       if (e.key === "Enter" && !(e.target instanceof HTMLButtonElement)) onConfirm();
     };
@@ -48,13 +49,13 @@ export function ConfirmDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onCancel, onConfirm]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   const badge = BADGE[variant];
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      <div className="ui-scrim" onClick={onCancel} aria-hidden="true" />
+      <div className="ui-scrim" data-state={state} onClick={open ? onCancel : undefined} aria-hidden="true" />
 
       <div
         ref={panelRef}
@@ -63,6 +64,7 @@ export function ConfirmDialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
+        data-state={state}
         className="ui-modal relative w-full max-w-md rounded-panel border-2 border-line bg-panel outline-none"
       >
         <div className="flex gap-4 px-5 pb-5 pt-5">
@@ -85,12 +87,12 @@ export function ConfirmDialog({
           </div>
         </div>
         <div className="flex justify-end gap-2.5 border-t-2 border-line bg-sunken px-5 py-3.5" style={{ borderRadius: "0 0 12px 12px" }}>
-          <Button variant="secondary" onClick={onCancel}>
+          <Button variant="secondary" onClick={open ? onCancel : undefined}>
             {cancelLabel}
           </Button>
           <Button
             variant={variant === "danger" ? "danger" : "primary"}
-            onClick={onConfirm}
+            onClick={open ? onConfirm : undefined}
           >
             {confirmLabel}
           </Button>

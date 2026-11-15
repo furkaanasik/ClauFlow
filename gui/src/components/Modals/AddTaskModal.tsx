@@ -1,8 +1,13 @@
 "use client";
 
-import clsx from "clsx";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Textarea } from "@/components/ui/Input";
+import { Segmented } from "@/components/ui/Segmented";
+import { Checkbox } from "@/components/ui/Toggle";
+import { PriorityMark } from "@/components/ui/Pills";
+import { IconAlert, IconArrowUpRight, IconFlow, IconPlus } from "@/components/ui/icons";
 import { api, githubApi } from "@/lib/api";
 import type { GraphRecord } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
@@ -16,36 +21,30 @@ interface AddTaskModalProps {
 
 type Priority = "low" | "medium" | "high" | "critical";
 
-const PRIO_COLOR: Record<Priority, string> = {
-  low:      "var(--prio-low)",
-  medium:   "var(--prio-medium)",
-  high:     "var(--prio-high)",
-  critical: "var(--prio-critical)",
-};
-
 const PRIO_LIST: Priority[] = ["low", "medium", "high", "critical"];
 
 export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const selectedProjectId = useBoardStore((s) => s.selectedProjectId);
-  const projects          = useBoardStore((s) => s.projects);
-  const upsertTask        = useBoardStore((s) => s.upsertTask);
-  const toast             = useToast();
-  const t                 = useTranslation();
+  const projects = useBoardStore((s) => s.projects);
+  const upsertTask = useBoardStore((s) => s.upsertTask);
+  const toast = useToast();
+  const t = useTranslation();
+  const formId = useId();
 
   const openProjectDetail = useBoardStore((s) => s.openProjectDetail);
-  const selectedProject   = projects.find((p) => p.id === selectedProjectId);
-  const hasRemote         = Boolean(selectedProject?.remote);
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const hasRemote = Boolean(selectedProject?.remote);
 
-  const [title,         setTitle]         = useState("");
-  const [description,   setDescription]   = useState("");
-  const [analysis,      setAnalysis]      = useState("");
-  const [priority,      setPriority]      = useState<Priority>("medium");
-  const [budgetUsd,     setBudgetUsd]     = useState<string>("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [analysis, setAnalysis] = useState("");
+  const [priority, setPriority] = useState<Priority>("medium");
+  const [budgetUsd, setBudgetUsd] = useState<string>("");
   const [executionMode, setExecutionMode] = useState<"simple" | "graph">("simple");
-  const [graphId,       setGraphId]       = useState<string | null>(null);
-  const [graphs,        setGraphs]        = useState<GraphRecord[]>([]);
-  const [loading,       setLoading]       = useState(false);
-  const [error,         setError]         = useState<string | null>(null);
+  const [graphId, setGraphId] = useState<string | null>(null);
+  const [graphs, setGraphs] = useState<GraphRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [createGhIssue, setCreateGhIssue] = useState(false);
 
   useEffect(() => {
@@ -100,201 +99,188 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title={t.addTask.modalTitle} size="lg">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <Field label={t.addTask.titleLabel} required>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={t.addTask.titlePlaceholder}
-            className={inputCls}
-            autoFocus
-          />
-        </Field>
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title={t.addTask.modalTitle}
+      description={t.addTask.modalHint}
+      icon={<IconPlus size={18} />}
+      size="xl"
+      footerStart={
+        selectedProject && (
+          <span className="flex items-center gap-1.5">
+            <span className="ui-keyplate !h-5 !text-[10px]">{selectedProject.slug?.toUpperCase() ?? "—"}</span>
+            <span className="truncate font-semibold text-ink-2">{selectedProject.name}</span>
+          </span>
+        )
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={handleClose}>
+            {t.addTask.cancel}
+          </Button>
+          <Button type="submit" form={formId} variant="primary" loading={loading} iconRight={<IconArrowUpRight size={15} />}>
+            {loading ? t.addTask.submitting : t.addTask.submit}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className="grid gap-x-6 gap-y-5 md:grid-cols-[minmax(0,1fr)_19.5rem]">
+        {/* Writing column */}
+        <div className="flex min-w-0 flex-col gap-5">
+          <Field label={<Required>{t.addTask.titleLabel}</Required>}>
+            {({ id, describedBy }) => (
+              <Input
+                id={id}
+                aria-describedby={describedBy}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t.addTask.titlePlaceholder}
+                className="!text-[15px] !font-semibold"
+                autoFocus
+              />
+            )}
+          </Field>
 
-        <Field label={t.addTask.priorityLabel}>
-          <div className="flex gap-px border border-[var(--border)] bg-[var(--border)]">
-            {PRIO_LIST.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setPriority(value)}
-                className={clsx(
-                  "flex flex-1 items-center justify-center gap-2 px-3 py-2.5 text-[12px] font-medium capitalize transition",
-                  priority === value
-                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                    : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                )}
-                style={priority === value ? { boxShadow: `inset 0 -2px 0 ${PRIO_COLOR[value]}` } : {}}
-              >
-                <span className="h-1.5 w-1.5" style={{ background: PRIO_COLOR[value] }} />
-                {t.addTask.priorities[value]}
-              </button>
-            ))}
-          </div>
-        </Field>
+          <Field label={t.addTask.descriptionLabel}>
+            {({ id }) => (
+              <Textarea
+                id={id}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t.addTask.descriptionPlaceholder}
+                rows={3}
+                className="resize-none"
+              />
+            )}
+          </Field>
 
-        {/* Execution mode */}
-        <Field label="Execution mode">
-          <div className="flex gap-px border border-[var(--border)] bg-[var(--border)]">
-            {(["simple", "graph"] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setExecutionMode(mode)}
-                className={clsx(
-                  "flex flex-1 items-center justify-center px-3 py-2.5 font-mono text-[11px] uppercase tracking-widest transition",
-                  executionMode === mode
-                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                    : "bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                )}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
-        </Field>
+          <Field label={t.addTask.analysisLabel} hint={t.addTask.analysisHint}>
+            {({ id, describedBy }) => (
+              <Textarea
+                id={id}
+                aria-describedby={describedBy}
+                mono
+                value={analysis}
+                onChange={(e) => setAnalysis(e.target.value)}
+                placeholder={t.addTask.analysisPlaceholder}
+                rows={9}
+                className="resize-y"
+              />
+            )}
+          </Field>
+        </div>
 
-        {/* Graph picker — only when graph mode */}
-        {executionMode === "graph" && graphs.length > 0 && (
-          <Field label="Graph">
-            <div className="flex flex-col gap-1">
-              {graphs.map((g) => (
+        {/* Settings column */}
+        <div className="flex flex-col gap-5 rounded-[12px] border-2 border-line bg-sunken p-4 md:self-start">
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-semibold text-ink">{t.addTask.priorityLabel}</span>
+            <div role="radiogroup" aria-label={t.addTask.priorityLabel} className="grid grid-cols-2 gap-2">
+              {PRIO_LIST.map((value) => (
                 <button
-                  key={g.id}
+                  key={value}
                   type="button"
-                  onClick={() => setGraphId(g.id)}
-                  className={clsx(
-                    "w-full border px-3 py-2 text-left font-mono text-[12px] transition",
-                    graphId === g.id
-                      ? "border-[var(--text-secondary)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
-                      : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-muted)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-                  )}
+                  role="radio"
+                  aria-checked={priority === value}
+                  onClick={() => setPriority(value)}
+                  className="ui-option !gap-2 !px-2.5 !py-2 text-[13px] font-semibold"
                 >
-                  {g.name}
+                  <PriorityMark level={value} label={t.addTask.priorities[value]} />
+                  {t.addTask.priorities[value]}
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-semibold text-ink">{t.addTask.executionModeLabel}</span>
+            <Segmented
+              size="sm"
+              label={t.addTask.executionModeLabel}
+              value={executionMode}
+              onChange={setExecutionMode}
+              options={[
+                { value: "simple", label: t.taskDetail.modeSimple },
+                { value: "graph", label: t.taskDetail.modeGraph, icon: <IconFlow size={13} /> },
+              ]}
+              className="self-start"
+            />
+            {executionMode === "graph" && graphs.length > 0 && (
+              <div role="radiogroup" aria-label={t.addTask.graphLabel} className="mt-1 flex flex-col gap-1.5">
+                {graphs.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={graphId === g.id}
+                    onClick={() => setGraphId(g.id)}
+                    className="ui-option !py-1.5 font-mono text-[12px]"
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {executionMode === "graph" && graphs.length === 0 && (
+              <p className="text-xs text-ink-3">{t.taskDetail.graphsEmpty}</p>
+            )}
+          </div>
+
+          <Field label={t.addTask.budgetLabel} aside={t.addTask.optional}>
+            {({ id }) => (
+              <Input
+                id={id}
+                type="number"
+                min="0.1"
+                step="0.1"
+                size="sm"
+                icon={<span className="font-mono text-[13px] font-bold">$</span>}
+                value={budgetUsd}
+                onChange={(e) => setBudgetUsd(e.target.value)}
+                placeholder={t.addTask.budgetPlaceholder}
+                className="font-mono"
+              />
+            )}
           </Field>
-        )}
 
-        {/* Budget */}
-        <Field label="Budget (USD)" hint="optional">
-          <input
-            type="number"
-            min="0.1"
-            step="0.1"
-            value={budgetUsd}
-            onChange={(e) => setBudgetUsd(e.target.value)}
-            placeholder="e.g. 2.00"
-            className={inputCls}
-          />
-        </Field>
-
-        <Field label={t.addTask.descriptionLabel}>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={t.addTask.descriptionPlaceholder}
-            rows={2}
-            className={clsx(inputCls, "resize-none")}
-          />
-        </Field>
-
-        <Field label={t.addTask.analysisLabel} hint={t.addTask.analysisHint}>
-          <textarea
-            value={analysis}
-            onChange={(e) => setAnalysis(e.target.value)}
-            placeholder={t.addTask.analysisPlaceholder}
-            rows={9}
-            className={clsx(inputCls, "resize-y font-mono text-xs")}
-          />
-        </Field>
-
-        {selectedProjectId && (
-          hasRemote ? (
-            <label className="flex cursor-pointer items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-              <input
-                type="checkbox"
+          {selectedProjectId &&
+            (hasRemote ? (
+              <Checkbox
                 checked={createGhIssue}
                 onChange={(e) => setCreateGhIssue(e.target.checked)}
-                className="accent-[var(--text-primary)]"
+                label={t.importIssues.createIssueCheckbox}
               />
-              {t.importIssues.createIssueCheckbox}
-            </label>
-          ) : (
-            <div className="flex items-center gap-2 text-[12px] text-[var(--text-muted)]">
-              <input type="checkbox" disabled className="opacity-30" />
-              <span>{t.importIssues.createIssueCheckbox}</span>
-              <span className="text-[var(--text-muted)]">—</span>
-              <button
-                type="button"
-                onClick={() => { onClose(); if (selectedProjectId) openProjectDetail(selectedProjectId); }}
-                className="text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]"
-              >
-                {t.importIssues.noRemoteHint} {t.importIssues.configureLink}
-              </button>
-            </div>
-          )
-        )}
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <Checkbox disabled label={t.importIssues.createIssueCheckbox} />
+                <button
+                  type="button"
+                  onClick={() => { onClose(); if (selectedProjectId) openProjectDetail(selectedProjectId); }}
+                  className="ui-focus ml-[1.85rem] inline-flex items-center gap-1 self-start rounded-[6px] text-left text-[12px] font-semibold text-[var(--cobalt-text)] underline underline-offset-2"
+                >
+                  {t.importIssues.noRemoteHint} · {t.importIssues.configureLink.replace(/\s*→\s*$/, "")}
+                  <IconArrowUpRight size={12} />
+                </button>
+              </div>
+            ))}
+        </div>
 
         {error && (
-          <div className="border border-[var(--status-error)] bg-[var(--status-error-ink)] px-3 py-2 text-xs text-[var(--status-error)]">
-            {error}
+          <div role="alert" className="ui-banner ui-banner--error md:col-span-2">
+            <IconAlert size={15} className="mt-0.5 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
-
-        <div className="flex justify-between gap-2 border-t border-[var(--border)] pt-4">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="btn-ghost px-4 py-2 text-[12px] font-medium"
-          >
-            {t.addTask.cancel}
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-ink inline-flex items-center gap-2 px-5 py-2 text-[12px] font-medium disabled:opacity-50"
-          >
-            {loading ? t.addTask.submitting : t.addTask.submit}
-            <span aria-hidden>→</span>
-          </button>
-        </div>
       </form>
     </Modal>
   );
 }
 
-const inputCls =
-  "w-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition focus:border-[var(--text-secondary)]";
-
-function Field({
-  label,
-  required,
-  hint,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  hint?: string;
-  children: React.ReactNode;
-}) {
+function Required({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-baseline gap-2">
-        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
-          {label}
-          {required && (
-            <span className="ml-1 text-[var(--status-error)]">*</span>
-          )}
-        </span>
-        {hint && (
-          <span className="ml-auto text-[11px] italic text-[var(--text-muted)]">{hint}</span>
-        )}
-      </div>
+    <>
       {children}
-    </div>
+      <span aria-hidden className="ml-1 text-[var(--red-text)]">*</span>
+    </>
   );
 }

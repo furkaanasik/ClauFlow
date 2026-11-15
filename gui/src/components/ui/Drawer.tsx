@@ -1,11 +1,11 @@
 "use client";
 
 import clsx from "clsx";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { IconButton } from "./Button";
 import { IconClose } from "./icons";
-import { useFocusTrap, usePresence } from "./overlay";
+import { useEscapeLayer, useFocusTrap, usePresence } from "./overlay";
 
 export interface DrawerProps {
   open: boolean;
@@ -25,6 +25,12 @@ export interface DrawerProps {
   children: ReactNode;
   /** Accessible name when `title` isn't plain text. */
   ariaLabel?: string;
+  /** Row under the title (status pills, priority, cost). */
+  meta?: ReactNode;
+  /** Extra classes for the scrolling body (e.g. drop padding for a full-bleed tab). */
+  bodyClassName?: string;
+  /** Re-keys the body so its enter animation replays (e.g. the active tab). */
+  bodyKey?: string;
 }
 
 const WIDTH = {
@@ -49,6 +55,9 @@ export function Drawer({
   width = "lg",
   children,
   ariaLabel,
+  meta,
+  bodyClassName,
+  bodyKey,
 }: DrawerProps) {
   const t = useTranslation();
   const titleId = useId();
@@ -56,12 +65,7 @@ export function Drawer({
   const { mounted, state } = usePresence(open, 180);
   useFocusTrap(panelRef, open && mounted);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  useEscapeLayer(open, onClose);
 
   if (!mounted) return null;
 
@@ -89,6 +93,7 @@ export function Drawer({
                 {title}
               </h2>
             )}
+            {meta && <div className="mt-3 flex flex-wrap items-center gap-2">{meta}</div>}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {headerActions}
@@ -99,7 +104,12 @@ export function Drawer({
         </header>
         {tabs && <div className="bg-panel pt-2">{tabs}</div>}
         <div className="flex min-h-0 flex-1">
-          <div className="min-w-0 flex-1 overflow-y-auto px-5 py-5">{children}</div>
+          <div
+            key={bodyKey}
+            className={clsx("min-w-0 flex-1 overflow-y-auto", bodyClassName ?? "px-5 py-5", bodyKey && "ui-tabpanel")}
+          >
+            {children}
+          </div>
           {aside && (
             <aside className="hidden w-[280px] shrink-0 overflow-y-auto border-l-2 border-line bg-panel px-4 py-5 lg:block">
               {aside}

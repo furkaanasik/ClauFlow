@@ -112,6 +112,12 @@ export interface Translations {
     };
   };
   addTask: {
+    executionModeLabel: string;
+    graphLabel: string;
+    budgetLabel: string;
+    optional: string;
+    budgetPlaceholder: string;
+    modalHint: string;
     modalTitle: string;
     titleLabel: string;
     titlePlaceholder: string;
@@ -136,6 +142,9 @@ export interface Translations {
     };
   };
   newProject: {
+    createGithubHint: string;
+    modalHint: string;
+    optional: string;
     modalTitle: string;
     nameLabel: string;
     namePlaceholder: string;
@@ -249,6 +258,41 @@ export interface Translations {
     };
   };
   taskDetail: {
+    projectLabel: string;
+    parentLabel: string;
+    subtasksLabel: string;
+    executionModeLabel: string;
+    modeSimple: string;
+    modeGraph: string;
+    graphSelect: string;
+    graphsLoading: string;
+    graphsEmpty: string;
+    openInStudio: string;
+    budgetLabel: string;
+    budgetPerTask: string;
+    budgetProjectDefault: string;
+    budgetInputPlaceholder: string;
+    budgetHint: string;
+    budgetSpent: string;
+    budgetLimit: string;
+    budgetExceeded: string;
+    budgetUsed: string;
+    budgetNoUsage: string;
+    tokensLabel: string;
+    costApprox: string;
+    follow: string;
+    abortFailed: string;
+    statusLabel: string;
+    agentLabel: string;
+    propertiesLabel: string;
+    createdLabel: string;
+    updatedLabel: string;
+    tabsLabel: string;
+    logViewLabel: string;
+    prLabel: string;
+    noLinks: string;
+    editingBadge: string;
+    lines: (n: number) => string;
     titlePlaceholder: string;
     closeLabel: string;
     descriptionLabel: string;
@@ -321,6 +365,7 @@ export interface Translations {
     breakdownCancel: string;
   };
   cloneModal: {
+    modalHint: string;
     title: string;
     targetDirLabel: string;
     targetDirPlaceholder: string;
@@ -342,6 +387,8 @@ export interface Translations {
     sectionTitle: string;
   };
   prereqs: {
+    envLabel: string;
+    readyCount: string;
     title: string;
     allGood: string;
     missingOne: string;
@@ -522,6 +569,8 @@ export interface Translations {
     pricingStaleDate: string;
   };
   importIssues: {
+    selectedCount: (n: number, total: number) => string;
+    modalHint: string;
     buttonLabel: string;
     modalTitle: string;
     loading: string;
@@ -570,5 +619,81 @@ export interface Translations {
       review: string;
       done: string;
     };
+  };
+  toolTimeline: {
+    calls: (n: number) => string;
+    running: (n: number) => string;
+    done: (n: number) => string;
+    errors: (n: number) => string;
+    args: string;
+    result: string;
+    statusOk: string;
+    statusRun: string;
+    statusErr: string;
+    agent: string;
+    mix: string;
+  };
+  flow: {
+    running: string;
+    done: string;
+    error: string;
+    aborted: string;
+    subagent: string;
+    agent: string;
+    task: string;
+    status: string;
+    model: string;
+    inOut: string;
+    started: string;
+    finished: string;
+    error2: string;
+    closeLog: string;
+    nodes: (n: number) => string;
+  };
+  comments: {
+    queued: string;
+    working: string;
+    applied: string;
+    failed: string;
+    showLog: string;
+    hideLog: string;
+    emptyTitle: string;
+    emptyHint: string;
+    placeholder: string;
+    composerLabel: string;
+    sendHint: string;
+    send: string;
+    sending: string;
+    sendFailed: string;
+    yesterday: string;
+    readOnly: string;
+    you: string;
+  };
+  githubConnect: {
+    title: string;
+    intro: string;
+    requesting: string;
+    retry: string;
+    step1: string;
+    step2: string;
+    copy: string;
+    copied: string;
+    linkUnavailable: string;
+    waiting: string;
+  };
+  notifications: {
+    title: string;
+    browser: string;
+    browserHint: string;
+    blocked: string;
+    enabled: string;
+    grantedHint: string;
+    notRequested: string;
+    enable: string;
+    toggle: string;
+    webhook: string;
+    webhookHint: string;
+    webhookPlaceholder: string;
+    save: string;
   };
 }

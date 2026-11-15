@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { Modal } from "@/components/ui/Modal";
 import { StatusPill, type StatusKind } from "@/components/ui/Pills";
 import { useTranslation } from "@/hooks/useTranslation";
+import { IconTerminal } from "@/components/ui/icons";
+import { LogViewer } from "@/components/Card/LogViewer";
 import type { AgentState, AgentStatus } from "@/types";
 
 /** The four live executor steps, in order (spec §5). */
@@ -73,11 +75,26 @@ export function AgentBadge({ agent, taskTitle }: AgentBadgeProps) {
           <Modal
             open={open}
             onClose={() => setOpen(false)}
-            title={taskTitle ? `${t.taskCard.agentLog} · ${taskTitle}` : t.taskCard.agentLog}
+            title={t.taskCard.agentLog}
+            description={taskTitle}
+            icon={<IconTerminal size={18} />}
+            size="xl"
+            footerStart={t.taskDetail.lines((agent.log ?? []).length)}
+            footer={
+              <StatusPill status={STEP_KIND[agent.status]} variant={live ? "solid" : "soft"} live={live}>
+                {label}
+              </StatusPill>
+            }
           >
-            <pre className="analysis-block max-h-[60vh] overflow-auto whitespace-pre-wrap break-words p-4">
-              {(agent.log ?? []).join("\n") || t.taskCard.logEmpty}
-            </pre>
+            <LogViewer
+              lines={agent.log ?? []}
+              follow
+              live={live}
+              followLabel={t.taskDetail.follow}
+              emptyLabel={t.taskCard.logEmpty}
+              ariaLabel={t.taskCard.agentLog}
+              className="h-[58vh]"
+            />
           </Modal>,
           document.body,
         )}

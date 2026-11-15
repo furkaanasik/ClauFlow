@@ -1,32 +1,29 @@
 "use client";
 
-import { useMemo, useRef, useEffect, useState } from "react";
-import clsx from "clsx";
+import { useMemo, useState, type CSSProperties } from "react";
 import { useBoardStore } from "@/store/boardStore";
+import { IconButton } from "@/components/ui/Button";
+import { StatusPill, type StatusKind } from "@/components/ui/Pills";
+import { IconChevronRight, IconClose, IconFlow, IconRobot } from "@/components/ui/icons";
+import { useTranslation } from "@/hooks/useTranslation";
+import { LogViewer } from "@/components/Card/LogViewer";
 import type { NodeRun, NodeRunStatus } from "@/types";
 
 const EMPTY_NODE_RUNS: Record<string, NodeRun> = Object.freeze({}) as Record<string, NodeRun>;
 const EMPTY_LOG: string[] = Object.freeze([]) as unknown as string[];
 
-const STATUS_DOT: Record<NodeRunStatus, string> = {
-  running: "bg-blue-400 animate-pulse",
-  done:    "bg-emerald-400",
-  error:   "bg-rose-400",
-  aborted: "bg-amber-400",
+const STATUS_KIND: Record<NodeRunStatus, StatusKind> = {
+  running: "doing",
+  done: "done",
+  error: "error",
+  aborted: "review",
 };
 
-const STATUS_BORDER: Record<NodeRunStatus, string> = {
-  running: "border-blue-500/60",
-  done:    "border-emerald-500/60",
-  error:   "border-rose-500/60",
-  aborted: "border-amber-500/60",
-};
-
-const STATUS_LABEL: Record<NodeRunStatus, string> = {
-  running: "running",
-  done:    "done",
-  error:   "error",
-  aborted: "aborted",
+const STATUS_FILL: Record<NodeRunStatus, string> = {
+  running: "var(--orange)",
+  done: "var(--green)",
+  error: "var(--red)",
+  aborted: "var(--mustard)",
 };
 
 interface MiniDagViewProps {
@@ -36,32 +33,32 @@ interface MiniDagViewProps {
   nodeNoLogLabel: string;
 }
 
-export function MiniDagView({
-  taskId,
-  noNodesLabel,
-  nodeLogsTitle,
-  nodeNoLogLabel,
-}: MiniDagViewProps) {
-  const nodeRuns = useBoardStore((s) =>
-    taskId ? s.nodeRuns[taskId] ?? EMPTY_NODE_RUNS : EMPTY_NODE_RUNS,
-  );
+function nodeName(run: NodeRun, fallback: string): string {
+  if (run.nodeType === "subagent") {
+    return typeof run.inputArtifact?.subagent_type === "string" ? run.inputArtifact.subagent_type : fallback;
+  }
+  return run.nodeId;
+}
 
+/**
+ * Graph-mode run as a left-to-right strip of station cards (status cap on
+ * top, tokens underneath). Selecting a node opens its meta + live log.
+ */
+export function MiniDagView({ taskId, noNodesLabel, nodeLogsTitle, nodeNoLogLabel }: MiniDagViewProps) {
+  const t = useTranslation();
+  const f = t.flow;
+  const nodeRuns = useBoardStore((s) => (taskId ? s.nodeRuns[taskId] ?? EMPTY_NODE_RUNS : EMPTY_NODE_RUNS));
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const sortedRuns = useMemo(
-    () =>
-      Object.values(nodeRuns).sort(
-        (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
-      ),
+    () => Object.values(nodeRuns).sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()),
     [nodeRuns],
   );
 
   const selectedRun = selectedNodeId ? nodeRuns[selectedNodeId] : undefined;
 
   const liveLog = useBoardStore((s) =>
-    taskId && selectedNodeId
-      ? s.nodeLogs[taskId]?.[selectedNodeId] ?? EMPTY_LOG
-      : EMPTY_LOG,
+    taskId && selectedNodeId ? s.nodeLogs[taskId]?.[selectedNodeId] ?? EMPTY_LOG : EMPTY_LOG,
   );
 
   const persistedLog = useMemo(() => {
@@ -71,168 +68,144 @@ export function MiniDagView({
   }, [liveLog.length, selectedRun]);
 
   const log = liveLog.length > 0 ? liveLog : persistedLog ?? EMPTY_LOG;
-
-  const logRef = useRef<HTMLPreElement | null>(null);
-  useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [log.length]);
+  const statusLabel: Record<NodeRunStatus, string> = {
+    running: f.running,
+    done: f.done,
+    error: f.error,
+    aborted: f.aborted,
+  };
 
   if (sortedRuns.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 border border-dashed border-[var(--border)] text-sm text-[var(--text-faint)]">
-        {noNodesLabel}
+      <div className="ui-hatch flex flex-1 flex-col items-center justify-center gap-3 rounded-[14px] border-2 border-dashed border-line px-6 py-12 text-center">
+        <span
+          aria-hidden
+          className="grid h-11 w-11 place-items-center rounded-[12px] border-2 border-line bg-panel text-ink-2 shadow-hard"
+        >
+          <IconFlow size={20} />
+        </span>
+        <p className="max-w-xs text-[13px] text-ink-2">{noNodesLabel}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      {/* Node grid */}
-      <div className="flex flex-wrap gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <span className="t-label">{f.nodes(sortedRuns.length)}</span>
+        <span className="h-[2px] flex-1 rounded bg-hair" aria-hidden />
+      </div>
+
+      {/* Station strip */}
+      <div className="flex flex-wrap items-stretch gap-x-1.5 gap-y-4 pb-1 pr-1">
         {sortedRuns.map((run, idx) => {
           const isSelected = selectedNodeId === run.nodeId;
-          const borderCls = STATUS_BORDER[run.status];
+          const isSub = run.nodeType === "subagent";
           return (
-            <button
-              key={run.nodeId}
-              type="button"
-              onClick={() =>
-                setSelectedNodeId((prev) => (prev === run.nodeId ? null : run.nodeId))
-              }
-              className={clsx(
-                "flex flex-col gap-1 border bg-[var(--bg-surface)] px-3 py-2 text-left transition hover:bg-[var(--bg-elevated)]",
-                run.nodeType === "subagent" ? "min-w-[180px] max-w-[260px]" : "min-w-[120px]",
-                isSelected
-                  ? `${borderCls} bg-[var(--bg-elevated)]`
-                  : "border-[var(--border)]",
-              )}
-            >
-              {/* index + label */}
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono text-[9px] text-[var(--text-faint)]">
-                  {idx + 1}
+            <div key={run.nodeId} className="flex items-stretch gap-1.5">
+              {idx > 0 && <IconChevronRight size={16} className="flow-link" aria-hidden />}
+              <button
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => setSelectedNodeId((prev) => (prev === run.nodeId ? null : run.nodeId))}
+                className="flow-node"
+                style={{ "--flow": STATUS_FILL[run.status] } as CSSProperties}
+              >
+                <span className="mt-1 flex items-center gap-1.5">
+                  <span className="font-mono text-[10px] font-bold text-ink-3">{String(idx + 1).padStart(2, "0")}</span>
+                  {isSub && <IconRobot size={12} className="text-[var(--cobalt-text)]" />}
+                  <span className="min-w-0 truncate font-mono text-[12px] font-bold text-ink">
+                    {nodeName(run, f.subagent)}
+                  </span>
                 </span>
-                {run.nodeType === "subagent" ? (
-                  <span className="truncate font-mono text-[11px] font-semibold text-[var(--accent-primary)]">
-                    {typeof run.inputArtifact?.subagent_type === "string"
-                      ? run.inputArtifact.subagent_type
-                      : "subagent"}
-                  </span>
-                ) : (
-                  <span className="truncate font-mono text-[11px] font-semibold text-[var(--text-primary)]">
-                    {run.nodeId}
-                  </span>
+                {isSub && typeof run.inputArtifact?.description === "string" && (
+                  <span className="line-clamp-2 text-[11.5px] leading-snug text-ink-2">{run.inputArtifact.description}</span>
                 )}
-              </div>
-
-              {/* description (subagent only) */}
-              {run.nodeType === "subagent" && typeof run.inputArtifact?.description === "string" && (
-                <span className="line-clamp-2 text-[10px] leading-snug text-[var(--text-secondary)]">
-                  {run.inputArtifact.description}
+                <span className="flex items-center gap-2">
+                  <StatusPill status={STATUS_KIND[run.status]} live={run.status === "running"} className="!h-5 !px-2 !text-[10.5px]">
+                    {statusLabel[run.status]}
+                  </StatusPill>
+                  {(run.inputTokens > 0 || run.outputTokens > 0) && (
+                    <span className="font-mono text-[10px] text-ink-3">
+                      {run.inputTokens}↑ {run.outputTokens}↓
+                    </span>
+                  )}
                 </span>
-              )}
-
-              {/* status row */}
-              <div className="flex items-center gap-1.5">
-                <span className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_DOT[run.status])} />
-                <span className="font-mono text-[9px] uppercase tracking-wide text-[var(--text-muted)]">
-                  {STATUS_LABEL[run.status]}
-                </span>
-              </div>
-
-              {/* token info if available */}
-              {(run.inputTokens > 0 || run.outputTokens > 0) && (
-                <span className="font-mono text-[9px] text-[var(--text-faint)]">
-                  {run.inputTokens}↑ {run.outputTokens}↓
-                </span>
-              )}
-
-              {run.errorMessage && (
-                <span className="truncate font-mono text-[9px] text-rose-400">
-                  {run.errorMessage}
-                </span>
-              )}
-            </button>
+                {run.errorMessage && (
+                  <span className="truncate font-mono text-[10.5px] text-[var(--red-text)]">{run.errorMessage}</span>
+                )}
+              </button>
+            </div>
           );
         })}
       </div>
 
-      {/* Inline log panel */}
+      {/* Node detail */}
       {selectedNodeId && (
-        <div className="flex min-h-0 flex-1 flex-col border border-[var(--border)] bg-[var(--bg-base)]">
-          <header className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-2">
-            <span className="font-mono text-[11px] text-[var(--text-secondary)]">
-              {nodeLogsTitle} —{" "}
-              <span className="text-[var(--text-primary)]">
-                {selectedRun?.nodeType === "subagent" && typeof selectedRun.inputArtifact?.subagent_type === "string"
-                  ? selectedRun.inputArtifact.subagent_type
-                  : selectedNodeId}
-              </span>
+        <section className="ui-tabpanel flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border-2 border-line bg-panel shadow-hard">
+          <header className="flex shrink-0 items-center gap-2 border-b-2 border-line px-3 py-2">
+            <span className="t-label">{nodeLogsTitle}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-[12px] font-bold text-ink">
+              {selectedRun ? nodeName(selectedRun, selectedNodeId) : selectedNodeId}
             </span>
-            <button
-              type="button"
-              onClick={() => setSelectedNodeId(null)}
-              className="text-[14px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              aria-label="Close log panel"
-            >
-              ×
-            </button>
+            <IconButton label={f.closeLog} size="sm" variant="ghost" onClick={() => setSelectedNodeId(null)}>
+              <IconClose size={13} />
+            </IconButton>
           </header>
 
           {selectedRun && (
-            <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-1 border-b border-[var(--border)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+            <dl className="grid shrink-0 grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-b-2 border-dashed border-hair px-4 py-3 text-[12px]">
               {selectedRun.nodeType === "subagent" && typeof selectedRun.inputArtifact?.subagent_type === "string" && (
                 <>
-                  <div>Agent</div>
-                  <div className="font-mono text-[var(--accent-primary)]">{selectedRun.inputArtifact.subagent_type}</div>
+                  <dt className="t-label self-center">{f.agent}</dt>
+                  <dd className="font-mono text-[var(--cobalt-text)]">{selectedRun.inputArtifact.subagent_type}</dd>
                 </>
               )}
               {selectedRun.nodeType === "subagent" && typeof selectedRun.inputArtifact?.description === "string" && (
                 <>
-                  <div>Task</div>
-                  <div className="leading-snug">{selectedRun.inputArtifact.description}</div>
+                  <dt className="t-label self-center">{f.task}</dt>
+                  <dd className="leading-snug text-ink-2">{selectedRun.inputArtifact.description}</dd>
                 </>
               )}
-              <div>Status</div>
-              <div className="font-mono">{selectedRun.status}</div>
-              <div>Model</div>
-              <div className="font-mono">{selectedRun.model ?? "—"}</div>
-              <div>In / Out</div>
-              <div className="font-mono">
+              <dt className="t-label self-center">{f.status}</dt>
+              <dd>
+                <StatusPill status={STATUS_KIND[selectedRun.status]} live={selectedRun.status === "running"} className="!h-5 !px-2 !text-[10.5px]">
+                  {statusLabel[selectedRun.status]}
+                </StatusPill>
+              </dd>
+              <dt className="t-label self-center">{f.model}</dt>
+              <dd className="font-mono text-ink">{selectedRun.model ?? "—"}</dd>
+              <dt className="t-label self-center">{f.inOut}</dt>
+              <dd className="font-mono text-ink">
                 {selectedRun.inputTokens} / {selectedRun.outputTokens}
-              </div>
-              <div>Started</div>
-              <div className="font-mono text-[10px]">
-                {new Date(selectedRun.startedAt).toLocaleTimeString()}
-              </div>
+              </dd>
+              <dt className="t-label self-center">{f.started}</dt>
+              <dd className="font-mono text-ink-2">{new Date(selectedRun.startedAt).toLocaleTimeString()}</dd>
               {selectedRun.finishedAt && (
                 <>
-                  <div>Finished</div>
-                  <div className="font-mono text-[10px]">
-                    {new Date(selectedRun.finishedAt).toLocaleTimeString()}
-                  </div>
+                  <dt className="t-label self-center">{f.finished}</dt>
+                  <dd className="font-mono text-ink-2">{new Date(selectedRun.finishedAt).toLocaleTimeString()}</dd>
                 </>
               )}
               {selectedRun.errorMessage && (
                 <>
-                  <div className="text-rose-400">Error</div>
-                  <div className="font-mono text-[10px] text-rose-400">
-                    {selectedRun.errorMessage}
-                  </div>
+                  <dt className="t-label self-center !text-[var(--red-text)]">{f.error2}</dt>
+                  <dd className="font-mono text-[var(--red-text)]">{selectedRun.errorMessage}</dd>
                 </>
               )}
-            </div>
+            </dl>
           )}
 
-          <pre
-            ref={logRef}
-            className="min-h-[120px] flex-1 overflow-auto whitespace-pre-wrap px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--text-secondary)]"
-          >
-            {log.length > 0 ? log.join("\n") : nodeNoLogLabel}
-          </pre>
-        </div>
+          <LogViewer
+            lines={log}
+            follow
+            live={selectedRun?.status === "running"}
+            followLabel={t.taskDetail.follow}
+            emptyLabel={nodeNoLogLabel}
+            className="m-3 min-h-[160px] flex-1"
+            ariaLabel={nodeLogsTitle}
+          />
+        </section>
       )}
     </div>
   );

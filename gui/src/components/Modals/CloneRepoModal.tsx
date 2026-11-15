@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Field, Input } from "@/components/ui/Input";
+import { SectionPill, StatusPill } from "@/components/ui/Pills";
+import { IconAlert, IconArrowUpRight, IconClock, IconDownload, IconFolder, IconGithub, IconLock, IconEye } from "@/components/ui/icons";
 import { cloneProject } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -14,6 +18,8 @@ interface CloneRepoModalProps {
 
 export function CloneRepoModal({ repo, onClose }: CloneRepoModalProps) {
   const t = useTranslation();
+  const tc = t.cloneModal;
+  const formId = useId();
   const [targetPath, setTargetPath] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +27,11 @@ export function CloneRepoModal({ repo, onClose }: CloneRepoModalProps) {
 
   const cloneStatus = useBoardStore((s) => s.cloneStatus);
   const status = currentTargetPath.current ? cloneStatus[currentTargetPath.current] : null;
+
+  // Keep showing the last repo while the modal plays its exit animation.
+  const lastRepo = useRef<GithubRepo | null>(null);
+  if (repo) lastRepo.current = repo;
+  const shown = repo ?? lastRepo.current;
 
   useEffect(() => {
     if (repo) {
@@ -62,157 +73,152 @@ export function CloneRepoModal({ repo, onClose }: CloneRepoModalProps) {
 
   const isCloning = submitting || status?.status === "cloning";
 
-  const updatedLabel = repo?.updatedAt
-    ? new Date(repo.updatedAt).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
+  const updatedLabel = shown?.updatedAt
+    ? new Date(shown.updatedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
     : null;
 
-  const visibilityLabel =
-    repo?.visibility?.toLowerCase() === "private"
-      ? t.cloneModal.visibilityPrivate
-      : t.cloneModal.visibilityPublic;
+  const isPrivate = shown?.visibility?.toLowerCase() === "private";
+  const visibilityLabel = isPrivate ? tc.visibilityPrivate : tc.visibilityPublic;
 
   return (
     <Modal
       open={repo !== null}
-      onClose={isCloning ? () => { } : onClose}
-      title={t.cloneModal.title}
+      onClose={isCloning ? () => {} : onClose}
+      title={tc.title}
+      description={tc.modalHint}
+      icon={<IconDownload size={18} />}
       size="xl"
+      footerStart={
+        isCloning ? (
+          <StatusPill status="doing" live>
+            {tc.cloning}
+          </StatusPill>
+        ) : undefined
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isCloning}>
+            {tc.cancel}
+          </Button>
+          <Button type="submit" form={formId} variant="primary" icon={<IconDownload size={15} />} loading={isCloning}>
+            {isCloning ? tc.submitting : tc.submit}
+          </Button>
+        </>
+      }
     >
-      <div className="grid gap-6 md:grid-cols-[1fr_1fr]">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {repo && (
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium text-[var(--text-primary)]">{repo.name}</span>
-              <span className="font-mono text-xs text-[var(--text-faint)]">{repo.nameWithOwner}</span>
+      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-5">
+          {shown && (
+            <div className="flex items-center gap-3">
+              <span
+                aria-hidden
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] border-2 border-line bg-ink text-[var(--on-ink)] shadow-hard"
+              >
+                <IconGithub size={20} />
+              </span>
+              <div className="min-w-0">
+                <div className="truncate text-[16px] font-bold text-ink">{shown.name}</div>
+                <div className="truncate font-mono text-[12px] text-ink-3">{shown.nameWithOwner}</div>
+              </div>
             </div>
           )}
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[var(--text-secondary)]">
-              {t.cloneModal.targetDirLabel}
-            </label>
-            <input
-              type="text"
-              value={targetPath}
-              onChange={(e) => setTargetPath(e.target.value)}
-              placeholder={t.cloneModal.targetDirPlaceholder}
-              disabled={isCloning}
-              required
-              className="w-full border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none transition focus:border-[var(--text-secondary)] disabled:opacity-50"
-            />
+          <Field label={tc.targetDirLabel}>
+            {({ id }) => (
+              <Input
+                id={id}
+                value={targetPath}
+                onChange={(e) => setTargetPath(e.target.value)}
+                placeholder={tc.targetDirPlaceholder}
+                disabled={isCloning}
+                required
+                icon={<IconFolder size={14} />}
+                className="font-mono"
+                autoFocus
+              />
+            )}
+          </Field>
+
+          {/* Where it lands: a little path ribbon */}
+          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11.5px] text-ink-3" aria-hidden>
+            {targetPath
+              .split("/")
+              .filter(Boolean)
+              .map((seg, i, arr) => (
+                <span key={`${seg}-${i}`} className="flex items-center gap-1.5">
+                  <span
+                    className={
+                      i === arr.length - 1
+                        ? "rounded-[6px] border-2 border-line bg-mustard px-1.5 py-0.5 font-bold text-[var(--on-mustard)]"
+                        : "rounded-[6px] border-2 border-hair bg-panel px-1.5 py-0.5"
+                    }
+                  >
+                    {seg}
+                  </span>
+                  {i < arr.length - 1 && <span>/</span>}
+                </span>
+              ))}
           </div>
 
           {error && (
-            <p className="text-xs text-[var(--status-error)]">
-              {t.cloneModal.errorPrefix} {error}
-            </p>
-          )}
-
-          {isCloning && (
-            <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-              <Spinner />
-              <span>{t.cloneModal.cloning}</span>
+            <div role="alert" className="ui-banner ui-banner--error">
+              <IconAlert size={15} className="mt-0.5 shrink-0" />
+              <span>
+                {tc.errorPrefix} {error}
+              </span>
             </div>
           )}
-
-          <div className="mt-auto flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isCloning}
-              className="border border-[var(--border)] px-4 py-2 text-xs text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:opacity-50"
-            >
-              {t.cloneModal.cancel}
-            </button>
-            <button
-              type="submit"
-              disabled={isCloning}
-              className="btn-ink px-4 py-2 text-xs disabled:opacity-50"
-            >
-              {isCloning ? t.cloneModal.submitting : t.cloneModal.submit}
-            </button>
-          </div>
         </form>
 
-        {repo && (
-          <aside className="flex max-h-[60vh] flex-col overflow-y-auto border border-[var(--border)] bg-[var(--bg-surface)] p-4">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
-              §  {t.cloneModal.repoInfoTitle}
-            </span>
+        {shown && (
+          <aside className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto rounded-[14px] border-2 border-line bg-sunken p-4">
+            <SectionPill size="sm" icon={<IconGithub size={12} />} className="self-start">
+              {tc.repoInfoTitle}
+            </SectionPill>
 
-            <h3 className="t-display mt-2 break-words text-lg leading-tight text-[var(--text-primary)]">
-              {repo.name}
-            </h3>
-            <span className="mt-0.5 break-all font-mono text-[11px] text-[var(--text-faint)]">
-              {repo.nameWithOwner}
-            </span>
+            <div>
+              <h3 className="t-display break-words text-[22px] leading-tight text-ink">{shown.name}</h3>
+              <span className="break-all font-mono text-[12px] text-ink-3">{shown.nameWithOwner}</span>
+            </div>
 
-            <div className="mt-4 flex flex-col gap-3 text-xs">
-              <div className="flex flex-col gap-1">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
-                  {t.cloneModal.description}
+            <div className="flex flex-col gap-1">
+              <span className="t-label">{tc.description}</span>
+              <p className="text-[13px] leading-relaxed text-ink-2">
+                {shown.description?.trim() || <em className="text-ink-3">{tc.noDescription}</em>}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1 rounded-[10px] border-2 border-line bg-panel p-2.5">
+                <span className="t-label">{tc.visibility}</span>
+                <span className="flex items-center gap-1.5 text-[13px] font-semibold text-ink">
+                  {isPrivate ? <IconLock size={13} /> : <IconEye size={13} />}
+                  {visibilityLabel}
                 </span>
-                <p className="leading-relaxed text-[var(--text-secondary)]">
-                  {repo.description?.trim() || (
-                    <em className="text-[var(--text-faint)]">{t.cloneModal.noDescription}</em>
-                  )}
-                </p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
-                    {t.cloneModal.visibility}
-                  </span>
-                  <span className="font-mono text-[11px] text-[var(--text-primary)]">
-                    {visibilityLabel}
+              {updatedLabel && (
+                <div className="flex flex-col gap-1 rounded-[10px] border-2 border-line bg-panel p-2.5">
+                  <span className="t-label">{tc.updatedAt}</span>
+                  <span className="flex items-center gap-1.5 font-mono text-[12px] font-semibold text-ink">
+                    <IconClock size={13} />
+                    {updatedLabel}
                   </span>
                 </div>
-                {updatedLabel && (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--text-faint)]">
-                      {t.cloneModal.updatedAt}
-                    </span>
-                    <span className="font-mono text-[11px] text-[var(--text-primary)]">
-                      {updatedLabel}
-                    </span>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
             <a
-              href={repo.url}
+              href={shown.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-auto flex items-center justify-between gap-2 border border-[var(--border)] px-3 py-2 pt-2 font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--text-secondary)] transition hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+              className="ui-btn ui-btn--secondary ui-btn--sm ui-focus mt-auto !justify-between"
             >
-              <span>{t.cloneModal.viewOnGithub}</span>
-              <span aria-hidden>↗</span>
+              <span>{tc.viewOnGithub}</span>
+              <IconArrowUpRight size={14} />
             </a>
           </aside>
         )}
       </div>
     </Modal>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg
-      className="h-3 w-3 animate-spin"
-      style={{ color: "var(--accent-primary)" }}
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
   );
 }

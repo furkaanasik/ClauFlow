@@ -11,6 +11,7 @@ export { Tabs } from "./Tabs";
 export type { TabItem } from "./Tabs";
 export { Input, Textarea, Select, Field } from "./Input";
 export { Kbd } from "./Kbd";
+export { Checkbox, Switch } from "./Toggle";
 export { Tooltip } from "./Tooltip";
 export { Avatar } from "./Avatar";
 export { Drawer } from "./Drawer";
