@@ -69,6 +69,26 @@ describe("recoverOrphanedTasks", () => {
     expect(recovered).toBe(0);
   });
 
+  it("keeps a task waiting for its dependencies (zincir, plan §3/25): row unchanged, no error", async () => {
+    const waiting = await createTask({ projectId, title: "waiting on deps" });
+    try {
+      db.prepare(
+        `UPDATE tasks SET status = 'doing', agentStatus = 'waiting_deps', agentCurrentStep = 'waiting_deps',
+           waitUiLang = 'en' WHERE id = ?`,
+      ).run(waiting.id);
+      const before = db.prepare(`SELECT * FROM tasks WHERE id = ?`).get(waiting.id);
+      const result = await recoverAndBroadcastOrphans();
+      expect(result.taskIds).not.toContain(waiting.id);
+      expect(db.prepare(`SELECT * FROM tasks WHERE id = ?`).get(waiting.id)).toEqual(before);
+      const after = (await getTask(waiting.id))!;
+      expect(after.status).toBe("doing");
+      expect(after.agent.status).toBe("waiting_deps");
+      expect(after.agent.error).toBeNull();
+    } finally {
+      db.prepare(`DELETE FROM tasks WHERE id = ?`).run(waiting.id);
+    }
+  });
+
   it("writes the server_restart code, errors stuck node runs and broadcasts every changed row (A8a)", async () => {
     await updateTask(taskId, { status: "doing", agent: { status: "running", error: null } });
     const run = createTeamRun(taskId, resolveTeamForTask((await getTask(taskId))!, (await getProject(projectId))!));

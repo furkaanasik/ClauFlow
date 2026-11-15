@@ -193,3 +193,38 @@ describe("/retry passes the gate (zincir F2)", () => {
     expect(exec.enqueued).toEqual([{ id: b.id, uiLang: "tr" }]);
   });
 });
+
+describe("POST /:id/start-waiting (zincir F2, plan §3/25)", () => {
+  it("a ready waiting task starts once; a second call is 409 not_waiting", async () => {
+    const { a, b } = await setup();
+    await call("PATCH", `/api/tasks/${b.id}`, { status: "doing", uiLang: "en" });
+    // Crash window: the dependency is done but the trigger never ran.
+    db.prepare(`UPDATE tasks SET status = 'done' WHERE id = ?`).run(a.id);
+    const r = await call("POST", `/api/tasks/${b.id}/start-waiting`);
+    expect(r.status).toBe(200);
+    expect(r.json.task.agent.status).toBe("idle");
+    expect(exec.enqueued).toEqual([{ id: b.id, uiLang: "en" }]);
+    const again = await call("POST", `/api/tasks/${b.id}/start-waiting`);
+    expect(again.status).toBe(409);
+    expect(again.json.error).toBe("not_waiting");
+    expect(exec.enqueued).toHaveLength(1);
+  });
+
+  it("a waiting task with an unmet dependency → 409 dependencies_unmet + displayIds", async () => {
+    const { a, b } = await setup();
+    await call("PATCH", `/api/tasks/${b.id}`, { status: "doing" });
+    const r = await call("POST", `/api/tasks/${b.id}/start-waiting`);
+    expect(r.status).toBe(409);
+    expect(r.json).toEqual({ error: "dependencies_unmet", unmet: [a.displayId] });
+    expect(exec.enqueued).toEqual([]);
+  });
+
+  it("a todo task → 409 not_waiting; unknown task → 404", async () => {
+    const { a } = await setup();
+    const r = await call("POST", `/api/tasks/${a.id}/start-waiting`);
+    expect(r.status).toBe(409);
+    expect(r.json.error).toBe("not_waiting");
+    expect((await call("POST", `/api/tasks/task_nope/start-waiting`)).status).toBe(404);
+    expect(exec.enqueued).toEqual([]);
+  });
+});

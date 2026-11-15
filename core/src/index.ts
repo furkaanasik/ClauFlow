@@ -15,7 +15,7 @@ import fsRouter from "./routes/fs.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
 import { recoverAndBroadcastOrphans } from "./services/orphanRecovery.js";
 import { auditProjectBaseBranches } from "./services/baseBranch.js";
-import { installChainHooks } from "./services/chainService.js";
+import { installChainHooks, sweepWaitingTasks } from "./services/chainService.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1";
@@ -67,6 +67,16 @@ server.listen(PORT, HOST, async () => {
     }
   } catch (err) {
     console.error("[core] orphan recovery failed:", err);
+  }
+  // zincir (plan §3/25, E5): report waiting tasks whose dependencies were met
+  // while core was down. Starts nothing; the user presses "Start".
+  try {
+    const sweep = sweepWaitingTasks();
+    if (sweep.waiting.length > 0) {
+      console.log(`[core] ${sweep.waiting.length} task(s) waiting for dependencies, ${sweep.ready.length} ready`);
+    }
+  } catch (err) {
+    console.error("[core] waiting task sweep failed:", err);
   }
   // zincir F0.5: log projects whose base branch is missing; changes nothing.
   try {

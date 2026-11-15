@@ -47,6 +47,7 @@ import {
   listDependents,
   MAX_DEPENDENCIES,
   setDependencies,
+  unmetDependencies,
 } from "../services/dependencyService.js";
 import { abortWaiting, gateDoing, tryStartWaiting } from "../services/chainService.js";
 import { existsSync } from "node:fs";
@@ -241,6 +242,30 @@ router.put("/:id/dependencies", async (req: Request, res: Response) => {
     res.json({ task: started ?? updated });
   } catch (err) {
     if (err instanceof DependencyError) return res.status(err.httpStatus).json(err.toBody());
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+// zincir (plan §3/25, E5): the user's "Start" for a waiting task whose
+// dependencies are all done (e.g. met while core was down; boot never starts it).
+router.post("/:id/start-waiting", async (req: Request, res: Response) => {
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    if (task.status !== "doing" || task.agent.status !== "waiting_deps") {
+      return res.status(409).json({ error: "not_waiting" });
+    }
+    const unmet = unmetDependencies(task.id);
+    if (unmet.length > 0) {
+      return res
+        .status(409)
+        .json({ error: "dependencies_unmet", unmet: unmet.map((t) => t.displayId ?? t.id) });
+    }
+    const started = tryStartWaiting(task.id);
+    // Lost the race to another trigger: it is no longer waiting.
+    if (!started) return res.status(409).json({ error: "not_waiting" });
+    res.json({ task: started });
+  } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
 });
