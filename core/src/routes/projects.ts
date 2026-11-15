@@ -12,11 +12,8 @@ function expandHome(p: string): string {
   return p;
 }
 
-function assertIsGitRepo(repoPath: string): void {
-  const resolved = path.resolve(expandHome(repoPath));
-  if (!fs.existsSync(path.join(resolved, ".git"))) {
-    throw new Error(`repoPath is not a git repository: ${resolved}`);
-  }
+function isGitRepo(repoPath: string): boolean {
+  return fs.existsSync(path.join(path.resolve(expandHome(repoPath)), ".git"));
 }
 
 async function ensureLocalRepo(repoPath: string, branch: string, name: string): Promise<void> {
@@ -72,10 +69,15 @@ const slugSchema = z
   .string()
   .min(1)
   .max(50)
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
-    message:
-      "slug yalnızca küçük harf, rakam ve tek tire içerebilir; başta/sonda tire olamaz",
-  });
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, { message: "invalid_slug" });
+
+/** A bad slug answers `invalid_slug`; any other schema failure `invalid_body`. */
+function invalidBody(res: Response, error: z.ZodError) {
+  const slugIssue = error.issues.some((i) => i.path[0] === "slug");
+  return res
+    .status(400)
+    .json({ error: slugIssue ? "invalid_slug" : "invalid_body", issues: error.issues });
+}
 
 const createProjectSchema = z.object({
   name: z.string().min(1),
@@ -137,26 +139,22 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 router.post("/", async (req: Request, res: Response) => {
   const parsed = createProjectSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
-  }
+  if (!parsed.success) return invalidBody(res, parsed.error);
   try {
     const data = parsed.data;
 
     if (!path.isAbsolute(data.repoPath)) {
-      res.status(400).json({ error: "repoPath mutlak bir yol olmalıdır" });
+      res.status(400).json({ error: "repo_path_not_absolute" });
       return;
     }
 
     if (path.resolve(data.repoPath).split(path.sep).filter(Boolean).length < 2) {
-      res.status(400).json({ error: "repoPath çok sığ — en az /a/b derinliğinde olmalı" });
+      res.status(400).json({ error: "repo_path_too_shallow" });
       return;
     }
 
     if (data.repoName && !/^[a-zA-Z0-9_.-]+$/.test(data.repoName)) {
-      res
-        .status(400)
-        .json({ error: "repoName sadece harf, rakam, _ . - içerebilir" });
+      res.status(400).json({ error: "invalid_repo_name" });
       return;
     }
 
@@ -265,16 +263,14 @@ router.post("/clone", async (req: Request, res: Response) => {
   const targetPath = normalizeClonePath(parsed.data.targetPath);
 
   if (!path.isAbsolute(targetPath)) {
-    return res.status(400).json({ error: "targetPath mutlak bir yol olmalıdır" });
+    return res.status(400).json({ error: "target_path_not_absolute" });
   }
 
   if (fs.existsSync(targetPath)) {
     try {
       const entries = fs.readdirSync(targetPath);
       if (entries.length > 0) {
-        return res
-          .status(409)
-          .json({ error: "targetPath mevcut ve boş değil" });
+        return res.status(409).json({ error: "target_path_not_empty" });
       }
     } catch (err) {
       return res.status(400).json({ error: errorMessage(err) });
@@ -283,9 +279,7 @@ router.post("/clone", async (req: Request, res: Response) => {
 
   const projects = await listProjects();
   if (projects.some((p) => p.repoPath === targetPath)) {
-    return res
-      .status(409)
-      .json({ error: "Bu yola sahip bir proje zaten mevcut" });
+    return res.status(409).json({ error: "project_path_exists" });
   }
 
   runCloneRepo({ repoUrl, targetPath, name }).catch((err) => {
@@ -310,9 +304,7 @@ const updateProjectSchema = z.object({
 
 router.patch("/:id", async (req: Request, res: Response) => {
   const parsed = updateProjectSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
-  }
+  if (!parsed.success) return invalidBody(res, parsed.error);
   try {
     const id = req.params.id!;
     const existing = await getProject(id);
@@ -330,11 +322,11 @@ router.patch("/:id", async (req: Request, res: Response) => {
     }
 
     if (data.repoPath !== undefined && !path.isAbsolute(data.repoPath)) {
-      return res.status(400).json({ error: "repoPath mutlak bir yol olmalıdır" });
+      return res.status(400).json({ error: "repo_path_not_absolute" });
     }
 
-    if (data.repoPath !== undefined) {
-      assertIsGitRepo(data.repoPath);
+    if (data.repoPath !== undefined && !isGitRepo(data.repoPath)) {
+      return res.status(400).json({ error: "repo_path_not_git" });
     }
 
     if (data.repoPath !== undefined || data.defaultBranch !== undefined) {
@@ -367,10 +359,10 @@ router.patch("/:id", async (req: Request, res: Response) => {
   } catch (err) {
     const msg = errorMessage(err);
     if (msg.startsWith("Slug already in use")) {
-      return res.status(409).json({ error: msg });
+      return res.status(409).json({ error: "slug_in_use" });
     }
     if (msg.startsWith("Invalid slug")) {
-      return res.status(400).json({ error: msg });
+      return res.status(400).json({ error: "invalid_slug" });
     }
     res.status(500).json({ error: msg });
   }

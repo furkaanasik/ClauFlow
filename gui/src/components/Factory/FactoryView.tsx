@@ -46,6 +46,7 @@ const ACCENT_VAR: Record<string, string> = {
  */
 export function FactoryView({ tasks, epoch }: { tasks: Task[]; epoch: string }) {
   const t = useTranslation();
+  const lang = useBoardStore((s) => s.lang);
   const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
   const selectTask = useBoardStore((s) => s.selectTask);
   const setView = useViewStore((s) => s.setView);
@@ -71,8 +72,9 @@ export function FactoryView({ tasks, epoch }: { tasks: Task[]; epoch: string }) 
       steps: t.taskCard.agentSteps,
       roles: t.team.roles,
       activity: t.team.activity,
+      locale: lang,
     }),
-    [t],
+    [t, lang],
   );
 
   const onHover = useCallback((target: HoverTarget | null, x?: number, y?: number) => {

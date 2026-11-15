@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Drawer } from "@/components/ui/Drawer";
 import { Tabs } from "@/components/ui/Tabs";
@@ -37,14 +39,14 @@ import { TeamTimeline } from "@/components/Card/TeamTimeline";
 import { ApprovalGate } from "@/components/Card/ApprovalGate";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
-import { errorText } from "@/lib/errorText";
+import { apiErrorCode, errorText } from "@/lib/errorText";
 import { formatTokens, totalTokens } from "@/lib/cost";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { TeamPicker } from "@/components/Team/TeamPicker";
 import { agentStepLabel, teamStepKind } from "@/components/Team/roleMeta";
 import { formatUsd, isAgentWorking, taskCost } from "@/lib/boardView";
-import type { AgentText, Project, Task, TaskPatch, ToolCall } from "@/types";
+import type { AgentText, Project, Task, TaskPatch, TeamArtifact, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
 type DrawerTab = "details" | "changes" | "log" | "team" | "comments";
@@ -182,9 +184,9 @@ export function TaskDetailDrawer() {
     try {
       const updated = await api.updateTask(task.id, { teamId });
       upsertTask(updated);
-    } catch {
+    } catch (err) {
       // server is source of truth — no optimistic update to roll back
-      setTeamError(tt.team.picker.saveError);
+      setTeamError(apiErrorCode(err) ? errorText(tt, err) : tt.team.picker.saveError);
     }
   };
 
@@ -227,7 +229,7 @@ export function TaskDetailDrawer() {
       setEditing(false);
       setDraft(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : td.errors.updateFailed);
+      setError(errorText(tt, err, td.errors.updateFailed));
     } finally {
       setSaving(false);
     }
@@ -242,7 +244,7 @@ export function TaskDetailDrawer() {
       upsertTask(updated);
       setTab("log");
     } catch (err) {
-      setError(err instanceof Error ? err.message : td.errors.retryFailed);
+      setError(errorText(tt, err, td.errors.retryFailed));
     } finally {
       setRetrying(false);
     }
@@ -256,7 +258,7 @@ export function TaskDetailDrawer() {
     try {
       await api.abortTask(task.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : td.abortFailed);
+      setError(errorText(tt, err, td.abortFailed));
     } finally {
       setAborting(false);
     }
@@ -268,7 +270,7 @@ export function TaskDetailDrawer() {
     try {
       await api.breakdownTask(task.id, breakdownPrompt.trim(), 6);
     } catch (err) {
-      setBreakdownError(err instanceof Error ? err.message : td.breakdownError);
+      setBreakdownError(errorText(tt, err, td.breakdownError));
     }
   };
 
@@ -282,7 +284,7 @@ export function TaskDetailDrawer() {
       removeTask(task.id);
       selectTask(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : td.errors.deleteFailed);
+      setError(errorText(tt, err, td.errors.deleteFailed));
       setDeleting(false);
     }
   };
@@ -305,6 +307,15 @@ export function TaskDetailDrawer() {
   );
   const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
   const teamArtifactCount = useBoardStore((s) => (task ? s.teamArtifacts[task.id]?.length ?? 0 : 0));
+  /** Newest Analyst spec — the Analysis section falls back to it (plan §3/14). */
+  const latestSpec = useBoardStore((s) => {
+    const list = task ? s.teamArtifacts[task.id] : undefined;
+    let latest: TeamArtifact | null = null;
+    for (const a of list ?? []) {
+      if (a.kind === "spec" && (!latest || a.createdAt >= latest.createdAt)) latest = a;
+    }
+    return latest;
+  });
   const teamQaRound = useBoardStore((s) => {
     const runs = task ? s.teamRuns[task.id] : undefined;
     return runs?.[runs.length - 1]?.qaRound ?? 0;
@@ -524,6 +535,8 @@ export function TaskDetailDrawer() {
                   emptyMessage={td.toolTimelineEmpty}
                   isAgentRunning={task.status === "doing"}
                   thinkingMessage={td.toolThinking}
+                  runStartedAt={task.agent.startedAt}
+                  runFinishedAt={task.agent.finishedAt}
                 />
               ) : (
                 <LogViewer
@@ -651,8 +664,37 @@ export function TaskDetailDrawer() {
                   <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 font-mono text-[12.5px] leading-relaxed text-ink">
                     {task.analysis}
                   </pre>
+                ) : latestSpec ? (
+                  // No hand-written analysis: show the Analyst's latest spec (plan §3/14).
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-2">
+                        <IconClipboard size={12} />
+                        {td.analysisFromSpec}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setTab("team")}
+                        className="ui-focus rounded-[6px] text-[12px] font-semibold text-[var(--cobalt-text)] underline underline-offset-2"
+                      >
+                        {td.analysisOpenTeam}
+                      </button>
+                    </div>
+                    <div className="comment-markdown max-h-80 overflow-auto rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 text-[13.5px] leading-relaxed text-ink">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{latestSpec.body}</ReactMarkdown>
+                    </div>
+                  </div>
                 ) : (
-                  <EmptyLine>{td.analysisEmpty}</EmptyLine>
+                  <EmptyLine>
+                    {td.analysisEmpty}{" "}
+                    <button
+                      type="button"
+                      onClick={() => setTab("team")}
+                      className="ui-focus rounded-[4px] font-semibold not-italic text-[var(--cobalt-text)] underline underline-offset-2"
+                    >
+                      {td.analysisOpenTeam}
+                    </button>
+                  </EmptyLine>
                 )}
               </Section>
 
@@ -722,7 +764,7 @@ export function TaskDetailDrawer() {
               {/* Below lg the split aside is hidden, so its sections move inline */}
               <div className="mb-7 rounded-[14px] border-2 border-line bg-panel p-4 lg:hidden">{meta}</div>
 
-              {!editing && (
+              {!editing && task.status !== "done" && task.status !== "doing" && (
                 <div className="mb-2">
                   {!showBreakdown ? (
                     <button
@@ -842,8 +884,9 @@ function TaskMeta({
   onTeamChange: (teamId: string | null) => void;
 }) {
   const td = t.taskDetail;
-  // The team is fixed once the task is picked up (queued, running or paused at the gate).
-  const teamLocked = task.status === "doing" || isAgentWorking(task);
+  // The team is fixed once the task is picked up (queued, running or paused at the
+  // gate) and once it is done (core answers 409 task_done).
+  const teamLocked = task.status === "doing" || task.status === "done" || isAgentWorking(task);
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "tr-TR", {
       day: "2-digit",
@@ -924,6 +967,7 @@ function TaskMeta({
             value={task.teamId ?? null}
             onChange={onTeamChange}
             locked={teamLocked}
+            lockedReason={task.status === "done" ? t.team.picker.lockedDone : undefined}
             refreshKey={task.id}
             hideLabel
             error={teamError}

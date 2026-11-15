@@ -19,7 +19,23 @@ export type ErrorCode =
   | "merge_failed"
   | "pr_already_merged"
   | "diff_failed"
-  | "project_not_found";
+  | "project_not_found"
+  | "repo_path_not_absolute"
+  | "repo_path_too_shallow"
+  | "repo_path_not_git"
+  | "invalid_repo_name"
+  | "invalid_slug"
+  | "slug_in_use"
+  | "target_path_not_absolute"
+  | "target_path_not_empty"
+  | "project_path_exists"
+  | "project_id_required"
+  | "invalid_pr_number"
+  | "github_not_authenticated"
+  | "task_done"
+  | "active_tasks_block_path_change"
+  | "not_found"
+  | "invalid_body";
 
 export interface Translations {
   errors: Record<ErrorCode, string>;
@@ -91,14 +107,11 @@ export interface Translations {
     noBranch: string;
     dirty: string;
     clean: string;
-    cloneRepo: string;
     live: string;
     offline: string;
     searchLabel: string;
     switchLang: string;
     core: { runningOne: string; idle: string; running: string };
-    showAll: string;
-    showLess: string;
     home: string;
     viewNames: {
       board: string;
@@ -106,6 +119,8 @@ export interface Translations {
       factory: string;
       insights: string;
     };
+    openMenu: string;
+    closeMenu: string;
   };
   header: {
     wsConnected: string;
@@ -113,7 +128,6 @@ export interface Translations {
     themeToLight: string;
     themeToDark: string;
     githubConnected: string;
-    githubConnect: string;
   };
   sidebar: {
     title: string;
@@ -209,6 +223,10 @@ export interface Translations {
     slugHint: string;
     slugError: string;
     browse: string;
+    modeLabel: string;
+    modeNew: string;
+    modeClone: string;
+    cloneHint: string;
   };
   folderPicker: {
     title: string;
@@ -454,28 +472,23 @@ export interface Translations {
     breakdownDone: string;
     breakdownError: string;
     breakdownCancel: string;
+    analysisFromSpec: string;
+    analysisOpenTeam: string;
   };
   cloneModal: {
-    modalHint: string;
-    title: string;
     targetDirLabel: string;
     targetDirPlaceholder: string;
-    cancel: string;
     submit: string;
     submitting: string;
-    cloning: string;
     errorPrefix: string;
-    repoInfoTitle: string;
-    description: string;
-    noDescription: string;
-    visibility: string;
-    visibilityPublic: string;
     visibilityPrivate: string;
-    updatedAt: string;
-    viewOnGithub: string;
-  };
-  githubRepos: {
-    sectionTitle: string;
+    connectHint: string;
+    connect: string;
+    searchPlaceholder: string;
+    listLabel: string;
+    retry: string;
+    emptyAll: string;
+    emptySearch: string;
   };
   prereqs: {
     envLabel: string;
@@ -493,6 +506,10 @@ export interface Translations {
     rerun: string;
     checking: string;
     error: string;
+    githubLabel: string;
+    githubConnected: string;
+    githubDisconnected: string;
+    githubConnect: string;
   };
   claudeConfig: {
     loadError: string;
@@ -540,52 +557,24 @@ export interface Translations {
     close: string;
     footerHint: string;
     listTitle: string;
-    install: string;
-    installing: string;
     uninstall: string;
     uninstalling: string;
     enable: string;
     disable: string;
-    installed: string;
     enabled: string;
     disabled: string;
-    version: string;
-    author: string;
-    installCount: string;
     sectionInstalled: string;
     emptyInstalled: string;
-    emptyRegistry: string;
     loadError: string;
-    installError: string;
     enableError: string;
     disableError: string;
     uninstallError: string;
     confirmUninstallTitle: string;
     confirmUninstallDescription: string;
     cancel: string;
-    tabInstalled: string;
-    tabRegistry: string;
-    tabMarketplaces: string;
-    running: string;
-    done: string;
-    error: string;
     scopeLocal: string;
     scopeProject: string;
     scopeUser: string;
-    chooseScope: string;
-    viewSkill: string;
-    marketplace: string;
-    addMarketplace: string;
-    removeMarketplace: string;
-    marketplaceSource: string;
-    marketplaceSourcePlaceholder: string;
-    noMarketplaces: string;
-    marketplaceLoadError: string;
-    marketplaceAddError: string;
-    marketplaceRemoveError: string;
-    confirmRemoveMarketplaceTitle: string;
-    confirmRemoveMarketplaceDescription: string;
-    searchRegistryPlaceholder: string;
   };
   insights: {
     eyebrow: string;
@@ -701,6 +690,10 @@ export interface Translations {
     statusErr: string;
     agent: string;
     mix: string;
+    runTime: string;
+    runTimeHint: string;
+    toolTime: string;
+    toolTimeHint: string;
   };
   comments: {
     queued: string;
@@ -797,6 +790,7 @@ export interface Translations {
       loading: string;
       saveError: string;
       chainLabel: string;
+      lockedDone: string;
     };
     editTeam: string;
     tabTeam: string;

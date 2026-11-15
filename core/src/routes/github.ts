@@ -24,12 +24,12 @@ async function resolveProject(
 ): Promise<Project | null> {
   const { projectId } = req.query as { projectId?: string };
   if (!projectId) {
-    res.status(400).json({ error: "projectId query param required" });
+    res.status(400).json({ error: "project_id_required" });
     return null;
   }
   const project = await getProject(projectId);
   if (!project) {
-    res.status(404).json({ error: "Project not found" });
+    res.status(404).json({ error: "project_not_found" });
     return null;
   }
   return project;
@@ -43,7 +43,7 @@ function handleGhError(err: unknown, res: Response, context: string): void {
     message.includes("401") ||
     message.includes("gh auth")
   ) {
-    res.status(401).json({ error: "GitHub kimlik dogrulamasi yapilmamis" });
+    res.status(401).json({ error: "github_not_authenticated" });
     return;
   }
   console.error(`[github] ${context} error:`, message);
@@ -104,7 +104,7 @@ router.get("/prs/:number/details", async (req: Request, res: Response) => {
   const prNumber = req.params.number;
 
   if (!prNumber || !validatePRNumber(prNumber)) {
-    res.status(400).json({ error: "PR number must be a positive integer" });
+    res.status(400).json({ error: "invalid_pr_number" });
     return;
   }
 
@@ -129,7 +129,7 @@ router.get("/prs/:number/diff", async (req: Request, res: Response) => {
   const prNumber = req.params.number;
 
   if (!prNumber || !validatePRNumber(prNumber)) {
-    res.status(400).json({ error: "PR number must be a positive integer" });
+    res.status(400).json({ error: "invalid_pr_number" });
     return;
   }
 
@@ -153,7 +153,7 @@ router.post("/prs/:number/merge", async (req: Request, res: Response) => {
   const prNumber = req.params.number;
 
   if (!prNumber || !validatePRNumber(prNumber)) {
-    res.status(400).json({ error: "PR number must be a positive integer" });
+    res.status(400).json({ error: "invalid_pr_number" });
     return;
   }
 

@@ -354,15 +354,6 @@ export type WsMessage =
   | { type: "clone_progress"; targetPath: string; payload: CloneProgress }
   | { type: "hello"; payload: { serverVersion: string } }
   | {
-      type: "skill_install_progress";
-      projectId: string;
-      payload: {
-        pluginId: string;
-        status: "running" | "done" | "error";
-        message?: string;
-      };
-    }
-  | {
       type: "budget_exceeded";
       taskId: string;
       payload: BudgetExceededPayload;

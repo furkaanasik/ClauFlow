@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/icons";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
+import { errorText } from "@/lib/errorText";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Project, ProjectPatch, Task } from "@/types";
 
@@ -99,7 +100,11 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
 
   // Sum of the four lanes, so the rows always add up to the total shown.
   const total = stats.todo + stats.doing + stats.review + stats.done;
-  const projectHasActiveTasks = stats.doing > 0 || stats.review > 0;
+  // Same rule as core `projectHasActiveTasks`: a running task, or a Review task
+  // whose branch still lives in the repo. Branchless Review rows (seed tasks) don't lock.
+  const projectHasActiveTasks = projectTasks.some(
+    (x) => x.status === "doing" || (x.status === "review" && Boolean(x.branch)),
+  );
 
   const [activeTab,     setActiveTab]     = useState<Tab>("overview");
   const [draft,         setDraft]         = useState<DraftState | null>(null);
@@ -166,7 +171,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       const updated = await api.updateProject(project.id, patch);
       updateProject(project.id, updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : pd.updateFailed);
+      setError(errorText(t, err, pd.updateFailed));
     } finally {
       setSaving(false);
     }
@@ -182,7 +187,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       deleteProject(project.id);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : pd.deleteFailed);
+      setError(errorText(t, err, pd.deleteFailed));
       setDeleting(false);
     }
   };
@@ -262,7 +267,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
         width={isClaude ? "full" : "xl"}
         eyebrow={
           <>
-            {project.slug && <span className="ui-keyplate">{project.slug.toUpperCase()}</span>}
+            {project.slug && <span className="ui-keyplate">{project.slug.toLocaleUpperCase("en")}</span>}
             <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
               <IconFolder size={12} />
               <span className="truncate" title={project.repoPath}>{project.repoPath}</span>

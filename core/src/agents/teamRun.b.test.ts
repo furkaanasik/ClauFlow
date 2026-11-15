@@ -42,8 +42,8 @@ describe("team run B: stop paths", () => {
     expect(r.branchLog(task.branch!)).toHaveLength(2);
     expect(r.artifacts.map((a) => a.kind).slice(-2)).toEqual(["stuck", "summary"]);
     expect(r.artifacts.find((a) => a.kind === "stuck")!.body).toContain("AC-1 is not met");
-    const comment = r.comments.find((x) => x.body.startsWith("## Ekip özeti"))!;
-    expect(comment.body).toContain("Takıldı");
+    const comment = r.comments.find((x) => x.body.startsWith("## Team summary"))!;
+    expect(comment.body).toContain("**Outcome:** Stuck (QA returned essentially the same bug list twice in a row)");
   });
 
   it("always_fail with a limit of 2 stops on the round limit, not as stalled", async () => {

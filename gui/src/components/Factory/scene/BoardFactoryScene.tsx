@@ -70,6 +70,8 @@ export interface FactoryCopy {
   /** Team role names (DOING sign) and their live activity (crate label). */
   roles: Record<RoleKind, string>;
   activity: Record<RoleKind, string>;
+  /** UI language, so sign text upper-cases with the right dotted/dotless I. */
+  locale: "tr" | "en";
 }
 
 export interface FactoryCameraApi {
@@ -288,7 +290,7 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
   }, -5);
 
   /* ── floor print ────────────────────────────────────────────────────────── */
-  const notesKey = STATIONS.map((s) => `${copy.columns[s.status]}:${copy.notes[s.status]}`).join("|");
+  const notesKey = `${copy.locale}|` + STATIONS.map((s) => `${copy.columns[s.status]}:${copy.notes[s.status]}`).join("|");
   const paint = useCallback(
     (p: FloorPainter) => {
       const { ctx, k, at } = p;
@@ -302,10 +304,10 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
         ctx.textBaseline = "middle";
         ctx.fillStyle = palette.ink;
         ctx.font = `800 ${Math.round(k * 0.36)}px ${colors.fontSans}`;
-        ctx.fillText(`${String(i + 1).padStart(2, "0")}  ${copy.columns[s.status].toUpperCase()}`, cx, cz);
+        ctx.fillText(`${String(i + 1).padStart(2, "0")}  ${copy.columns[s.status].toLocaleUpperCase(copy.locale)}`, cx, cz);
         ctx.fillStyle = palette.ink3;
         ctx.font = `600 ${Math.round(k * 0.22)}px ${colors.fontMono}`;
-        ctx.fillText(copy.notes[s.status].toUpperCase(), cx, cz + k * 0.4);
+        ctx.fillText(copy.notes[s.status].toLocaleUpperCase(copy.locale), cx, cz + k * 0.4);
         const next = STATIONS[i + 1];
         if (next) {
           const [ax, az] = at((s.x + s.padW / 2 + next.x - next.padW / 2) / 2, s.padZ[1] + 0.5);
@@ -378,10 +380,10 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
           position={[s.x, 0, -3.75]}
           kicker={
             s.status === "doing" && layout.doingRole
-              ? `${String(i + 1).padStart(2, "0")} · ${layout.counts[s.status]} · ${copy.roles[layout.doingRole].toUpperCase()}`
+              ? `${String(i + 1).padStart(2, "0")} · ${layout.counts[s.status]} · ${copy.roles[layout.doingRole].toLocaleUpperCase(copy.locale)}`
               : `${String(i + 1).padStart(2, "0")} · ${layout.counts[s.status]}`
           }
-          text={copy.columns[s.status].toUpperCase()}
+          text={copy.columns[s.status].toLocaleUpperCase(copy.locale)}
           accent={s.accent as PaletteKey}
           on={onColor(s.accent)}
           width={Math.min(2.5, s.padW - 0.7)}

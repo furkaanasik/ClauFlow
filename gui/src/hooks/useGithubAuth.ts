@@ -1,79 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  getGithubAuthStatus,
-  type GithubAuthStatus,
-} from "@/lib/api";
+import { useEffect } from "react";
+import { useGithubAuthStore } from "@/store/githubAuthStore";
 
 const POLL_INTERVAL_MS = 5000;
 
+let fetchedOnce = false;
+
+/**
+ * Shared GitHub auth status. The first mounted consumer triggers the only
+ * initial fetch; `pollWhileDisconnected` re-checks every 5 s until connected
+ * (the connect modal uses it while the device flow is pending).
+ */
 export function useGithubAuth(pollWhileDisconnected: boolean = false) {
-  const [status, setStatus] = useState<GithubAuthStatus>({
-    connected: false,
-    user: null,
-    userCode: null,
-    verificationUri: null,
-    error: null,
-  });
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
-  const cancelledRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      const next = await getGithubAuthStatus();
-      if (cancelledRef.current) return next;
-      setStatus(next);
-      setFetchError(null);
-      return next;
-    } catch (err) {
-      if (!cancelledRef.current) {
-        setFetchError(err instanceof Error ? err.message : String(err));
-      }
-      throw err;
-    } finally {
-      if (!cancelledRef.current) setLoading(false);
-    }
-  }, []);
+  const status = useGithubAuthStore((s) => s.status);
+  const loading = useGithubAuthStore((s) => s.loading);
+  const error = useGithubAuthStore((s) => s.error);
+  const refresh = useGithubAuthStore((s) => s.refresh);
 
   useEffect(() => {
-    cancelledRef.current = false;
-    setLoading(true);
+    if (fetchedOnce) return;
+    fetchedOnce = true;
     refresh().catch(() => {
-      /* error already stored */
+      /* error stored in the slice */
     });
-    return () => {
-      cancelledRef.current = true;
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    };
   }, [refresh]);
 
   useEffect(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
     if (!pollWhileDisconnected || status.connected) return;
-
-    timerRef.current = setTimeout(() => {
+    const id = setInterval(() => {
       refresh().catch(() => {
-        /* error already stored */
+        /* error stored in the slice */
       });
     }, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [pollWhileDisconnected, status.connected, refresh]);
 
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, [pollWhileDisconnected, status, refresh]);
-
-  return { status, loading, error: fetchError, refresh };
+  return { status, loading, error, refresh };
 }

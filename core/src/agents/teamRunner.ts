@@ -35,6 +35,7 @@ import type {
 import { RoleRunError, runRole } from "./roleRunner.js";
 import { extractSpecAcceptanceCriteria, isStalled, parseQaVerdict } from "./teamArtifacts.js";
 import { buildRolePrompt, buildRoleSystemPrompt, loadRoleSkills } from "./teamPrompts.js";
+import { uiText, type UiLang, type UiText } from "./uiText.js";
 
 export type TeamStopReason = "stalled" | "round_limit" | "budget";
 
@@ -60,6 +61,8 @@ export interface RunTeamOptions {
   controller: AbortController;
   /** Test hook: skill catalog roots (defaults to the real home/project/plugins). */
   skillRoots?: SkillCatalogRoots;
+  /** GUI language for the summary, stop reasons and stuck artifact (default en). */
+  uiLang?: UiLang;
 }
 
 const ARTIFACT_KIND: Record<RoleKind, TeamArtifactKind> = {
@@ -121,40 +124,34 @@ function stashIndex(ref: string): number {
   return Number(/\{(\d+)\}/.exec(ref)?.[1] ?? -1);
 }
 
-function stopReasonText(reason: TeamStopReason, info: { qaMaxRounds: number; spent: number; budget: number | null }): string {
+function stopReasonText(
+  reason: TeamStopReason,
+  info: { qaMaxRounds: number; spent: number; budget: number | null },
+  tx: UiText,
+): string {
   switch (reason) {
     case "stalled":
-      return "QA arka arkaya iki kez esasen aynı hata listesini döndü";
+      return tx.stopStalled;
     case "round_limit":
-      return `QA tur sınırına ulaşıldı (${info.qaMaxRounds})`;
+      return tx.stopRoundLimit(info.qaMaxRounds);
     case "budget":
-      return `Bütçe aşıldı ($${info.spent.toFixed(2)} / $${(info.budget ?? 0).toFixed(2)})`;
+      return tx.stopBudget(info.spent.toFixed(2), (info.budget ?? 0).toFixed(2));
   }
 }
 
-const OUTCOME_LABEL: Record<string, string> = {
-  delivered: "Teslim edildi",
-  explored: "Keşif tamamlandı",
-  stuck: "Takıldı",
-};
-
-function roleLine(role: TeamRole, artifacts: TeamArtifact[]): string {
+function roleLine(role: TeamRole, artifacts: TeamArtifact[], tx: UiText): string {
   const mine = artifacts.filter((a) => a.roleId === role.id && a.kind === ARTIFACT_KIND[role.kind]);
   const last = mine[mine.length - 1];
-  if (!last) return `- ${role.name}: çalışmadı`;
+  if (!last) return `- ${role.name}: ${tx.roleDidNotRun}`;
   switch (role.kind) {
     case "ceo":
-      return `- ${role.name}: brief yazdı`;
-    case "analyst": {
-      const acs = new Set(last.body.match(/\bAC-\d+\b/g) ?? []).size;
-      return `- ${role.name}: şartname yazdı${acs ? ` (${acs} kabul kriteri)` : ""}`;
-    }
-    case "developer": {
-      const commit = last.commitSha ? `, commit ${last.commitSha.slice(0, 7)}` : "";
-      return `- ${role.name}: ${mine.length} teslim (son tur ${last.round}${commit})`;
-    }
+      return `- ${role.name}: ${tx.roleBrief}`;
+    case "analyst":
+      return `- ${role.name}: ${tx.roleSpec(new Set(last.body.match(/\bAC-\d+\b/g) ?? []).size)}`;
+    case "developer":
+      return `- ${role.name}: ${tx.roleDelivery(mine.length, last.round, last.commitSha?.slice(0, 7) ?? null)}`;
     case "qa":
-      return `- ${role.name}: ${last.verdict === "pass" ? "PASS" : "FAIL"} (tur ${last.round})`;
+      return `- ${role.name}: ${tx.roleQa(last.verdict === "pass" ? "PASS" : "FAIL", last.round)}`;
   }
 }
 
@@ -163,31 +160,34 @@ export function buildTeamSummary(
   artifacts: TeamArtifact[],
   outcome: "delivered" | "explored" | "stuck",
   reasonText?: string,
+  lang?: UiLang,
 ): string {
+  const tx = uiText(lang);
   const team = run.teamSnapshot;
   const qaRuns = artifacts.filter((a) => a.kind === "qa_report").length;
   const head = [
-    `**Ekip:** ${team.name}`,
-    `**Sonuç:** ${OUTCOME_LABEL[outcome]}${reasonText ? ` (${reasonText})` : ""}`,
-    team.roles.some((r) => r.kind === "qa") ? `**QA turu:** ${qaRuns}` : null,
-    `**Maliyet:** $${run.costUsd.toFixed(4)}`,
+    `**${tx.team}:** ${team.name}`,
+    `**${tx.outcome}:** ${tx.outcomeLabel[outcome]}${reasonText ? ` (${reasonText})` : ""}`,
+    team.roles.some((r) => r.kind === "qa") ? `**${tx.qaRounds}:** ${qaRuns}` : null,
+    `**${tx.cost}:** $${run.costUsd.toFixed(4)}`,
   ]
     .filter(Boolean)
     .join(" · ");
-  const lines = team.roles.map((r) => roleLine(r, artifacts));
+  const lines = team.roles.map((r) => roleLine(r, artifacts, tx));
   const work = artifacts.filter((a) => a.kind !== "summary" && a.kind !== "stuck");
   let tail: string;
   if (outcome === "explored") {
     tail = work.map((a) => a.body.trim()).join("\n\n---\n\n");
   } else {
     const last = work[work.length - 1];
-    tail = last ? `### Son çıktı\n\n${last.body.trim()}` : "";
+    tail = last ? `${tx.lastOutput}\n\n${last.body.trim()}` : "";
   }
-  return [`## Ekip özeti`, head, lines.join("\n"), tail].filter(Boolean).join("\n\n");
+  return [tx.summaryTitle, head, lines.join("\n"), tail].filter(Boolean).join("\n\n");
 }
 
 export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
   const { task, project, controller } = opts;
+  const tx = uiText(opts.uiLang);
   const repo = project.repoPath;
   const base = project.defaultBranch;
 
@@ -248,18 +248,18 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
       finishedAt: new Date().toISOString(),
     });
     if (outcome === "stuck") {
-      const body = [`## Takıldı`, reasonText ?? "", bugList ? `### Son hata listesi\n\n${bugList}` : ""]
+      const body = [tx.stuckTitle, reasonText ?? "", bugList ? `${tx.lastBugList}\n\n${bugList}` : ""]
         .filter(Boolean)
         .join("\n\n");
       addArtifact({ runId, taskId: task.id, kind: "stuck", round: run.qaRound, body });
     }
-    const summary = buildTeamSummary(run, listTeamArtifactsByRun(runId), outcome, reasonText);
+    const summary = buildTeamSummary(run, listTeamArtifactsByRun(runId), outcome, reasonText, opts.uiLang);
     addArtifact({ runId, taskId: task.id, kind: "summary", round: run.qaRound, body: summary });
     return summary;
   };
 
   const stop = async (reason: TeamStopReason): Promise<TeamOutcome> => {
-    const reasonText = stopReasonText(reason, { qaMaxRounds, spent: current().costUsd, budget });
+    const reasonText = stopReasonText(reason, { qaMaxRounds, spent: current().costUsd, budget }, tx);
     await pushLog(task.id, `✖ Takıldı: ${reasonText}`);
     const summary = finish("stuck", reasonText, reason);
     return { kind: "stuck", run: current(), reason, reasonText, summary };
@@ -337,7 +337,7 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
         roleKind: role.kind,
         kind: ARTIFACT_KIND[role.kind],
         round,
-        body: out.finalText || "(boş çıktı)",
+        body: out.finalText || tx.emptyOutput,
         nodeRunId: out.nodeRunId,
         costUsd: out.costUsd,
       };
@@ -444,15 +444,19 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
 }
 
 /** PR body section: acceptance criteria from the spec and the QA result. */
-export function buildPrTeamSection(outcome: Extract<TeamOutcome, { kind: "delivered" }>): string | null {
+export function buildPrTeamSection(
+  outcome: Extract<TeamOutcome, { kind: "delivered" }>,
+  lang?: UiLang,
+): string | null {
+  const tx = uiText(lang);
   const team = outcome.run.teamSnapshot;
   if (team.roles.length <= 1) return null;
-  const parts = [`## Ekip\n**Ekip:** ${team.name} (${team.roles.map((r) => r.name).join(" → ")})`];
+  const parts = [`${tx.prTeamTitle}\n**${tx.team}:** ${team.name} (${team.roles.map((r) => r.name).join(" → ")})`];
   const ac = extractSpecAcceptanceCriteria(outcome.spec);
-  if (ac) parts.push(`### Kabul kriterleri\n${ac}`);
+  if (ac) parts.push(`${tx.prAcceptance}\n${ac}`);
   if (outcome.qaVerdict) {
     parts.push(
-      `### QA sonucu\n${outcome.qaVerdict === "pass" ? "PASS" : "FAIL"} · QA turu ${outcome.run.qaRound + 1}`,
+      `${tx.prQaResult}\n${outcome.qaVerdict === "pass" ? "PASS" : "FAIL"} · ${tx.prQaRound(outcome.run.qaRound + 1)}`,
     );
   }
   return parts.join("\n\n");

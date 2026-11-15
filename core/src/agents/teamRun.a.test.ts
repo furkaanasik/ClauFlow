@@ -40,7 +40,7 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     expect(r.runs[0]).toMatchObject({ teamId: BUILTIN_TEAM_IDS.solo, status: "delivered", qaRound: 0 });
     expect(r.artifacts.map((a) => a.kind)).toEqual(["delivery", "summary"]);
     expect(r.artifacts[0]!.commitSha).toMatch(/^[0-9a-f]{40}$/);
-    expect(r.comments.map((x) => x.body.split("\n")[0])).toEqual(["## Ekip özeti"]);
+    expect(r.comments.map((x) => x.body.split("\n")[0])).toEqual(["## Team summary"]);
     expect(listNodeRunsByTask(c.task.id).map((n) => [n.nodeId, n.nodeType, n.status])).toEqual([
       ["role:developer:1", "developer", "done"],
     ]);
@@ -75,8 +75,8 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     expect(task.usage).toMatchObject({ inputTokens: 400, outputTokens: 200 });
     expect(r.branchLog(task.branch!)).toHaveLength(1);
     expect(r.currentBranch).toBe("main");
-    const summary = r.comments.find((x) => x.body.startsWith("## Ekip özeti"))!;
-    expect(summary.body).toContain("QA: PASS (tur 1)");
+    const summary = r.comments.find((x) => x.body.startsWith("## Team summary"))!;
+    expect(summary.body).toContain("QA: PASS (round 1)");
     expect(summary.body).toContain("VERDICT: PASS");
   });
 

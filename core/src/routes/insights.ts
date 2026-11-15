@@ -123,7 +123,7 @@ router.get("/", (req: Request, res: Response) => {
   try {
     const projectId = String(req.query.projectId ?? "");
     if (!projectId) {
-      res.status(400).json({ error: "projectId required" });
+      res.status(400).json({ error: "project_id_required" });
       return;
     }
 
@@ -244,7 +244,7 @@ router.get("/export", (req: Request, res: Response) => {
     const projectId = String(req.query.projectId ?? "");
     const format = String(req.query.format ?? "json");
     if (!projectId) {
-      res.status(400).json({ error: "projectId required" });
+      res.status(400).json({ error: "project_id_required" });
       return;
     }
 

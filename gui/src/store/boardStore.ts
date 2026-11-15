@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
-import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
 import { mergeById, newerAgentText, newerTeamArtifact, newerTeamRun, newerToolCall } from "./mergeById";
 
 type Lang = "tr" | "en";
@@ -29,8 +28,6 @@ interface BoardState {
   agentTexts: Record<string, AgentText[]>;
   /** Clone progress per targetPath */
   cloneStatus: Record<string, { status: CloneStatus; message: string }>;
-  /** Skill install progress keyed by `${projectId}:${skillSlug}` */
-  skillProgress: Record<string, { status: SkillInstallStatus; message?: string }>;
   /** Node runs per task, keyed by taskId then nodeId — last-write-wins */
   nodeRuns: Record<string, Record<string, NodeRun>>;
   budgetExceeded: Record<string, { spentUsd: number; budgetUsd: number }>;
@@ -86,9 +83,6 @@ interface BoardState {
   completeClone: (targetPath: string, project?: Project) => void;
   failClone: (targetPath: string, message: string) => void;
 
-  setSkillProgress: (progress: SkillInstallProgress) => void;
-  clearSkillProgress: (projectId: string, pluginId: string) => void;
-
   upsertNodeRun: (run: NodeRun) => void;
   clearNodeRuns: (taskId: string) => void;
 
@@ -136,7 +130,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   toolCalls: {},
   agentTexts: {},
   cloneStatus: {},
-  skillProgress: {},
   nodeRuns: {},
   budgetExceeded: {},
   gitStatusByProject: {},
@@ -396,23 +389,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     set((state) => ({
       cloneStatus: { ...state.cloneStatus, [targetPath]: { status: "error", message } },
     })),
-
-  setSkillProgress: ({ projectId, pluginId, status, message }) =>
-    set((state) => ({
-      skillProgress: {
-        ...state.skillProgress,
-        [`${projectId}:${pluginId}`]: { status, message },
-      },
-    })),
-
-  clearSkillProgress: (projectId, pluginId) =>
-    set((state) => {
-      const key = `${projectId}:${pluginId}`;
-      if (!state.skillProgress[key]) return state;
-      const { [key]: _removed, ...rest } = state.skillProgress;
-      void _removed;
-      return { skillProgress: rest };
-    }),
 
   upsertNodeRun: (run) =>
     set((state) => ({

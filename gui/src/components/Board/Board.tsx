@@ -39,7 +39,6 @@ import {
 } from "@/components/ui/icons";
 import { PRDetailDrawer, type PullRequest } from "@/components/Github/PRDetailDrawer";
 import { useBoardTasks, moveTaskOptimistic } from "@/hooks/useBoard";
-import { useAgentSocket } from "@/hooks/useAgentSocket";
 import { useBoardStore } from "@/store/boardStore";
 import { useViewStore, activeFilterCount, BOARD_VIEWS, type BoardView } from "@/store/viewStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -92,7 +91,6 @@ const VIEW_ICON: Record<BoardView, typeof IconBoard> = {
 
 export function Board() {
   const { loading, error } = useBoardTasks();
-  useAgentSocket();
   useDoneBurstWatcher();
   const t = useTranslation();
 
@@ -323,7 +321,7 @@ export function Board() {
               {t.shell.viewNames[view]}
             </SectionPill>
             {selectedProject?.slug && (
-              <span className="font-mono text-[12px] font-semibold uppercase text-ink-3">
+              <span lang="en" className="font-mono text-[12px] font-semibold uppercase text-ink-3">
                 {selectedProject.slug}
               </span>
             )}

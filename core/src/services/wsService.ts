@@ -155,19 +155,6 @@ export function broadcastCloneProgress(
   });
 }
 
-export function broadcastSkillInstallProgress(
-  projectId: string,
-  pluginId: string,
-  status: "running" | "done" | "error",
-  message: string,
-): void {
-  broadcast({
-    type: "skill_install_progress",
-    projectId,
-    payload: { pluginId, status, message },
-  });
-}
-
 export function broadcastNodeStarted(nodeRun: NodeRun): void {
   broadcast({
     type: "node_started",

@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { TeamPicker } from "@/components/Team/TeamPicker";
 import { useBoardStore } from "@/store/boardStore";
 import { useToast } from "@/hooks/useToast";
+import { errorText } from "@/lib/errorText";
 import { useTranslation } from "@/hooks/useTranslation";
 
 interface AddTaskModalProps {
@@ -68,7 +69,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
       toast.success(t.addTask.successToast);
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.addTask.errorGeneric);
+      setError(errorText(t, err, t.addTask.errorGeneric));
     } finally {
       setLoading(false);
     }
@@ -85,7 +86,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
       footerStart={
         selectedProject && (
           <span className="flex items-center gap-1.5">
-            <span className="ui-keyplate !h-5 !text-[10px]">{selectedProject.slug?.toUpperCase() ?? "—"}</span>
+            <span className="ui-keyplate !h-5 !text-[10px]">{selectedProject.slug?.toLocaleUpperCase("en") ?? "—"}</span>
             <span className="truncate font-semibold text-ink-2">{selectedProject.name}</span>
           </span>
         )

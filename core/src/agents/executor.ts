@@ -8,6 +8,7 @@ import {
   run as gitRun,
 } from "../services/gitService.js";
 import { buildPrTeamSection, runTeam, type TeamStopReason } from "./teamRunner.js";
+import { uiText, type UiLang } from "./uiText.js";
 import {
   appendAgentLog,
   getTask,
@@ -76,8 +77,13 @@ export async function waitForIdle(taskId: string, timeoutMs = 5000): Promise<voi
   }
 }
 
-export function enqueue(task: Task, project: Project): void {
-  run(task, project).catch(() => {}); // errors handled inside run()
+export interface RunOptions {
+  /** §3/10: GUI language for the summary, PR body and auto comments; never stored. */
+  uiLang?: UiLang;
+}
+
+export function enqueue(task: Task, project: Project, opts: RunOptions = {}): void {
+  run(task, project, opts).catch(() => {}); // errors handled inside run()
 }
 
 async function setAgentStep(
@@ -229,7 +235,8 @@ async function setAsideOldBranch(taskId: string, project: Project, branch: strin
 
 class QueuedAbort extends Error {}
 
-export async function run(task: Task, project: Project): Promise<void> {
+export async function run(task: Task, project: Project, opts: RunOptions = {}): Promise<void> {
+  const tx = uiText(opts.uiLang);
   const token = randomUUID();
   const controller = new AbortController();
   const handle: RunHandle = { token, controller };
@@ -309,7 +316,7 @@ export async function run(task: Task, project: Project): Promise<void> {
 
     // ── Step 3: team run ──────────────────────────────────────────────────
     await setAgentStep(task.id, "running", "team");
-    const outcome = await runTeam({ task, project, controller });
+    const outcome = await runTeam({ task, project, controller, uiLang: opts.uiLang });
 
     if (outcome.kind === "awaiting_approval") {
       await returnToBase(task.id, project, branch, { deleteBranch: true });
@@ -341,7 +348,7 @@ export async function run(task: Task, project: Project): Promise<void> {
       return;
     }
 
-    const teamPrSection = buildPrTeamSection(outcome);
+    const teamPrSection = buildPrTeamSection(outcome, opts.uiLang);
 
     // ── Step 4: git add . && commit ───────────────────────────────────────
     await setAgentStep(task.id, "pushing", "git_commit");
@@ -374,11 +381,7 @@ export async function run(task: Task, project: Project): Promise<void> {
         "  Değişiklik gerekmiyordu → görev 'done' olarak kapatıldı, dal silindi.",
       ]);
       await returnToBase(task.id, project, branch, { deleteBranch: true });
-      postComment(
-        task.id,
-        "Değişiklik gerekmedi: ekip çalıştı ama repoda değiştirilecek bir şey bulmadı. Görev kapatıldı, dal silindi.",
-        "no changes",
-      );
+      postComment(task.id, tx.noChanges, "no changes");
       const final = await updateTask(task.id, {
         status: "done",
         branch: null,
@@ -417,22 +420,16 @@ export async function run(task: Task, project: Project): Promise<void> {
       const recentLog = (refreshed?.agent.log ?? []).slice(-30).join("\n");
 
       const prBodyParts: string[] = [];
-      if (task.description) prBodyParts.push(`## Açıklama\n${task.description}`);
-      if (task.analysis) prBodyParts.push(`## Analiz\n${task.analysis}`);
+      if (task.description) prBodyParts.push(`${tx.prDescription}\n${task.description}`);
+      if (task.analysis) prBodyParts.push(`${tx.prAnalysis}\n${task.analysis}`);
       if (teamPrSection) prBodyParts.push(teamPrSection);
       prBodyParts.push(
-        `## Nasıl Test Edilir\n` +
+        `${tx.prHowToTest}\n` +
           (acceptanceCriteria
-            ? `Acceptance kriterleri (her biri test edilebilir):\n\n${acceptanceCriteria}\n\n` +
-              `Hızlı doğrulama:\n` +
-              `- Repo'nun test komutunu çalıştır (\`npm test\` / \`pytest\` / \`go test ./...\` — package.json/pyproject/go.mod'a göre).\n` +
-              `- Branch'i lokal'e çekip dev sunucusunu açarak davranışı UI/CLI üzerinden kontrol et.`
-            : `- Repo'nun test komutunu çalıştır (\`npm test\` / \`pytest\` / \`go test ./...\`).\n` +
-              `- Branch'i lokal'e çekip ilgili akışı manuel deneyle.`),
+            ? `${tx.prAcceptanceIntro}\n\n${acceptanceCriteria}\n\n${tx.prQuickCheck}\n${tx.prRunTests}\n${tx.prTryUi}`
+            : `${tx.prRunTestsShort}\n${tx.prTryManual}`),
       );
-      prBodyParts.push(
-        `## Agent Logu (son 30 satır)\n\`\`\`\n${recentLog}\n\`\`\``,
-      );
+      prBodyParts.push(`${tx.prAgentLog}\n\`\`\`\n${recentLog}\n\`\`\``);
 
       const prTitle = task.displayId
         ? `${task.displayId} — ${task.title}`

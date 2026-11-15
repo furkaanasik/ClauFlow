@@ -272,15 +272,6 @@ export type WsMessage =
     }
   | { type: "project_planning_error"; projectId: string; error: string }
   | {
-      type: "skill_install_progress";
-      projectId: string;
-      payload: {
-        pluginId: string;
-        status: "running" | "done" | "error";
-        message: string;
-      };
-    }
-  | {
       type: "clone_progress";
       targetPath: string;
       payload: {
@@ -299,31 +290,6 @@ export type WsMessage =
   | { type: "task_breakdown_done"; taskId: string; taskCount: number }
   | { type: "task_breakdown_error"; taskId: string; error: string };
 
-export interface AvailablePluginSource {
-  source: string;
-  url?: string;
-  repo?: string;
-  path?: string;
-  ref?: string;
-  sha?: string;
-}
-
-export interface AvailablePluginAuthor {
-  name?: string;
-  email?: string;
-}
-
-export interface AvailablePlugin {
-  pluginId: string;
-  name: string;
-  description: string;
-  marketplaceName: string;
-  source: AvailablePluginSource;
-  installCount?: number;
-  homepage?: string;
-  author?: AvailablePluginAuthor;
-}
-
 export interface InstalledPlugin {
   id: string;
   version: string;
@@ -333,18 +299,6 @@ export interface InstalledPlugin {
   installedAt: string;
   lastUpdated: string;
   projectPath?: string;
-}
-
-export interface ClaudeMarketplaceSource {
-  source: string;
-  repo?: string;
-  url?: string;
-  path?: string;
-}
-
-export interface ClaudeMarketplace {
-  name: string;
-  source: ClaudeMarketplaceSource;
 }
 
 export function createEmptyAgentState(): AgentState {

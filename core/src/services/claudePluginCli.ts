@@ -2,11 +2,7 @@ import { spawn } from "node:child_process";
 import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type {
-  AvailablePlugin,
-  ClaudeMarketplace,
-  InstalledPlugin,
-} from "../types/index.js";
+import type { InstalledPlugin } from "../types/index.js";
 import { errorMessage } from "../utils/error.js";
 
 const TIMEOUT_MS = 60_000;
@@ -73,24 +69,6 @@ export async function listInstalled(repoPath: string): Promise<InstalledPlugin[]
   return [];
 }
 
-export async function listAvailable(repoPath: string): Promise<AvailablePlugin[]> {
-  const out = await runOrThrow(["plugin", "list", "--available", "--json"], repoPath);
-  const parsed = parseJson<{ available?: AvailablePlugin[] } | AvailablePlugin[]>(
-    out,
-    "claude plugin list --available",
-  );
-  if (Array.isArray(parsed)) return parsed;
-  return parsed.available ?? [];
-}
-
-export async function installPlugin(
-  repoPath: string,
-  pluginId: string,
-  scope: "user" | "project" | "local" = "local",
-): Promise<void> {
-  await runOrThrow(["plugin", "install", pluginId, "--scope", scope], repoPath);
-}
-
 export async function uninstallPlugin(
   repoPath: string,
   pluginId: string,
@@ -140,44 +118,4 @@ export async function disablePlugin(
   scope: "user" | "project" | "local",
 ): Promise<void> {
   await runOrThrow(["plugin", "disable", pluginId, "--scope", scope], repoPath);
-}
-
-export async function listMarketplaces(repoPath: string): Promise<ClaudeMarketplace[]> {
-  const result = await runClaude(["plugin", "marketplace", "list", "--json"], repoPath);
-  if (result.code === 0) {
-    try {
-      const parsed = JSON.parse(result.stdout.trim() || "[]") as unknown;
-      if (Array.isArray(parsed)) return parsed as ClaudeMarketplace[];
-      if (parsed && typeof parsed === "object" && Array.isArray((parsed as { marketplaces?: unknown }).marketplaces)) {
-        return (parsed as { marketplaces: ClaudeMarketplace[] }).marketplaces;
-      }
-      return [];
-    } catch {
-      // fall through to plain output
-    }
-  }
-  const plain = await runOrThrow(["plugin", "marketplace", "list"], repoPath);
-  return plain
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map<ClaudeMarketplace>((line) => {
-      const match = line.match(/^(\S+)\s+(.*)$/);
-      if (match) return { name: match[1]!, source: { source: match[2]! } };
-      return { name: line, source: { source: line } };
-    });
-}
-
-export async function addMarketplace(
-  repoPath: string,
-  source: string,
-): Promise<void> {
-  await runOrThrow(["plugin", "marketplace", "add", source], repoPath);
-}
-
-export async function removeMarketplace(
-  repoPath: string,
-  name: string,
-): Promise<void> {
-  await runOrThrow(["plugin", "marketplace", "remove", name], repoPath);
 }

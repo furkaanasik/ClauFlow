@@ -29,12 +29,12 @@ describe("no `nothing` status (C1)", () => {
     expect(task.agent.status).toBe("done");
     expect(r.currentBranch).toBe("main");
     expect(r.branches).toEqual([]);
-    expect(r.comments.some((x) => x.body.startsWith("Değişiklik gerekmedi"))).toBe(true);
+    expect(r.comments.some((x) => x.body.startsWith("No changes needed"))).toBe(true);
   });
 
   it("breakdown closes a non-running parent as done with a subtask-count comment", async () => {
     const c = await makeTeamCase({});
-    await closeBrokenDownParent(c.task.id, 3);
+    await closeBrokenDownParent(c.task.id, 3, "tr");
     const parent = (await getTask(c.task.id))!;
     expect(parent.status).toBe("done");
     expect(getComments(c.task.id).map((x) => x.body)).toEqual(["3 alt göreve bölündü."]);
@@ -45,7 +45,7 @@ describe("no `nothing` status (C1)", () => {
     await updateTask(c.task.id, { status: "doing" });
     await closeBrokenDownParent(c.task.id, 2);
     expect((await getTask(c.task.id))!.status).toBe("doing");
-    expect(getComments(c.task.id).map((x) => x.body)).toEqual(["2 alt göreve bölündü."]);
+    expect(getComments(c.task.id).map((x) => x.body)).toEqual(["Split into 2 subtasks."]);
   });
 
   it("breakdown with zero subtasks changes nothing", async () => {

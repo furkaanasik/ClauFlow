@@ -1,4 +1,5 @@
 import type { AgentText, Comment, GithubRepo, GitStatus, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
+import { useBoardStore } from "@/store/boardStore";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -12,6 +13,11 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
+}
+
+/** UI language sent with run-starting calls so core writes the team summary in it (plan §3/10). */
+function uiLang(): "tr" | "en" {
+  return useBoardStore.getState().lang === "tr" ? "tr" : "en";
 }
 
 async function handle<T>(res: Response): Promise<T> {
@@ -129,7 +135,7 @@ export const api = {
     fetch(`${BASE}/tasks/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+      body: JSON.stringify(patch.status === "doing" ? { ...patch, uiLang: uiLang() } : patch),
     })
       .then((r) => handle<{ task: Task }>(r))
       .then((d) => d.task),
@@ -143,7 +149,11 @@ export const api = {
     }),
 
   retryTask: (id: string): Promise<Task> =>
-    fetch(`${BASE}/tasks/${id}/retry`, { method: "POST" })
+    fetch(`${BASE}/tasks/${id}/retry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uiLang: uiLang() }),
+    })
       .then((r) => handle<{ task: Task }>(r))
       .then((d) => d.task),
 
@@ -156,7 +166,7 @@ export const api = {
     fetch(`${BASE}/tasks/${id}/breakdown`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTasks }),
+      body: JSON.stringify({ prompt, maxTasks, uiLang: uiLang() }),
     }).then((r) => handle<{ status: string }>(r)),
 
   getProjects: (): Promise<Project[]> =>
@@ -254,24 +264,9 @@ export const api = {
     fetch(`${BASE}/system/prereqs`, { cache: "no-store" })
       .then((r) => handle<{ allOk: boolean; items: PrereqItem[] }>(r)),
 
-  listSkillRegistry: (id: string): Promise<{ available: AvailablePlugin[] }> =>
-    fetch(`${BASE}/projects/${id}/claude/skills/registry`, { cache: "no-store" })
-      .then((r) => handle<{ available: AvailablePlugin[] }>(r)),
-
   listInstalledSkills: (id: string): Promise<{ installed: InstalledPlugin[] }> =>
     fetch(`${BASE}/projects/${id}/claude/skills`, { cache: "no-store" })
       .then((r) => handle<{ installed: InstalledPlugin[] }>(r)),
-
-  installSkill: (
-    id: string,
-    pluginId: string,
-    scope?: InstalledPlugin["scope"],
-  ): Promise<{ ok: true; pluginId: string }> =>
-    fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}/install`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scope: scope ?? "local" }),
-    }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
 
   uninstallSkill: (id: string, pluginId: string): Promise<{ ok: true; pluginId: string }> =>
     fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}`, {
@@ -287,25 +282,6 @@ export const api = {
     fetch(`${BASE}/projects/${id}/claude/skills/${encodeURIComponent(pluginId)}/disable`, {
       method: "POST",
     }).then((r) => handle<{ ok: true; pluginId: string }>(r)),
-
-  listMarketplaces: (id: string): Promise<{ marketplaces: ClaudeMarketplace[] }> =>
-    fetch(`${BASE}/projects/${id}/claude/marketplaces`, { cache: "no-store" })
-      .then((r) => handle<{ marketplaces: ClaudeMarketplace[] }>(r)),
-
-  addMarketplace: (
-    id: string,
-    source: string,
-  ): Promise<{ ok: true; marketplace: ClaudeMarketplace }> =>
-    fetch(`${BASE}/projects/${id}/claude/marketplaces`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source }),
-    }).then((r) => handle<{ ok: true; marketplace: ClaudeMarketplace }>(r)),
-
-  removeMarketplace: (id: string, name: string): Promise<{ ok: true; name: string }> =>
-    fetch(`${BASE}/projects/${id}/claude/marketplaces/${encodeURIComponent(name)}`, {
-      method: "DELETE",
-    }).then((r) => handle<{ ok: true; name: string }>(r)),
 
   listTeams: (projectId: string): Promise<Team[]> =>
     fetch(`${BASE}/teams?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" })
@@ -361,7 +337,7 @@ export const api = {
     fetch(`${BASE}/tasks/${taskId}/team/approve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(specBody ? { specBody } : {}),
+      body: JSON.stringify(specBody ? { specBody, uiLang: uiLang() } : { uiLang: uiLang() }),
     }).then((r) => handle<{ task: Task; artifact: TeamArtifact }>(r)),
 
   getNodeRuns: (taskId: string): Promise<NodeRun[]> =>
@@ -410,24 +386,6 @@ export interface DirListing {
 
 // ─── Skill / Plugin types ─────────────────────────────────────────────────────
 
-export interface AvailablePluginSource {
-  source: string;
-  repo?: string;
-  url?: string;
-  path?: string;
-}
-
-export interface AvailablePlugin {
-  pluginId: string;
-  name: string;
-  description: string;
-  marketplaceName: string;
-  source: AvailablePluginSource;
-  installCount?: number;
-  homepage?: string;
-  author?: string;
-}
-
 export interface InstalledPlugin {
   id: string;
   version: string | null;
@@ -437,20 +395,6 @@ export interface InstalledPlugin {
   installedAt: string;
   lastUpdated: string | null;
   projectPath?: string;
-}
-
-export interface ClaudeMarketplace {
-  name: string;
-  source: { source: string; repo?: string; url?: string; path?: string };
-}
-
-export type SkillInstallStatus = "running" | "done" | "error";
-
-export interface SkillInstallProgress {
-  pluginId: string;
-  projectId: string;
-  status: SkillInstallStatus;
-  message?: string;
 }
 
 export interface ClaudeInstructionsSaveResult {
@@ -541,12 +485,6 @@ export async function cloneProject(input: CloneProjectInput): Promise<{ status: 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  if (res.status === 409) {
-    const text = await res.text().catch(() => res.statusText);
-    let msg = text;
-    try { msg = JSON.parse(text).error ?? text; } catch { /* ignore */ }
-    throw new Error(msg);
-  }
   return handle<{ status: "cloning"; targetPath: string }>(res);
 }
 

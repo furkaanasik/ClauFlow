@@ -674,6 +674,11 @@ body::before {
     cursor: pointer;
     transition: background-color 120ms ease, color 120ms ease, transform 110ms var(--ease-press), box-shadow 110ms var(--ease-press);
   }
+  /* Mobile rail sheet (below md): slides in from the left over a scrim */
+  .rail-sheet {
+    animation: ui-rail-in 220ms var(--ease-press) both;
+    box-shadow: 4px 0 0 var(--shadow-ink);
+  }
   .rail-item:hover { background: var(--hair); color: var(--ink); }
   .rail-item:active { transform: translate(1px, 1px); }
   .rail-item[aria-current="page"] {
@@ -1536,6 +1541,10 @@ body::before {
   to { transform: scaleX(0); }
 }
 @keyframes ui-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes ui-rail-in {
+  from { transform: translateX(-104%); }
+  to { transform: translateX(0); }
+}
 @keyframes ui-drawer-in {
   from { transform: translateX(104%); }
   to { transform: translateX(0); }

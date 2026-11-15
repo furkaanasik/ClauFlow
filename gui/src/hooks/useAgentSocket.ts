@@ -52,7 +52,6 @@ export function useAgentSocket(url?: string) {
       setCloneProgress,
       completeClone,
       failClone,
-      setSkillProgress,
       upsertNodeRun,
       setBudgetExceeded,
       setBreakdownStatus,
@@ -212,16 +211,6 @@ export function useAgentSocket(url?: string) {
               } else {
                 failClone(m.targetPath, message);
               }
-              break;
-            }
-            case "skill_install_progress": {
-              const m = msg as Extract<WsMessage, { type: "skill_install_progress" }>;
-              setSkillProgress({
-                projectId: m.projectId,
-                pluginId: m.payload.pluginId,
-                status: m.payload.status,
-                message: m.payload.message,
-              });
               break;
             }
             case "budget_exceeded": {

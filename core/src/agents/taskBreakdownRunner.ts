@@ -10,17 +10,22 @@ import {
   broadcastCommentUpdated,
 } from "../services/wsService.js";
 import { createComment, updateComment } from "../services/commentService.js";
+import { uiText, type UiLang } from "./uiText.js";
 
 /**
  * After a breakdown the parent is closed as `done` with a comment naming the
  * subtask count. A parent that is running (`doing`) keeps its status: the
  * executor owns it until the run ends.
  */
-export async function closeBrokenDownParent(taskId: string, count: number): Promise<void> {
+export async function closeBrokenDownParent(
+  taskId: string,
+  count: number,
+  uiLang?: UiLang,
+): Promise<void> {
   const parent = await getTask(taskId);
   if (!parent || count === 0) return;
   try {
-    const comment = createComment(taskId, `${count} alt göreve bölündü.`);
+    const comment = createComment(taskId, uiText(uiLang).brokenDown(count));
     broadcastCommentUpdated(updateComment(comment.id, { status: "done" }));
   } catch (e) {
     console.error(`[taskBreakdown] breakdown comment for ${taskId} failed:`, e);
@@ -34,6 +39,7 @@ export async function runTaskBreakdown(
   taskId: string,
   prompt: string,
   maxTasks: number = 6,
+  uiLang?: UiLang,
 ): Promise<void> {
   const cap = Math.max(1, Math.min(Math.floor(maxTasks) || 6, 20));
   try {
@@ -87,7 +93,7 @@ export async function runTaskBreakdown(
       await new Promise((r) => setTimeout(r, 200));
     }
 
-    await closeBrokenDownParent(taskId, items.length);
+    await closeBrokenDownParent(taskId, items.length, uiLang);
     broadcastTaskBreakdownDone(taskId, items.length);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

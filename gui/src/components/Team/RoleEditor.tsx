@@ -356,7 +356,8 @@ function ReadOnlyRole({
         </dd>
       </div>
       <div className={row}>
-        <dt className={key}>{te.skills}</dt>
+        {/* "Skill" is an English loanword: upper-case it with English rules (no dotted İ). */}
+        <dt className={key} lang="en">{te.skills}</dt>
         <dd className="flex flex-wrap gap-1.5">
           {role.skills.length === 0 ? (
             <span className="text-[12.5px] text-ink-3">{te.skillsNone}</span>

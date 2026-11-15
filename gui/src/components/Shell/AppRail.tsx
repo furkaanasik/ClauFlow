@@ -3,45 +3,42 @@
 import clsx from "clsx";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactElement, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { ProjectSwitcher } from "@/components/Shell/ProjectSwitcher";
 import { NewProjectModal } from "@/components/Modals/NewProjectModal";
 import { ProjectDetailDrawer } from "@/components/Modals/ProjectDetailDrawer";
-import { CloneRepoModal } from "@/components/Modals/CloneRepoModal";
 import { IconButton } from "@/components/ui/Button";
 import { Tooltip } from "@/components/ui/Tooltip";
 import {
   IconBoard,
   IconChart,
-  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
-  IconDownload,
+  IconClose,
   IconFactory,
-  IconGithub,
   IconList,
   IconPlus,
 } from "@/components/ui/icons";
+import { useEscapeLayer, useFocusTrap } from "@/components/ui/overlay";
 import { useBoardStore } from "@/store/boardStore";
 import { useViewStore, type BoardView } from "@/store/viewStore";
 import { useProjects } from "@/hooks/useBoard";
 import { useGitStatus } from "@/hooks/useGitStatus";
-import { useGithubAuth } from "@/hooks/useGithubAuth";
-import { useGithubRepos } from "@/hooks/useGithubRepos";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { GithubRepo } from "@/types";
-
-const REPO_PREVIEW = 5;
 
 /**
- * Left rail (spec §5): logo, project switcher, views, GitHub repos to clone,
- * new project. Collapses to an icon rail; state persists in `rail-collapsed`.
+ * Left rail (spec §5): logo, project switcher, views, new project (which also
+ * clones from GitHub). Collapses to an icon rail; state persists in `rail-collapsed`.
+ * Below `md` it is hidden and opens as a left overlay sheet (`mobileOpen`) from
+ * the TopBar menu button; the sheet is always expanded.
  */
-export function AppRail() {
+export function AppRail({ mobileOpen = false, onMobileClose }: { mobileOpen?: boolean; onMobileClose?: () => void }) {
   useProjects();
   const t = useTranslation();
+  const asideRef = useRef<HTMLElement>(null);
 
-  const collapsed = useViewStore((s) => s.railCollapsed);
+  const railCollapsed = useViewStore((s) => s.railCollapsed);
+  const collapsed = railCollapsed && !mobileOpen;
   const setCollapsed = useViewStore((s) => s.setRailCollapsed);
   const hydrateRail = useViewStore((s) => s.hydrateRail);
   const view = useViewStore((s) => s.view);
@@ -52,15 +49,23 @@ export function AppRail() {
   const onBoard = pathname === "/board";
   const section = pathname?.startsWith("/insights") ? "insights" : null;
 
-  const projects = useBoardStore((s) => s.projects);
   const selectedProjectId = useBoardStore((s) => s.selectedProjectId);
   useGitStatus(selectedProjectId);
 
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [detailProjectId, setDetailProjectId] = useState<string | null>(null);
-  const [cloneRepo, setCloneRepo] = useState<GithubRepo | null>(null);
-  const [reposOpen, setReposOpen] = useState(true);
-  const [reposAll, setReposAll] = useState(false);
+
+  const closeMobile = () => onMobileClose?.();
+  useEscapeLayer(mobileOpen, closeMobile);
+  useFocusTrap(asideRef, mobileOpen);
+  // Leaving the mobile breakpoint (rotate / resize) closes the sheet.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onChange = () => { if (mq.matches) onMobileClose?.(); };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [mobileOpen, onMobileClose]);
 
   // Team-editor / project-detail intents raised elsewhere (task drawer, insights)
   const projectDetailRequest = useBoardStore((s) => s.projectDetailRequest);
@@ -77,14 +82,6 @@ export function AppRail() {
     }
   }, [projectDetailRequest, clearProjectDetailRequest]);
 
-  const { status: githubStatus } = useGithubAuth();
-  const { repos } = useGithubRepos();
-  const stripGit = (s: string | null | undefined) => (s ?? "").replace(/\.git$/, "").toLowerCase();
-  const localRemotes = new Set(projects.map((p) => stripGit(p.remote)));
-  const remoteRepos = repos.filter(
-    (r) => !r.isLocal && !localRemotes.has(stripGit(r.url)) && !localRemotes.has(stripGit(r.sshUrl)),
-  );
-
   const pq = selectedProjectId ? `?projectId=${selectedProjectId}` : "";
   const boardViews: { v: BoardView; icon: ReactNode }[] = [
     { v: "board", icon: <IconBoard size={17} /> },
@@ -92,7 +89,8 @@ export function AppRail() {
     { v: "factory", icon: <IconFactory size={17} /> },
   ];
 
-  const item = (key: string, label: string, icon: ReactNode, node: (cls: string, inner: ReactNode) => ReactNode, extra?: ReactNode) => {
+  /** `ariaLabel` is set only on the icon-only (collapsed) rail, where the label text isn't rendered. */
+  const item = (key: string, label: string, icon: ReactNode, node: (cls: string, inner: ReactNode, ariaLabel?: string) => ReactNode, extra?: ReactNode) => {
     const inner = (
       <>
         <span className="grid w-5 flex-none place-items-center">{icon}</span>
@@ -100,7 +98,7 @@ export function AppRail() {
         {!collapsed && extra}
       </>
     );
-    const el = node(clsx("rail-item", collapsed && "rail-item--compact"), inner);
+    const el = node(clsx("rail-item", collapsed && "rail-item--compact"), inner, collapsed ? label : undefined);
     return (
       <li key={key}>
         {collapsed ? (
@@ -116,11 +114,20 @@ export function AppRail() {
 
   return (
     <>
+      {mobileOpen && <div className="ui-scrim z-40 md:hidden" onClick={closeMobile} aria-hidden />}
       <aside
+        ref={asideRef}
+        id="app-rail"
         aria-label="ClauFlow"
+        role={mobileOpen ? "dialog" : undefined}
+        aria-modal={mobileOpen ? true : undefined}
+        tabIndex={mobileOpen ? -1 : undefined}
         className={clsx(
-          "relative z-20 flex h-full shrink-0 flex-col border-r-2 border-line bg-panel transition-[width] duration-200 ease-out",
-          collapsed ? "w-[76px] items-center" : "w-[260px]",
+          "h-full shrink-0 flex-col border-r-2 border-line bg-panel",
+          mobileOpen
+            ? "rail-sheet fixed inset-y-0 left-0 z-50 flex w-[min(280px,86vw)] md:hidden"
+            : "relative z-20 hidden transition-[width] duration-200 ease-out md:flex",
+          !mobileOpen && (collapsed ? "w-[76px] items-center" : "w-[260px]"),
         )}
       >
         {/* Logo */}
@@ -129,29 +136,42 @@ export function AppRail() {
             <Monogram />
             {!collapsed && <span className="text-[18px] font-extrabold tracking-[-0.03em] text-ink">ClauFlow</span>}
           </Link>
+          {mobileOpen && (
+            <IconButton label={t.shell.closeMenu} size="sm" variant="ghost" className="ml-auto" onClick={closeMobile} data-autofocus>
+              <IconClose size={15} />
+            </IconButton>
+          )}
         </div>
 
         {/* Edge handle on the header border: visible in both states and clear of bottom-corner overlays */}
+        {!mobileOpen && (
         <div className="absolute -right-[15px] top-[50px] z-30">
           <Tooltip content={collapsed ? t.shell.expandRail : t.shell.collapseRail} side="right">
             <button
               type="button"
               aria-label={collapsed ? t.shell.expandRail : t.shell.collapseRail}
               aria-expanded={!collapsed}
-              onClick={() => setCollapsed(!collapsed)}
+              onClick={() => setCollapsed(!railCollapsed)}
               className="ui-focus grid h-7 w-7 place-items-center rounded-full border-2 border-ink bg-panel text-ink shadow-hard transition-colors hover:bg-mustard"
             >
               {collapsed ? <IconChevronRight size={14} /> : <IconChevronLeft size={14} />}
             </button>
           </Tooltip>
         </div>
+        )}
 
         {/* Project switcher sits outside the scroller so its popover is never clipped */}
         <div className={clsx("relative z-10 w-full shrink-0 pt-4", collapsed ? "flex justify-center px-2" : "px-3")}>
           <ProjectSwitcher
             collapsed={collapsed}
-            onNewProject={() => setNewProjectOpen(true)}
-            onOpenDetails={setDetailProjectId}
+            onNewProject={() => {
+              setNewProjectOpen(true);
+              closeMobile();
+            }}
+            onOpenDetails={(id) => {
+              setDetailProjectId(id);
+              closeMobile();
+            }}
           />
         </div>
 
@@ -165,12 +185,14 @@ export function AppRail() {
                   v,
                   t.shell.viewNames[v],
                   icon,
-                  (cls, inner) => (
+                  (cls, inner, ariaLabel) => (
                     <button
                       type="button"
                       className={cls}
+                      aria-label={ariaLabel}
                       aria-current={onBoard && view === v ? "page" : undefined}
                       onClick={() => {
+                        closeMobile();
                         setView(v);
                         if (!onBoard) {
                           const qs = new URLSearchParams();
@@ -187,76 +209,27 @@ export function AppRail() {
                   undefined,
                 ),
               )}
-              {item("insights", t.shell.viewNames.insights, <IconChart size={17} />, (cls, inner) => (
-                <Link href={`/insights${pq}`} className={cls} aria-current={section === "insights" ? "page" : undefined}>
+              {item("insights", t.shell.viewNames.insights, <IconChart size={17} />, (cls, inner, ariaLabel) => (
+                <Link href={`/insights${pq}`} className={cls} aria-label={ariaLabel} aria-current={section === "insights" ? "page" : undefined} onClick={closeMobile}>
                   {inner}
                 </Link>
               ))}
             </ul>
           </nav>
-
-          {githubStatus.connected && remoteRepos.length > 0 && !collapsed && (
-            <section aria-label={t.githubRepos.sectionTitle}>
-              <button
-                type="button"
-                onClick={() => setReposOpen((v) => !v)}
-                aria-expanded={reposOpen}
-                className="ui-focus t-label mb-1.5 flex w-full items-center gap-2 rounded-[6px] px-2 !text-[10px]"
-              >
-                <IconGithub size={12} />
-                <span className="flex-1 text-left">{t.githubRepos.sectionTitle}</span>
-                <span className="font-mono">{remoteRepos.length}</span>
-                <IconChevronDown size={12} className={clsx("transition-transform", !reposOpen && "-rotate-90")} />
-              </button>
-              {reposOpen && (
-                <ul className="flex flex-col gap-0.5">
-                  {(reposAll ? remoteRepos : remoteRepos.slice(0, REPO_PREVIEW)).map((repo) => (
-                    <li key={repo.nameWithOwner}>
-                      <button
-                        type="button"
-                        onClick={() => setCloneRepo(repo)}
-                        title={`${t.shell.cloneRepo}: ${repo.nameWithOwner}`}
-                        className="ui-menu__item group"
-                      >
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate font-semibold text-ink">{repo.name}</span>
-                          <span className="truncate font-mono text-[11px] text-ink-3">{repo.nameWithOwner}</span>
-                        </span>
-                        <span className="flex-none text-ink-3 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
-                          <IconDownload size={14} />
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                  {remoteRepos.length > REPO_PREVIEW && (
-                    <li>
-                      <button
-                        type="button"
-                        onClick={() => setReposAll((v) => !v)}
-                        className="ui-focus mt-1 rounded-[6px] px-2.5 py-1 text-[12px] font-semibold text-[var(--cobalt-text)] hover:underline"
-                      >
-                        {reposAll ? t.shell.showLess : t.shell.showAll.replace("{n}", String(remoteRepos.length))}
-                      </button>
-                    </li>
-                  )}
-                </ul>
-              )}
-            </section>
-          )}
         </div>
 
         {/* Footer */}
         <div className={clsx("flex w-full shrink-0 flex-col gap-2 border-t-2 border-line p-3", collapsed && "items-center")}>
           {collapsed ? (
             <Tooltip content={t.sidebar.newProject} side="right">
-              <IconButton label={t.sidebar.newProject} size="md" onClick={() => setNewProjectOpen(true)}>
+              <IconButton label={t.sidebar.newProject} size="md" onClick={() => { setNewProjectOpen(true); closeMobile(); }}>
                 <IconPlus size={16} />
               </IconButton>
             </Tooltip>
           ) : (
             <button
               type="button"
-              onClick={() => setNewProjectOpen(true)}
+              onClick={() => { setNewProjectOpen(true); closeMobile(); }}
               className="ui-focus group flex h-10 w-full items-center gap-2.5 rounded-[10px] border-2 border-dashed border-line px-3 text-[14px] font-semibold text-ink-2 transition hover:border-solid hover:bg-mustard hover:text-[var(--on-mustard)] hover:shadow-[2px_2px_0_var(--shadow-ink)]"
             >
               <IconPlus size={15} />
@@ -274,7 +247,6 @@ export function AppRail() {
           closeTeamEditor();
         }}
       />
-      <CloneRepoModal repo={cloneRepo} onClose={() => setCloneRepo(null)} />
     </>
   );
 }

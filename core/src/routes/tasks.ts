@@ -40,6 +40,7 @@ import { broadcastTeamArtifact, broadcastTeamRunUpdated } from "../services/wsSe
 import { mergeTaskBranch } from "../services/mergeService.js";
 import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
 import { getTaskDiff } from "../services/taskDiff.js";
+import { uiLangSchema } from "../agents/uiText.js";
 
 const router = Router();
 
@@ -90,6 +91,7 @@ const updateTaskSchema = z.object({
   budgetUsd: z.number().min(0.1).nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
   teamId: z.string().min(1).nullable().optional(),
+  uiLang: uiLangSchema.optional(),
   agent: z
     .object({
       status: agentStatus.optional(),
@@ -106,7 +108,7 @@ router.get("/", async (req: Request, res: Response) => {
   try {
     const { projectId } = req.query as { projectId?: string };
     if (!projectId) {
-      return res.status(400).json({ error: "projectId query param required" });
+      return res.status(400).json({ error: "project_id_required" });
     }
     const tasks = await listTasks(projectId);
     res.json({ tasks });
@@ -188,7 +190,9 @@ router.post("/", async (req: Request, res: Response) => {
     res.status(201).json({ task });
   } catch (err) {
     if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
-    res.status(400).json({ error: errorMessage(err) });
+    const msg = errorMessage(err);
+    if (msg.startsWith("Project not found")) return res.status(404).json({ error: "project_not_found" });
+    res.status(400).json({ error: msg });
   }
 });
 
@@ -200,16 +204,21 @@ router.patch("/:id", async (req: Request, res: Response) => {
   try {
     const existing = await getTask(req.params.id!);
     if (!existing) return res.status(404).json({ error: "not_found" });
-    if (parsed.data.teamId) assertTeamUsableByProject(parsed.data.teamId, existing.projectId);
+    const { uiLang, ...patch } = parsed.data;
+    // D4: a finished task's team is part of its history.
+    if (patch.teamId !== undefined && existing.status === "done" && patch.teamId !== existing.teamId) {
+      return res.status(409).json({ error: "task_done" });
+    }
+    if (patch.teamId) assertTeamUsableByProject(patch.teamId, existing.projectId);
 
     // Reset agent state immediately so queued tasks show "Sırada" instead of stale error
     let updateData: TaskPatch =
-      parsed.data.status === "doing"
+      patch.status === "doing"
         ? {
-            ...parsed.data,
+            ...patch,
             agent: { status: "idle" as const, currentStep: undefined, log: [], error: null, startedAt: null, finishedAt: null },
           }
-        : parsed.data;
+        : patch;
 
     // D1 / §3/5-6: only review → done merges, and it does so before answering.
     // A failed merge leaves the task where it was and returns 409 <code>.
@@ -262,18 +271,24 @@ router.patch("/:id", async (req: Request, res: Response) => {
     if (parsed.data.status === "doing" && !isExecutorRunning(task.id)) {
       const project = await getProject(task.projectId);
       if (project) {
-        enqueueExecutor(task, project);
+        enqueueExecutor(task, project, { uiLang });
       }
     }
   } catch (err) {
     if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
     const msg = errorMessage(err);
-    const code = msg.startsWith("Task not found") ? 404 : 400;
-    res.status(code).json({ error: msg });
+    if (msg.startsWith("Task not found")) return res.status(404).json({ error: "not_found" });
+    res.status(400).json({ error: msg });
   }
 });
 
+const retrySchema = z.object({ uiLang: uiLangSchema.optional() });
+
 router.post("/:id/retry", async (req: Request, res: Response) => {
+  const parsed = retrySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
   try {
     const task = await getTask(req.params.id!);
     if (!task) return res.status(404).json({ error: "not_found" });
@@ -304,7 +319,7 @@ router.post("/:id/retry", async (req: Request, res: Response) => {
     res.json({ task: reset });
 
     const project = await getProject(task.projectId);
-    if (project) enqueueExecutor(reset, project);
+    if (project) enqueueExecutor(reset, project, { uiLang: parsed.data.uiLang });
   } catch (err) {
     const msg = errorMessage(err);
     res.status(500).json({ error: msg });
@@ -369,6 +384,7 @@ router.get("/:id/team", async (req: Request, res: Response) => {
 
 const approveSchema = z.object({
   specBody: z.string().trim().min(1).max(100_000).optional(),
+  uiLang: uiLangSchema.optional(),
 });
 
 router.post("/:id/team/approve", async (req: Request, res: Response) => {
@@ -404,7 +420,7 @@ router.post("/:id/team/approve", async (req: Request, res: Response) => {
     });
     broadcastTaskUpdated(reset);
     res.json({ task: reset, artifact: approved });
-    enqueueExecutor(reset, project);
+    enqueueExecutor(reset, project, { uiLang: parsed.data.uiLang });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
@@ -413,18 +429,22 @@ router.post("/:id/team/approve", async (req: Request, res: Response) => {
 const breakdownSchema = z.object({
   prompt: z.string().min(1).max(6000),
   maxTasks: z.number().int().min(1).max(20).optional(),
+  uiLang: uiLangSchema.optional(),
 });
 
 router.post("/:id/breakdown", async (req: Request, res: Response) => {
   const task = await getTask(req.params.id!).catch(() => null);
   if (!task) return res.status(404).json({ error: "task_not_found" });
+  // D4: a finished task is history; a running one belongs to the executor.
+  if (task.status === "done") return res.status(409).json({ error: "task_done" });
+  if (task.status === "doing") return res.status(409).json({ error: "task_running" });
 
   const parsed = breakdownSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
   }
 
-  runTaskBreakdown(task.id, parsed.data.prompt, parsed.data.maxTasks ?? 6)
+  runTaskBreakdown(task.id, parsed.data.prompt, parsed.data.maxTasks ?? 6, parsed.data.uiLang)
     .catch((err) => console.error("[tasks] breakdown failed:", err));
 
   res.json({ status: "started" });
@@ -438,8 +458,8 @@ router.delete("/:id", async (req: Request, res: Response) => {
     res.status(204).end();
   } catch (err) {
     const msg = errorMessage(err);
-    const code = msg.startsWith("Task not found") ? 404 : 400;
-    res.status(code).json({ error: msg });
+    if (msg.startsWith("Task not found")) return res.status(404).json({ error: "not_found" });
+    res.status(400).json({ error: msg });
   }
 });
 

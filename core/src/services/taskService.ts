@@ -1196,7 +1196,8 @@ export async function projectHasActiveTasks(id: string): Promise<boolean> {
   const row = db
     .prepare(
       `SELECT COUNT(*) as count FROM tasks
-       WHERE projectId = ? AND status IN ('doing', 'review')`,
+       WHERE projectId = ?
+         AND (status = 'doing' OR (status = 'review' AND branch IS NOT NULL))`,
     )
     .get(id) as { count: number };
   return row.count > 0;
