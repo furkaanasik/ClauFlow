@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLayoutEffect, type CSSProperties, type ReactNode } from "react";
+import { useLayoutEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { FactoryHero } from "@/components/Landing/FactoryHero";
 import { IconButton } from "@/components/ui/Button";
 import { SectionPill } from "@/components/ui/Pills";
@@ -19,6 +19,11 @@ export default function LandingPage() {
   const t = useTranslation();
   const L = t.landing;
   const router = useRouter();
+  // zincir F0.5 (plan §5.0, Z24): decide before the landing renders. While
+  // "pending" nothing heavy mounts, so a visitor who is redirected to the board
+  // never mounts (and immediately unmounts) the hero's R3F <Canvas>. The server
+  // and the first client render agree on "pending" (no localStorage on the server).
+  const [gate, setGate] = useState<"pending" | "show">("pending");
 
   // First visit shows the landing and remembers it; afterwards `/` opens the
   // board. `/?landing=1` (the logo links) always shows the landing.
@@ -33,7 +38,10 @@ export default function LandingPage() {
     } catch {
       /* storage blocked: always show the landing */
     }
+    setGate("show");
   }, [router]);
+
+  if (gate === "pending") return <main className="min-h-screen" aria-busy="true" />;
 
   return (
     <main className="relative min-h-screen text-ink">
