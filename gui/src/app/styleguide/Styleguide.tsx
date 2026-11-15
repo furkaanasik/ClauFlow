@@ -2,7 +2,10 @@
 
 import clsx from "clsx";
 import { useState, type ReactNode } from "react";
+import { DndContext } from "@dnd-kit/core";
+import { TaskCardView } from "@/components/Card/TaskCard";
 import { useBoardStore } from "@/store/boardStore";
+import type { Task } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -581,6 +584,11 @@ function Gallery({ theme, wide }: { theme: ThemeName; wide: boolean }) {
         </Row>
       </Section>
 
+      {/* board cards — every live state the sandbox can't safely produce */}
+      <Section n={++n} title={t.styleguide.cards}>
+        <CardStates wide={wide} />
+      </Section>
+
       {/* 14 legacy */}
       <Section n={++n} title={t.styleguide.legacy}>
         <Row label="Badge">
@@ -673,5 +681,108 @@ function Gallery({ theme, wide }: { theme: ThemeName; wide: boolean }) {
         </Panel>
       </Drawer>
     </div>
+  );
+}
+
+/* ─── Board card states ───────────────────────────────────────────────────── */
+
+const NOW = "2026-11-15T09:00:00.000Z";
+const USAGE = { inputTokens: 182_000, outputTokens: 24_500, cacheReadTokens: 410_000, cacheWriteTokens: 38_000 };
+const ZERO = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+
+function mockTask(p: Partial<Task> & Pick<Task, "id" | "displayId" | "title" | "status">): Task {
+  return {
+    projectId: "styleguide",
+    description: "",
+    analysis: "",
+    priority: "medium",
+    tags: [],
+    createdAt: NOW,
+    updatedAt: NOW,
+    usage: ZERO,
+    agent: { status: "idle", log: [] },
+    ...p,
+  } as Task;
+}
+
+const CARD_STATES: Task[] = [
+  mockTask({
+    id: "sg-run",
+    displayId: "CLF-87",
+    title: "Stream agent logs into the task drawer",
+    description: "Pipe agent_log events into a virtualised list with sticky tail.",
+    status: "doing",
+    priority: "high",
+    tags: ["frontend", "ws"],
+    usage: USAGE,
+    agent: { status: "running", log: ["$ git checkout -b clf-87", "claude -p …", "editing src/components/LogView.tsx"] },
+  }),
+  mockTask({
+    id: "sg-queued",
+    displayId: "CLF-88",
+    title: "Retry webhook delivery with backoff",
+    status: "doing",
+    priority: "medium",
+    tags: ["backend"],
+  }),
+  mockTask({
+    id: "sg-ci",
+    displayId: "CLF-84",
+    title: "Cache pnpm store in CI",
+    status: "ci",
+    priority: "low",
+    tags: ["ci"],
+    prNumber: 41,
+    usage: { ...USAGE, inputTokens: 40_000, cacheReadTokens: 90_000 },
+  }),
+  mockTask({
+    id: "sg-review",
+    displayId: "CLF-79",
+    title: "Paginate task history endpoint",
+    description: "Cursor pagination with a stable sort on (updatedAt, id).",
+    status: "review",
+    priority: "critical",
+    tags: ["backend", "api", "perf", "db"],
+    prNumber: 38,
+    usage: USAGE,
+  }),
+  mockTask({
+    id: "sg-done",
+    displayId: "CLF-71",
+    title: "Set up ESLint + Prettier",
+    status: "done",
+    priority: "low",
+    tags: ["tooling"],
+    prNumber: 33,
+    prUrl: "https://github.com/example/repo/pull/33",
+    usage: { ...USAGE, outputTokens: 4_000, cacheReadTokens: 20_000 },
+  }),
+  mockTask({
+    id: "sg-error",
+    displayId: "CLF-90",
+    title: "Migrate config loader to zod schemas",
+    status: "doing",
+    priority: "high",
+    tags: ["refactor"],
+    parentTaskId: "sg-parent",
+    agent: { status: "error", log: ["error: tests failed"] },
+  }),
+];
+
+function CardStates({ wide }: { wide: boolean }) {
+  return (
+    <DndContext>
+      <div className={clsx("grid items-start gap-4", wide ? "grid-cols-3" : "grid-cols-1 sm:grid-cols-2")}>
+        {CARD_STATES.map((task) => (
+          <TaskCardView
+            key={task.id}
+            task={task}
+            subtasks={task.id === "sg-review" ? { total: 3, done: 1 } : undefined}
+            parentKey={task.parentTaskId ? "CLF-60" : undefined}
+          />
+        ))}
+        <TaskCardView task={CARD_STATES[3]} overlay />
+      </div>
+    </DndContext>
   );
 }

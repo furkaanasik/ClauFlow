@@ -1,23 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Modal } from "@/components/ui/Modal";
+import { StatusPill, type StatusKind } from "@/components/ui/Pills";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { AgentState, AgentStatus } from "@/types";
 
-interface AgentDescriptor {
-  ink:   string;
-  label: string;
-  pulse: boolean;
-}
+/** The four live executor steps, in order (spec §5). */
+export const AGENT_STEPS: AgentStatus[] = ["branching", "running", "pushing", "pr_opening"];
 
-const AGENT_MAP: Record<AgentStatus, AgentDescriptor> = {
-  idle:       { ink: "var(--text-muted)",       label: "idle",         pulse: false },
-  branching:  { ink: "var(--status-info)",      label: "branching",    pulse: true  },
-  running:    { ink: "var(--status-doing)",     label: "agent writes", pulse: true  },
-  pushing:    { ink: "var(--prio-high)",        label: "pushing",      pulse: true  },
-  pr_opening: { ink: "var(--status-review)",    label: "opening pr",   pulse: true  },
-  done:       { ink: "var(--accent-primary)",   label: "done",         pulse: false },
-  error:      { ink: "var(--status-error)",     label: "error",        pulse: false },
+const STEP_KIND: Record<AgentStatus, StatusKind> = {
+  idle: "todo",
+  branching: "doing",
+  running: "doing",
+  pushing: "doing",
+  pr_opening: "doing",
+  done: "done",
+  error: "error",
 };
 
 interface AgentBadgeProps {
@@ -25,43 +25,62 @@ interface AgentBadgeProps {
   taskTitle?: string;
 }
 
+/**
+ * Live agent step pill: "◉ Agent writing" plus a 4-notch step tracker while
+ * the executor runs. Clicking opens the agent log (portalled so a transformed
+ * card never traps the fixed overlay).
+ */
 export function AgentBadge({ agent, taskTitle }: AgentBadgeProps) {
+  const t = useTranslation();
   const [open, setOpen] = useState(false);
-  const desc   = AGENT_MAP[agent.status] ?? AGENT_MAP.idle;
   const hasLog = (agent.log?.length ?? 0) > 0;
-  const isPulse = desc.pulse;
+  const stepIdx = AGENT_STEPS.indexOf(agent.status);
+  const live = stepIdx >= 0;
+  const label = t.taskCard.agentSteps[agent.status] ?? agent.status;
 
   return (
     <>
       <button
         type="button"
         disabled={!hasLog}
-        onClick={(e) => { e.stopPropagation(); if (hasLog) setOpen(true); }}
-        aria-label={`Agent: ${desc.label}`}
-        className={`inline-flex items-center gap-1.5 border border-[var(--border)] px-2 py-1 font-mono text-[10px] uppercase tracking-widest transition ${hasLog ? "cursor-pointer hover:border-[var(--border-strong)]" : "cursor-default"}`}
-        style={{ color: desc.ink }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (hasLog) setOpen(true);
+        }}
+        title={hasLog ? t.taskCard.openLog : label}
+        className="ui-focus inline-flex items-center gap-1.5 rounded-pill disabled:cursor-default"
       >
-        {isPulse ? (
-          <span className="flex items-center gap-0.5">
-            <span className="h-1 w-1 animate-dot-1" style={{ background: desc.ink }} />
-            <span className="h-1 w-1 animate-dot-2" style={{ background: desc.ink }} />
-            <span className="h-1 w-1 animate-dot-3" style={{ background: desc.ink }} />
-          </span>
-        ) : (
-          <span className="h-1 w-1" style={{ background: desc.ink }} />
-        )}
-        <span>{desc.label}</span>
+        <StatusPill status={STEP_KIND[agent.status]} variant={live ? "solid" : "soft"} live={live}>
+          {label}
+          {live && (
+            <span className="ml-0.5 inline-flex items-center gap-[3px]" aria-hidden>
+              {AGENT_STEPS.map((s, i) => (
+                <span
+                  key={s}
+                  className="inline-block h-[7px] w-[7px] rounded-[2px] border border-current"
+                  style={{ background: i <= stepIdx ? "currentColor" : "transparent" }}
+                />
+              ))}
+            </span>
+          )}
+        </StatusPill>
       </button>
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title={taskTitle ? `Agent log — ${taskTitle}` : "Agent log"}
-      >
-        <pre className="analysis-block max-h-[60vh] overflow-auto whitespace-pre-wrap break-words p-4">
-          {(agent.log ?? []).join("\n") || "Log empty."}
-        </pre>
-      </Modal>
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <Modal
+            open={open}
+            onClose={() => setOpen(false)}
+            title={taskTitle ? `${t.taskCard.agentLog} · ${taskTitle}` : t.taskCard.agentLog}
+          >
+            <pre className="analysis-block max-h-[60vh] overflow-auto whitespace-pre-wrap break-words p-4">
+              {(agent.log ?? []).join("\n") || t.taskCard.logEmpty}
+            </pre>
+          </Modal>,
+          document.body,
+        )}
     </>
   );
 }

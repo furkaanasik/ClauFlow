@@ -73,3 +73,32 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean
     };
   }, [active, ref]);
 }
+
+/**
+ * Closes a popover on outside pointer-down or Escape. `ref` wraps both the
+ * trigger and the panel so clicking the trigger again toggles normally.
+ */
+export function useDismiss(
+  ref: RefObject<HTMLElement | null>,
+  open: boolean,
+  onClose: () => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [ref, open, onClose]);
+}

@@ -35,6 +35,33 @@ export interface Translations {
     avatars: string;
     overlays: string;
     legacy: string;
+    cards: string;
+  };
+  shell: {
+    expandRail: string;
+    collapseRail: string;
+    views: string;
+    switchProject: string;
+    noProjectSelected: string;
+    noBranch: string;
+    dirty: string;
+    clean: string;
+    cloneRepo: string;
+    live: string;
+    offline: string;
+    searchLabel: string;
+    switchLang: string;
+    soon: string;
+    showAll: string;
+    showLess: string;
+    home: string;
+    viewNames: {
+      board: string;
+      list: string;
+      factory: string;
+      prs: string;
+      insights: string;
+    };
   };
   header: {
     wsConnected: string;
@@ -58,6 +85,31 @@ export interface Translations {
     openDiffTitle: string;
     openOnGithubTitle: string;
     cancelQueuedTitle: string;
+    queued: string;
+    merged: string;
+    subtasks: string;
+    cost: string;
+    overBudget: string;
+    subtaskOf: string;
+    dragLocked: string;
+    agentLog: string;
+    logEmpty: string;
+    openLog: string;
+    agentSteps: {
+      idle: string;
+      branching: string;
+      running: string;
+      pushing: string;
+      pr_opening: string;
+      done: string;
+      error: string;
+    };
+    ci: {
+      checking: string;
+      passing: string;
+      fail: string;
+      fix: string;
+    };
   };
   addTask: {
     modalTitle: string;
@@ -109,6 +161,58 @@ export interface Translations {
     slugError: string;
   };
   board: {
+    title: string;
+    hint: string;
+    noProject: { title: string; hint: string };
+    stats: {
+      label: string;
+      total: string;
+      done: string;
+      running: string;
+      cost: string;
+      progress: string;
+    };
+    newTask: string;
+    addTask: string;
+    importIssues: string;
+    collapseColumn: string;
+    expandColumn: string;
+    needsConfirm: string;
+    dropHere: string;
+    moveFailed: string;
+    prMerged: string;
+    viewLabel: string;
+    filters: {
+      label: string;
+      priority: string;
+      tags: string;
+      agentRunning: string;
+      prOpen: string;
+      clear: string;
+      showing: string;
+      noTags: string;
+      emptyTitle: string;
+      emptyHint: string;
+    };
+    list: {
+      label: string;
+      key: string;
+      title: string;
+      status: string;
+      priority: string;
+      cost: string;
+      pr: string;
+      updated: string;
+      sortBy: string;
+      none: string;
+    };
+    factory: {
+      badge: string;
+      title: string;
+      body: string;
+      toBoard: string;
+      toList: string;
+    };
     loadError: string;
     agentStarted: string;
     columns: {
