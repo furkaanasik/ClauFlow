@@ -1,0 +1,326 @@
+# ClauFlow "Ekipler": çalışma planı
+
+> Bu dosya hem plan hem de gece çalışmasının durum kaydıdır. Her loop turu bu dosyayı okur, sıradaki işaretsiz (`- [ ]`) adımı alt ajanlarla yapar, doğrular, `[x]` yapar ve §13'e bir satır yazar. "Faz sonu" adımı commit atar.
+
+## Sabah raporu
+
+_(Faz 5'in son adımında doldurulur: fazlar ve commit'ler tablosu, nasıl bakılır, ekran görüntüleri, bilinen sınırlar, gözden geçirmeye değer kararlar, önerilen sonraki adımlar. Biçim `atolye-redesign.md` sabah raporuyla aynı.)_
+
+---
+
+## 1. Onaylanan kararlar (2026-11-15, Furkan)
+
+1. **Studio kalkar, yerine "Ekipler" gelir.** Ekip, sıralı bir **rol** listesidir. Roller sırayla çalışır. Tek geri besleme döngüsü vardır: QA → Yazılımcı. Serbest tuval ve paralellik yoktur.
+2. **Hazır şablonlar** tohumlanır, hepsi sıfır ayarla çalışır:
+   - **Solo:** Yazılımcı. Bugünkü basit modun aynısı.
+   - **Yazılım Ekibi:** CEO → Analist → Yazılımcı ⇄ QA.
+   - **Hata Avı:** Analist → Yazılımcı ⇄ QA.
+   - **Keşif:** CEO → Analist. Kod yazmaz. Çıktı görev yorumuna gider, PR açılmaz.
+3. **Roller ve çıktıları (artifact):**
+   - CEO bir **brief** yazar. Kullanıcıya soru sormaz; belirsizlikler brief'in "Varsayımlar" bölümüne yazılır.
+   - Analist **şartname** yazar: ne yapılacak, hangi dosyalar, **kabul kriterleri**.
+   - Yazılımcı uygular, commit eder ve **teslim notu** yazar.
+   - QA her kabul kriterini kontrol eder ve testleri çalıştırır. Ya geçer ya da Yazılımcı'ya **hata listesi** döner.
+   - Çıktılar kalıcıdır ve görev detayında konuşma gibi okunan bir **ekip zaman çizelgesi** olarak gösterilir.
+4. **Tanımlar ClauFlow'da yaşar, repoda değil.** Ekip ve rol tanımları ClauFlow DB'sindedir: projeler arası global şablonlar, proje varsayılan ekibi, görev bazında ekip seçimi. Ekip listelemek, oluşturmak ya da düzenlemek kullanıcının reposuna hiçbir şey yazmaz.
+5. **"Çalışma modu" (executionMode simple/graph) seçicisi kalkar.** Yerine görev detayında "Bu görevi kim yapsın?" ekip seçicisi gelir. Varsayılanı proje varsayılan ekibidir.
+6. **QA turları:**
+   - Üst sınır proje bazında ayarlanır: bir sayı ya da **Sınırsız**. Yeni projelerde varsayılan 3.
+   - Takılma tespiti: QA arka arkaya iki kez esasen aynı hata listesini dönerse çalışma durur, görev "takıldı" notuyla bırakılır.
+   - Mevcut proje bütçesi (`budgetUsd`) geçerlidir.
+7. **Şartname onay kapısı:** Varsayılan **kapalı** (hedef kullanıcı vibe coder, varsayılan tam özerklik). Proje ayarıyla açılır. Açıksa çalışma Analist'in şartnamesinden sonra durur, kullanıcı görev detayında onaylayınca devam eder.
+8. **İzin atlama (bypass):** ClauFlow'un çalıştırdığı rollerde hep açıktır, ama yalnızca ClauFlow'un kendi CLI çağrısında bayrak olarak verilir. Repoya asla `.claude/settings.json` yazılmaz. Mevcut otomatik yazmalar ve commit'ler durdurulur.
+9. **Rol ayarları:** talimat (prompt), **model** (gerçekten `--model` ile geçilir), izinli araçlar, skill'ler (gerçekten enjekte edilir) ve isteğe bağlı **danışman modeli** (`--advisor <model>`, deneysel; danışman ana modelden düşük olamaz, Haiku danışman olamaz). Varsayılanlar: CEO=sonnet, Analist=opus, Yazılımcı=sonnet+danışman opus, QA=sonnet+danışman opus. CLI kabul ettiği yerde takma adlar (`sonnet`/`opus`) kullanılır.
+10. **Önce danışman spike'ı (Faz 0).** `claude -p --advisor opus` etkileşimsiz çalışıyor mu? `claude --help` ve küçük gerçek koşu. Çalışıyorsa rol düzeyindeki danışman ayarı yayınlanır. Çalışmıyorsa alan bir yetenek bayrağıyla gizlenir, §11'e yazılır, devam edilir.
+11. **Birleşik skill listesi:** global `~/.claude/skills`, plugin skill'leri ve projenin kendi `.claude/skills`'i. Rolde seçilen skill'ler enjekte edilir. "Skill önerileri" kapsam dışı. SkillsManagerModal (plugin kurulumu) kalabilir, yeni Ekip ekranından açılır.
+12. **Roller arasında commit:** sonraki rol gerçek diff'i görür. Ekibin son çıktısı görev yorumu olur. Mevcut otomatik inceleme yorumu davranışı çalışmaya devam eder.
+13. **Arayüz:**
+    - Ekip editörü proje panelindeki Studio segmentinin yerini alır: şablon seçici, proje varsayılan ekibi, rol listesi (talimat, model, danışman, araçlar, skill'ler, sıralama, rol ekle/çıkar), QA tur sınırı (Sınırsız dahil), şartname onayı anahtarı.
+    - CLAUDE.md editörü ("Talimatlar") kalır.
+    - Board kartı etkin rolü gösterir (ör. "QA kontrol ediyor").
+    - İsteğe bağlı cila: Fabrika istasyonları rolleri yansıtır.
+    - Tam proje ayarları sayfası ayrı bir gelecek iştir.
+14. **Geçiş:** `executionMode='graph'` olan görevler Solo'ya eşlenir. Eski graf verisi dönüştürülmez (eski tabloların kaderi §3'te). Studio arayüzü, `graphRunner`, `_graph.json` işleme, `claudeTopologySyncService` ve `docs/graph-authoring.md` silinir. README/CLAUDE.md'deki Studio/graf satırları güncellenir.
+15. **Gelecek işler (yazılır, yapılmaz):** CEO sorularının görev yorumu olarak sorulması (engellemeden); skill önerileri; tam ayarlar sayfası; kalıcı TODO sırası.
+
+## 2. Gece çalışma kuralları (otonom mod)
+
+**Loop turu protokolü:**
+- a. Bu dosyayı oku. §10'daki ilk `- [ ]` maddeyi bul. O fazın başlığından önceki fazlar kapanmamışsa önce onları kapat.
+- b. Maddeyi bir alt ajana ver. Alt ajana bu dosyanın yolunu, maddenin metnini ve ilgili bölümleri (§3–§9) söyle. Bağımsız iki madde varsa paralel çalıştırılabilir, ama aynı dosyaya dokunanlar sırayla.
+- c. Doğrula: maddenin kendi kontrolü + ilgili paketin typecheck'i. Yeşilse `[x]` yap ve §13'e tek satır yaz. Kırmızıysa bir kez daha dene, yine olmazsa §11.
+- d. Karar verdiysen §12'ye yaz. Kapsam dışına çıkma; yeni fikirleri §1/15 listesine ekle.
+- e. Sıradaki tura geç. "Faz sonu" maddesi commit atar.
+
+1. **Soru sorma.** Belirsiz kararda bu plana en yakın seçeneği seç, §12'ye bir satır yaz.
+2. **Dal:** `master`dan `feature/ekipler`. **Push, merge, PR yok.**
+3. **Commit:** Faz başına bir commit: `feat: faz N - <özet>`, boş satır, `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Büyük fazda ara commit olabilir (`feat: faz Na - …`).
+4. **Paket yöneticisi:** `gui/` için yalnızca `npx -y pnpm@11.0.9 …`. `core/` npm kullanır. Karıştırma.
+5. **Dev sunucular zaten çalışıyor:** core :3001 (`tsx watch`, her core düzenlemesinde yeniden başlar), gui :3000. Durmuşlarsa arka planda başlat (`cd core && npm run dev`, `cd gui && npx -y pnpm@11.0.9 dev`). **Gerçek bir ajan koşusu sürerken core dosyası düzenleme:** yeniden başlama koşuyu öldürür ve `recoverOrphanedTasks` görevi geri sarar.
+6. **Gerçek ajan koşusu YALNIZCA sandbox'ta:** proje `proj_c2dd3194`, repo `/home/furkanasikdev/Projects/ClauFlow/atolye-lab/sandbox` (remote yok, push/PR imkânsız).
+   - `stringflow` (`proj_db77eb93`) da remote'suz ama kullanıcınındır: **orada ajan çalıştırma.**
+   - **Asla** Review→Done sürükleme (`gh pr merge` çalışır). Remote'u olan hiçbir repoda ajan çalıştırma.
+   - Gerçek koşular bir avuç: spike'ta en çok 5 minik koşu, Faz 5'te en çok 2 ekip koşusu. Döngü ve kenar durumları **sahte CLI** ile test edilir (§6.6).
+   - Sandbox, ClauFlow çalışma ağacının içinde. Her gerçek koşudan önce ve sonra `git -C /home/furkanasikdev/Projects/ClauFlow status --porcelain` alınır; ajan ClauFlow'a dokunduysa geri al ve §11'e yaz.
+7. **DB ortak:** `core/data/tasks.db` hem `master` hem bu dal tarafından kullanılır. Göçler yalnızca **eklemeli ve idempotent** olur (§9). Faz 1'den önce yedek alınır.
+8. **Ekran görüntüleri:** `atolye-lab/ekran-goruntuleri/ekipler-<faz>-<ekran>-{krem,gece}.png`, betikler `atolye-lab/ekran-goruntuleri/scripts/` (`shots-faz2.mjs`'teki Playwright kurulumunu kopyala: `/usr/bin/chromium`, Next dev rozetini gizleyen CSS, `localStorage.theme` = `cream`/`night`). Canlı olmayan durumlar için `page.route` ile GET yanıtları, WS için `page.routeWebSocket` (`shots-planlayici.mjs:19`) taklit edilir; GET dışı istekler engellenir.
+9. **Takılma:** Bir adım iki denemede geçmezse §11'e yaz, sıradakine geç. Fazı kapatan doğrulamalar kırmızıysa faz kapanmaz.
+10. **Doğrulama (her faz sonunda, hepsi yeşil):**
+    - `cd core && npm run typecheck && npm test`
+    - `cd gui && npx -y pnpm@11.0.9 typecheck && npx -y pnpm@11.0.9 lint` (**0 uyarı**)
+    - GUI fazlarında (3, 4, 5) `next build`: çalışan dev sunucusunun `.next`'ine dokunmamak için scratchpad'e kopya (`node_modules` symlink'i, `.next` hariç) ve doğrudan `node_modules/.bin/next build`. Kopyada `pnpm build` çalıştırma (bkz. `atolye-redesign.md` §11 Faz 5).
+11. **Tasarım:** Tüm GUI işi `DESIGN.md`'ye uyar: `components/ui/` primitive'leri, tokenlar, ham hex/palet yok, `ConfirmDialog`, ikonlar `ui/icons.tsx`'ten (emoji değil). Yeni metinler `tr.ts` + `en.ts` + `types.ts`'e.
+12. **Bitiş:** Tüm fazlar bitince Sabah raporu doldurulur. Kota biterse dur, kalınan yeri §13'e yaz.
+
+## 3. Plan yazılırken verilen kararlar (sabah gözden geçir)
+
+- **Eski tablolar yerinde kalır, kullanılmaz.** `graphs` tablosu, `tasks.executionMode` ve `tasks.graphId` silinmez. Gerekçe: DB `master` ile ortak (§2/7); silmek `master`ı kırar ve geri dönüşü imkânsız kılar. Yalnızca okuma/yazma kodu silinir. Boot'ta her proje reposundan `_graph.json` okuyan göç (`taskService.ts:369-379`) kaldırılır.
+- **Varsayılan ekip (kullanıcı kararı bana bıraktı, 2026-11-15):** mevcut projeler Solo kalır (`defaultTeamId = NULL` = Solo, davranış sessizce değişmez). **Yeni oluşturulan projeler `defaultTeamId` = Yazılım Ekibi şablonu ile başlar** — özelliğin amacı ekip akışı. Proje oluşturma (`POST /api/projects`) bu atamayı yapar; kullanıcı Ekip ekranından veya görev başına değiştirebilir.
+- **Durma halleri** (takılma, tur sınırı, bütçe) aynı yoldan biter: iş `wip:` commit'iyle dalda kalır, repo base'e döner, **dal silinmez**, görev `todo` + `agent.status: error` + "Takıldı: <neden>" olur ve "Takıldı" yorumu yazılır. Kullanıcı iptali bugünkü gibi temizler (reset + dal silme).
+- **Tur sınırı aşılınca da "takıldı".** Bilinen hatalarla PR açmak ya da görevi `done` saymak yanıltıcı olur.
+- **Keşif sonu:** yorum yazılır, görev `done` olur, commit/push/PR yok, dal silinir.
+- **Başarılı koşudan sonra repo base dala döner** (dal korunur). CLAUDE.md editörü yalnızca base daldayken commit eder, değilse dosyayı kaydeder ve `commitWarning: "not_on_default_branch"` döner. Böylece hiçbir arayüz commit'i görev dalına düşmez.
+- **Araç kısıtı `--tools` ile.** `--allowedTools` bypass modunda yalnızca otomatik onaylar, kısıtlamaz (spike doğrular). QA ve CEO/Analist'te `Write`/`Edit` yok. Yazılımcı dışındaki bir rol çalışma ağacını kirletirse değişiklik `git stash push -u -m clauflow-discard-<rol>` ile kenara alınır (geri alınabilir).
+- **Rol türleri dört tane** (`ceo`, `analyst`, `developer`, `qa`). Her tür ekipte en çok bir kez bulunur. "Rol ekle" eksik türlerden birini ekler. QA varsa Yazılımcı da vardır ve ondan sonra gelir.
+- **Yerleşik şablonlar salt okunur.** Boot'ta upsert edilir (prompt iyileştirmeleri yayılsın diye). Düzenlemek "Özelleştir" ile projeye kopya açar (copy-on-write). Kullanıcı bir proje ekibini "Şablon olarak kaydet" ile global şablon yapabilir.
+
+## 4. Koddan doğrulanan sorunlar ve düzeltildikleri adım
+
+| Sorun | Kanıt | Adım |
+|---|---|---|
+| Tuval dosyadan yüklenir, DB'ye kaydeder; düğüm retry'ı dosyaya göre doğrular | `StudioCanvas.tsx:273` → `projectsClaude.ts:667` (`_graph.json`); kayıt `StudioCanvas.tsx:417` → `graphs` tablosu; executor DB'den okur `executor.ts:182`; retry `tasks.ts:343` `loadGraph(repoPath)` | F2, F4 (hepsi silinir) |
+| Model yok sayılır | `claudeService.ts:286-297` argümanlarında `--model` yok; frontmatter modeli yalnızca satır/fiyat için `graphRunner.ts:382,499` | F2 |
+| Üretilen skill'ler düşer | Üretici `## Available Skills` tablosu yazar (`projectsClaude.ts:413`); `loadSkillContent` `^[A-Za-z0-9_.-]+$` ile `plugin:skill` biçimini reddeder (`graphRunner.ts:151`); proje `.claude/skills` hiç taranmaz | F1, F2 |
+| Coder diff'i boş | Düğümler arası commit yok; diff `base..HEAD` (`graphRunner.ts:562-571`), commit grafikten sonra (`executor.ts:524`) | F2 |
+| Grafiğin son çıktısı atılır | `executor.ts:250` dönüş değeri kullanılmaz; otomatik yorum yalnızca basit dalda (`executor.ts:507-515`) | F2 |
+| Ajan listelemek repoya yazar ve commit eder | `GET /claude/agents`: `main.md` + `ensureClaudeSettings` (bypassPermissions) + 2 commit (`projectsClaude.ts:331-358`); POST da yazar (`:514`); graf PUT commit'i (`:727-743`); `checkoutBase` `_graph.json` otomatik commit'i (`gitService.ts:120-139`) | F1 |
+| Başarıdan sonra commit'ler görev dalına düşer | Executor başarıda base'e dönmez (`executor.ts:632-653`); Studio/CLAUDE.md commit'leri o anki dala (`projectsClaude.ts:76-110`) | F1, F2 |
+| `syncTopologyToClaudeMd` ölü kod | Tek tanım `claudeTopologySyncService.ts:57`, çağıran yok; README:130 hâlâ "Mermaid'e yansıtılır" diyor | F4 |
+| CLI yolu sabit | `spawn("claude", …)` (`claudeService.ts:305`); geçersiz kılma yok | F0 |
+| Bütçe düğüm başına sıfırlanır | `midRunCost` her düğümde 0'dan (`graphRunner.ts:488`) | F2 (birikimli) |
+| Takma ad fiyatı yanlış | `sonnet`/`opus` `MODEL_PRICING`'de yok, sonnet-4-5 fiyatına düşer (`pricingService.ts:71-77`); opus 5 kat ucuz görünür | F2 |
+| Duraklatılmış görev boot'ta geri sarılır | `recoverOrphanedTasks` tüm `doing`'leri `todo`'ya çeker (`taskService.ts:960-976`) | F2 |
+| `--advisor` yardımda yok | `claude --help` (2.1.306) listelemiyor; `--tools`, `--append-system-prompt`, `--model`, `--max-budget-usd` var | F0 spike |
+
+## 5. Veri modeli ve API
+
+### 5.1 Tablolar (eklemeli göç, `taskService.ts` göç bloklarının sonuna)
+
+- `teams(id TEXT PK, projectId TEXT NULL REFERENCES projects(id) ON DELETE CASCADE, templateKey TEXT NULL, name TEXT NOT NULL, description TEXT DEFAULT '', roles TEXT NOT NULL, builtin INTEGER NOT NULL DEFAULT 0, createdAt TEXT, updatedAt TEXT)`. `projectId NULL` = global şablon.
+- `task_team_runs(id TEXT PK, taskId TEXT REFERENCES tasks(id) ON DELETE CASCADE, teamId TEXT, teamSnapshot TEXT NOT NULL, status TEXT NOT NULL, qaRound INTEGER NOT NULL DEFAULT 0, stopReason TEXT, costUsd REAL NOT NULL DEFAULT 0, startedAt TEXT, finishedAt TEXT)`. `status`: `running | awaiting_approval | delivered | explored | stuck | error | aborted`.
+- `task_team_artifacts(id TEXT PK, runId TEXT REFERENCES task_team_runs(id) ON DELETE CASCADE, taskId TEXT, roleId TEXT, roleKind TEXT, kind TEXT, round INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL, verdict TEXT, approved INTEGER, commitSha TEXT, nodeRunId TEXT, costUsd REAL, createdAt TEXT)`. `kind`: `brief | spec | delivery | qa_report | stuck | summary`.
+- `projects`: `defaultTeamId TEXT` (NULL = Solo; yeni projelerde Yazılım Ekibi şablon id'si atanır), `qaMaxRounds INTEGER NOT NULL DEFAULT 3` (0 = Sınırsız), `specApproval INTEGER NOT NULL DEFAULT 0`.
+- `tasks`: `teamId TEXT` (NULL = proje varsayılanı).
+- `app_meta(key TEXT PK, value TEXT)`. Tek seferlik göç: `ekipler_graph_to_solo` anahtarı yoksa `UPDATE tasks SET teamId='team_solo' WHERE executionMode='graph' AND teamId IS NULL`, sonra anahtarı yaz.
+- `task_node_runs` aynen kullanılır: her rol koşusu bir satır (`nodeId = role:<kind>:<round>`, `nodeType = <kind>`, `model`). `NodeType`'a `ceo | analyst | developer | qa` eklenir (İstatistikler bunu gruplar).
+
+### 5.2 Tipler (`core/src/types/index.ts` ve `gui/src/types/index.ts` eş)
+
+`RoleKind`, `TeamRole { id, kind, name, instructions, model, advisorModel: string|null, tools: string[], skills: string[] }`, `Team`, `TeamRun`, `TeamArtifact`. `AgentStatus`'a `awaiting_approval`. `Project`'e üç alan, `Task`'a `teamId`. `executionMode`/`graphId` tiplerden çıkar (kolonlar DB'de kalır).
+
+### 5.3 Uç noktalar
+
+- `GET /api/teams?projectId=` → yerleşikler + kullanıcı şablonları + o projenin ekipleri.
+- `POST /api/teams` `{ name, projectId|null, roles, fromTeamId? }`, `PUT /api/teams/:id`, `DELETE /api/teams/:id`. Yerleşik → 403 `builtin_readonly`. Bir projenin varsayılanıysa silme → 409 `team_in_use`.
+- `PATCH /api/projects/:id`: `defaultTeamId`, `qaMaxRounds` (0–20), `specApproval`.
+- `POST/PATCH /api/tasks`: `teamId` (nullable). `executionMode`/`graphId` artık kabul edilmez (zod siler).
+- `GET /api/tasks/:id/team` → `{ runs, artifacts }`. `POST /api/tasks/:id/team/approve` `{ specBody? }`.
+- `GET /api/projects/:id/claude/skills/catalog` → `[{ id, name, source: user|project|plugin, pluginId?, description }]`. Kimlik: `user:<ad>`, `project:<ad>`, `<plugin>:<ad>`. Gövde yalnızca katalogdan çözülen yoldan okunur (regex ile değil).
+- `GET /api/system/capabilities` → `{ advisor: boolean, models: string[] }`.
+- WS: `team_run_updated { taskId, payload: TeamRun }`, `team_artifact { taskId, payload: TeamArtifact }`. Etkin rol `agent.currentStep = "team:<kind>"` ile gelir (yeni Task alanı yok).
+
+## 6. Yürütme motoru
+
+### 6.1 Dosyalar
+
+- `core/src/services/teamTemplates.ts`: 4 yerleşik ekip (sabit id'ler `team_solo`, `team_yazilim_ekibi`, `team_hata_avi`, `team_kesif`) ve rol varsayılanları.
+- `core/src/services/teamService.ts`: CRUD, `teamRolesSchema` doğrulaması, `resolveTeamForTask(task, project)` (görev → proje → Solo; bulunamayan id Solo'ya düşer ve loglanır).
+- `core/src/services/skillCatalogService.ts`: birleşik skill listesi (plugin listesi 60 sn önbellekli), `readSkillBody(id)` frontmatter'ı atar.
+- `core/src/agents/roleRunner.ts`: `runRole()`. `executor.ts:262-515`'teki tek-CLI bloğundan çıkarılır: düğüm satırı, araç çağrıları, ajan metni, alt ajan satırları, stream-json → text yedeği, kullanım/maliyet.
+- `core/src/agents/teamPrompts.ts`: rol başına `-p` metni ve `--append-system-prompt` metni.
+- `core/src/agents/teamArtifacts.ts`: `parseQaVerdict`, `isStalled`.
+- `core/src/agents/teamRunner.ts`: `runTeam()`.
+
+### 6.2 CLI çağrısı (`claudeService.ts`)
+
+`["-p", prompt, "--permission-mode", "bypassPermissions", "--model", m, "--tools", "Read,Glob,…", "--append-system-prompt", sys, ("--advisor", a)?, "--output-format", "stream-json", "--verbose"]`. `-p` ilk argüman kalır. İkili `process.env.CLAUFLOW_CLAUDE_BIN || "claude"`, her spawn'da okunur. Rol çağrıları ayrıca `--strict-mcp-config` geçer (F0 spike, §12). `--advisor` yalnızca yetenek açıksa eklenir. Eski çağıranlar (`commentRunner`, `ciWatcher`, `prReviewRunner`, planner, breakdown) değişmez.
+
+### 6.3 Akış (`runTeam`)
+
+1. Ekibi çöz, `teamSnapshot` ile run satırı aç (devam ediliyorsa son `awaiting_approval` run'ı ve onaylı brief/spec yeniden kullanılır, Yazılımcı'dan başlanır).
+2. Her rol için: bütçe kontrolü (birikimli `run.costUsd` ≥ `getTaskEffectiveBudget` → dur: bütçe); `setAgentStep("running", "team:<kind>")`; `runRole`; son metin `result` olayının `result` alanından (yoksa biriken metin); artifact yaz ve yayınla.
+3. Yazılımcı sonrası: `commitAll` (`feat(<KEY>): <başlık>` / sonraki turlarda `fix(<KEY>): QA turu N`), `commitSha` artifact'a. Diğer roller sonrası: ağaç kirliyse stash (§3).
+4. QA: `parseQaVerdict`. PASS → bitir. FAIL → `qaRound++`; tur sınırı (`qaMaxRounds > 0` ve `qaRound >= qaMaxRounds`) → dur: tur sınırı; `isStalled(önceki, şimdiki)` → dur: takıldı; değilse Yazılımcı'ya hata listesiyle dön, sonra QA tekrar.
+5. Analist sonrası, `project.specApproval` açıksa ve ekipte Yazılımcı varsa: run `awaiting_approval`, `agent.status = awaiting_approval`, repo base'e döner, dal silinir (henüz kod yok), `runTeam` `{ kind: "awaiting_approval" }` döner.
+6. Dönüş: `delivered | explored | stuck | awaiting_approval` ve özet metni.
+
+### 6.4 Executor entegrasyonu
+
+`executor.ts:243-516` (`if (graph) … else …`) `runTeam` ile değişir. `delivered` → mevcut commit/push/PR/CI/review yolu, PR gövdesine "## Ekip" bölümü (kabul kriterleri + QA sonucu), `## Ekip özeti` yorumu. `"## Code Review Report"` otomatik yorumu ve `prReviewRunner` korunur. `explored` → yorum, `done`, dal silinir. `stuck` → §3. `awaiting_approval` → görev `doing` kalır, slot boşalır. Başarı sonunda `git checkout <defaultBranch>`. `recoverOrphanedTasks`'e `AND agentStatus != 'awaiting_approval'`. `/abort` duraklatılmış görevi de `todo`'ya çeker ve run'ı `aborted` yapar.
+
+### 6.5 Takılma ve karar ayrıştırma
+
+- QA çıktısı son satırlardan birinde `VERDICT: PASS` ya da `VERDICT: FAIL` içerir, FAIL ise `## Hata listesi` altında numaralı maddeler. Karar satırı yoksa FAIL sayılır, tüm metin hata listesi olur ve uyarı loglanır.
+- `isStalled(a, b)`: maddeler küçük harfe, noktalama/rakam/fazla boşluk atılarak normalize edilir; kelime kümelerinin Jaccard benzerliği ≥ 0.8 ise "esasen aynı". Saf fonksiyon, birim testli.
+
+### 6.6 Sahte CLI ve yalıtılmış core
+
+- `core/src/agents/__fixtures__/fake-claude.mjs` (repoda, çalıştırılabilir). Argümanları ayrıştırır, her çağrıyı `$FAKE_CLAUDE_STATE/calls.jsonl`'a yazar (`--model`, `--tools`, `--advisor`, sistem prompt'u dahil). Rolü sistem prompt'undaki `<!-- clauflow-role: <kind> round: <n> -->` işaretinden bulur. Senaryo `FAKE_CLAUDE_SCENARIO`: `pass`, `fail_then_pass`, `stuck`, `always_fail`, `no_verdict`, `exit_error`, `slow` (abort testi). Yazılımcı cwd'ye `fake-<round>.txt` yazar. Çıktı: `system/init`, `assistant` (metin + usage), `result` (usage ile).
+- Vitest entegrasyon testleri: geçici git reposu (remote yok), DB'de geçici proje/görev, `process.env.CLAUFLOW_CLAUDE_BIN` sahteye.
+- Yalıtılmış core (API/WS uçtan uca): `cd atolye-lab/fake/core-run && PORT=3101 CLAUFLOW_CLAUDE_BIN=<abs>/fake-claude.mjs node <abs>/core/node_modules/.bin/tsx <abs>/core/src/index.ts`. `DATA_DIR = cwd/data` olduğu için DB ayrı. Repolar `atolye-lab/fake/repos/`. İş bitince süreç öldürülür. Gerçek :3001'e dokunulmaz.
+
+## 7. Rol sözleşmeleri ve şablon varsayılanları
+
+Talimatlar İngilizce yazılır (model güvenilirliği), çıktı dili görevin dilidir. Her rol, sistem prompt'unda rol işaretini ve aşağıdaki çıktı biçimini taşır.
+
+| Rol | Model / danışman | `--tools` | Girdi | Çıktı |
+|---|---|---|---|---|
+| CEO | sonnet / — | Read, Glob, Grep | görev, proje arka planı | `## Brief`: Amaç, Kapsam, Kapsam dışı, **Varsayımlar**. Soru sormaz. |
+| Analist | opus / — | Read, Glob, Grep, Bash | görev, brief | `## Şartname`: Ne yapılacak, Dosyalar, **Kabul kriterleri** (`AC-1…`), Test önerisi |
+| Yazılımcı | sonnet / opus | Read, Write, Edit, Bash, Glob, Grep | brief, şartname, (tur ≥2) hata listesi + önceki teslim notu | Kod + testler, testleri çalıştırır; `## Teslim notu`: değişen dosyalar, AC eşlemesi, test sonucu |
+| QA | sonnet / opus | Read, Bash, Glob, Grep | şartname, teslim notu, `git diff <base>...HEAD` (30k karakterle kırpılır) | `## QA raporu` (AC başına ✓/✗, test çıktısı özeti), `VERDICT:` satırı, FAIL'de `## Hata listesi` |
+
+Solo'nun Yazılımcı'sı bugünkü `testingInstructions` metnini (`executor.ts:280-297`) aynen kullanır. Skill'ler sistem prompt'una `Skill: <id>` başlığıyla eklenir (skill başına 20k, toplam 60k karakter tavanı), log'a `⚡ Skills injected: …` yazılır. Fiyat: takma ad ve aile eşlemesi (`opus` → en yeni opus satırı vb.), bilinmeyen tam adlar aile alt dizesiyle eşlenir.
+
+## 8. Arayüz
+
+- **Görev detayı (`TaskDetailDrawer.tsx`):** "Çalışma modu" bloğu (`:825-930`) yerine "Bu görevi kim yapsın?" seçicisi: ilk seçenek "Proje varsayılanı (X)", sonra yerleşikler ve proje ekipleri; çalışırken kilitli. "Akış" sekmesi "Ekip" olur: üstte ekip zaman çizelgesi, altta katlanır "Teknik akış" (mevcut `MiniDagView`). Başlıktaki "Studio'da aç" (`:381`) yerine "Ekibi düzenle".
+- **Zaman çizelgesi (`Card/TeamTimeline.tsx`):** konuşma balonları. Rol avatarı + ad, tur etiketi, maliyet ve token (mono), commit çipi, katlanır markdown gövde. QA kararı yeşil/kırmızı `StatusPill`. Takılma kartı taralı (`.ui-hatch`) ve kırmızı.
+- **Onay kapısı:** hardal banner, düzenlenebilir şartname (`Textarea`), "Onayla ve devam et" (birincil) ve "İptal" (`ConfirmDialog`).
+- **AddTaskModal:** executionMode seçicisi (`:43-84`, `:196-230`) aynı ekip seçicisiyle değişir.
+- **Kart:** `agent.currentStep` `team:<kind>` ise `AgentBadge` rol ikonu + "CEO brief yazıyor / Analist şartname yazıyor / Yazılımcı kodluyor (· tur N) / QA kontrol ediyor"; `awaiting_approval` hardal "Onay bekliyor".
+- **Ekip editörü (`components/Team/`):** `ClaudeConfigTab` segmentleri "Talimatlar | Ekip" (`ClaudeConfigTab.tsx:28,49-71`). Şablon kartları + "Varsayılan yap", "Özelleştir", rol listesi (yukarı/aşağı düğmeleriyle sıralama, rol ekle/çıkar, doğrulama mesajları), rol düzenleyici (talimat, model, danışman (yetenek kapalıysa gizli; seçenekler sıraya göre süzülür), araç kutuları, aranabilir skill çoklu seçimi + "Skill yöneticisi" → `SkillsManagerModal`), proje ayarları (QA tur sınırı `Segmented` 1/2/3/5/Sınırsız + sayı, şartname onayı `Switch`), "Şablon olarak kaydet".
+- **Store:** `studioRequest` → `teamEditorRequest { projectId }`. Ekipler proje başına, run/artifact görev başına; `useAgentSocket` iki yeni olayı işler.
+
+## 9. Değişmezler
+
+- Repoya ClauFlow arayüzünden yazma yok; tek istisna CLAUDE.md editörü ve yalnızca base daldayken.
+- `-p <prompt>` her zaman ilk CLI argümanı. Bypass yalnızca bayrakla.
+- Göçler eklemeli ve idempotent; `master` aynı DB ile çalışmaya devam eder.
+- Executor davranışları korunur: `acquireSlot`, `gh auth setup-git`, hata → `todo` + `agent.status: error`, remote yoksa `done`, remote varsa `ci`/`review`, `nothing` tespiti, `prReviewRunner`, `startCiWatch`, bütçe olayı `budget_exceeded`.
+- `commentRunner`, CI fix döngüsü, planner ve breakdown dokunulmadan çalışır.
+- GUI: dnd-kit kuralları, `ALLOWED_TRANSITIONS`, klavye kısayolları, `localStorage` anahtarları, `useEscapeLayer`, i18n üçlüsü (`atolye-redesign.md` §7).
+- Studio ile birlikte hiçbir yeni özellik eklenmez; kapsam dışı maddeler §1/15'te.
+
+## 10. Fazlar
+
+### Faz 0: Hazırlık ve spike
+- [x] `git checkout -b feature/ekipler master`. Bu plan dosyası ilk faz commit'ine girer.
+- [x] DB yedeği: `node -e` ile better-sqlite3 `.backup()` → `atolye-lab/db-yedek/tasks-<zaman>.db`. Boyut > 0 doğrula.
+- [x] Spike A, scratchpad'de `git init` edilmiş boş bir dizinde (repo değil): (1) `--model sonnet`: `system/init` olayındaki gerçek model adını kaydet; (2) bypass + `--allowedTools Read` ile "x.txt oluştur" → dosya oluşuyor mu; aynısı `--tools Read` ile; (3) `--append-system-prompt` + `-p` birlikte; (4) `--model sonnet --advisor opus` etkileşimsiz: çıkış kodu, stderr, olaylarda danışman izi, usage. En çok 5 minik koşu ("Reply OK"). Sonuçları §12'ye tablo olarak yaz.
+- [x] Karar: danışman çalışıyorsa `core/src/services/claudeCapabilities.ts` içinde `ADVISOR_SUPPORTED = true`, değilse `false` + §11 kaydı. `fable` takma adı kabul ediliyorsa model listesine ve sıralamaya nereye girdiğini §12'ye yaz.
+- [x] `claudeService.ts:305`: `process.env.CLAUFLOW_CLAUDE_BIN || "claude"`. Vitest: env bir betiğe işaret edince o çalışır.
+- [x] Sahte CLI (§6.6) ve duman testi: `runClaude` ile `pass` senaryosu stream-json'u doğru ayrıştırıyor, `calls.jsonl` yazılıyor.
+- [x] Yalıtılmış core betiği `atolye-lab/fake/start-fake-core.sh` (§6.6). Başlat, `curl :3101/api/projects` → `[]`, öldür.
+- [x] Sandbox koruması: sandbox'a "bu bağımsız bir test reposudur; üst dizinlerdeki CLAUDE.md'yi yok say, bu dizinin dışına çıkma" diyen `CLAUDE.md` ekle ve sandbox reposunda commit et (CLAUDE.md keşfi üst dizinlere çıkıyor).
+- [x] "Önce" görüntüleri (`scripts/shots-ekipler-once.mjs`, yalnızca GET): Studio (proje paneli → Claude Config → Studio), görev detayındaki çalışma modu, AddTask modalı, çalışan kart (taklit). Krem + gece.
+- [x] Faz sonu: §2/10 doğrulamaları, commit `feat: faz 0 - dal, CLI spike, sahte CLI`.
+
+### Faz 1: Veri, API, repo yazmalarının durması
+- [ ] Tipler (§5.2), core ve gui. Henüz kullanılmayan alanlar derlenmeli.
+- [ ] Göç (§5.1): tablolar, kolonlar, `app_meta`, graf→Solo eşlemesi. `_graph.json` okuyan boot göçünü sil. İki kez boot'ta idempotent olduğunu test et.
+- [ ] `teamTemplates.ts` (§7) + boot upsert. `GET` ile 4 yerleşik dönüyor.
+- [ ] `teamService.ts` + `teamRolesSchema` (tür tekilliği, QA ⇒ Yazılımcı ve sonra, 1–4 rol, danışman sırası, Haiku danışman olamaz) + `resolveTeamForTask`. Birim testleri.
+- [ ] `routes/teams.ts` + `index.ts` mount, 403/409 kuralları. Vitest ya da curl ile doğrula.
+- [ ] Proje PATCH alanları ve `createProject` varsayılanları. Görev POST/PATCH `teamId`; `executionMode`/`graphId` şemadan çıkar (`tasks.ts:73-74`).
+- [ ] `skillCatalogService` + `/claude/skills/catalog`. Kökler parametreli (testte geçici HOME). `plugin:skill` ve proje skill'i testte çözülüyor.
+- [ ] `GET /api/system/capabilities`.
+- [ ] Repo yazmalarını durdur: `GET /claude/agents`'taki `main.md` + `ensureClaudeSettings` + commit'ler (`projectsClaude.ts:331-358`), POST'taki `ensureClaudeSettings` (`:514`), graf PUT commit'i (`:727-743`), `gitService.ts:124` listesinden `_graph.json`. CLAUDE.md PUT yalnızca base dalda commit eder (§3).
+- [ ] Doğrula: sandbox'ta `GET /claude/agents` sonrası `git -C atolye-lab/sandbox status --porcelain` boş ve yeni commit yok.
+- [ ] Faz sonu: doğrulamalar, commit `feat: faz 1 - ekip verisi, API, repo yazmaları durdu`.
+
+### Faz 2: Motor
+- [ ] `claudeService`: `model`, `tools`, `appendSystemPrompt`, `advisorModel` seçenekleri (§6.2). Sahte CLI `calls.jsonl` ile test.
+- [ ] `pricingService`: takma ad + aile eşlemesi (§7). Birim testleri.
+- [ ] `roleRunner.ts` (§6.1): executor'daki bloğu taşı, davranışı birebir koru (alt ajan satırları, metin yedeği, birikimli bütçe, rol modeliyle fiyat).
+- [ ] `teamPrompts.ts`: dört rol + Solo, rol işareti, skill enjeksiyonu ve tavanları. Testler: `plugin:skill` enjekte ediliyor, tavan uygulanıyor.
+- [ ] `teamArtifacts.ts`: `parseQaVerdict`, `isStalled` (§6.5). Testler: PASS, FAIL, karar yok, eşik altı/üstü.
+- [ ] `teamRunner.ts` sıralı akış + artifact kalıcılığı + WS yayınları (`broadcastTeamRunUpdated`, `broadcastTeamArtifact`) + roller arası commit/stash.
+- [ ] QA döngüsü: tur sınırı, Sınırsız, takılma, roller arası bütçe kontrolü.
+- [ ] Onay kapısı: duraklat, `GET /tasks/:id/team`, `POST …/team/approve` (düzenlenmiş şartname), devam; `recoverOrphanedTasks` ve `/abort` güncellemesi.
+- [ ] Executor entegrasyonu (§6.4): `runTeam`, çıkış halleri, PR gövdesi "## Ekip", `## Ekip özeti` yorumu, başarıda base'e dönüş, Keşif yolu.
+- [ ] Sil: `graphRunner.ts` + testi, `enqueueResume`/`resumeFromNodeId`, `tasks.ts:314-370` düğüm abort/retry, graf PUT'taki `planGraph` doğrulaması, executor'daki `getGraph`. (`routes/graphs.ts` ve Studio uçları Faz 4'te, GUI ile birlikte.)
+- [ ] Sahte CLI entegrasyon testleri A: Solo; Yazılım Ekibi `pass`; `fail_then_pass` (2 Yazılımcı commit'i, QA ikinci turda gerçek diff'i görüyor).
+- [ ] Testler B: `stuck` (takıldı, dal duruyor, `wip:` commit), `always_fail` + sınır 2, Sınırsız + `stuck`, bütçe durması, `exit_error` (bugünkü hata yolu), `slow` + abort.
+- [ ] Testler C: Keşif (commit/PR yok, yorum var, `done`), onay kapısı duraklat → onayla → devam, `calls.jsonl`'da `--model`, `--tools`, skill metni, (yetenek açıksa) `--advisor`.
+- [ ] Yalıtılmış core uçtan uca (:3101): proje + görev oluştur, `PATCH status=doing`, küçük bir `ws` istemcisiyle `team_artifact` olaylarını say, `GET /tasks/:id/team` ile karşılaştır.
+- [ ] Faz sonu: doğrulamalar, commit `feat: faz 2 - teamRunner motoru`.
+
+### Faz 3: Görev detayı arayüzü
+- [ ] GUI tipleri, `lib/api.ts` uçları, store dilimleri, `useAgentSocket` yeni olaylar; `TaskPatch`'ten `executionMode`/`graphId` çıkar.
+- [ ] i18n: `team.*` (rol adları, etkinlikler, durma nedenleri, onay kapısı, seçici), tr + en + types.
+- [ ] Ekip seçicisi bileşeni (`Team/TeamPicker.tsx`) ve `TaskDetailDrawer` entegrasyonu (§8).
+- [ ] AddTaskModal'da aynı seçici.
+- [ ] `TeamTimeline.tsx` ve "Ekip" sekmesi (altta "Teknik akış").
+- [ ] Onay kapısı arayüzü.
+- [ ] Kart rozeti: `AgentBadge` `STEP_KIND` + `team:<kind>` etiketleri + `awaiting_approval`.
+- [ ] "Studio'da aç" → "Ekibi düzenle" (`teamEditorRequest`).
+- [ ] Ekran görüntüleri (taklit GET + WS): QA 2. tur çalışıyor, onay bekliyor, takıldı, bitmiş zaman çizelgesi, kart rozetleri. Krem + gece. Ayrıca bir kez yalıtılmış core'a `page.route` 3001→3101 yönlendirmesiyle canlı akış.
+- [ ] Faz sonu: doğrulamalar + build, commit `feat: faz 3 - görev detayında ekip`.
+
+### Faz 4: Ekip editörü ve Studio'nun silinmesi
+- [ ] `ClaudeConfigTab` segmentleri "Talimatlar | Ekip", `TeamEditor` iskeleti.
+- [ ] Şablon kartları, "Varsayılan yap", "Özelleştir" (kopya).
+- [ ] Rol listesi: sıralama, ekle/çıkar, doğrulama mesajları.
+- [ ] Rol düzenleyici: talimat, model, danışman, araçlar, skill'ler (katalog), "Skill yöneticisi".
+- [ ] Proje ayarları: QA tur sınırı (Sınırsız dahil), şartname onayı.
+- [ ] "Şablon olarak kaydet" ve kullanıcı şablonunu silme (`ConfirmDialog`).
+- [ ] GUI'den Studio'yu sil: `components/Studio/*`, store `studio*` alanları, api'deki agents/graph/graphs/generate metotları, `studio_generation` olayı, i18n anahtarları, `.studio-*`/`.agent-node*` CSS, `@xyflow/react` (`npx -y pnpm@11.0.9 remove @xyflow/react`), AppRail bağlantısı.
+- [ ] Core'dan Studio'yu sil: `projectsClaude.ts` agents/generate/graph uçları, `ensureClaudeSettings`, `commitAgentChange`, GUI kullanmıyorsa `/claude/push`; `graphService.ts`, `routes/graphs.ts` + `index.ts:40`, `taskService` graf fonksiyonları (tablo kalır), `broadcastStudioGeneration`, `AgentGraph` tipleri, `claudeTopologySyncService.ts`.
+- [ ] Belgeler: `docs/graph-authoring.md` sil; README (`:85`, `:130`, `:257`), CLAUDE.md "Core Data Flow" 4. adım, DESIGN.md Studio satırları (`:304`, `:315`, `:335`, `:807`) Ekip editörüne göre.
+- [ ] Tarama: `rg -n -i "studio|graphRunner|executionMode|_graph\.json|xyflow" core/src gui/src README.md CLAUDE.md DESIGN.md` yalnızca bilinçli kalanları gösterir; §12'ye yaz.
+- [ ] Ekran görüntüleri: Ekip editörü (şablonlar, rol düzenleyici, ayarlar, doğrulama hatası). Krem + gece.
+- [ ] Faz sonu: doğrulamalar + build, commit `feat: faz 4 - ekip editörü, studio silindi`.
+
+### Faz 5: Cila, gerçek koşu, rapor
+- [ ] (İsteğe bağlı) Fabrika: DOING istasyonunun tabelası/pili etkin rolü gösterir (`components/Factory/`).
+- [ ] Erişilebilirlik: axe (gui `node_modules`'undaki axe-core) Ekip editörü, zaman çizelgesi, onay kapısı, iki tema; rol sıralamasında klavye yürüyüşü.
+- [ ] Gerçek koşu 1 (sandbox): varsayılan ekip Yazılım Ekibi, `qaMaxRounds` 2, `budgetUsd` 3; küçük görev ("`src/` altına `slugify` fonksiyonu ve testi ekle"); `PATCH doing`. Doğrula: 4 rol artifact'ı, Yazılımcı commit'i dalda, QA kararı, `## Ekip özeti` yorumu, `done`, repo `main`de, ClauFlow ağacı temiz. Canlı kart ve zaman çizelgesi görüntüsü.
+- [ ] Gerçek koşu 2 (sandbox): Keşif, küçük bir soru görevi. Commit/PR yok, yorum var.
+- [ ] Önce/sonra karşılaştırmaları (ImageMagick yan yana): Studio → Ekip editörü, çalışma modu → ekip seçici.
+- [ ] Son doğrulamalar (core test + typecheck, gui typecheck + lint + build).
+- [ ] Sabah raporunu yaz.
+
+## 11. Takılanlar
+
+_(Faz 0: takılan yok.)_
+
+## 12. Kendi kararlarım (otonom çalışırken verilen)
+
+**Spike sonuçları (Faz 0 doldurur):**
+
+| Deneme | Komut özeti | Sonuç | Karar |
+|---|---|---|---|
+| `--model sonnet` | `claude -p "Reply OK" --permission-mode bypassPermissions --model sonnet --append-system-prompt … --output-format stream-json --verbose` (koşu 1) | init'teki model: `claude-sonnet-5-5` (assistant ve `modelUsage` anahtarı da aynı). $0.17 | Takma adlar CLI'ye aynen geçilir; fiyatlama `modelUsage` anahtarındaki tam adla yapılabilir. |
+| bypass + `--allowedTools Read` | "x.txt oluştur", `--allowedTools Read` (koşu 2) | dosya oluştu mu: **evet** (Write kullanıldı, init'te tam araç listesi) | `--allowedTools` kısıtlamaz, kullanılmaz (§3 doğrulandı). |
+| bypass + `--tools Read` | aynı istek, `--tools Read` (koşu 3) | dosya oluştu mu: **hayır** ("No such tool available: Write"); init'te yerleşik araç yalnızca `Read`. **Ama** 639 MCP aracı kaldı ve ToolSearch olmadığı için şemaları baştan yüklendi: 595k cache-write token, **$2.44** | Rol çağrılarına `--strict-mcp-config` eklenecek (koşu 5'te 4k token'a indi). Bkz. aşağıdaki Faz 0 kararı. |
+| `--append-system-prompt` | koşu 1: "her yanıtı BANANA ile bitir" + `-p "Reply OK"` | çıktı `OK\n\nBANANA`, çıkış 0 | `-p` ilk argüman + `--append-system-prompt` birlikte çalışır. |
+| `--model sonnet --advisor opus` | koşu 4: `-p "Reply OK"`; koşu 5: danışmanı çağırmasını isteyen prompt + `--tools Read --strict-mcp-config` | çıkış kodu 0 / stderr boş / usage: koşu 4'te danışman çağrılmadı (önemsiz istek, iz yok). Koşu 5'te `server_tool_use name=advisor` + `advisor_tool_result` (şifreli) olayları; `modelUsage`'ta ayrı `claude-opus-5-5` satırı ($0.036), `usage.iterations`'ta `type: advisor_message`; `total_cost_usd` ikisini içerir ($0.055) | `ADVISOR_SUPPORTED = true` |
+
+Toplam spike harcaması ≈ $3.04 (5 koşu). Her koşudan önce/sonra ClauFlow `git status --porcelain` yalnızca `?? docs/plans/ekipler.md` gösterdi (koşular scratchpad'deki boş repoda).
+
+_(Diğer kararlar buraya, faz etiketiyle.)_
+
+- **F0 · `--advisor` gizli ama çalışıyor.** `claude --help` (2.1.306) listelemiyor, ama `claude --advisor` "argument missing" hatası veriyor, yani bayrak tanımlı. `-p` ile etkileşimsiz çalışıyor (koşu 5). Danışman, ana modelin kendi kararıyla çağırdığı sunucu tarafı bir araç: önemsiz isteklerde hiç çağrılmayabilir (koşu 4). Danışman maliyeti `total_cost_usd` içinde; Faz 2'de rol maliyeti `total_cost_usd`'den (yoksa `modelUsage` toplamından) alınmalı, yalnızca ana modelin token'larından hesaplanmamalı.
+- **F0 · `fable` takma adı.** Gerçek koşu yapılmadı (5 koşu sınırı doldu). Kanıt: `claude --help` `--model` açıklamasında `'fable', 'opus', or 'sonnet'` örneği; CLI'nin kendi sıralama tablosu `haiku=0 < sonnet=1 < opus=2 < fable/mythos=3`, `fable` → `claude-fable-5-1`, CLI'nin kabul ettiği takma adlar `sonnet, opus, haiku, fable`. Model listesi `["haiku","sonnet","opus","fable"]` (zayıftan güçlüye), `fable` en üstte. Danışman sırası bu sıralamayla doğrulanır (`isValidAdvisor`, `claudeCapabilities.ts`).
+- **F0 · Rol çağrılarına `--strict-mcp-config` (§6.2'ye ek).** `--tools` yerleşik araçları kısıtlar ama kullanıcının MCP araçlarını bırakır; `ToolSearch` listede olmayınca tüm MCP şemaları bağlama yüklenir (koşu 3: 595k token, $2.44 "x.txt oluştur" için). `--strict-mcp-config` (ve `--mcp-config` vermeden) ile MCP sunucusu yok, bağlam 4k. Faz 2'de `teamRunner` rol çağrıları `--strict-mcp-config` geçer. Eski çağıranlar (§6.2) değişmez.
+- **F0 · Kullanıcı hook'ları rol koşularına sızıyor.** Koşu 2'de kullanıcının global `PreToolUse` hook'u ("Fact-Forcing Gate") ilk Write/Bash çağrısını reddetti, ajan tekrar denedi. ClauFlow'un bugünkü koşularında da aynı. `--bare` hook'ları atlar ama CLAUDE.md keşfini de kapatır; şimdilik dokunulmadı, Faz 2'de rol prompt'ları bu tekrar denemeye dayanıklı yazılır. Kalıcı çözüm (ör. `--setting-sources`) sabah gözden geçirmeye değer; bu planda yapılmaz.
+- **F0 · Spike koşusu sayımı.** `fable` için ayrı koşu yerine 5. koşu danışmanı zorlamaya harcandı; danışmanın gerçekten çağrıldığını görmek `ADVISOR_SUPPORTED` kararı için daha değerliydi.
+- **F0 · Yalıtılmış core çıktısı.** `GET /api/projects` `[]` değil `{"projects":[]}` döner (API biçimi bu); boş liste olarak doğrulandı.
+- **F0 · `atolye-lab/` git'te yok.** `.git/info/exclude` ile hariç (`/atolye-lab/`). `start-fake-core.sh`, ekran betikleri ve DB yedeği yerelde kalır, faz commit'ine girmez. Sahte CLI repoda (`core/src/agents/__fixtures__/fake-claude.mjs`), §6.6'daki gibi.
+- **F0 · DB yedeği.** `.backup()` ile `atolye-lab/db-yedek/tasks-20261115-190711.db` (118 KB, `integrity_check` ok, 20 görev) + ham kopya `raw-20261115-190711/` (`tasks.db`, `-wal`, `-shm`).
+- **F0 · "Önce" görüntülerinde yazan GET'ler taklit edildi.** `GET /claude/agents` bugün sandbox reposuna yazıp commit ediyor (§4); betik `claude/agents`, `claude/graph`, `graphs`, `claude/skills` uçlarını tarayıcıda yanıtlar, GET dışını engeller. Çalışan kart ve graf modundaki görev `tasks` yanıtı değiştirilerek taklit edildi. Betik öncesi/sonrası sandbox `git log`/`status` değişmedi.
+
+## 13. İlerleme günlüğü
+
+- 2026-11-15: Plan yazıldı. Çalışma başlamadı; Furkan'ın "başla" demesi bekleniyor.
+- 2026-11-15 F0: `feature/ekipler` dalı `master`dan açıldı.
+- 2026-11-15 F0: DB yedeği `atolye-lab/db-yedek/tasks-20261115-190711.db` (118 KB, integrity ok) + ham `-wal`/`-shm` kopyası.
+- 2026-11-15 F0: Spike A, 5 gerçek koşu (scratchpad'de boş repo, ≈ $3.04): sonnet → `claude-sonnet-5-5`; `--allowedTools` kısıtlamıyor, `--tools` kısıtlıyor; `--append-system-prompt` çalışıyor; `--advisor opus` `-p` ile çalışıyor. Tablo §12'de.
+- 2026-11-15 F0: `core/src/services/claudeCapabilities.ts` (`ADVISOR_SUPPORTED = true`, model sırası haiku<sonnet<opus<fable, `isValidAdvisor`) + test.
+- 2026-11-15 F0: `claudeService` ikilisi `process.env.CLAUFLOW_CLAUDE_BIN || "claude"`; `claudeService.bin.test.ts` betik ve sahte CLI ile doğruluyor.
+- 2026-11-15 F0: Sahte CLI `core/src/agents/__fixtures__/fake-claude.mjs` (7 senaryo, `calls.jsonl`) + `fake-claude.test.ts`; `runClaude` duman testi yeşil.
+- 2026-11-15 F0: `atolye-lab/fake/start-fake-core.sh` (:3101, ayrı DB, sahte CLI); başlatıldı, `GET /api/projects` → `{"projects":[]}`, öldürüldü; :3001 etkilenmedi.
+- 2026-11-15 F0: Sandbox'a izolasyon `CLAUDE.md` eklendi, sandbox reposunda `a6a5c43`.
+- 2026-11-15 F0: "Önce" görüntüleri `ekipler-0-{studio,calisma-modu,addtask,kart-calisiyor,board}-{krem,gece}.png` (`scripts/shots-ekipler-once.mjs`, yalnızca GET, yazan GET'ler taklit).
+- 2026-11-15 F0: Faz sonu doğrulamaları yeşil (core typecheck + 99 test, gui typecheck + lint 0 uyarı); faz 0 commit'i.

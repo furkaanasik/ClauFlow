@@ -302,7 +302,7 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
   }
 
   return new Promise((resolve, reject) => {
-    const child = spawn("claude", args, {
+    const child = spawn(process.env.CLAUFLOW_CLAUDE_BIN || "claude", args, {
       cwd: options.cwd,
       env,
       // stdin'i kapat — "no stdin data received" uyarısını önler
