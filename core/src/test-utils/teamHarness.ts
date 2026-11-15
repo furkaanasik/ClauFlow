@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { run as runExecutor } from "../agents/executor.js";
+import { run as runExecutor, type RunOptions } from "../agents/executor.js";
 import { getComments } from "../services/commentService.js";
 import {
   createProject,
@@ -68,10 +68,10 @@ export async function makeTeamCase(opts: {
 }
 
 /** Moves the task to doing and runs the executor to completion (or pause). */
-export async function runTeamCase(c: TeamCase): Promise<Task> {
+export async function runTeamCase(c: TeamCase, opts: RunOptions = {}): Promise<Task> {
   const doing = await updateTask(c.task.id, { status: "doing" });
   const project = (await getProject(c.project.id))!;
-  await runExecutor(doing, project);
+  await runExecutor(doing, project, opts);
   return (await getTask(c.task.id))!;
 }
 

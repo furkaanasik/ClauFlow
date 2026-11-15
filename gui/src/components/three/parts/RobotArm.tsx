@@ -19,7 +19,7 @@ export interface RobotArmHandle {
   tipWorld: (out: THREE.Vector3) => THREE.Vector3;
 }
 
-export interface RobotArmProps {
+interface RobotArmProps {
   position?: [number, number, number];
   rotationY?: number;
   targetRef: MutableRefObject<THREE.Vector3>;

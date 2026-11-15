@@ -96,7 +96,6 @@ export const IconHome = (p: IconProps) => <Svg {...p}><path d="M2.5 7.5L8 3l5.5 
 export const IconSubtask = (p: IconProps) => <Svg {...p}><path d="M3.5 2.5v6.5a2 2 0 0 0 2 2h4" /><path d="M8 8.75L10.25 11 8 13.25" /><rect x="10.5" y="9" width="3.5" height="4" rx="1" /></Svg>;
 export const IconTag = (p: IconProps) => <Svg {...p}><path d="M2.25 2.25h5.5l6 6-5.5 5.5-6-6z" /><path d="M5.25 5.25h.01" /></Svg>;
 export const IconFilter = (p: IconProps) => <Svg {...p}><path d="M2 3h12l-4.5 5.5v4.25L6.5 14V8.5z" /></Svg>;
-export const IconDots = (p: IconProps) => <Svg {...p}><path d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth={2.6} /></Svg>;
 export const IconDownload = (p: IconProps) => <Svg {...p}><path d="M8 2.5v7.5M4.75 7l3.25 3.25L11.25 7M2.75 13.25h10.5" /></Svg>;
 export const IconArrowUpRight = (p: IconProps) => <Svg {...p}><path d="M5 11l6-6M6 5h5v5" /></Svg>;
 export const IconSort = (p: IconProps) => <Svg {...p}><path d="M5 3v10M2.75 10.75L5 13l2.25-2.25M11 13V3M8.75 5.25L11 3l2.25 2.25" /></Svg>;
@@ -109,7 +108,6 @@ export const IconGithub = ({ size = 16, ...rest }: IconProps) => (
 export const IconTerminal = (p: IconProps) => <Svg {...p}><rect x="1.75" y="2.5" width="12.5" height="11" rx="2" /><path d="M4.75 6.25L7 8.25l-2.25 2M8.5 10.5h3" /></Svg>;
 export const IconChat = (p: IconProps) => <Svg {...p}><path d="M2.5 4a1.5 1.5 0 0 1 1.5-1.5h8A1.5 1.5 0 0 1 13.5 4v5.5A1.5 1.5 0 0 1 12 11H7l-3 2.5V11a1.5 1.5 0 0 1-1.5-1.5z" /><path d="M5.5 6.25h5M5.5 8.25h3" /></Svg>;
 export const IconCopy = (p: IconProps) => <Svg {...p}><rect x="5.25" y="5.25" width="8.25" height="8.25" rx="1.75" /><path d="M10.75 5.25V3.75A1.25 1.25 0 0 0 9.5 2.5H3.75A1.25 1.25 0 0 0 2.5 3.75V9.5a1.25 1.25 0 0 0 1.25 1.25h1.5" /></Svg>;
-export const IconFlow = (p: IconProps) => <Svg {...p}><rect x="1.75" y="2.5" width="4.5" height="3.5" rx="1" /><rect x="9.75" y="2.5" width="4.5" height="3.5" rx="1" /><rect x="5.75" y="10" width="4.5" height="3.5" rx="1" /><path d="M4 6v1.5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V6M8 8.5V10" /></Svg>;
 export const IconFile = (p: IconProps) => <Svg {...p}><path d="M4 1.75h5l3.25 3.25v9.25H4z" /><path d="M9 1.75V5h3.25" /></Svg>;
 export const IconPencil = (p: IconProps) => <Svg {...p}><path d="M10.5 2.5l3 3-8 8H2.5v-3z" /><path d="M9 4l3 3" /></Svg>;
 /* Team roles (Ekipler) */

@@ -1,7 +1,44 @@
 /** Team editor validation codes (core `teamRolesSchema` messages + client-only checks). */
 export type TeamValidationCode = "roles_min" | "roles_max" | "duplicate_kind" | "duplicate_role_id" | "qa_requires_developer" | "qa_before_developer" | "advisor_below_model" | "haiku_advisor" | "invalid_model" | "invalid_skill_id" | "duplicate_tool" | "duplicate_skill" | "tools_min" | "skills_max" | "name_required" | "team_name_required" | "generic";
 
+/** Core error codes (plan §5.4) the GUI translates; see `lib/errorText.ts`. */
+export type ErrorCode =
+  | "repo_busy"
+  | "task_running"
+  | "no_branch"
+  | "aborted_by_user"
+  | "aborted_while_awaiting_approval"
+  | "aborted_orphan"
+  | "server_restart"
+  | "prompt_too_large"
+  | "pr_merge_failed"
+  | "stuck_stalled"
+  | "stuck_round_limit"
+  | "stuck_budget"
+  | "merge_conflict"
+  | "merge_failed"
+  | "pr_already_merged"
+  | "diff_failed"
+  | "project_not_found"
+  | "repo_path_not_absolute"
+  | "repo_path_too_shallow"
+  | "repo_path_not_git"
+  | "invalid_repo_name"
+  | "invalid_slug"
+  | "slug_in_use"
+  | "target_path_not_absolute"
+  | "target_path_not_empty"
+  | "project_path_exists"
+  | "project_id_required"
+  | "invalid_pr_number"
+  | "github_not_authenticated"
+  | "task_done"
+  | "active_tasks_block_path_change"
+  | "not_found"
+  | "invalid_body";
+
 export interface Translations {
+  errors: Record<ErrorCode, string>;
   landing: {
     tagline: string;
     subtitle: string;
@@ -70,22 +107,20 @@ export interface Translations {
     noBranch: string;
     dirty: string;
     clean: string;
-    cloneRepo: string;
     live: string;
     offline: string;
     searchLabel: string;
     switchLang: string;
     core: { runningOne: string; idle: string; running: string };
-    showAll: string;
-    showLess: string;
     home: string;
     viewNames: {
       board: string;
       list: string;
       factory: string;
-      prs: string;
       insights: string;
     };
+    openMenu: string;
+    closeMenu: string;
   };
   header: {
     wsConnected: string;
@@ -93,7 +128,6 @@ export interface Translations {
     themeToLight: string;
     themeToDark: string;
     githubConnected: string;
-    githubConnect: string;
   };
   sidebar: {
     title: string;
@@ -105,7 +139,6 @@ export interface Translations {
     plannerError: string;
   };
   taskCard: {
-    diffButton: string;
     openDiffTitle: string;
     openOnGithubTitle: string;
     cancelQueuedTitle: string;
@@ -116,6 +149,9 @@ export interface Translations {
     overBudget: string;
     subtaskOf: string;
     dragLocked: string;
+    /** Review card of a task whose branch lives only in the local repo (no remote, no PR). */
+    localBranch: string;
+    localBranchTitle: (branch: string) => string;
     agentLog: string;
     logEmpty: string;
     openLog: string;
@@ -128,12 +164,6 @@ export interface Translations {
       awaiting_approval: string;
       done: string;
       error: string;
-    };
-    ci: {
-      checking: string;
-      passing: string;
-      fail: string;
-      fix: string;
     };
   };
   addTask: {
@@ -192,6 +222,10 @@ export interface Translations {
     slugHint: string;
     slugError: string;
     browse: string;
+    modeLabel: string;
+    modeNew: string;
+    modeClone: string;
+    cloneHint: string;
   };
   folderPicker: {
     title: string;
@@ -223,8 +257,11 @@ export interface Translations {
     keyHint: string;
   };
   board: {
+    budgetToast: (ref: string, spent: string, budget: string) => string;
     title: string;
     hint: string;
+    /** `hint` for a project without a remote (local review + merge). */
+    hintLocal: string;
     noProject: { title: string; hint: string };
     stats: {
       label: string;
@@ -236,13 +273,16 @@ export interface Translations {
     };
     newTask: string;
     addTask: string;
-    importIssues: string;
     collapseColumn: string;
     expandColumn: string;
     needsConfirm: string;
-    dropHere: string;
     moveFailed: string;
     prMerged: string;
+    /** Review → Done merged the local branch into base (no remote). */
+    localMerged: string;
+    /** Moved to Done without a merge (no branch, or not from Review). */
+    movedDone: string;
+    mergeConflictFiles: (files: string) => string;
     viewLabel: string;
     filters: {
       label: string;
@@ -279,30 +319,24 @@ export interface Translations {
       legendLabel: string;
       legend: { running: string; queued: string; error: string; budget: string };
       controlsHint: string;
-      notes: Record<"todo" | "doing" | "ci" | "review" | "done" | "nothing", string>;
+      notes: Record<"todo" | "doing" | "review" | "done", string>;
       tooltip: { open: string; openList: string; error: string; budget: string; more: string };
     };
     loadError: string;
     agentStarted: string;
     columns: {
-      todo:    string;
-      doing:   string;
-      ci:      string;
-      review:  string;
-      done:    string;
-      nothing: string;
+      todo:   string;
+      doing:  string;
+      review: string;
+      done:   string;
     };
     emptyStates: {
-      todo:    { title: string; hint: string };
-      doing:   { title: string; hint: string };
-      ci:      { title: string; hint: string };
-      review:  { title: string; hint: string };
-      done:    { title: string; hint: string };
-      nothing: { title: string; hint: string };
+      todo:   { title: string; hint: string };
+      doing:  { title: string; hint: string };
+      review: { title: string; hint: string; hintLocal: string };
+      done:   { title: string; hint: string };
     };
     searchPlaceholder: string;
-    loadingTasks: string;
-    noSelection: string;
     shortcuts: {
       title: string;
       focusSearch: string;
@@ -338,28 +372,25 @@ export interface Translations {
     budgetProjectDefault: string;
     budgetInputPlaceholder: string;
     budgetHint: string;
-    budgetSpent: string;
     budgetLimit: string;
     budgetExceeded: string;
     budgetUsed: string;
     budgetNoUsage: string;
-    tokensLabel: string;
-    costApprox: string;
+    /** Budget ring scope: the latest team run (the task total is in the header). */
+    budgetThisRun: string;
+    /** Tooltip on CLI-reported costs (task header, role chips). */
+    costReported: string;
     follow: string;
     abortFailed: string;
-    statusLabel: string;
     agentLabel: string;
-    propertiesLabel: string;
     createdLabel: string;
     updatedLabel: string;
     tabsLabel: string;
     logViewLabel: string;
-    prLabel: string;
     noLinks: string;
     editingBadge: string;
     lines: (n: number) => string;
     titlePlaceholder: string;
-    closeLabel: string;
     descriptionLabel: string;
     descriptionPlaceholder: string;
     descriptionEmpty: string;
@@ -370,7 +401,13 @@ export interface Translations {
     tabDetails: string;
     tabLog: string;
     tabComments: string;
-    commentsLabel: string;
+    /** Local changes tab (`git diff <base>...<branch>`), tasks without a PR. */
+    tabChanges: string;
+    changesFiles: (files: number) => string;
+    changesLocalNote: (base: string) => string;
+    changesTruncated: (base: string, branch: string) => string;
+    changesEmpty: string;
+    changesStatLabel: string;
     retryButton: string;
     restartButton: string;
     retryingButton: string;
@@ -387,7 +424,6 @@ export interface Translations {
       done: string;
     };
     connectionsLabel: string;
-    branchLabel: string;
     openPr: string;
     merged: string;
     mergeError: string;
@@ -410,10 +446,6 @@ export interface Translations {
       confirm: string;
       cancel: string;
     };
-    flowLabel: string;
-    flowNoNodes: string;
-    flowNodeLogsTitle: string;
-    flowNodeNoLog: string;
     errors: {
       titleRequired: string;
       updateFailed: string;
@@ -427,28 +459,23 @@ export interface Translations {
     breakdownDone: string;
     breakdownError: string;
     breakdownCancel: string;
+    analysisFromSpec: string;
+    analysisOpenTeam: string;
   };
   cloneModal: {
-    modalHint: string;
-    title: string;
     targetDirLabel: string;
     targetDirPlaceholder: string;
-    cancel: string;
     submit: string;
     submitting: string;
-    cloning: string;
     errorPrefix: string;
-    repoInfoTitle: string;
-    description: string;
-    noDescription: string;
-    visibility: string;
-    visibilityPublic: string;
     visibilityPrivate: string;
-    updatedAt: string;
-    viewOnGithub: string;
-  };
-  githubRepos: {
-    sectionTitle: string;
+    connectHint: string;
+    connect: string;
+    searchPlaceholder: string;
+    listLabel: string;
+    retry: string;
+    emptyAll: string;
+    emptySearch: string;
   };
   prereqs: {
     envLabel: string;
@@ -459,13 +486,16 @@ export interface Translations {
     missingMany: string;
     found: string;
     missing: string;
-    install: string;
     copy: string;
     copied: string;
     docs: string;
     rerun: string;
     checking: string;
     error: string;
+    githubLabel: string;
+    githubConnected: string;
+    githubDisconnected: string;
+    githubConnect: string;
   };
   claudeConfig: {
     loadError: string;
@@ -477,7 +507,6 @@ export interface Translations {
     panePreview: string;
     cancel: string;
     tabLabel: string;
-    overviewTab: string;
     segmentInstructions: string;
     segmentTeam: string;
     teamHint: string;
@@ -489,8 +518,6 @@ export interface Translations {
     revert: string;
     saved: string;
     saveError: string;
-    repoMissing: string;
-    fileLabel: string;
     commitHint: string;
     committed: string;
     commitSkipped: string;
@@ -513,52 +540,22 @@ export interface Translations {
     close: string;
     footerHint: string;
     listTitle: string;
-    install: string;
-    installing: string;
     uninstall: string;
-    uninstalling: string;
     enable: string;
     disable: string;
-    installed: string;
     enabled: string;
     disabled: string;
-    version: string;
-    author: string;
-    installCount: string;
-    sectionInstalled: string;
     emptyInstalled: string;
-    emptyRegistry: string;
     loadError: string;
-    installError: string;
     enableError: string;
     disableError: string;
     uninstallError: string;
     confirmUninstallTitle: string;
     confirmUninstallDescription: string;
     cancel: string;
-    tabInstalled: string;
-    tabRegistry: string;
-    tabMarketplaces: string;
-    running: string;
-    done: string;
-    error: string;
     scopeLocal: string;
     scopeProject: string;
     scopeUser: string;
-    chooseScope: string;
-    viewSkill: string;
-    marketplace: string;
-    addMarketplace: string;
-    removeMarketplace: string;
-    marketplaceSource: string;
-    marketplaceSourcePlaceholder: string;
-    noMarketplaces: string;
-    marketplaceLoadError: string;
-    marketplaceAddError: string;
-    marketplaceRemoveError: string;
-    confirmRemoveMarketplaceTitle: string;
-    confirmRemoveMarketplaceDescription: string;
-    searchRegistryPlaceholder: string;
   };
   insights: {
     eyebrow: string;
@@ -570,7 +567,7 @@ export interface Translations {
     legendDone: string;
     legendError: string;
     tokensTotal: string;
-    noCiYet: string;
+    noRunsYet: string;
     tokInput: string;
     tokOutput: string;
     tokCacheRead: string;
@@ -584,12 +581,15 @@ export interface Translations {
     exportJson: string;
     exportCsv: string;
     statTasks: string;
-    statTasksSub: string;
     statCost: string;
+    /** Cost tile footnote when the project planner spent something: "{v}". */
+    statCostPlanning: string;
+    /** Tooltip on node-type costs that include token estimates for older runs. */
+    costEstimated: string;
     statCompletion: string;
     statCompletionSub: string;
-    statCiPassRate: string;
-    statAvgTimeToGreen: string;
+    statAvgRunTime: string;
+    statAvgRunTimeSub: string;
     sectionByNodeType: string;
     colNodeType: string;
     colRuns: string;
@@ -600,30 +600,6 @@ export interface Translations {
     sectionRecentTasks: string;
     emptyTasks: string;
     emptyTasksHint: string;
-    navInsights: string;
-    pricingStaleBanner: string;
-    pricingStaleDate: string;
-  };
-  importIssues: {
-    selectedCount: (n: number, total: number) => string;
-    modalHint: string;
-    buttonLabel: string;
-    modalTitle: string;
-    loading: string;
-    loadError: string;
-    noRemote: string;
-    empty: string;
-    selectAll: string;
-    deselectAll: string;
-    importButton: (n: number) => string;
-    importing: string;
-    successToast: (n: number) => string;
-    errorGeneric: string;
-    issueNumber: string;
-    cancel: string;
-    createIssueCheckbox: string;
-    noRemoteHint: string;
-    configureLink: string;
   };
   projectDetail: {
     nameRequired: string;
@@ -654,7 +630,6 @@ export interface Translations {
     budgetPlaceholder: string;
     total: string;
     title: string;
-    editProject: string;
     projectName: string;
     projectDescription: string;
     projectAiPrompt: string;
@@ -663,14 +638,11 @@ export interface Translations {
     saveChanges: string;
     saving: string;
     dangerZone: string;
-    deleteFromGithub: string;
     deleteFromKanban: string;
-    confirmDeleteGithub: string;
     confirmDeleteKanban: string;
     openInGithub: string;
     activeTasksBlockPath: string;
     progress: string;
-    taskCounts: string;
     details: string;
     cancel: string;
     deleting: string;
@@ -695,23 +667,10 @@ export interface Translations {
     statusErr: string;
     agent: string;
     mix: string;
-  };
-  flow: {
-    running: string;
-    done: string;
-    error: string;
-    aborted: string;
-    subagent: string;
-    agent: string;
-    task: string;
-    status: string;
-    model: string;
-    inOut: string;
-    started: string;
-    finished: string;
-    error2: string;
-    closeLog: string;
-    nodes: (n: number) => string;
+    runTime: string;
+    runTimeHint: string;
+    toolTime: string;
+    toolTimeHint: string;
   };
   comments: {
     queued: string;
@@ -730,6 +689,7 @@ export interface Translations {
     sendFailed: string;
     yesterday: string;
     readOnly: string;
+    runningReadOnly: string;
     you: string;
   };
   githubConnect: {
@@ -754,44 +714,15 @@ export interface Translations {
     notRequested: string;
     enable: string;
     toggle: string;
-    webhook: string;
-    webhookHint: string;
-    webhookPlaceholder: string;
-    save: string;
   };
   prs: {
-    eyebrow: string;
-    title: string;
-    subtitle: string;
-    refresh: string;
-    summary: string;
     state: {
       OPEN: string;
       MERGED: string;
       CLOSED: string;
     };
-    openHint: string;
-    mergedHint: string;
-    closedHint: string;
-    loading: string;
-    noProjectTitle: string;
-    noProject: string;
-    backToBoard: string;
-    noRemoteTitle: string;
-    noRemoteBody: string;
-    openProjectSettings: string;
-    retry: string;
-    errorTitle: string;
-    errorBody: string;
-    emptyTitle: string;
-    emptyBody: string;
-    filterLabel: string;
-    filterAll: string;
-    showing: (n: number, total: number) => string;
-    filterEmpty: string;
     unknownAuthor: string;
     openOnGithub: string;
-    unknownError: string;
     mergeFailed: string;
     merge: string;
     merging: string;
@@ -835,10 +766,10 @@ export interface Translations {
       loading: string;
       saveError: string;
       chainLabel: string;
+      lockedDone: string;
     };
     editTeam: string;
     tabTeam: string;
-    technicalFlow: string;
     timeline: {
       label: string;
       empty: string;

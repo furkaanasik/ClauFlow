@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Drawer } from "@/components/ui/Drawer";
 import { Tabs } from "@/components/ui/Tabs";
@@ -16,10 +18,8 @@ import {
   IconBranch,
   IconChat,
   IconCheck,
-  IconChevronRight,
   IconClipboard,
   IconCoin,
-  IconFlow,
   IconInfo,
   IconPencil,
   IconPR,
@@ -33,37 +33,36 @@ import {
 } from "@/components/ui/icons";
 import { AgentBadge } from "@/components/Card/AgentBadge";
 import { CommentsTab } from "@/components/Card/CommentsTab";
+import { LocalChangesTab } from "@/components/Card/LocalChangesTab";
 import { LogViewer } from "@/components/Card/LogViewer";
-import { MiniDagView } from "@/components/Card/MiniDagView";
 import { TeamTimeline } from "@/components/Card/TeamTimeline";
 import { ApprovalGate } from "@/components/Card/ApprovalGate";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
-import { calculateCost, formatTokens, totalTokens } from "@/lib/cost";
+import { apiErrorCode, errorText } from "@/lib/errorText";
+import { DEFAULT_TASK_BUDGET_USD, totalTokens } from "@/lib/cost";
+import { formatTokens, formatUsd } from "@/lib/format";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { TeamPicker } from "@/components/Team/TeamPicker";
 import { agentStepLabel, teamStepKind } from "@/components/Team/roleMeta";
-import { isAgentWorking } from "@/lib/boardView";
-import type { AgentText, Project, Task, TaskPatch, ToolCall } from "@/types";
+import { isAgentWorking, taskCost } from "@/lib/boardView";
+import type { AgentText, Project, Task, TaskPatch, TeamArtifact, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
-type DrawerTab = "details" | "log" | "team" | "comments";
+type DrawerTab = "details" | "changes" | "log" | "team" | "comments";
 type Translations = ReturnType<typeof useTranslation>;
 
 const EMPTY_TOOL_CALLS: ToolCall[] = [];
 const EMPTY_AGENT_TEXTS: AgentText[] = [];
 /** Executor default when neither task nor project sets a budget (core). */
-const DEFAULT_BUDGET_USD = 2;
 const ACTIVE_STEPS = ["branching", "running", "pushing", "pr_opening"] as const;
 
 const STATUS_KIND: Record<Task["status"], StatusKind> = {
   todo: "todo",
   doing: "doing",
-  ci: "ci",
   review: "review",
   done: "done",
-  nothing: "nothing",
 };
 
 interface DraftState {
@@ -93,6 +92,7 @@ function makeDraft(task: Task): DraftState {
 const PRIORITY_BUTTONS: EditPriority[] = ["low", "medium", "high", "critical"];
 
 interface BudgetView {
+  /** Latest team run's spend: the budget is per run (§3/9). */
   spent: number;
   limit: number;
   pct: number;
@@ -116,7 +116,6 @@ export function TaskDetailDrawer() {
   const setAgentTexts = useBoardStore((s) => s.setAgentTexts);
   const openTeamEditor = useBoardStore((s) => s.openTeamEditor);
   const upsertNodeRun = useBoardStore((s) => s.upsertNodeRun);
-  const appendNodeLog = useBoardStore((s) => s.appendNodeLog);
   const setTaskTeam = useBoardStore((s) => s.setTaskTeam);
 
   // Keep the last task on screen while the drawer plays its exit animation.
@@ -156,6 +155,9 @@ export function TaskDetailDrawer() {
     setTab(useBoardStore.getState().tasks[selectedTaskId ?? ""]?.agent.status === "awaiting_approval" ? "team" : "details");
   }, [selectedTaskId]);
 
+  // Refetch on open and whenever the socket (re)connects: events sent while it
+  // was down (e.g. boot-time orphan recovery, A8a) never reached the store.
+  const wsConnected = useBoardStore((s) => s.wsConnected);
   useEffect(() => {
     if (!selectedTaskId) return;
     api.getComments(selectedTaskId).then((comments) => {
@@ -170,19 +172,11 @@ export function TaskDetailDrawer() {
     api.getTaskTeam(selectedTaskId).then((state) => {
       setTaskTeam(selectedTaskId, state);
     }).catch(() => {});
-        api.getNodeRuns(selectedTaskId).then((runs) => {
-      for (const run of runs) {
-        upsertNodeRun(run);
-        const buffered = run.outputArtifact?.logLines;
-        if (Array.isArray(buffered)) {
-          for (const line of buffered) {
-            appendNodeLog(selectedTaskId, run.nodeId, line as string);
-          }
-        }
-      }
+    api.getNodeRuns(selectedTaskId).then((runs) => {
+      for (const run of runs) upsertNodeRun(run);
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTaskId]);
+  }, [selectedTaskId, wsConnected]);
 
   const handleTeamChange = async (teamId: string | null) => {
     if (!task) return;
@@ -190,9 +184,9 @@ export function TaskDetailDrawer() {
     try {
       const updated = await api.updateTask(task.id, { teamId });
       upsertTask(updated);
-    } catch {
+    } catch (err) {
       // server is source of truth — no optimistic update to roll back
-      setTeamError(tt.team.picker.saveError);
+      setTeamError(apiErrorCode(err) ? errorText(tt, err) : tt.team.picker.saveError);
     }
   };
 
@@ -235,7 +229,7 @@ export function TaskDetailDrawer() {
       setEditing(false);
       setDraft(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : td.errors.updateFailed);
+      setError(errorText(tt, err, td.errors.updateFailed));
     } finally {
       setSaving(false);
     }
@@ -250,7 +244,7 @@ export function TaskDetailDrawer() {
       upsertTask(updated);
       setTab("log");
     } catch (err) {
-      setError(err instanceof Error ? err.message : td.errors.retryFailed);
+      setError(errorText(tt, err, td.errors.retryFailed));
     } finally {
       setRetrying(false);
     }
@@ -264,7 +258,7 @@ export function TaskDetailDrawer() {
     try {
       await api.abortTask(task.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : td.abortFailed);
+      setError(errorText(tt, err, td.abortFailed));
     } finally {
       setAborting(false);
     }
@@ -276,7 +270,7 @@ export function TaskDetailDrawer() {
     try {
       await api.breakdownTask(task.id, breakdownPrompt.trim(), 6);
     } catch (err) {
-      setBreakdownError(err instanceof Error ? err.message : td.breakdownError);
+      setBreakdownError(errorText(tt, err, td.breakdownError));
     }
   };
 
@@ -290,7 +284,7 @@ export function TaskDetailDrawer() {
       removeTask(task.id);
       selectTask(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : td.errors.deleteFailed);
+      setError(errorText(tt, err, td.errors.deleteFailed));
       setDeleting(false);
     }
   };
@@ -312,20 +306,31 @@ export function TaskDetailDrawer() {
     [allTasks, task?.parentTaskId],
   );
   const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
-  const nodeRunCount = useBoardStore((s) => (task ? Object.keys(s.nodeRuns[task.id] ?? {}).length : 0));
   const teamArtifactCount = useBoardStore((s) => (task ? s.teamArtifacts[task.id]?.length ?? 0 : 0));
+  /** Newest Analyst spec — the Analysis section falls back to it (plan §3/14). */
+  const latestSpec = useBoardStore((s) => {
+    const list = task ? s.teamArtifacts[task.id] : undefined;
+    let latest: TeamArtifact | null = null;
+    for (const a of list ?? []) {
+      if (a.kind === "spec" && (!latest || a.createdAt >= latest.createdAt)) latest = a;
+    }
+    return latest;
+  });
   const teamQaRound = useBoardStore((s) => {
     const runs = task ? s.teamRuns[task.id] : undefined;
     return runs?.[runs.length - 1]?.qaRound ?? 0;
   });
-  const [flowOpen, setFlowOpen] = useState(false);
+  const lastRunCost = useBoardStore((s) => {
+    const runs = task ? s.teamRuns[task.id] : undefined;
+    return runs?.[runs.length - 1]?.costUsd ?? 0;
+  });
 
   const budget = useMemo<BudgetView | null>(() => {
     if (!task) return null;
     const exceeded = budgetExceeded[task.id];
     const total = task.usage ? totalTokens(task.usage) : 0;
-    const spent = exceeded?.spentUsd ?? (task.usage && total > 0 ? calculateCost(task.usage) : 0);
-    const limit = exceeded?.budgetUsd ?? task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_BUDGET_USD;
+    const spent = exceeded?.spentUsd ?? lastRunCost;
+    const limit = exceeded?.budgetUsd ?? task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_TASK_BUDGET_USD;
     const pct = limit > 0 ? spent / limit : 0;
     return {
       spent,
@@ -335,7 +340,7 @@ export function TaskDetailDrawer() {
       ownBudget: task.budgetUsd != null,
       tokens: total > 0 ? formatTokens(total) : null,
     };
-  }, [task, budgetExceeded, project?.budgetUsd]);
+  }, [task, budgetExceeded, project?.budgetUsd, lastRunCost]);
 
   if (!task) {
     return null;
@@ -347,8 +352,13 @@ export function TaskDetailDrawer() {
   const awaitingApproval = task.status === "doing" && task.agent.status === "awaiting_approval";
   const showAgentBadge = task.agent.status !== "idle" && (task.status === "doing" || task.agent.status === "error");
 
+  // D1: no PR → the branch is reviewed here, on its local diff.
+  const showChanges = Boolean(task.branch) && !task.prNumber && (task.status === "review" || task.status === "done");
+  const activeTab: DrawerTab = tab === "changes" && !showChanges ? "details" : tab;
+
   const tabItems = [
     { value: "details" as const, label: td.tabDetails, icon: <IconInfo size={14} /> },
+    ...(showChanges ? [{ value: "changes" as const, label: td.tabChanges, icon: <IconBranch size={14} /> }] : []),
     { value: "log" as const, label: td.tabLog, icon: <IconTerminal size={14} />, count: logs.length || toolCalls.length || undefined },
     { value: "team" as const, label: tt.team.tabTeam, icon: <IconTeam size={14} />, count: teamArtifactCount || undefined },
     { value: "comments" as const, label: td.tabComments, icon: <IconChat size={14} />, count: commentCount || undefined },
@@ -379,7 +389,7 @@ export function TaskDetailDrawer() {
         ariaLabel={task.title}
         eyebrow={
           <>
-            <span className="ui-keyplate">{task.displayId ?? `#${task.id.slice(0, 8)}`}</span>
+            <span className="ui-keyplate">{task.displayId ?? `#${task.id.slice(0, 7)}`}</span>
             {project && (
               <>
                 <span className="truncate font-sans text-[13px] font-semibold text-ink-2">{project.name}</span>
@@ -424,14 +434,15 @@ export function TaskDetailDrawer() {
               </span>
             )}
             {showAgentBadge && <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />}
-            {budget?.tokens && (
+            {(budget?.tokens || taskCost(task) !== null) && (
               <span
-                title={td.costApprox}
+                title={td.costReported}
                 className="inline-flex h-[1.875rem] items-center gap-1.5 rounded-pill border-2 border-line bg-panel px-2.5 font-mono text-[11.5px] font-semibold"
-                style={{ color: budget.exceeded ? "var(--red-text)" : "var(--ink-2)" }}
+                style={{ color: budget?.exceeded ? "var(--red-text)" : "var(--ink-2)" }}
               >
                 <IconCoin size={13} />
-                {budget.tokens} {td.costTokens} · ~${budget.spent.toFixed(2)}
+                {budget?.tokens && `${budget.tokens} ${td.costTokens} · `}
+                {formatUsd(task.costUsd ?? 0)}
               </span>
             )}
             {editing && (
@@ -444,15 +455,15 @@ export function TaskDetailDrawer() {
         tabs={
           <Tabs
             items={tabItems}
-            value={tab}
+            value={activeTab}
             onChange={setTab}
             label={td.tabsLabel}
             idBase="task-detail"
           />
         }
         aside={meta}
-        bodyKey={tab}
-        bodyClassName={tab === "details" ? undefined : "flex flex-col px-5 py-5"}
+        bodyKey={activeTab}
+        bodyClassName={activeTab === "details" ? undefined : "flex flex-col px-5 py-5"}
         footer={
           editing ? (
             <>
@@ -484,46 +495,17 @@ export function TaskDetailDrawer() {
       >
         <div
           role="tabpanel"
-          id={`task-detail-panel-${tab}`}
-          aria-labelledby={`task-detail-tab-${tab}`}
-          className={tab === "details" ? undefined : "flex min-h-0 flex-1 flex-col"}
+          id={`task-detail-panel-${activeTab}`}
+          aria-labelledby={`task-detail-tab-${activeTab}`}
+          className={activeTab === "details" ? undefined : "flex min-h-0 flex-1 flex-col"}
         >
-          {tab === "comments" ? (
+          {activeTab === "changes" ? (
+            <LocalChangesTab task={task} />
+          ) : activeTab === "comments" ? (
             <CommentsTab task={task} />
-          ) : tab === "team" ? (
-            <div className="flex flex-col gap-6">
-              <TeamTimeline task={task} renderApproval={(spec) => <ApprovalGate task={task} spec={spec} />} />
-              {/* Technical flow: the raw node runs behind the timeline */}
-              <section className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  aria-expanded={flowOpen}
-                  aria-controls="task-detail-flow"
-                  onClick={() => setFlowOpen((v) => !v)}
-                  className="ui-focus ui-sechead !mb-0 rounded-[6px] text-left"
-                >
-                  <IconChevronRight
-                    size={13}
-                    className="shrink-0 text-ink-3 transition-transform"
-                    style={{ transform: flowOpen ? "rotate(90deg)" : undefined }}
-                  />
-                  <IconFlow size={13} className="shrink-0 text-ink-2" />
-                  <span className="ui-sechead__t">{tt.team.technicalFlow}</span>
-                  {nodeRunCount > 0 && <span className="ui-sechead__n">{nodeRunCount}</span>}
-                </button>
-                {flowOpen && (
-                  <div id="task-detail-flow" className="flex min-h-[12rem] flex-col">
-                    <MiniDagView
-                      taskId={task.id}
-                      noNodesLabel={td.flowNoNodes}
-                      nodeLogsTitle={td.flowNodeLogsTitle}
-                      nodeNoLogLabel={td.flowNodeNoLog}
-                    />
-                  </div>
-                )}
-              </section>
-            </div>
-          ) : tab === "log" ? (
+          ) : activeTab === "team" ? (
+            <TeamTimeline task={task} renderApproval={(spec) => <ApprovalGate task={task} spec={spec} />} />
+          ) : activeTab === "log" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Segmented
@@ -553,6 +535,8 @@ export function TaskDetailDrawer() {
                   emptyMessage={td.toolTimelineEmpty}
                   isAgentRunning={task.status === "doing"}
                   thinkingMessage={td.toolThinking}
+                  runStartedAt={task.agent.startedAt}
+                  runFinishedAt={task.agent.finishedAt}
                 />
               ) : (
                 <LogViewer
@@ -571,7 +555,7 @@ export function TaskDetailDrawer() {
                   <IconAlert size={15} className="mt-0.5 shrink-0" />
                   <span>
                     <strong className="mr-1.5">{td.logsErrorPrefix}</strong>
-                    <span className="whitespace-pre-wrap">{task.agent.error}</span>
+                    <span className="whitespace-pre-wrap">{errorText(tt, task.agent.error)}</span>
                   </span>
                 </div>
               )}
@@ -677,11 +661,49 @@ export function TaskDetailDrawer() {
                     className="resize-y"
                   />
                 ) : task.analysis ? (
-                  <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 font-mono text-[12.5px] leading-relaxed text-ink">
+                  <pre
+                    tabIndex={0}
+                    aria-label={td.analysisLabel}
+                    className="ui-focus max-h-80 overflow-auto whitespace-pre-wrap rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 font-mono text-[12.5px] leading-relaxed text-ink"
+                  >
                     {task.analysis}
                   </pre>
+                ) : latestSpec ? (
+                  // No hand-written analysis: show the Analyst's latest spec (plan §3/14).
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-2">
+                        <IconClipboard size={12} />
+                        {td.analysisFromSpec}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setTab("team")}
+                        className="ui-focus rounded-[6px] text-[12px] font-semibold text-[var(--cobalt-text)] underline underline-offset-2"
+                      >
+                        {td.analysisOpenTeam}
+                      </button>
+                    </div>
+                    <div
+                      role="region"
+                      tabIndex={0}
+                      aria-label={td.analysisFromSpec}
+                      className="comment-markdown ui-focus max-h-80 overflow-auto rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 text-[13.5px] leading-relaxed text-ink"
+                    >
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{latestSpec.body}</ReactMarkdown>
+                    </div>
+                  </div>
                 ) : (
-                  <EmptyLine>{td.analysisEmpty}</EmptyLine>
+                  <EmptyLine>
+                    {td.analysisEmpty}{" "}
+                    <button
+                      type="button"
+                      onClick={() => setTab("team")}
+                      className="ui-focus rounded-[4px] font-semibold not-italic text-[var(--cobalt-text)] underline underline-offset-2"
+                    >
+                      {td.analysisOpenTeam}
+                    </button>
+                  </EmptyLine>
                 )}
               </Section>
 
@@ -708,7 +730,7 @@ export function TaskDetailDrawer() {
                         icon={<span className="font-mono text-[13px] font-bold">$</span>}
                         placeholder={td.budgetInputPlaceholder.replace(
                           "{v}",
-                          (task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_BUDGET_USD).toFixed(2),
+                          (task.budgetUsd ?? project?.budgetUsd ?? DEFAULT_TASK_BUDGET_USD).toFixed(2),
                         )}
                         value={draft.budgetUsd}
                         onChange={(e) => setDraft({ ...draft, budgetUsd: e.target.value })}
@@ -751,7 +773,7 @@ export function TaskDetailDrawer() {
               {/* Below lg the split aside is hidden, so its sections move inline */}
               <div className="mb-7 rounded-[14px] border-2 border-line bg-panel p-4 lg:hidden">{meta}</div>
 
-              {!editing && (
+              {!editing && task.status !== "done" && task.status !== "doing" && (
                 <div className="mb-2">
                   {!showBreakdown ? (
                     <button
@@ -871,8 +893,9 @@ function TaskMeta({
   onTeamChange: (teamId: string | null) => void;
 }) {
   const td = t.taskDetail;
-  // The team is fixed once the task is picked up (queued, running or paused at the gate).
-  const teamLocked = task.status === "doing" || isAgentWorking(task);
+  // The team is fixed once the task is picked up (queued, running or paused at the
+  // gate) and once it is done (core answers 409 task_done).
+  const teamLocked = task.status === "doing" || task.status === "done" || isAgentWorking(task);
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "tr-TR", {
       day: "2-digit",
@@ -896,7 +919,9 @@ function TaskMeta({
       {/* Budget */}
       {budget && (
         <div className="ui-meta">
-          <MetaLabel icon={<IconCoin size={12} />}>{td.budgetLabel}</MetaLabel>
+          <MetaLabel icon={<IconCoin size={12} />}>
+            {td.budgetLabel} · {td.budgetThisRun}
+          </MetaLabel>
           <div className="flex items-center gap-4">
             <RingGauge
               value={Math.min(budget.spent, budget.limit)}
@@ -910,10 +935,10 @@ function TaskMeta({
             </RingGauge>
             <div className="min-w-0 flex-1">
               <div className="font-mono text-[20px] font-bold leading-none tracking-tight text-ink">
-                ${budget.spent.toFixed(2)}
+                {formatUsd(budget.spent)}
               </div>
               <div className="mt-1 font-mono text-[11.5px] text-ink-3">
-                / ${budget.limit.toFixed(2)} {td.budgetLimit.toLowerCase()}
+                / {formatUsd(budget.limit)} {td.budgetLimit.toLowerCase()}
               </div>
               <DotMeter
                 className="mt-2.5"
@@ -933,7 +958,7 @@ function TaskMeta({
             ) : (
               <span>
                 {budget.ownBudget
-                  ? td.budgetPerTask.replace("{v}", `$${budget.limit.toFixed(2)}`)
+                  ? td.budgetPerTask.replace("{v}", formatUsd(budget.limit))
                   : td.budgetProjectDefault}
                 {budget.spent === 0 && <span className="text-ink-3"> · {td.budgetNoUsage}</span>}
               </span>
@@ -951,6 +976,7 @@ function TaskMeta({
             value={task.teamId ?? null}
             onChange={onTeamChange}
             locked={teamLocked}
+            lockedReason={task.status === "done" ? t.team.picker.lockedDone : undefined}
             refreshKey={task.id}
             hideLabel
             error={teamError}

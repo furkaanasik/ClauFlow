@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { IconButton } from "@/components/ui/Button";
 import { IconAlert, IconClose, IconSpinner } from "@/components/ui/icons";
 import { useTranslation } from "@/hooks/useTranslation";
+import { formatDuration } from "@/lib/format";
 import { useBoardStore } from "@/store/boardStore";
 import type { Project } from "@/types";
 
@@ -35,13 +36,6 @@ function writeDismissed(projectId: string, error: string) {
   } catch {}
 }
 
-function formatElapsed(ms: number) {
-  const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
 function usePlanningStart(project: Project): number | null {
   const seenAt = useBoardStore((s) => s.planningStartedAt[project.id]);
   if (seenAt != null) return seenAt;
@@ -60,7 +54,7 @@ function ElapsedTimer({ start, label }: { start: number; label: string }) {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
-  const text = formatElapsed(Math.max(0, now - start));
+  const text = formatDuration(now - start, { style: "clock" });
   return (
     <div className="flex shrink-0 flex-col items-end gap-0.5 pl-2">
       <span className="t-label !text-ink-3">{label}</span>

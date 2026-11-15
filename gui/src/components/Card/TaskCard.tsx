@@ -5,15 +5,13 @@ import { useEffect, useState, type CSSProperties, type HTMLAttributes, type Poin
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AgentBadge } from "@/components/Card/AgentBadge";
-import { CiBadge } from "@/components/Card/CiBadge";
 import { PriorityMark, StatusPill, type PriorityLevel } from "@/components/ui/Pills";
-import { IconArrowUpRight, IconClose, IconCoin, IconPR, IconSubtask } from "@/components/ui/icons";
+import { IconArrowUpRight, IconBranch, IconClose, IconCoin, IconPR, IconSubtask } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { api } from "@/lib/api";
 import { justArrivedDone } from "@/lib/doneBurst";
 import {
-  formatUsd,
   isAgentWorking,
   isAwaitingApproval,
   isQueued,
@@ -21,6 +19,7 @@ import {
   taskCost,
   type SubtaskStats,
 } from "@/lib/boardView";
+import { formatUsd } from "@/lib/format";
 import type { Task } from "@/types";
 
 const PRIORITY_FILL: Record<PriorityLevel, string> = {
@@ -38,7 +37,7 @@ function showAgentBadge(task: Task): boolean {
   return s === "done" || s === "error";
 }
 
-export interface TaskCardProps {
+interface TaskCardProps {
   task: Task;
   /** Child-task progress when this task is a parent. */
   subtasks?: SubtaskStats;
@@ -99,7 +98,6 @@ export function TaskCardView({
   const t = useTranslation();
   const selectPRTask = useBoardStore((s) => s.selectPRTask);
   const newTaskIds = useBoardStore((s) => s.newTaskIds);
-  const ciIterations = useBoardStore((s) => s.ciIterations);
   const clearNewTaskId = useBoardStore((s) => s.clearNewTaskId);
   const overBudget = useBoardStore((s) => Boolean(s.budgetExceeded[task.id]));
   const [cancelling, setCancelling] = useState(false);
@@ -138,10 +136,12 @@ export function TaskCardView({
   const hasSubtasks = Boolean(subtasks && subtasks.total > 0);
   const openPR = Boolean(task.prNumber) && task.status !== "done";
   const mergedPR = Boolean(task.prNumber) && task.status === "done";
-  const agentPill = showAgentBadge(task) && task.status !== "ci";
+  // D1: in review without a PR, the work sits on a local branch (no remote).
+  const localBranch = task.status === "review" && Boolean(task.branch) && !task.prNumber;
+  const agentPill = showAgentBadge(task);
 
   const hasFooter =
-    hasSubtasks || cost !== null || queued || task.status === "ci" || openPR || mergedPR || (agentPill && !working);
+    hasSubtasks || cost !== null || queued || openPR || mergedPR || localBranch || (agentPill && !working);
 
   const stop = {
     onPointerDown: (e: PointerEvent) => e.stopPropagation(),
@@ -282,17 +282,16 @@ export function TaskCardView({
               </span>
             )}
 
-            {task.status === "ci" && (
-              <CiBadge
-                iteration={ciIterations[task.id]?.iteration ?? 0}
-                maxIterations={ciIterations[task.id]?.maxIterations ?? 3}
-                lastConclusion="pending"
-              />
-            )}
-
             {agentPill && !working && (
               <span {...stop}>
                 <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />
+              </span>
+            )}
+
+            {localBranch && task.branch && (
+              <span className="task-card__meta" title={t.taskCard.localBranchTitle(task.branch)}>
+                <IconBranch size={12} />
+                {t.taskCard.localBranch}
               </span>
             )}
 

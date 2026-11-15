@@ -1,13 +1,12 @@
 import type { Task, TaskStatus } from "@/types";
 import type { QuickFilters } from "@/store/viewStore";
-import { calculateCost, totalTokens } from "@/lib/cost";
 
 /**
  * Pure, UI-side selectors shared by the Board and List views. They only read
  * store data; nothing here mutates tasks or calls the API.
  */
 
-export const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "ci", "review", "done", "nothing"];
+export const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "review", "done"];
 
 export function isAgentWorking(task: Task): boolean {
   const s = task.agent?.status;
@@ -27,7 +26,7 @@ export function hasOpenPR(task: Task): boolean {
   return Boolean(task.prNumber) && task.status !== "done";
 }
 
-export function matchesText(task: Task, needle: string): boolean {
+function matchesText(task: Task, needle: string): boolean {
   if (!needle) return true;
   return (
     task.title.toLowerCase().includes(needle) ||
@@ -36,7 +35,7 @@ export function matchesText(task: Task, needle: string): boolean {
   );
 }
 
-export function matchesQuickFilters(task: Task, f: QuickFilters): boolean {
+function matchesQuickFilters(task: Task, f: QuickFilters): boolean {
   if (f.priorities.length > 0) {
     const p = task.priority ?? null;
     if (!p || !f.priorities.includes(p)) return false;
@@ -69,16 +68,9 @@ export function visibleTasks(
   return out;
 }
 
-/** USD cost of a task, or null when it has not used any tokens yet. */
+/** Lifetime USD spend of a task (CLI `total_cost_usd`), or null when nothing has been spent yet. */
 export function taskCost(task: Task): number | null {
-  if (!task.usage || totalTokens(task.usage) === 0) return null;
-  return calculateCost(task.usage);
-}
-
-export function formatUsd(n: number): string {
-  if (n > 0 && n < 0.01) return "<$0.01";
-  if (n >= 100) return `$${n.toFixed(0)}`;
-  return `$${n.toFixed(2)}`;
+  return task.costUsd && task.costUsd > 0 ? task.costUsd : null;
 }
 
 export interface SubtaskStats {
@@ -92,7 +84,7 @@ export function subtaskStats(tasks: Record<string, Task>): Record<string, Subtas
     if (!t?.parentTaskId) continue;
     const s = (map[t.parentTaskId] ??= { total: 0, done: 0 });
     s.total += 1;
-    if (t.status === "done" || t.status === "nothing") s.done += 1;
+    if (t.status === "done") s.done += 1;
   }
   return map;
 }

@@ -26,7 +26,7 @@ export function roleIcon(kind: RoleKind, size = 14): ReactNode {
   }
 }
 
-export function isRoleKind(v: unknown): v is RoleKind {
+function isRoleKind(v: unknown): v is RoleKind {
   return typeof v === "string" && (ROLE_KINDS as string[]).includes(v);
 }
 

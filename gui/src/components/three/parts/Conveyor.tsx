@@ -13,7 +13,7 @@ import { Block, Cyl } from "./basics";
  * owner decides when the line indexes forward.
  */
 
-export interface ConveyorProps {
+interface ConveyorProps {
   from: number;
   to: number;
   z?: number;

@@ -22,9 +22,10 @@ import {
 import { ensureUniqueSlug, slugify } from "./slug.js";
 import { DEFAULT_TASK_BUDGET_USD } from "./pricingService.js";
 import { applyEkiplerMigration } from "./ekiplerMigration.js";
+import { applyTemizlikMigration } from "./temizlikMigration.js";
 import { DEFAULT_NEW_PROJECT_TEAM_ID, upsertBuiltinTeams } from "./teamTemplates.js";
 
-export const DEFAULT_QA_MAX_ROUNDS = 3;
+const DEFAULT_QA_MAX_ROUNDS = 3;
 
 // ─── DB Setup ─────────────────────────────────────────────────────────────
 
@@ -37,8 +38,6 @@ const LEGACY_JSON_FILE = path.join(DATA_DIR, "tasks.json");
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });
 }
-
-export const dbPath = DB_FILE;
 
 export const db = new Database(DB_FILE);
 db.pragma("journal_mode = WAL");
@@ -372,6 +371,7 @@ db.exec(`
 `);
 
 applyEkiplerMigration(db);
+applyTemizlikMigration(db);
 upsertBuiltinTeams(db);
 
 // Unique indexes (idempotent — also created above for fresh installs).
@@ -404,6 +404,7 @@ interface ProjectRow {
   defaultTeamId: string | null;
   qaMaxRounds: number | null;
   specApproval: number | null;
+  planningCostUsd: number | null;
 }
 
 interface TaskRow {
@@ -434,6 +435,7 @@ interface TaskRow {
   budgetUsd: number | null;
   parentTaskId: string | null;
   teamId: string | null;
+  costUsd: number | null;
 }
 
 function rowToProject(row: ProjectRow): Project {
@@ -454,6 +456,7 @@ function rowToProject(row: ProjectRow): Project {
     defaultTeamId: row.defaultTeamId ?? null,
     qaMaxRounds: row.qaMaxRounds ?? DEFAULT_QA_MAX_ROUNDS,
     specApproval: row.specApproval === 1,
+    planningCostUsd: row.planningCostUsd ?? 0,
   };
 }
 
@@ -512,6 +515,7 @@ function rowToTask(row: TaskRow): Task {
     budgetUsd: row.budgetUsd ?? null,
     parentTaskId: row.parentTaskId ?? null,
     teamId: row.teamId ?? null,
+    costUsd: row.costUsd ?? 0,
   };
 }
 
@@ -807,7 +811,7 @@ export async function getProject(id: string): Promise<Project | null> {
   return row ? rowToProject(row) : null;
 }
 
-export interface CreateTaskInput {
+interface CreateTaskInput {
   projectId: string;
   title: string;
   description?: string;
@@ -870,7 +874,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     return displayId;
   });
 
-  const displayId = insertWithCounter();
+  insertWithCounter();
 
   const row = stmtGetTask.get(taskId) as TaskRow | undefined;
   if (!row) throw new Error(`Task insert failed: ${taskId}`);
@@ -951,27 +955,56 @@ export async function appendAgentLog(
   stmtAppendLog.run(line, new Date().toISOString(), id);
 }
 
-export async function recoverOrphanedTasks(): Promise<number> {
+export interface OrphanRecovery {
+  taskIds: string[];
+  runIds: string[];
+  nodeRunIds: string[];
+}
+
+/**
+ * Boot-time cleanup of state no live process owns any more (the executor's
+ * maps are in memory). Tasks left in "doing" go back to todo + `server_restart`
+ * — except tasks paused for spec approval, which wait for the user on
+ * purpose — and running team runs / node runs become errors. Returns the ids
+ * so the caller can broadcast them.
+ */
+export function recoverOrphans(): OrphanRecovery {
   const now = new Date().toISOString();
-  // Any task left in "doing" after a server restart has no live executor
-  // (RUNNING map is in-memory). Roll all of them back to todo+error — except
-  // tasks paused for spec approval, which wait for the user on purpose.
-  const result = db
-    .prepare(
+  return db.transaction((): OrphanRecovery => {
+    const taskIds = (
+      db
+        .prepare(`SELECT id FROM tasks WHERE status = 'doing' AND agentStatus != 'awaiting_approval'`)
+        .all() as { id: string }[]
+    ).map((r) => r.id);
+    db.prepare(
       `UPDATE tasks
          SET status = 'todo',
              agentStatus = 'error',
-             agentError = 'Sunucu yeniden başlatıldı; task otomatik kurtarıldı',
+             agentError = 'server_restart',
              agentFinishedAt = @now,
              updatedAt = @now
        WHERE status = 'doing' AND agentStatus != 'awaiting_approval'`,
-    )
-    .run({ now });
-  db.prepare(
-    `UPDATE task_team_runs SET status = 'error', stopReason = 'server_restart', finishedAt = @now
-      WHERE status = 'running'`,
-  ).run({ now });
-  return result.changes;
+    ).run({ now });
+    const runIds = (
+      db.prepare(`SELECT id FROM task_team_runs WHERE status = 'running'`).all() as { id: string }[]
+    ).map((r) => r.id);
+    db.prepare(
+      `UPDATE task_team_runs SET status = 'error', stopReason = 'server_restart', finishedAt = @now
+        WHERE status = 'running'`,
+    ).run({ now });
+    const nodeRunIds = (
+      db.prepare(`SELECT id FROM task_node_runs WHERE status = 'running'`).all() as { id: string }[]
+    ).map((r) => r.id);
+    db.prepare(
+      `UPDATE task_node_runs SET status = 'error', errorMessage = 'server_restart', finishedAt = @now
+        WHERE status = 'running'`,
+    ).run({ now });
+    return { taskIds, runIds, nodeRunIds };
+  })();
+}
+
+export async function recoverOrphanedTasks(): Promise<number> {
+  return recoverOrphans().taskIds.length;
 }
 
 export interface CreateProjectInput {
@@ -1043,7 +1076,7 @@ export async function createProject(
   return project;
 }
 
-export type ProjectPatch = Partial<
+type ProjectPatch = Partial<
   Pick<
     Project,
     | "name"
@@ -1161,7 +1194,8 @@ export async function projectHasActiveTasks(id: string): Promise<boolean> {
   const row = db
     .prepare(
       `SELECT COUNT(*) as count FROM tasks
-       WHERE projectId = ? AND status IN ('doing', 'review')`,
+       WHERE projectId = ?
+         AND (status = 'doing' OR (status = 'review' AND branch IS NOT NULL))`,
     )
     .get(id) as { count: number };
   return row.count > 0;
@@ -1236,7 +1270,7 @@ const stmtUpdateToolCall = db.prepare(
    WHERE id = @id`,
 );
 
-export interface InsertToolCallInput {
+interface InsertToolCallInput {
   id: string;
   taskId: string;
   toolName: string;
@@ -1274,7 +1308,7 @@ export function insertToolCall(input: InsertToolCallInput): ToolCall {
   return rowToToolCall(row);
 }
 
-export interface UpdateToolCallPatch {
+interface UpdateToolCallPatch {
   status?: ToolCallStatus;
   result?: string | null;
   finishedAt?: string | null;
@@ -1301,11 +1335,6 @@ export function updateToolCall(
 export function listToolCallsByTask(taskId: string): ToolCall[] {
   const rows = stmtListToolCallsByTask.all(taskId) as ToolCallRow[];
   return rows.map(rowToToolCall);
-}
-
-export function getToolCall(id: string): ToolCall | null {
-  const row = stmtGetToolCall.get(id) as ToolCallRow | undefined;
-  return row ? rowToToolCall(row) : null;
 }
 
 // ─── Agent Texts ──────────────────────────────────────────────────────────
@@ -1341,7 +1370,7 @@ const stmtListAgentTextsByTask = db.prepare(
   `SELECT * FROM task_agent_texts WHERE taskId = ? ORDER BY createdAt ASC, sequence ASC`,
 );
 
-export interface InsertAgentTextInput {
+interface InsertAgentTextInput {
   taskId: string;
   text: string;
   /** Optional explicit sequence; otherwise auto-incremented per task. */
@@ -1403,7 +1432,7 @@ const stmtUpdateTaskUsage = db.prepare(
    WHERE id = @id`,
 );
 
-export type TaskUsageDelta = Partial<TaskUsage>;
+type TaskUsageDelta = Partial<TaskUsage>;
 
 /**
  * Increments token usage counters on a task. Each call adds to the running
@@ -1430,6 +1459,37 @@ export async function updateTaskUsage(
   return next ? rowToTask(next) : null;
 }
 
+// ─── Real cost (F3) ───────────────────────────────────────────────────────
+
+const stmtAddTaskCost = db.prepare(
+  `UPDATE tasks SET costUsd = costUsd + @usd, updatedAt = @updatedAt WHERE id = @id`,
+);
+const stmtAddProjectPlanningCost = db.prepare(
+  `UPDATE projects SET planningCostUsd = planningCostUsd + @usd WHERE id = @id`,
+);
+
+/**
+ * Adds a CLI call's `total_cost_usd` to the task's lifetime spend (roles,
+ * comments, breakdowns). Never reset: retries keep adding. The caller
+ * broadcasts the returned task. Non-positive or non-finite amounts are ignored.
+ */
+export function addTaskCost(taskId: string, usd: number): Task | null {
+  if (Number.isFinite(usd) && usd > 0) {
+    stmtAddTaskCost.run({ id: taskId, usd, updatedAt: new Date().toISOString() });
+  }
+  const row = stmtGetTask.get(taskId) as TaskRow | undefined;
+  return row ? rowToTask(row) : null;
+}
+
+/** Project planner spend: it belongs to no task. */
+export function addProjectPlanningCost(projectId: string, usd: number): Project | null {
+  if (Number.isFinite(usd) && usd > 0) {
+    stmtAddProjectPlanningCost.run({ id: projectId, usd });
+  }
+  const row = stmtGetProject.get(projectId) as ProjectRow | undefined;
+  return row ? rowToProject(row) : null;
+}
+
 // ─── Node Runs ────────────────────────────────────────────────────────────
 
 interface NodeRunRow {
@@ -1450,6 +1510,7 @@ interface NodeRunRow {
   ciIteration: number | null;
   errorMessage: string | null;
   createdAt: string;
+  costUsd: number | null;
 }
 
 function parseArtifact(raw: string | null): Record<string, unknown> | null {
@@ -1483,6 +1544,7 @@ function rowToNodeRun(row: NodeRunRow): NodeRun {
     ciIteration: row.ciIteration,
     errorMessage: row.errorMessage,
     createdAt: row.createdAt,
+    costUsd: row.costUsd ?? null,
   };
 }
 
@@ -1518,11 +1580,12 @@ const stmtUpdateNodeRun = db.prepare(
     cacheWriteTokens = @cacheWriteTokens,
     model = @model,
     ciIteration = @ciIteration,
-    errorMessage = @errorMessage
+    errorMessage = @errorMessage,
+    costUsd = @costUsd
    WHERE id = @id`,
 );
 
-export interface InsertNodeRunInput {
+interface InsertNodeRunInput {
   id: string;
   taskId: string;
   nodeId: string;
@@ -1579,7 +1642,7 @@ export function insertNodeRun(input: InsertNodeRunInput): NodeRun {
   return rowToNodeRun(row);
 }
 
-export interface UpdateNodeRunPatch {
+interface UpdateNodeRunPatch {
   status?: NodeRunStatus;
   finishedAt?: string | null;
   inputArtifact?: Record<string, unknown> | null;
@@ -1591,6 +1654,7 @@ export interface UpdateNodeRunPatch {
   model?: string | null;
   ciIteration?: number | null;
   errorMessage?: string | null;
+  costUsd?: number | null;
 }
 
 export function updateNodeRun(
@@ -1618,6 +1682,7 @@ export function updateNodeRun(
     model: patch.model ?? row.model,
     ciIteration: patch.ciIteration ?? row.ciIteration,
     errorMessage: patch.errorMessage ?? row.errorMessage,
+    costUsd: patch.costUsd ?? row.costUsd ?? null,
   });
   const next = stmtGetNodeRun.get(id) as NodeRunRow | undefined;
   return next ? rowToNodeRun(next) : null;

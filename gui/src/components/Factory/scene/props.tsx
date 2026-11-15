@@ -24,7 +24,7 @@ import {
 /* ── text helpers ─────────────────────────────────────────────────────────── */
 
 /** Draw `text` centred at (x, y), shrinking the font until it fits `maxW`. */
-export function fitText(
+function fitText(
   ctx: CanvasRenderingContext2D,
   text: string,
   x: number,
@@ -101,80 +101,6 @@ export function FactorySign({
           <planeGeometry args={[width, plateH]} />
         </mesh>
       </group>
-    </group>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════════════════
-   CI rig — a cantilever behind the belt (nothing in front of the crates)
-   with three test probes over the work spot. The probes tap the crate while
-   an agent fixes CI; the lamp shows cobalt while crates wait for checks.
-   ════════════════════════════════════════════════════════════════════════ */
-
-const PROBE_COLORS: PaletteKey[] = ["green", "mustard", "red"];
-
-export function CiGate({
-  position,
-  activeRef,
-  waitingRef,
-  lidY,
-  reach = 1.8,
-}: {
-  position: [number, number, number];
-  /** 1 while an agent is fixing CI. */
-  activeRef: MutableRefObject<number>;
-  /** 1 while crates wait for CI. */
-  waitingRef: MutableRefObject<number>;
-  lidY: number;
-  /** Distance from the back column to the belt centre. */
-  reach?: number;
-}) {
-  const { basic, clock } = useScene();
-  const probes = useRef<(THREE.Group | null)[]>([]);
-  const lamp = useRef<THREE.Mesh>(null!);
-  const H = 3.0;
-  const restY = H - 0.55;
-  const touchY = lidY + 0.32;
-
-  useFrame(() => {
-    const active = activeRef.current > 0.5;
-    const waiting = waitingRef.current > 0.5;
-    const t = clock.t;
-    probes.current.forEach((g, i) => {
-      if (!g) return;
-      const tap = active ? Math.max(0, Math.sin(t * 4.2 - i * 1.9)) : waiting ? 0.25 : 0;
-      g.position.y = THREE.MathUtils.lerp(restY, touchY, Math.pow(tap, 0.6));
-    });
-    const blink = active ? Math.sin(t * 9) > 0 : true;
-    lamp.current.material = basic(waiting || active ? (blink ? "cobalt" : "steel") : "steel");
-  });
-
-  return (
-    <group position={position}>
-      <RBlock size={[1.1, 0.3, 0.9]} radius={0.06} position={[0, 0.15, -reach]} color="steelDark" />
-      <Block size={[0.4, H + 0.2, 0.4]} position={[0, (H + 0.2) / 2, -reach]} color="cobalt" />
-      <RBlock size={[1.5, 0.38, 0.62]} radius={0.08} position={[0, H, 0]} color="cobalt" />
-      <Block size={[0.34, 0.32, reach + 0.1]} position={[0, H, -reach / 2]} color="cobalt" />
-      <Block size={[1.1, 0.14, 0.3]} position={[0, H + 0.08, 0.33]} color="stock" ink={1.5} />
-      {/* lamp */}
-      <Cyl radius={0.17} height={0.16} position={[0, H + 0.36, -reach]} color="steelDark" />
-      <mesh ref={lamp} position={[0, H + 0.55, -reach]} scale={0.18} material={basic("steel")}>
-        <sphereGeometry args={[1, 14, 10]} />
-        <Ink width={1.5} />
-      </mesh>
-      {/* probes */}
-      {PROBE_COLORS.map((c, i) => (
-        <group
-          key={c}
-          ref={(g) => {
-            probes.current[i] = g;
-          }}
-          position={[(i - 1) * 0.42, restY, 0]}
-        >
-          <Cyl radius={0.045} height={0.7} position-y={0.35} color="steel" ink={1.25} />
-          <Ball radius={0.11} scale={0.11} color={c} ink={1.5} />
-        </group>
-      ))}
     </group>
   );
 }

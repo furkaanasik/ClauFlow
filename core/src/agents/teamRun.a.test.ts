@@ -24,7 +24,7 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     const task = await runTeamCase(c);
     const r = inspect(c);
 
-    expect(task.status).toBe("done");
+    expect(task.status).toBe("review");
     expect(task.agent.status).toBe("done");
     expect(r.roles).toEqual(["developer:1"]);
     expect(r.calls[0]!.prompt).toBe(buildSoloPrompt({ task: c.task, project: c.project }));
@@ -40,7 +40,7 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     expect(r.runs[0]).toMatchObject({ teamId: BUILTIN_TEAM_IDS.solo, status: "delivered", qaRound: 0 });
     expect(r.artifacts.map((a) => a.kind)).toEqual(["delivery", "summary"]);
     expect(r.artifacts[0]!.commitSha).toMatch(/^[0-9a-f]{40}$/);
-    expect(r.comments.map((x) => x.body.split("\n")[0])).toEqual(["## Ekip özeti"]);
+    expect(r.comments.map((x) => x.body.split("\n")[0])).toEqual(["## Team summary"]);
     expect(listNodeRunsByTask(c.task.id).map((n) => [n.nodeId, n.nodeType, n.status])).toEqual([
       ["role:developer:1", "developer", "done"],
     ]);
@@ -52,7 +52,7 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     const task = await runTeamCase(c);
     const r = inspect(c);
 
-    expect(task.status).toBe("done");
+    expect(task.status).toBe("review");
     expect(r.roles).toEqual(["ceo:1", "analyst:1", "developer:1", "qa:1"]);
     expect(r.calls.map((x) => x.model)).toEqual(["sonnet", "opus", "sonnet", "sonnet"]);
     expect(r.calls.map((x) => x.advisor)).toEqual([null, null, "opus", "opus"]);
@@ -70,10 +70,13 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     expect(r.artifacts[3]!.verdict).toBe("pass");
     expect(r.runs[0]).toMatchObject({ status: "delivered", qaRound: 0 });
     expect(r.runs[0]!.costUsd).toBeCloseTo(0.04, 6);
+    // F3: the task's lifetime cost is the sum of the four roles' total_cost_usd.
+    expect(task.costUsd).toBeCloseTo(0.04, 9);
+    expect(task.usage).toMatchObject({ inputTokens: 400, outputTokens: 200 });
     expect(r.branchLog(task.branch!)).toHaveLength(1);
     expect(r.currentBranch).toBe("main");
-    const summary = r.comments.find((x) => x.body.startsWith("## Ekip özeti"))!;
-    expect(summary.body).toContain("QA: PASS (tur 1)");
+    const summary = r.comments.find((x) => x.body.startsWith("## Team summary"))!;
+    expect(summary.body).toContain("QA: PASS (round 1)");
     expect(summary.body).toContain("VERDICT: PASS");
   });
 
@@ -82,7 +85,7 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     const task = await runTeamCase(c);
     const r = inspect(c);
 
-    expect(task.status).toBe("done");
+    expect(task.status).toBe("review");
     expect(r.roles).toEqual(["ceo:1", "analyst:1", "developer:1", "qa:1", "developer:2", "qa:2"]);
     expect(r.branchLog(task.branch!)).toEqual([
       `fix(${task.displayId}): QA turu 2`,

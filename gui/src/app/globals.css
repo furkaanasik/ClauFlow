@@ -262,8 +262,7 @@ body::before {
    ════════════════════════════════════════════════════════════════════════════ */
 @layer components {
   /* Focus: a cobalt outline that sits outside the hard shadow */
-  .ui-focus:focus-visible,
-  .focus-ring:focus-visible {
+  .ui-focus:focus-visible {
     outline: 2.5px solid var(--focus);
     outline-offset: 3px;
   }
@@ -674,6 +673,11 @@ body::before {
     cursor: pointer;
     transition: background-color 120ms ease, color 120ms ease, transform 110ms var(--ease-press), box-shadow 110ms var(--ease-press);
   }
+  /* Mobile rail sheet (below md): slides in from the left over a scrim */
+  .rail-sheet {
+    animation: ui-rail-in 220ms var(--ease-press) both;
+    box-shadow: 4px 0 0 var(--shadow-ink);
+  }
   .rail-item:hover { background: var(--hair); color: var(--ink); }
   .rail-item:active { transform: translate(1px, 1px); }
   .rail-item[aria-current="page"] {
@@ -902,7 +906,7 @@ body::before {
   .task-table tbody tr:last-child td { border-bottom: 0; }
   .task-table tbody tr[data-running="true"] td:first-child { box-shadow: inset 5px 0 0 var(--orange); }
 
-  /* ── Hatched slot (empty states, "nothing" lane) ── */
+  /* ── Hatched slot (empty states, offline dot) ── */
   .ui-hatch {
     background-image: repeating-linear-gradient(135deg, var(--hair) 0 2px, transparent 2px 9px);
   }
@@ -1149,39 +1153,6 @@ body::before {
     animation: blink 1.05s steps(2) infinite;
   }
 
-  /* ── Flow (mini DAG) ── */
-  .flow-node {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    min-width: 9.5rem;
-    max-width: 16rem;
-    padding: 0.7rem 0.8rem 0.65rem;
-    border: 2px solid var(--line);
-    border-radius: 12px;
-    background: var(--panel);
-    text-align: left;
-    box-shadow: 3px 3px 0 var(--shadow-ink);
-    transition: transform 110ms var(--ease-press), box-shadow 110ms var(--ease-press), background-color 120ms ease;
-  }
-  .flow-node::before {
-    content: "";
-    position: absolute;
-    left: -2px;
-    right: -2px;
-    top: -2px;
-    height: 7px;
-    border: 2px solid var(--line);
-    border-radius: 12px 12px 0 0;
-    background: var(--flow, var(--ink-3));
-  }
-  .flow-node:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--shadow-ink); }
-  .flow-node:active { transform: translate(1px, 1px); box-shadow: var(--shadow-press); }
-  .flow-node[aria-pressed="true"] { background: color-mix(in srgb, var(--mustard) 22%, var(--panel)); box-shadow: 4px 4px 0 var(--mustard); }
-  .flow-node:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; }
-  .flow-link { flex: none; align-self: center; color: var(--ink-3); }
-
   /* ── Comments ── */
   .cmt {
     position: relative;
@@ -1371,7 +1342,7 @@ body::before {
     height: 3px;
     background: var(--toast, var(--ink));
     transform-origin: left center;
-    animation: toast-drain 3000ms linear both;
+    animation: toast-drain var(--toast-ms, 3000ms) linear both;
   }
   .ui-modal[data-state="closing"] { animation: ui-pop-out 140ms ease-in both; }
 
@@ -1393,35 +1364,6 @@ body::before {
 
   /* Fullscreen CLAUDE.md editor */
   .cc-full { animation: ui-fade 160ms ease both; }
-
-  /* ── PR list ── */
-  .pr-row {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.85rem 0.9rem 0.85rem 1.35rem;
-    border: 2px solid var(--line);
-    border-radius: var(--r-panel);
-    background: var(--panel);
-    box-shadow: inset 6px 0 0 var(--pr), var(--shadow);
-    cursor: pointer;
-    transition: transform 120ms var(--ease-press), box-shadow 120ms var(--ease-press), background-color 120ms ease;
-  }
-  .pr-row:hover { transform: translate(-2px, -2px); box-shadow: inset 6px 0 0 var(--pr), 5px 5px 0 var(--shadow-ink); }
-  .pr-row:active { transform: translate(1px, 1px); box-shadow: inset 6px 0 0 var(--pr), var(--shadow-press); }
-  .pr-row__num {
-    flex: none;
-    min-width: 3.4rem;
-    padding: 0.2rem 0.5rem;
-    border: 2px solid var(--line);
-    border-radius: 8px;
-    background: var(--sunken);
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    font-weight: 800;
-    text-align: center;
-    color: var(--ink);
-  }
 
   /* ── PR diff ── */
   .diff-file {
@@ -1598,6 +1540,10 @@ body::before {
   to { transform: scaleX(0); }
 }
 @keyframes ui-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes ui-rail-in {
+  from { transform: translateX(-104%); }
+  to { transform: translateX(0); }
+}
 @keyframes ui-drawer-in {
   from { transform: translateX(104%); }
   to { transform: translateX(0); }

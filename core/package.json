@@ -1,6 +1,7 @@
 {
   "name": "@kanban/core",
   "version": "0.2.0",
+  "license": "MIT",
   "private": true,
   "description": "Agentic Kanban orchestrator backend — Express + WebSocket",
   "type": "module",

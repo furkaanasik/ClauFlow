@@ -1,6 +1,9 @@
 import { run as gitRun, commitAll, pushBranch } from "../services/gitService.js";
 import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
+import { acquireRepoLock } from "../services/repoLock.js";
+import { costFromResult } from "./roleRunner.js";
 import {
+  addTaskCost,
   getTask,
   insertAgentText,
   insertToolCall,
@@ -19,45 +22,68 @@ import {
   broadcastToolCall,
 } from "../services/wsService.js";
 import type { Comment } from "../services/commentService.js";
+import type { Project } from "../types/index.js";
 
-const RUNNING = new Map<string, Promise<void>>();
+class CommentRunError extends Error {}
 
-export function runComment(
+/**
+ * Applies a comment on the task's branch. Waits (FIFO) for the repo lock so
+ * it never switches branches under a running executor, and always leaves the
+ * repo on the base branch: leftover edits go to a `clauflow-comment-<id>` stash.
+ */
+export async function runComment(
   comment: Comment,
-  projectRepoPath: string,
+  project: Pick<Project, "repoPath" | "defaultBranch">,
 ): Promise<void> {
-  const previous = RUNNING.get(comment.taskId) ?? Promise.resolve();
-  const next = previous
-    .catch(() => {})
-    .then(() => runCommentInner(comment, projectRepoPath));
-  RUNNING.set(comment.taskId, next);
-  next.finally(() => {
-    if (RUNNING.get(comment.taskId) === next) {
-      RUNNING.delete(comment.taskId);
+  const lease = await acquireRepoLock(project.repoPath, { owner: `comment:${comment.id}` });
+  try {
+    await runCommentInner(comment, project);
+  } finally {
+    lease.release();
+  }
+}
+
+async function returnToBase(
+  comment: Comment,
+  project: Pick<Project, "repoPath" | "defaultBranch">,
+): Promise<void> {
+  const repo = project.repoPath;
+  try {
+    const dirty = await gitRun("git", ["status", "--porcelain"], repo);
+    if (dirty.code === 0 && dirty.stdout.trim()) {
+      const label = `clauflow-comment-${comment.id}`;
+      const stash = await gitRun("git", ["stash", "push", "-u", "-m", label], repo);
+      if (stash.code === 0) appendCommentLog(comment.id, `↺ Uncommitted changes stashed as ${label}`);
     }
-  });
-  return next;
+    const co = await gitRun("git", ["checkout", project.defaultBranch], repo);
+    if (co.code !== 0) {
+      appendCommentLog(comment.id, `[warn] git checkout ${project.defaultBranch} failed: ${co.stderr.trim()}`);
+    }
+  } catch (e) {
+    console.warn(`[commentRunner] return to base failed for ${comment.id}:`, e);
+  }
 }
 
 async function runCommentInner(
   comment: Comment,
-  projectRepoPath: string,
+  project: Pick<Project, "repoPath" | "defaultBranch">,
 ): Promise<void> {
+  const projectRepoPath = project.repoPath;
+  let checkedOut = false;
   try {
-    // ── Step 1: mark running ──────────────────────────────────────────────
-    const running = updateComment(comment.id, { status: "running" });
-    broadcastCommentUpdated(running);
-
-    // ── Step 2: load task + branch ────────────────────────────────────────
+    // ── Step 1: load task + branch (under the repo lock) ──────────────────
     const task = await getTask(comment.taskId);
     if (!task) {
       throw new Error(`Task not found: ${comment.taskId}`);
     }
+    if (task.status === "doing") throw new CommentRunError("task_running");
     const ref = task.displayId ?? task.id;
     const branch = task.branch;
-    if (!branch) {
-      throw new Error("Task has no branch — cannot apply comment");
-    }
+    if (!branch) throw new CommentRunError("no_branch");
+
+    // ── Step 2: mark running ──────────────────────────────────────────────
+    const running = updateComment(comment.id, { status: "running" });
+    broadcastCommentUpdated(running);
     appendCommentLog(comment.id, `▸ Feature: ${ref} (branch ${branch})`);
     {
       const fresh = getComment(comment.id);
@@ -81,6 +107,7 @@ async function runCommentInner(
         `git checkout ${branch} failed:\n${coResult.stderr}`,
       );
     }
+    checkedOut = true;
 
     // ── Step 5: run claude CLI with the comment as feedback ───────────────
     const prompt =
@@ -158,6 +185,16 @@ async function runCommentInner(
     };
 
     const onClaudeResult = (raw: unknown): void => {
+      // F3: the comment's real spend goes to the task's lifetime cost.
+      const cost = costFromResult(raw, null);
+      if (cost !== null && cost > 0) {
+        try {
+          const t = addTaskCost(comment.taskId, cost);
+          if (t) broadcastTaskUpdated(t);
+        } catch (e) {
+          console.error(`[commentRunner] addTaskCost failed:`, e);
+        }
+      }
       const usage = parseUsageFromResult(raw);
       if (!usage) return;
       updateTaskUsage(comment.taskId, usage)
@@ -234,9 +271,12 @@ async function runCommentInner(
     }
 
     // ── Done ──────────────────────────────────────────────────────────────
+    await returnToBase(comment, project);
+    checkedOut = false;
     const done = updateComment(comment.id, { status: "done" });
     broadcastCommentUpdated(done);
   } catch (err) {
+    if (checkedOut) await returnToBase(comment, project);
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[commentRunner] comment ${comment.id} failed:`, message);
     try {

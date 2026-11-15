@@ -7,6 +7,7 @@ const _pkg = _require("../../package.json") as { version: string };
 const SERVER_VERSION: string = _pkg.version ?? "0.0.0";
 import type {
   AgentStatus,
+  BudgetExceededPayload,
   AgentText,
   Comment,
   NodeRun,
@@ -154,19 +155,6 @@ export function broadcastCloneProgress(
   });
 }
 
-export function broadcastSkillInstallProgress(
-  projectId: string,
-  pluginId: string,
-  status: "running" | "done" | "error",
-  message: string,
-): void {
-  broadcast({
-    type: "skill_install_progress",
-    projectId,
-    payload: { pluginId, status, message },
-  });
-}
-
 export function broadcastNodeStarted(nodeRun: NodeRun): void {
   broadcast({
     type: "node_started",
@@ -183,50 +171,6 @@ export function broadcastNodeFinished(nodeRun: NodeRun): void {
   });
 }
 
-export function broadcastNodeLog(
-  taskId: string,
-  nodeId: string,
-  line: string,
-): void {
-  broadcast({
-    type: "node_log",
-    taskId,
-    payload: { nodeId, line },
-  });
-}
-
-export function broadcastCiCheckStatus(
-  taskId: string,
-  prNumber: number,
-  verdict: import("../types/index.js").CiVerdict,
-): void {
-  broadcast({ type: "ci_check_status", taskId, payload: { prNumber, verdict } });
-}
-
-export function broadcastCiIterationStarted(
-  taskId: string,
-  iteration: number,
-  maxIterations: number,
-): void {
-  broadcast({
-    type: "ci_iteration_started",
-    taskId,
-    payload: { iteration, maxIterations },
-  });
-}
-
-export function broadcastCiIterationResult(
-  taskId: string,
-  iteration: number,
-  outcome: "pass" | "fail" | "exhausted",
-): void {
-  broadcast({
-    type: "ci_iteration_result",
-    taskId,
-    payload: { iteration, outcome },
-  });
-}
-
 export function broadcastTeamRunUpdated(run: TeamRun): void {
   broadcast({ type: "team_run_updated", taskId: run.taskId, payload: run });
 }
@@ -235,12 +179,8 @@ export function broadcastTeamArtifact(artifact: TeamArtifact): void {
   broadcast({ type: "team_artifact", taskId: artifact.taskId, payload: artifact });
 }
 
-export function broadcastBudgetExceeded(
-  taskId: string,
-  spentUsd: number,
-  budgetUsd: number,
-): void {
-  broadcast({ type: "budget_exceeded", taskId, payload: { spentUsd, budgetUsd } });
+export function broadcastBudgetExceeded(taskId: string, payload: BudgetExceededPayload): void {
+  broadcast({ type: "budget_exceeded", taskId, payload });
 }
 
 export function closeWebSocket(): Promise<void> {

@@ -22,7 +22,7 @@ export const MAX_ROLE_SKILLS = 30;
 export const FALLBACK_MODELS = ["haiku", "sonnet", "opus", "fable"];
 
 /** Rank of a model in the capability list (alias or a full name containing it); -1 = unknown. */
-export function modelRank(model: string, models: string[]): number {
+function modelRank(model: string, models: string[]): number {
   const m = model.toLowerCase();
   for (let i = models.length - 1; i >= 0; i--) {
     if (m.includes(models[i]!.toLowerCase())) return i;
@@ -31,7 +31,7 @@ export function modelRank(model: string, models: string[]): number {
   return -1;
 }
 
-export function isHaiku(model: string): boolean {
+function isHaiku(model: string): boolean {
   return model.toLowerCase().includes("haiku");
 }
 

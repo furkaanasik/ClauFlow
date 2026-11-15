@@ -4,13 +4,13 @@ import { useId, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Input";
-import { Checkbox } from "@/components/ui/Toggle";
 import { PriorityMark } from "@/components/ui/Pills";
 import { IconAlert, IconArrowUpRight, IconPlus } from "@/components/ui/icons";
-import { api, githubApi } from "@/lib/api";
+import { api } from "@/lib/api";
 import { TeamPicker } from "@/components/Team/TeamPicker";
 import { useBoardStore } from "@/store/boardStore";
 import { useToast } from "@/hooks/useToast";
+import { errorText } from "@/lib/errorText";
 import { useTranslation } from "@/hooks/useTranslation";
 
 interface AddTaskModalProps {
@@ -30,9 +30,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const t = useTranslation();
   const formId = useId();
 
-  const openProjectDetail = useBoardStore((s) => s.openProjectDetail);
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
-  const hasRemote = Boolean(selectedProject?.remote);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -42,12 +40,10 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const [teamId, setTeamId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createGhIssue, setCreateGhIssue] = useState(false);
 
   const reset = () => {
     setTitle(""); setDescription(""); setAnalysis(""); setPriority("medium");
     setBudgetUsd(""); setTeamId(null); setError(null);
-    setCreateGhIssue(false);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -70,15 +66,10 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
         teamId,
       });
       upsertTask(task);
-      if (createGhIssue && selectedProjectId) {
-        githubApi.createIssue(selectedProjectId, title.trim(), description.trim()).catch(() => {
-          // fire-and-forget — task creation already succeeded, don't fail for this
-        });
-      }
       toast.success(t.addTask.successToast);
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.addTask.errorGeneric);
+      setError(errorText(t, err, t.addTask.errorGeneric));
     } finally {
       setLoading(false);
     }
@@ -95,7 +86,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
       footerStart={
         selectedProject && (
           <span className="flex items-center gap-1.5">
-            <span className="ui-keyplate !h-5 !text-[10px]">{selectedProject.slug?.toUpperCase() ?? "—"}</span>
+            <span className="ui-keyplate !h-5 !text-[10px]">{selectedProject.slug?.toLocaleUpperCase("en") ?? "—"}</span>
             <span className="truncate font-semibold text-ink-2">{selectedProject.name}</span>
           </span>
         )
@@ -201,27 +192,6 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
               />
             )}
           </Field>
-
-          {selectedProjectId &&
-            (hasRemote ? (
-              <Checkbox
-                checked={createGhIssue}
-                onChange={(e) => setCreateGhIssue(e.target.checked)}
-                label={t.importIssues.createIssueCheckbox}
-              />
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <Checkbox disabled label={t.importIssues.createIssueCheckbox} />
-                <button
-                  type="button"
-                  onClick={() => { onClose(); if (selectedProjectId) openProjectDetail(selectedProjectId); }}
-                  className="ui-focus ml-[1.85rem] inline-flex items-center gap-1 self-start rounded-[6px] text-left text-[12px] font-semibold text-[var(--cobalt-text)] underline underline-offset-2"
-                >
-                  {t.importIssues.noRemoteHint} · {t.importIssues.configureLink.replace(/\s*→\s*$/, "")}
-                  <IconArrowUpRight size={12} />
-                </button>
-              </div>
-            ))}
         </div>
 
         {error && (

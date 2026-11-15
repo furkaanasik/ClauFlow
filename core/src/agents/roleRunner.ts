@@ -7,6 +7,7 @@ import {
 } from "../services/claudeService.js";
 import { calculateCostUsd } from "../services/pricingService.js";
 import {
+  addTaskCost,
   appendAgentLog,
   insertAgentText,
   insertNodeRun,
@@ -20,7 +21,6 @@ import {
   broadcastBudgetExceeded,
   broadcastLog,
   broadcastNodeFinished,
-  broadcastNodeLog,
   broadcastNodeStarted,
   broadcastTaskUpdated,
   broadcastToolCall,
@@ -30,7 +30,7 @@ import type { NodeType } from "../types/index.js";
 /** Role calls skip user-level settings (hooks, plugins) and the user's MCP servers. */
 export const ROLE_SETTING_SOURCES = ["project", "local"];
 
-export interface RunRoleOptions {
+interface RunRoleOptions {
   taskId: string;
   cwd: string;
   /** Parent controller: aborting it (user abort) kills the role. */
@@ -48,10 +48,12 @@ export interface RunRoleOptions {
   budgetUsd: number | null;
   /** Cost already spent by earlier roles of the same run. */
   spentBeforeUsd: number;
+  /** Names for the `budget_exceeded` toast (A8d). */
+  budgetContext?: { taskTitle: string; displayId: string | null; projectId: string; projectName: string };
   inputArtifact?: Record<string, unknown> | null;
 }
 
-export interface RoleRunResult {
+interface RoleRunResult {
   nodeRunId: string;
   /** `result` field of the final stream-json event, else the concatenated agent text. */
   finalText: string;
@@ -137,7 +139,6 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
     const entry = stream === "stderr" ? `[stderr] ${line}` : line;
     await appendAgentLog(taskId, entry);
     broadcastLog(taskId, entry);
-    broadcastNodeLog(taskId, nodeId, entry);
     logBuffer.push(entry);
     if (logBuffer.length > 200) logBuffer.splice(0, logBuffer.length - 200);
   };
@@ -174,9 +175,6 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
           inputArtifact: { description: description || null, subagent_type: subagentType },
         });
         broadcastNodeStarted(nr);
-        broadcastNodeLog(taskId, tc.id, `▸ Subagent started: ${subagentType}`);
-        if (description) broadcastNodeLog(taskId, tc.id, `  ${description}`);
-        broadcastNodeLog(taskId, tc.id, "  Running… (logs appear when subagent finishes)");
       } catch (e) {
         console.error(`[roleRunner] insertNodeRun(subagent) failed for ${tc.id}:`, e);
       }
@@ -234,24 +232,32 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
   const exceedBudget = (spentUsd: number): void => {
     if (budgetExceeded || opts.budgetUsd == null) return;
     budgetExceeded = true;
-    broadcastBudgetExceeded(taskId, spentUsd, opts.budgetUsd);
+    broadcastBudgetExceeded(taskId, {
+      spentUsd,
+      budgetUsd: opts.budgetUsd,
+      taskTitle: opts.budgetContext?.taskTitle ?? "",
+      displayId: opts.budgetContext?.displayId ?? null,
+      projectId: opts.budgetContext?.projectId ?? "",
+      projectName: opts.budgetContext?.projectName ?? "",
+    });
     roleController.abort();
   };
 
   let midRunCost = 0;
-  let usageTurnFired = false;
+  /** Sum of the per-turn usage already written to the task (live counters). */
+  let turnUsage: ClaudeUsage = { ...EMPTY_USAGE };
   let usage: ClaudeUsage = { ...EMPTY_USAGE };
   let resultCost: number | null = null;
   let resultText: string | null = null;
 
   const onUsageTurn = (turn: ClaudeUsage): void => {
-    usageTurnFired = true;
-    usage = {
-      inputTokens: usage.inputTokens + turn.inputTokens,
-      outputTokens: usage.outputTokens + turn.outputTokens,
-      cacheReadTokens: usage.cacheReadTokens + turn.cacheReadTokens,
-      cacheWriteTokens: usage.cacheWriteTokens + turn.cacheWriteTokens,
+    turnUsage = {
+      inputTokens: turnUsage.inputTokens + turn.inputTokens,
+      outputTokens: turnUsage.outputTokens + turn.outputTokens,
+      cacheReadTokens: turnUsage.cacheReadTokens + turn.cacheReadTokens,
+      cacheWriteTokens: turnUsage.cacheWriteTokens + turn.cacheWriteTokens,
     };
+    usage = { ...turnUsage };
     midRunCost += calculateCostUsd(turn, opts.model);
     updateTaskUsage(taskId, turn)
       .then((t) => {
@@ -270,9 +276,18 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
     if (final) usage = final;
     const spent = opts.spentBeforeUsd + (resultCost ?? midRunCost);
     if (opts.budgetUsd != null && spent >= opts.budgetUsd) exceedBudget(spent);
-    // Only write to DB if onUsageTurn never fired — avoids double-count.
-    if (usageTurnFired || !final) return;
-    updateTaskUsage(taskId, final)
+    if (!final) return;
+    // Turns were written live; the final `result.usage` is authoritative, so
+    // write only the difference. The task ends up with exactly `result.usage`.
+    const delta: ClaudeUsage = {
+      inputTokens: final.inputTokens - turnUsage.inputTokens,
+      outputTokens: final.outputTokens - turnUsage.outputTokens,
+      cacheReadTokens: final.cacheReadTokens - turnUsage.cacheReadTokens,
+      cacheWriteTokens: final.cacheWriteTokens - turnUsage.cacheWriteTokens,
+    };
+    turnUsage = { ...final };
+    if (Object.values(delta).every((v) => v === 0)) return;
+    updateTaskUsage(taskId, delta)
       .then((t) => {
         if (t) broadcastTaskUpdated(t);
       })
@@ -291,7 +306,10 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
     onLine: onLogLine,
   };
 
+  // Every exit path (done, aborted, error) records what the call cost: the
+  // CLI's `total_cost_usd` when it reported one, else the per-turn estimate.
   const finalize = (patch: Parameters<typeof updateNodeRun>[1]): void => {
+    const costUsd = resultCost ?? midRunCost;
     try {
       const updated = updateNodeRun(nodeRunId, {
         finishedAt: new Date().toISOString(),
@@ -299,11 +317,18 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
         outputTokens: usage.outputTokens,
         cacheReadTokens: usage.cacheReadTokens,
         cacheWriteTokens: usage.cacheWriteTokens,
+        costUsd,
         ...patch,
       });
       if (updated) broadcastNodeFinished(updated);
     } catch (e) {
       console.error(`[roleRunner] updateNodeRun(${nodeId}) failed:`, e);
+    }
+    try {
+      const t = addTaskCost(taskId, costUsd);
+      if (t && costUsd > 0) broadcastTaskUpdated(t);
+    } catch (e) {
+      console.error(`[roleRunner] addTaskCost failed:`, e);
     }
   };
 

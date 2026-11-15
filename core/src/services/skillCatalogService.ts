@@ -5,7 +5,7 @@ import type { InstalledPlugin, SkillCatalogEntry, SkillSource } from "../types/i
 import { listInstalled } from "./claudePluginCli.js";
 import { errorMessage } from "../utils/error.js";
 
-export type CatalogPlugin = Pick<InstalledPlugin, "id" | "installPath" | "enabled">;
+type CatalogPlugin = Pick<InstalledPlugin, "id" | "installPath" | "enabled">;
 
 export interface SkillCatalogRoots {
   homeDir: string;
@@ -20,7 +20,7 @@ interface ResolvedSkill extends SkillCatalogEntry {
 const PLUGIN_CACHE_TTL_MS = 60_000;
 const pluginCache = new Map<string, { at: number; plugins: CatalogPlugin[] }>();
 
-export async function listPluginsCached(repoPath: string): Promise<CatalogPlugin[]> {
+async function listPluginsCached(repoPath: string): Promise<CatalogPlugin[]> {
   const hit = pluginCache.get(repoPath);
   if (hit && Date.now() - hit.at < PLUGIN_CACHE_TTL_MS) return hit.plugins;
   const plugins = await listInstalled(repoPath);

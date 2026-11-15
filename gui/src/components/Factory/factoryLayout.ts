@@ -11,9 +11,9 @@ import { teamStepKind } from "@/components/Team/roleMeta";
  * (+z, towards the camera), machines and signs behind it (−z).
  */
 
-export type StationAccent = "ink3" | "orange" | "cobalt" | "mustard" | "green" | "sunken";
+type StationAccent = "ink3" | "orange" | "mustard" | "green";
 
-export interface StationDef {
+interface StationDef {
   status: TaskStatus;
   /** Station centre on the belt. */
   x: number;
@@ -33,28 +33,26 @@ export interface StationDef {
 
 /** Crate scale relative to the shared kit crate (1.3 × 1 × 1.3). */
 export const CRATE_SCALE = 0.74;
-export const CRATE_W = 1.3 * CRATE_SCALE;
 export const CRATE_H = 1 * CRATE_SCALE;
-export const SLOT_PITCH = 1.12;
+const SLOT_PITCH = 1.12;
 export const BELT_TOP = 0.86;
 export const BELT_FROM = -15.1;
 export const BELT_TO = 13.2;
 
+/** Four stations, evenly spaced (7.4) between the todo and done ends of the belt. */
 export const STATIONS: readonly StationDef[] = [
   { status: "todo", x: -12, cols: 3, rows: 2, layers: 2, yardZ: 1.8, beltSpot: false, padW: 5.0, padZ: [-3.1, 3.5], accent: "ink3" },
-  { status: "doing", x: -6, cols: 3, rows: 2, layers: 2, yardZ: 1.8, beltSpot: true, padW: 5.0, padZ: [-3.1, 3.5], accent: "orange" },
-  { status: "ci", x: -0.8, cols: 2, rows: 2, layers: 2, yardZ: 1.8, beltSpot: true, padW: 3.8, padZ: [-3.1, 3.5], accent: "cobalt" },
-  { status: "review", x: 4.4, cols: 3, rows: 2, layers: 2, yardZ: 1.8, beltSpot: true, padW: 5.0, padZ: [-3.1, 3.5], accent: "mustard" },
+  { status: "doing", x: -4.6, cols: 3, rows: 2, layers: 2, yardZ: 1.8, beltSpot: true, padW: 5.0, padZ: [-3.1, 3.5], accent: "orange" },
+  { status: "review", x: 2.8, cols: 3, rows: 2, layers: 2, yardZ: 1.8, beltSpot: true, padW: 5.0, padZ: [-3.1, 3.5], accent: "mustard" },
   { status: "done", x: 10.2, cols: 3, rows: 2, layers: 2, yardZ: 1.8, beltSpot: true, padW: 5.0, padZ: [-3.1, 3.5], accent: "green" },
-  { status: "nothing", x: 16.1, cols: 2, rows: 3, layers: 2, yardZ: -0.4, beltSpot: false, padW: 3.6, padZ: [-3.1, 3.5], accent: "sunken" },
 ];
 
 export const STATION_BY_STATUS = Object.fromEntries(STATIONS.map((s) => [s.status, s])) as Record<TaskStatus, StationDef>;
 
 /** Slab bounds (x from..to, z from..to) — the camera keeps its target inside. */
-export const SLAB = { x: [-15.8, 18.6] as [number, number], z: [-4.6, 4.7] as [number, number] };
+export const SLAB = { x: [-15.8, 15.8] as [number, number], z: [-4.6, 4.7] as [number, number] };
 
-export type Vec3 = [number, number, number];
+type Vec3 = [number, number, number];
 
 export interface CrateSpec {
   id: string;
@@ -88,18 +86,17 @@ export interface FactoryLayout {
   doingActive: boolean;
   /** Role of the lead working DOING crate (the one on the belt), shown on the station sign. */
   doingRole: RoleKind | null;
-  ciActive: boolean;
   anyError: boolean;
   reviewWaiting: boolean;
   running: number;
 }
 
-export function stationCapacity(s: StationDef): number {
+function stationCapacity(s: StationDef): number {
   return s.cols * s.rows * s.layers;
 }
 
 /** Rest position of yard slot `i` (fills the row nearest the belt first, then stacks). */
-export function slotPosition(s: StationDef, i: number): Vec3 {
+function slotPosition(s: StationDef, i: number): Vec3 {
   const perLayer = s.cols * s.rows;
   const layer = Math.floor(i / perLayer);
   const inLayer = i % perLayer;
@@ -112,7 +109,7 @@ export function slotPosition(s: StationDef, i: number): Vec3 {
   return [x, y, z];
 }
 
-export function beltPosition(s: StationDef): Vec3 {
+function beltPosition(s: StationDef): Vec3 {
   return [s.x, BELT_TOP + CRATE_H / 2, 0];
 }
 
@@ -129,7 +126,7 @@ function rank(t: Task, budget: Record<string, unknown>): number {
   return 3;
 }
 
-export function taskKey(t: Task): string {
+function taskKey(t: Task): string {
   return t.displayId ?? `#${t.id.slice(0, 7)}`;
 }
 
@@ -140,17 +137,16 @@ export function taskKey(t: Task): string {
  * updated ones are kept visible, so a crate that just moved never disappears.
  */
 export function buildLayout(tasks: Task[], budgetExceeded: Record<string, unknown>): FactoryLayout {
-  const groups: Record<TaskStatus, Task[]> = { todo: [], doing: [], ci: [], review: [], done: [], nothing: [] };
+  const groups: Record<TaskStatus, Task[]> = { todo: [], doing: [], review: [], done: [] };
   for (const t of tasks) groups[t.status]?.push(t);
 
   const crates: CrateSpec[] = [];
   const piles: PileSpec[] = [];
-  const counts = { todo: 0, doing: 0, ci: 0, review: 0, done: 0, nothing: 0 } as Record<TaskStatus, number>;
+  const counts: Record<TaskStatus, number> = { todo: 0, doing: 0, review: 0, done: 0 };
   let running = 0;
   let anyError = false;
   let doingActive = false;
   let doingRole: RoleKind | null = null;
-  let ciActive = false;
 
   for (const s of STATIONS) {
     const list = [...groups[s.status]].sort((a, b) => {
@@ -173,7 +169,6 @@ export function buildLayout(tasks: Task[], budgetExceeded: Record<string, unknow
       const role = working && t.agent?.status === "running" ? teamStepKind(t.agent.currentStep) : null;
       if (working && s.status === "doing") doingActive = true;
       if (role && s.status === "doing" && !doingRole) doingRole = role;
-      if (s.status === "ci" && working) ciActive = true;
       const onBelt = s.beltSpot && i === 0;
       const pos = onBelt ? beltPosition(s) : slotPosition(s, yard++);
       crates.push({
@@ -208,7 +203,6 @@ export function buildLayout(tasks: Task[], budgetExceeded: Record<string, unknow
     counts,
     doingActive,
     doingRole,
-    ciActive,
     anyError,
     reviewWaiting: counts.review > 0,
     running,
@@ -258,7 +252,6 @@ export function stabilizeLayout(prev: FactoryLayout | null, next: FactoryLayout)
     countsSame &&
     prev.doingActive === next.doingActive &&
     prev.doingRole === next.doingRole &&
-    prev.ciActive === next.ciActive &&
     prev.anyError === next.anyError &&
     prev.reviewWaiting === next.reviewWaiting &&
     prev.running === next.running

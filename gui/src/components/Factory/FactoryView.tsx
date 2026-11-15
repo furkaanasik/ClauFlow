@@ -21,7 +21,8 @@ import { IconAlert, IconCoin, IconRetry } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
 import { useViewStore } from "@/store/viewStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import { formatUsd } from "@/lib/boardView";
+import { errorText } from "@/lib/errorText";
+import { formatUsd } from "@/lib/format";
 import { ROLE_TONE, agentStepLabel, roleIcon } from "@/components/Team/roleMeta";
 import type { Task, TaskStatus } from "@/types";
 import { FactoryFallback } from "./FactoryFallback";
@@ -35,10 +36,8 @@ const BoardFactoryScene = dynamic(() => import("./scene/BoardFactoryScene"), { s
 const ACCENT_VAR: Record<string, string> = {
   ink3: "var(--ink-3)",
   orange: "var(--orange)",
-  cobalt: "var(--cobalt)",
   mustard: "var(--mustard)",
   green: "var(--green)",
-  sunken: "var(--panel)",
 };
 
 /**
@@ -47,6 +46,7 @@ const ACCENT_VAR: Record<string, string> = {
  */
 export function FactoryView({ tasks, epoch }: { tasks: Task[]; epoch: string }) {
   const t = useTranslation();
+  const lang = useBoardStore((s) => s.lang);
   const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
   const selectTask = useBoardStore((s) => s.selectTask);
   const setView = useViewStore((s) => s.setView);
@@ -72,8 +72,9 @@ export function FactoryView({ tasks, epoch }: { tasks: Task[]; epoch: string }) 
       steps: t.taskCard.agentSteps,
       roles: t.team.roles,
       activity: t.team.activity,
+      locale: lang,
     }),
-    [t],
+    [t, lang],
   );
 
   const onHover = useCallback((target: HoverTarget | null, x?: number, y?: number) => {
@@ -151,7 +152,7 @@ export function FactoryView({ tasks, epoch }: { tasks: Task[]; epoch: string }) 
               >
                 <span
                   aria-hidden
-                  className={clsx("h-2.5 w-2.5 flex-none rounded-full border-2 border-line", s.status === "nothing" && "ui-hatch")}
+                  className="h-2.5 w-2.5 flex-none rounded-full border-2 border-line"
                   style={{ background: ACCENT_VAR[s.accent] }}
                 />
                 <span className="text-[12px] font-bold">{t.board.columns[s.status]}</span>
@@ -332,7 +333,7 @@ function CrateTip({
           {spec.error && (
             <span className="factory-tip__row" style={{ color: "var(--red-text)" }}>
               <IconAlert size={12} />
-              <span className="line-clamp-2">{task?.agent.error || t.board.factory.tooltip.error}</span>
+              <span className="line-clamp-2">{task?.agent.error ? errorText(t, task.agent.error) : t.board.factory.tooltip.error}</span>
             </span>
           )}
           {budget && (

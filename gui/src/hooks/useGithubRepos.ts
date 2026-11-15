@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getGithubRepos } from "@/lib/api";
 import { useGithubAuth } from "@/hooks/useGithubAuth";
+import { apiErrorCode } from "@/lib/errorText";
 import type { GithubRepo } from "@/types";
 
 export function useGithubRepos() {
@@ -18,7 +19,7 @@ export function useGithubRepos() {
       const data = await getGithubRepos();
       setRepos(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(apiErrorCode(err) ?? (err instanceof Error ? err.message : String(err)));
     } finally {
       setLoading(false);
     }

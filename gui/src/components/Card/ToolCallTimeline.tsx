@@ -2,6 +2,8 @@
 
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import clsx from "clsx";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { StatusPill } from "@/components/ui/Pills";
 import {
   IconBolt,
@@ -14,6 +16,7 @@ import {
   IconTerminal,
 } from "@/components/ui/icons";
 import { useTranslation } from "@/hooks/useTranslation";
+import { formatDuration } from "@/lib/format";
 import type { AgentText, ToolCall } from "@/types";
 
 // ─── Tool families: one colour per kind of work ──────────────────────────────
@@ -48,15 +51,6 @@ function getToolConfig(toolName: string): ToolConfig {
 }
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
-
-function formatDuration(ms?: number): string {
-  if (ms === undefined || ms === null) return "";
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
-  const m = Math.floor(ms / 60_000);
-  const s = Math.round((ms % 60_000) / 1000);
-  return `${m}m ${s}s`;
-}
 
 function clock(iso?: string): string {
   if (!iso) return "";
@@ -185,7 +179,10 @@ function AgentTextRow({ item }: { item: AgentText }) {
       </span>
       <div className="min-w-0">
         <span className="sr-only">{t.agent}: </span>
-        <p className="tl__say">{item.text}</p>
+        {/* Agent narration is markdown; rendered without raw HTML (same setup as comments). */}
+        <div className="tl__say comment-markdown !whitespace-normal">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
+        </div>
       </div>
     </li>
   );
@@ -214,13 +211,22 @@ function Summary({
   calls,
   isAgentRunning,
   thinkingMessage,
+  runStartedAt,
+  runFinishedAt,
 }: {
   calls: ToolCall[];
   isAgentRunning?: boolean;
   thinkingMessage: string;
+  runStartedAt?: string | null;
+  runFinishedAt?: string | null;
 }) {
   const t = useTranslation().toolTimeline;
+  // Summed tool time double-counts parallel calls and misses thinking time, so the
+  // headline is the run's wall clock; the tool sum stays as a labelled secondary.
   const total = calls.reduce((acc, c) => acc + (c.durationMs ?? 0), 0);
+  const startMs = runStartedAt ? Date.parse(runStartedAt) : NaN;
+  const endMs = runFinishedAt ? Date.parse(runFinishedAt) : Date.now();
+  const wall = Number.isFinite(startMs) && endMs >= startMs ? endMs - startMs : null;
   const done = calls.filter((c) => c.status === "done").length;
   const running = calls.filter((c) => c.status === "running").length;
   const failed = calls.filter((c) => c.status === "error").length;
@@ -240,7 +246,16 @@ function Summary({
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[12px] border-2 border-line bg-panel px-3 py-2.5 shadow-hard">
       <span className="font-mono text-[13px] font-bold text-ink">{t.calls(calls.length)}</span>
-      {total > 0 && <span className="font-mono text-[12px] text-ink-3">· {formatDuration(total)}</span>}
+      {wall !== null && (
+        <span className="font-mono text-[12px] text-ink-2" title={t.runTimeHint}>
+          · {t.runTime} {formatDuration(wall)}
+        </span>
+      )}
+      {total > 0 && (
+        <span className="font-mono text-[12px] text-ink-3" title={t.toolTimeHint}>
+          · {t.toolTime} {formatDuration(total)}
+        </span>
+      )}
       <span className="flex flex-wrap items-center gap-1.5">
         {running > 0 && (
           <StatusPill status="doing" live>
@@ -293,6 +308,9 @@ interface ToolCallTimelineProps {
   emptyMessage?: string;
   isAgentRunning?: boolean;
   thinkingMessage?: string;
+  /** Latest run's wall-clock bounds (`task.agent`); the header shows this span. */
+  runStartedAt?: string | null;
+  runFinishedAt?: string | null;
 }
 
 /**
@@ -307,6 +325,8 @@ export function ToolCallTimeline({
   emptyMessage,
   isAgentRunning,
   thinkingMessage,
+  runStartedAt,
+  runFinishedAt,
 }: ToolCallTimelineProps) {
   const td = useTranslation().taskDetail;
   const thinkingLabel = thinkingMessage ?? td.toolThinking;
@@ -351,7 +371,13 @@ export function ToolCallTimeline({
 
   return (
     <div className="flex flex-col">
-      <Summary calls={toolCalls} isAgentRunning={isAgentRunning} thinkingMessage={thinkingLabel} />
+      <Summary
+        calls={toolCalls}
+        isAgentRunning={isAgentRunning}
+        thinkingMessage={thinkingLabel}
+        runStartedAt={runStartedAt}
+        runFinishedAt={runFinishedAt}
+      />
       <ol className="tl">
         {items.map((item) =>
           item.kind === "tool_call" ? (

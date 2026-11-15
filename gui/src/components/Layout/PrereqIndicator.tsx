@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { GithubConnectModal } from "@/components/Auth/GithubConnectModal";
 import { api, type PrereqItem } from "@/lib/api";
+import { useGithubAuth } from "@/hooks/useGithubAuth";
 import { useTranslation } from "@/hooks/useTranslation";
-import { IconButton } from "@/components/ui/Button";
+import { Button, IconButton } from "@/components/ui/Button";
 import { DotMeter } from "@/components/ui/Meters";
-import { IconArrowUpRight, IconCheck, IconClose, IconCopy, IconRetry, IconSpinner } from "@/components/ui/icons";
+import { IconArrowUpRight, IconCheck, IconClose, IconCopy, IconGithub, IconRetry, IconSpinner } from "@/components/ui/icons";
 import { useDismiss } from "@/components/ui/overlay";
 
 type State =
@@ -20,6 +22,8 @@ export function PrereqIndicator() {
   const [copied, setCopied] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const panelId = useId();
+  const [connectOpen, setConnectOpen] = useState(false);
+  const { status: github, loading: githubLoading, refresh: refreshGithub } = useGithubAuth();
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -32,6 +36,10 @@ export function PrereqIndicator() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  const rerun = () => {
+    void load();
+    refreshGithub().catch(() => { /* error stored in the slice */ });
+  };
   useDismiss(ref, open, () => setOpen(false));
 
   const total = state.kind === "ok" ? state.items.length : 0;
@@ -113,7 +121,7 @@ export function PrereqIndicator() {
               size="sm"
               variant="secondary"
               loading={state.kind === "loading"}
-              onClick={() => void load()}
+              onClick={rerun}
             >
               <IconRetry size={14} />
             </IconButton>
@@ -179,9 +187,45 @@ export function PrereqIndicator() {
                   )}
                 </div>
               ))}
+            {/* GitHub connection (plan §3/17): optional, so it never counts as missing.
+                Hidden until the shared status has loaded — no wrong state flashes. */}
+            {!githubLoading && (
+              <div className="mt-1 border-t-2 border-hair px-2 pb-1 pt-3">
+                <div className="flex items-center gap-2.5">
+                  <span
+                    aria-hidden
+                    className="grid h-6 w-6 shrink-0 place-items-center rounded-[7px] border-2 border-line"
+                    style={{
+                      background: github.connected ? "var(--green)" : "var(--sunken)",
+                      color: github.connected ? "var(--on-green)" : "var(--ink-2)",
+                    }}
+                  >
+                    {github.connected ? <IconCheck size={12} /> : <IconGithub size={12} />}
+                  </span>
+                  <span className="font-mono text-[13px] font-bold text-ink">{t.githubLabel}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-3">
+                    {github.connected ? (github.user ? `@${github.user}` : t.githubConnected) : t.githubDisconnected}
+                  </span>
+                  {!github.connected && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon={<IconGithub size={13} />}
+                      onClick={() => {
+                        setOpen(false);
+                        setConnectOpen(true);
+                      }}
+                    >
+                      {t.githubConnect}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
+      <GithubConnectModal open={connectOpen} onClose={() => setConnectOpen(false)} />
     </div>
   );
 }

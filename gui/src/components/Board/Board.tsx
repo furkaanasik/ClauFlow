@@ -20,7 +20,6 @@ import { FactoryView } from "@/components/Factory/FactoryView";
 import { TaskCardView } from "@/components/Card/TaskCard";
 import { TaskDetailDrawer } from "@/components/Card/TaskDetailDrawer";
 import { AddTaskModal } from "@/components/Modals/AddTaskModal";
-import { ImportIssuesModal } from "@/components/Modals/ImportIssuesModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -32,7 +31,6 @@ import {
   IconAlert,
   IconBoard,
   IconBranch,
-  IconDownload,
   IconFactory,
   IconFilter,
   IconFolder,
@@ -41,13 +39,15 @@ import {
 } from "@/components/ui/icons";
 import { PRDetailDrawer, type PullRequest } from "@/components/Github/PRDetailDrawer";
 import { useBoardTasks, moveTaskOptimistic } from "@/hooks/useBoard";
-import { useAgentSocket } from "@/hooks/useAgentSocket";
 import { useBoardStore } from "@/store/boardStore";
 import { useViewStore, activeFilterCount, BOARD_VIEWS, type BoardView } from "@/store/viewStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useDoneBurstWatcher } from "@/lib/doneBurst";
 import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
+import { ApiError } from "@/lib/api";
+import { apiErrorCode, errorText } from "@/lib/errorText";
+import type { Translations } from "@/lib/i18n/types";
 import {
   COLUMN_STATUSES,
   applyManualOrder,
@@ -61,13 +61,27 @@ import {
 import type { Task, TaskStatus } from "@/types";
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  todo:    ["doing"],
-  doing:   [],
-  ci:      ["review"],
-  review:  ["done"],
-  done:    [],
-  nothing: [],
+  todo:   ["doing"],
+  doing:  [],
+  review: ["done"],
+  done:   [],
 };
+
+/** Success toast for a move to Done: only review → done merges (plan §3/6). */
+function doneToast(t: Translations, before: Task | undefined): string {
+  if (before?.status !== "review") return t.board.movedDone;
+  if (before.prNumber) return t.board.prMerged;
+  if (before.branch) return t.board.localMerged;
+  return t.board.movedDone;
+}
+
+/** Failed move: translated core code, plus the files of a merge conflict. */
+function moveErrorText(t: Translations, err: unknown): string {
+  const body = err instanceof ApiError ? (err.body as { files?: unknown } | null) : null;
+  const files = Array.isArray(body?.files) ? body.files.filter((f): f is string => typeof f === "string") : [];
+  const filesText = files.length > 0 ? ` ${t.board.mergeConflictFiles(files.join(", "))}` : "";
+  return `${t.board.moveFailed}: ${errorText(t, err)}${filesText}`;
+}
 
 const VIEW_ICON: Record<BoardView, typeof IconBoard> = {
   board: IconBoard,
@@ -77,7 +91,6 @@ const VIEW_ICON: Record<BoardView, typeof IconBoard> = {
 
 export function Board() {
   const { loading, error } = useBoardTasks();
-  useAgentSocket();
   useDoneBurstWatcher();
   const t = useTranslation();
 
@@ -132,9 +145,12 @@ export function Board() {
   const [collapsedCols, setCollapsedCols] = useState<Set<TaskStatus>>(() => {
     try {
       const s = localStorage.getItem("board-collapsed-cols");
-      return s ? new Set(JSON.parse(s) as TaskStatus[]) : new Set<TaskStatus>(["ci", "nothing"]);
+      if (!s) return new Set<TaskStatus>();
+      // Drop saved lanes that no longer exist (stale localStorage).
+      const saved = JSON.parse(s) as string[];
+      return new Set(COLUMN_STATUSES.filter((c) => saved.includes(c)));
     } catch {
-      return new Set<TaskStatus>(["ci", "nothing"]);
+      return new Set<TaskStatus>();
     }
   });
 
@@ -154,11 +170,11 @@ export function Board() {
   }, [selectedProjectId]);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
-  const hasRemote       = Boolean(selectedProject?.remote);
+  // D7: no remote → no PR; review and merge happen locally.
+  const localFlow = selectedProject?.hasRemote === false;
 
   const [activeId, setActiveId]     = useState<string | null>(null);
   const [addOpen, setAddOpen]       = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [showHelp, setShowHelp]     = useState(false);
   const [pendingMove, setPendingMove] = useState<{ taskId: string; from: TaskStatus; to: TaskStatus } | null>(null);
 
@@ -184,10 +200,9 @@ export function Board() {
   );
 
   const byStatus = useMemo(() => {
-    const map: Record<TaskStatus, Task[]> = {
-      todo: [], doing: [], ci: [], review: [], done: [], nothing: [],
-    };
-    for (const x of visible) map[x.status].push(x);
+    const map: Record<TaskStatus, Task[]> = { todo: [], doing: [], review: [], done: [] };
+    // Unknown statuses (stale data from removed lanes) are skipped, not crashed on.
+    for (const x of visible) map[x.status]?.push(x);
     for (const s of COLUMN_STATUSES) map[s] = applyManualOrder(map[s], rank);
     return map;
   }, [visible, rank]);
@@ -202,9 +217,9 @@ export function Board() {
 
   const stats = useMemo(() => {
     let done = 0, running = 0, cost = 0;
-    const counts: Record<TaskStatus, number> = { todo: 0, doing: 0, ci: 0, review: 0, done: 0, nothing: 0 };
+    const counts: Record<TaskStatus, number> = { todo: 0, doing: 0, review: 0, done: 0 };
     for (const x of projectTasks) {
-      counts[x.status] += 1;
+      if (x.status in counts) counts[x.status] += 1;
       if (x.status === "done") done += 1;
       if (isAgentWorking(x)) running += 1;
       cost += taskCost(x) ?? 0;
@@ -223,6 +238,17 @@ export function Board() {
   const dropTargetFor = (status: TaskStatus): "allowed" | "confirm" | null => {
     if (!dragFrom || status === dragFrom) return null;
     return ALLOWED_TRANSITIONS[dragFrom].includes(status) ? "allowed" : "confirm";
+  };
+
+  const moveTask = async (taskId: string, to: TaskStatus) => {
+    const before = useBoardStore.getState().tasks[taskId];
+    try {
+      await moveTaskOptimistic(taskId, to);
+      if (to === "doing") toast.info(t.board.agentStarted);
+      if (to === "done") toast.success(doneToast(t, before));
+    } catch (err) {
+      toast.error(moveErrorText(t, err), apiErrorCode(err) === "merge_conflict" ? 10_000 : 5_000);
+    }
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -266,13 +292,7 @@ export function Board() {
       return;
     }
 
-    try {
-      await moveTaskOptimistic(taskId, target);
-      if (target === "doing")  toast.info(t.board.agentStarted);
-      if (target === "done")   toast.success(t.board.prMerged);
-    } catch (err) {
-      toast.error(`${t.board.moveFailed}: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    await moveTask(taskId, target);
   };
 
   if (!selectedProjectId) {
@@ -301,7 +321,7 @@ export function Board() {
               {t.shell.viewNames[view]}
             </SectionPill>
             {selectedProject?.slug && (
-              <span className="font-mono text-[12px] font-semibold uppercase text-ink-3">
+              <span lang="en" className="font-mono text-[12px] font-semibold uppercase text-ink-3">
                 {selectedProject.slug}
               </span>
             )}
@@ -318,7 +338,7 @@ export function Board() {
             )}
           </div>
           <h1 className="t-display mt-2 truncate text-[32px] text-ink">{selectedProject?.name ?? t.board.title}</h1>
-          <p className="mt-1 text-[13px] text-ink-3">{t.board.hint}</p>
+          <p className="mt-1 text-[13px] text-ink-3">{localFlow ? t.board.hintLocal : t.board.hint}</p>
         </div>
         <BoardStats total={stats.total} done={stats.done} running={stats.running} cost={stats.cost} />
       </div>
@@ -338,11 +358,6 @@ export function Board() {
         <span aria-hidden className="h-6 w-[2px] rounded bg-hair" />
         <QuickFilters tasks={projectTasks} shown={visible.length} />
         <span className="flex-1" />
-        {hasRemote && (
-          <Button size="sm" variant="ghost" icon={<IconDownload size={14} />} onClick={() => setImportOpen(true)}>
-            {t.board.importIssues}
-          </Button>
-        )}
         <Tooltip content={t.board.shortcuts.newTask} shortcut="N" side="bottom">
           <Button size="sm" variant="primary" icon={<IconPlus size={14} />} onClick={() => setAddOpen(true)}>
             {t.board.newTask}
@@ -401,6 +416,7 @@ export function Board() {
                 keyById={keyById}
                 loading={loading && projectTasks.length === 0}
                 planning={status === "todo" && selectedProject?.planningStatus === "planning"}
+                localFlow={localFlow}
               />
             ))}
           </div>
@@ -456,7 +472,6 @@ export function Board() {
       })()}
 
       <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} />
-      <ImportIssuesModal open={importOpen} onClose={() => setImportOpen(false)} />
 
       <Modal open={showHelp} onClose={() => setShowHelp(false)} title={t.board.shortcuts.title}>
         <div className="flex flex-col px-5 py-3">
@@ -494,13 +509,7 @@ export function Board() {
           if (!pendingMove) return;
           const { taskId, to } = pendingMove;
           setPendingMove(null);
-          try {
-            await moveTaskOptimistic(taskId, to);
-            if (to === "doing") toast.info(t.board.agentStarted);
-            if (to === "done")  toast.success(t.board.prMerged);
-          } catch (err) {
-            toast.error(`${t.board.moveFailed}: ${err instanceof Error ? err.message : String(err)}`);
-          }
+          await moveTask(taskId, to);
         }}
         onCancel={() => setPendingMove(null)}
       />

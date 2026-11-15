@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useNotificationStore } from "@/hooks/useNotification";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Button, IconButton } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Switch } from "@/components/ui/Toggle";
 import { IconBell, IconCheck } from "@/components/ui/icons";
 import { useDismiss } from "@/components/ui/overlay";
@@ -12,32 +11,19 @@ import { useDismiss } from "@/components/ui/overlay";
 export function NotificationPopover() {
   const t = useTranslation().notifications;
   const [open, setOpen] = useState(false);
-  const [webhookInput, setWebhookInput] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const panelId = useId();
-  const hookId = useId();
 
   const browserEnabled = useNotificationStore((s) => s.browserEnabled);
-  const webhookUrl = useNotificationStore((s) => s.webhookUrl);
   const setBrowserEnabled = useNotificationStore((s) => s.setBrowserEnabled);
-  const setWebhookUrl = useNotificationStore((s) => s.setWebhookUrl);
   const requestPermission = useNotificationStore((s) => s.requestPermission);
 
   const permission = typeof Notification !== "undefined" ? Notification.permission : "default";
-
-  useEffect(() => {
-    setWebhookInput(webhookUrl);
-  }, [webhookUrl]);
 
   useDismiss(ref, open, () => setOpen(false));
 
   const handleEnable = async () => {
     await requestPermission();
-  };
-
-  const handleSave = () => {
-    setWebhookUrl(webhookInput.trim());
-    setOpen(false);
   };
 
   const handleBrowserToggle = () => {
@@ -48,7 +34,7 @@ export function NotificationPopover() {
     }
   };
 
-  const active = (permission === "granted" && browserEnabled) || Boolean(webhookUrl);
+  const active = permission === "granted" && browserEnabled;
 
   const browserState =
     permission === "denied"
@@ -109,31 +95,6 @@ export function NotificationPopover() {
               ) : (
                 <Switch checked={browserEnabled} onCheckedChange={handleBrowserToggle} label={t.toggle} className="mt-0.5" />
               )}
-            </div>
-
-            <span aria-hidden className="h-[2px] rounded bg-hair" />
-
-            {/* Webhook */}
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor={hookId} className="text-[13.5px] font-semibold text-ink">
-                {t.webhook}
-              </label>
-              <p className="text-[12px] leading-snug text-ink-3">{t.webhookHint}</p>
-              <Input
-                id={hookId}
-                type="url"
-                size="sm"
-                value={webhookInput}
-                onChange={(e) => setWebhookInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSave();
-                }}
-                placeholder={t.webhookPlaceholder}
-                className="font-mono !text-[12px]"
-              />
-              <Button size="sm" variant="primary" block onClick={handleSave} className="mt-1">
-                {t.save}
-              </Button>
             </div>
           </div>
         </div>

@@ -5,7 +5,7 @@ import { isValidAdvisor, modelRank } from "./claudeCapabilities.js";
 import { db } from "./taskService.js";
 import { BUILTIN_TEAMS, BUILTIN_TEAM_IDS, ROLE_TOOLS } from "./teamTemplates.js";
 
-export type TeamErrorCode =
+type TeamErrorCode =
   | "not_found"
   | "builtin_readonly"
   | "team_in_use"
@@ -28,9 +28,9 @@ const modelSchema = z
   .max(80)
   .regex(/^[A-Za-z0-9][A-Za-z0-9._[\]-]*$/, "invalid_model");
 
-export const roleKindSchema = z.enum(["ceo", "analyst", "developer", "qa"]);
+const roleKindSchema = z.enum(["ceo", "analyst", "developer", "qa"]);
 
-export const teamRoleSchema = z.object({
+const teamRoleSchema = z.object({
   id: z
     .string()
     .min(1)
@@ -174,7 +174,7 @@ export function listTeams(projectId?: string | null): Team[] {
   return [...builtins, ...templates, ...projectTeams];
 }
 
-export function isTeamUsableByProject(team: Team, projectId: string): boolean {
+function isTeamUsableByProject(team: Team, projectId: string): boolean {
   return team.projectId === null || team.projectId === projectId;
 }
 
@@ -186,7 +186,7 @@ export function assertTeamUsableByProject(teamId: string, projectId: string): Te
   return team;
 }
 
-export interface CreateTeamInput {
+interface CreateTeamInput {
   name: string;
   description?: string;
   projectId: string | null;
@@ -216,7 +216,7 @@ export function createTeam(input: CreateTeamInput): Team {
   return getTeam(id)!;
 }
 
-export interface UpdateTeamPatch {
+interface UpdateTeamPatch {
   name?: string;
   description?: string;
   roles?: TeamRole[];
@@ -251,7 +251,7 @@ export function deleteTeam(id: string): void {
   })();
 }
 
-export function getSoloTeam(): Team {
+function getSoloTeam(): Team {
   const solo = getTeam(BUILTIN_TEAM_IDS.solo);
   if (!solo) throw new Error("Builtin Solo team missing");
   return solo;

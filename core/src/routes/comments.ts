@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createComment, getComments } from "../services/commentService.js";
 import { getTask, getProject } from "../services/taskService.js";
 import { runComment } from "../agents/commentRunner.js";
+import { run as gitRun } from "../services/gitService.js";
 import { errorMessage } from "../utils/error.js";
 
 // mergeParams so we can read :id from the parent "/api/tasks/:id/comments" mount.
@@ -35,13 +36,25 @@ router.post("/", async (req: Request, res: Response) => {
     const task = await getTask(taskId);
     if (!task) return res.status(404).json({ error: "task_not_found" });
 
+    // §3/12: never on a running task (the runner would fight the executor for
+    // the repo); on a done task only while its branch still exists.
+    if (task.status === "doing") return res.status(409).json({ error: "task_running" });
+    const project = await getProject(task.projectId);
+    if (task.status === "done") {
+      const exists =
+        !!project &&
+        !!task.branch &&
+        (await gitRun("git", ["rev-parse", "--verify", "--quiet", `refs/heads/${task.branch}`], project.repoPath))
+          .code === 0;
+      if (!exists) return res.status(409).json({ error: "no_branch" });
+    }
+
     const comment = createComment(task.id, body.trim());
     res.status(201).json({ comment });
 
     // Fire-and-forget commentRunner — only when task has a branch + project
-    const project = await getProject(task.projectId);
     if (project && task.branch) {
-      runComment(comment, project.repoPath).catch((err) =>
+      runComment(comment, project).catch((err) =>
         console.error("[commentRunner]", err),
       );
     }

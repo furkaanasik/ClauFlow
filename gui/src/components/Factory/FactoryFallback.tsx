@@ -37,18 +37,15 @@ export function FactoryFallback({
               style={{ backgroundImage: "repeating-linear-gradient(90deg, var(--hair) 0 2px, transparent 2px 16px)" }}
             />
           </div>
-          <ol className="relative grid grid-cols-6 gap-3">
+          <ol className="relative grid grid-cols-4 gap-3">
             {STATIONS.map((s, i) => (
               <li key={s.status} className="flex flex-col items-center gap-2.5">
                 <span
-                  className={clsx(
-                    "grid h-14 w-14 place-items-center rounded-[12px] border-2 border-line font-mono text-lg font-bold",
-                    s.status === "nothing" && "ui-hatch",
-                  )}
+                  className="grid h-14 w-14 place-items-center rounded-[12px] border-2 border-line font-mono text-lg font-bold"
                   style={
                     {
-                      background: s.status === "nothing" ? "var(--panel)" : STATUS_COLOR[s.status].fill,
-                      color: s.status === "nothing" ? "var(--ink-2)" : STATUS_COLOR[s.status].on,
+                      background: STATUS_COLOR[s.status].fill,
+                      color: STATUS_COLOR[s.status].on,
                       boxShadow: "3px 3px 0 var(--shadow-ink)",
                     } as CSSProperties
                   }

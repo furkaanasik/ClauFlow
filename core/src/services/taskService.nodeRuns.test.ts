@@ -1,11 +1,10 @@
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Own throwaway DB: never touch the shared core/data/tasks.db (dev server, master).
+vi.hoisted(() => {
+  const tmp = process.env.TMPDIR ?? "/tmp";
+  process.env.CLAUFLOW_DATA_DIR = `${tmp}/clauflow-taskService-nodeRuns-${process.pid}-${Date.now()}`;
+});
 import {
   createProject,
   createTask,
@@ -175,4 +174,9 @@ describe("task_node_runs CRUD", () => {
     const fetched = getNodeRun(id);
     expect(fetched?.inputArtifact).toBeNull();
   });
+});
+
+afterAll(async () => {
+  const { rmSync } = await import("node:fs");
+  rmSync(process.env.CLAUFLOW_DATA_DIR!, { recursive: true, force: true });
 });

@@ -1,4 +1,4 @@
-export type TaskStatus = "todo" | "doing" | "ci" | "review" | "done" | "nothing";
+export type TaskStatus = "todo" | "doing" | "review" | "done";
 
 export type TaskPriority = "low" | "medium" | "high" | "critical";
 
@@ -43,6 +43,8 @@ export interface Task {
   parentTaskId?: string | null;
   /** Team chosen for this task; null = the project's default team. */
   teamId?: string | null;
+  /** Lifetime spend in USD from the CLI's `total_cost_usd` (roles, comments, breakdowns). */
+  costUsd?: number;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -64,6 +66,13 @@ export interface Project {
   defaultTeamId?: string | null;
   qaMaxRounds?: number;
   specApproval?: boolean;
+  /** Project planner spend in USD (belongs to no task). */
+  planningCostUsd?: number;
+  /**
+   * Derived from `git remote` when the project is served (30 s cache), never
+   * stored. `false` = local flow: Review, local diff, local `--no-ff` merge.
+   */
+  hasRemote?: boolean;
 }
 
 export type RoleKind = "ceo" | "analyst" | "developer" | "qa";
@@ -113,7 +122,7 @@ export interface TeamRun {
   finishedAt: string | null;
 }
 
-export type TeamArtifactKind =
+type TeamArtifactKind =
   | "brief"
   | "spec"
   | "delivery"
@@ -121,16 +130,7 @@ export type TeamArtifactKind =
   | "stuck"
   | "summary";
 
-export type QaVerdict = "pass" | "fail";
-
-/** Why a team run stopped early (`TeamRun.stopReason`). Other values are free text (errors). */
-export type TeamStopReason =
-  | "stalled"
-  | "round_limit"
-  | "budget"
-  | "aborted"
-  | "superseded"
-  | "server_restart";
+type QaVerdict = "pass" | "fail";
 
 /** `GET /api/tasks/:id/team` */
 export interface TaskTeamState {
@@ -173,6 +173,17 @@ export interface SystemCapabilities {
 export interface GitStatus {
   branch: string | null;
   isDirty: boolean;
+}
+
+/** `GET /tasks/:id/diff`: the task branch against base (`<base>...<branch>`). */
+export interface TaskDiff {
+  base: string;
+  branch: string;
+  /** `git diff --stat` output. */
+  stat: string;
+  /** Unified diff, cut at 200 000 characters when `truncated`. */
+  diff: string;
+  truncated: boolean;
 }
 
 export type ProjectPatch = Partial<
@@ -236,15 +247,13 @@ export interface TaskUsage {
   cacheWriteTokens: number;
 }
 
-export type NodeRunStatus = "running" | "done" | "error" | "aborted";
+type NodeRunStatus = "running" | "done" | "error" | "aborted";
 
-export type NodeType =
+type NodeType =
   | "planner"
   | "coder"
   | "reviewer"
   | "tester"
-  | "ci"
-  | "fix"
   | "custom"
   | "subagent"
   | "ceo"
@@ -270,9 +279,11 @@ export interface NodeRun {
   ciIteration: number | null;
   errorMessage: string | null;
   createdAt: string;
+  /** CLI-reported cost of this role run; null for legacy rows and subagents. */
+  costUsd?: number | null;
 }
 
-export type ToolCallStatus = "running" | "done" | "error";
+type ToolCallStatus = "running" | "done" | "error";
 
 export interface ToolCall {
   id: string;
@@ -301,32 +312,11 @@ export interface GithubRepo {
 
 export type CloneStatus = "cloning" | "done" | "error";
 
-export interface CloneProgress {
+interface CloneProgress {
   status: CloneStatus;
   message: string;
   project?: Project;
 }
-
-export interface CiFailure {
-  jobName: string;
-  conclusion: "FAILURE" | "CANCELLED" | "TIMED_OUT" | "ACTION_REQUIRED";
-  link: string | null;
-  logTail: string | null;
-}
-
-export interface CiFailureArtifact {
-  prNumber: number;
-  iteration: number;
-  failures: CiFailure[];
-  capturedAt: string;
-}
-
-export type CiVerdict =
-  | { kind: "pending" }
-  | { kind: "pass" }
-  | { kind: "fail"; failures: CiFailure[] }
-  | { kind: "no_checks" }
-  | { kind: "timeout" };
 
 export type WsMessage =
   | { type: "agent_log"; taskId: string; payload: { line: string } }
@@ -345,11 +335,6 @@ export type WsMessage =
   | { type: "node_finished"; taskId: string; payload: NodeRun }
   | { type: "team_run_updated"; taskId: string; payload: TeamRun }
   | { type: "team_artifact"; taskId: string; payload: TeamArtifact }
-  | {
-      type: "node_log";
-      taskId: string;
-      payload: { nodeId: string; line: string };
-    }
   | { type: "task_updated"; taskId: string; payload: Task }
   | { type: "task_created"; taskId: string; payload: Task }
   | { type: "task_deleted"; taskId: string; payload: { id: string } }
@@ -360,34 +345,19 @@ export type WsMessage =
   | { type: "clone_progress"; targetPath: string; payload: CloneProgress }
   | { type: "hello"; payload: { serverVersion: string } }
   | {
-      type: "skill_install_progress";
-      projectId: string;
-      payload: {
-        pluginId: string;
-        status: "running" | "done" | "error";
-        message?: string;
-      };
-    }
-  | {
-      type: "ci_check_status";
-      taskId: string;
-      payload: { prNumber: number; verdict: CiVerdict };
-    }
-  | {
-      type: "ci_iteration_started";
-      taskId: string;
-      payload: { iteration: number; maxIterations: number };
-    }
-  | {
-      type: "ci_iteration_result";
-      taskId: string;
-      payload: { iteration: number; outcome: "pass" | "fail" | "exhausted" };
-    }
-  | {
       type: "budget_exceeded";
       taskId: string;
-      payload: { spentUsd: number; budgetUsd: number };
+      payload: BudgetExceededPayload;
     }
   | { type: "task_breakdown_started"; taskId: string }
   | { type: "task_breakdown_done"; taskId: string; taskCount: number }
   | { type: "task_breakdown_error"; taskId: string; error: string };
+
+interface BudgetExceededPayload {
+  spentUsd: number;
+  budgetUsd: number;
+  taskTitle: string;
+  displayId: string | null;
+  projectId: string;
+  projectName: string;
+}

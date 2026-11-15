@@ -1,17 +1,17 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import { GithubConnectModal } from "@/components/Auth/GithubConnectModal";
+import clsx from "clsx";
+import { Fragment, useEffect, useState } from "react";
 import { PrereqIndicator } from "@/components/Layout/PrereqIndicator";
 import { NotificationPopover } from "@/components/Layout/NotificationPopover";
 import { AgentCore } from "@/components/Shell/AgentCore";
 import { Avatar } from "@/components/ui/Avatar";
-import { Button, IconButton } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Kbd } from "@/components/ui/Kbd";
 import { StatusPill } from "@/components/ui/Pills";
 import { Tooltip } from "@/components/ui/Tooltip";
-import { IconChevronRight, IconClose, IconGithub, IconMoon, IconSearch, IconSun } from "@/components/ui/icons";
+import { IconChevronRight, IconClose, IconMoon, IconRail, IconSearch, IconSun } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
 import { useViewStore } from "@/store/viewStore";
 import { useGithubAuth } from "@/hooks/useGithubAuth";
@@ -20,10 +20,15 @@ import { useTranslation } from "@/hooks/useTranslation";
 
 /**
  * Global top bar (spec §5): breadcrumb, task search (`/`), live status,
- * notifications, prerequisites, language, theme and the GitHub account.
+ * notifications, prerequisites (incl. the GitHub connection), language, theme
+ * and — once connected — the GitHub account avatar.
  * Quick filters live in the board toolbar right under it.
  */
-export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
+export function TopBar({
+  section,
+  menuOpen = false,
+  onOpenMenu,
+}: { section?: "insights"; menuOpen?: boolean; onOpenMenu?: () => void } = {}) {
   const t = useTranslation();
   const wsConnected = useBoardStore((s) => s.wsConnected);
   const lang = useBoardStore((s) => s.lang);
@@ -34,9 +39,13 @@ export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
   const selectedTask = useBoardStore((s) => (s.selectedTaskId ? s.tasks[s.selectedTaskId] ?? null : null));
   const view = useViewStore((s) => s.view);
 
-  const [githubModalOpen, setGithubModalOpen] = useState(false);
-  const { status: githubStatus } = useGithubAuth(githubModalOpen);
+  const { status: githubStatus, loading: githubLoading } = useGithubAuth();
   const { isNight, toggleTheme } = useTheme();
+  // Below `sm` the search collapses to an icon; opening it spans the bar.
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    if (searchOpen) document.getElementById("board-search")?.focus();
+  }, [searchOpen]);
 
   const crumbs = [
     project?.name,
@@ -46,7 +55,20 @@ export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
 
   return (
     <>
-      <header className="relative z-10 flex h-16 shrink-0 items-center gap-3 border-b-2 border-line bg-paper px-5">
+      <header className="relative z-10 flex h-16 shrink-0 items-center gap-1.5 border-b-2 border-line bg-paper px-3 sm:gap-3 sm:px-5">
+        {onOpenMenu && (
+          <IconButton
+            label={t.shell.openMenu}
+            size="sm"
+            variant="ghost"
+            className="flex-none md:hidden"
+            aria-expanded={menuOpen}
+            aria-controls="app-rail"
+            onClick={onOpenMenu}
+          >
+            <IconRail size={17} />
+          </IconButton>
+        )}
         <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5">
           <ol className="flex min-w-0 items-center gap-1.5">
             {crumbs.map((c, i) => (
@@ -75,8 +97,27 @@ export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
         </nav>
 
         {/* Search (board views only — it filters the board's tasks) */}
+        {!section && !searchOpen && (
+          <IconButton
+            label={t.shell.searchLabel}
+            size="sm"
+            variant="ghost"
+            className="flex-none sm:hidden"
+            aria-expanded={false}
+            onClick={() => setSearchOpen(true)}
+          >
+            <IconSearch size={16} />
+          </IconButton>
+        )}
         {!section && (
-        <div className="relative w-[300px] flex-none">
+        <div
+          className={clsx(
+            "flex-none sm:relative sm:block sm:w-[300px]",
+            searchOpen
+              ? "absolute inset-x-3 top-1/2 z-20 -translate-y-1/2 bg-paper sm:inset-auto sm:top-auto sm:translate-y-0"
+              : "hidden",
+          )}
+        >
           <Input
             id="board-search"
             size="sm"
@@ -87,7 +128,13 @@ export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
               if (e.key === "Escape" && filterText) {
                 e.stopPropagation();
                 setFilterText("");
+              } else if (e.key === "Escape" && searchOpen) {
+                e.stopPropagation();
+                setSearchOpen(false);
               }
+            }}
+            onBlur={() => {
+              if (!filterText) setSearchOpen(false);
             }}
             placeholder={t.board.searchPlaceholder}
             aria-label={t.shell.searchLabel}
@@ -118,7 +165,7 @@ export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
           <PrereqIndicator />
         </div>
 
-        <span aria-hidden className="h-6 w-[2px] flex-none rounded bg-hair" />
+        <span aria-hidden className="hidden h-6 w-[2px] flex-none rounded bg-hair sm:block" />
 
         <Tooltip content={t.shell.switchLang} side="bottom">
           <button
@@ -142,7 +189,7 @@ export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
           </IconButton>
         </Tooltip>
 
-        {githubStatus.connected ? (
+        {!githubLoading && githubStatus.connected && (
           <span
             className="flex flex-none items-center gap-2 pl-1"
             title={githubStatus.user ? `@${githubStatus.user}` : t.header.githubConnected}
@@ -154,14 +201,8 @@ export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
               </span>
             )}
           </span>
-        ) : (
-          <Button size="sm" variant="primary" icon={<IconGithub size={14} />} onClick={() => setGithubModalOpen(true)}>
-            {t.header.githubConnect}
-          </Button>
         )}
       </header>
-
-      <GithubConnectModal open={githubModalOpen} onClose={() => setGithubModalOpen(false)} />
     </>
   );
 }

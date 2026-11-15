@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   checkoutBase,
   createBranch,
@@ -6,11 +7,11 @@ import {
   createPr,
   run as gitRun,
 } from "../services/gitService.js";
-import { buildPrTeamSection, runTeam } from "./teamRunner.js";
+import { buildPrTeamSection, runTeam, type TeamStopReason } from "./teamRunner.js";
+import { uiText, type UiLang } from "./uiText.js";
 import {
   appendAgentLog,
   getTask,
-  listTasks,
   resetTaskUsage,
   updateTask,
 } from "../services/taskService.js";
@@ -23,58 +24,66 @@ import {
   broadcastTaskUpdated,
 } from "../services/wsService.js";
 import { createComment, updateComment } from "../services/commentService.js";
-import { startCiWatch } from "../services/ciWatcher.js";
-import { enqueue as enqueueReview } from "./prReviewRunner.js";
+import { acquireRepoLock, type RepoLease } from "../services/repoLock.js";
 import type { AgentStatus, Project, Task } from "../types/index.js";
 
-const ACTIVE: AgentStatus[] = ["branching", "running", "pushing", "pr_opening"];
-
-// Polls until no other task in this project is actively running in this process.
-// Uses the in-memory RUNNING map — resets on server restart (orphaned tasks are
-// recovered separately by recoverOrphanedTasks on boot).
-async function acquireSlot(projectId: string, taskId: string): Promise<void> {
-  for (let i = 0; i < 120; i++) {
-    const tasks = await listTasks(projectId);
-    const busy = tasks.some(
-      (t) => t.id !== taskId && t.status === "doing" && RUNNING.has(t.id),
-    );
-    if (!busy) return;
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  console.warn(
-    `[executor] acquireSlot timed out for task ${taskId} in project ${projectId} after 240s`,
-  );
-  throw new Error("Slot acquisition timed out after 240s");
+interface RunHandle {
+  token: string;
+  controller: AbortController;
 }
 
-const RUNNING = new Map<string, AbortController>();
+// PENDING: enqueued, waiting for the repo lock. RUNNING: holds the lock.
+// LATEST: the newest run token per task; an older run that unwinds after a
+// retry must not overwrite the newer run's task state or map entries.
+const PENDING = new Map<string, RunHandle>();
+const RUNNING = new Map<string, RunHandle>();
+const LATEST = new Map<string, string>();
 
 export function abort(taskId: string): boolean {
-  const ctrl = RUNNING.get(taskId);
-  if (!ctrl) return false;
-  ctrl.abort();
-  return true;
+  const handles = [PENDING.get(taskId), RUNNING.get(taskId)].filter(
+    (h): h is RunHandle => !!h,
+  );
+  for (const h of handles) h.controller.abort();
+  return handles.length > 0;
 }
 
 export function isRunning(taskId: string): boolean {
-  return RUNNING.has(taskId);
+  return PENDING.has(taskId) || RUNNING.has(taskId);
+}
+
+/** "queued" while waiting for the repo lock, "running" once it holds it. */
+export function runPhase(taskId: string): "queued" | "running" | null {
+  if (RUNNING.has(taskId)) return "running";
+  if (PENDING.has(taskId)) return "queued";
+  return null;
+}
+
+function holds(map: Map<string, RunHandle>, taskId: string, token: string): boolean {
+  return map.get(taskId)?.token === token;
 }
 
 /**
- * Resolves once the executor for `taskId` is no longer in the RUNNING map,
- * or after `timeoutMs` (whichever comes first). Lets `/retry` wait for an
- * abort to fully unwind before re-enqueuing.
+ * Resolves once the runs that exist for `taskId` right now have unwound, or
+ * after `timeoutMs`. A run enqueued after this call is not waited for.
  */
 export async function waitForIdle(taskId: string, timeoutMs = 5000): Promise<void> {
+  const tokens = [PENDING.get(taskId)?.token, RUNNING.get(taskId)?.token].filter(
+    (t): t is string => !!t,
+  );
   const start = Date.now();
-  while (RUNNING.has(taskId)) {
+  while (tokens.some((t) => holds(PENDING, taskId, t) || holds(RUNNING, taskId, t))) {
     if (Date.now() - start > timeoutMs) return;
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 50));
   }
 }
 
-export function enqueue(task: Task, project: Project): void {
-  run(task, project).catch(() => {}); // errors handled inside run()
+export interface RunOptions {
+  /** §3/10: GUI language for the summary, PR body and auto comments; never stored. */
+  uiLang?: UiLang;
+}
+
+export function enqueue(task: Task, project: Project, opts: RunOptions = {}): void {
+  run(task, project, opts).catch(() => {}); // errors handled inside run()
 }
 
 async function setAgentStep(
@@ -171,6 +180,7 @@ async function stopStuck(
   task: Task,
   project: Project,
   branch: string,
+  reason: TeamStopReason,
   reasonText: string,
   summary: string,
 ): Promise<void> {
@@ -181,13 +191,12 @@ async function stopStuck(
   }
   await returnToBase(task.id, project, branch, { deleteBranch: false });
   postComment(task.id, summary, "stuck");
-  const message = `Takıldı: ${reasonText}`;
   const errTask = await updateTask(task.id, {
     status: "todo",
     agent: {
       status: "error",
       currentStep: undefined,
-      error: message,
+      error: `stuck_${reason}`,
       finishedAt: new Date().toISOString(),
     },
   });
@@ -195,16 +204,64 @@ async function stopStuck(
   broadcastTaskUpdated(errTask);
 }
 
-export async function run(task: Task, project: Project): Promise<void> {
+/**
+ * A3/A4: never delete a branch that carries work. A previous run's branch that
+ * is ahead of base (e.g. a `wip:` commit from a stuck run) is renamed to
+ * `<branch>-wip-N` (first free N); an empty one is dropped.
+ */
+async function setAsideOldBranch(taskId: string, project: Project, branch: string): Promise<void> {
+  const exists = await gitRun("git", ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], project.repoPath);
+  if (exists.code !== 0) return;
+  const ahead = await gitRun(
+    "git",
+    ["rev-list", "--count", `${project.defaultBranch}..${branch}`],
+    project.repoPath,
+  );
+  if ((Number.parseInt(ahead.stdout.trim(), 10) || 0) === 0) {
+    await gitRun("git", ["branch", "-D", branch], project.repoPath);
+    return;
+  }
+  for (let n = 1; n < 1000; n++) {
+    const wip = `${branch}-wip-${n}`;
+    const taken = await gitRun("git", ["rev-parse", "--verify", "--quiet", `refs/heads/${wip}`], project.repoPath);
+    if (taken.code === 0) continue;
+    const mv = await gitRun("git", ["branch", "-m", branch, wip], project.repoPath);
+    if (mv.code !== 0) throw new Error(`git branch -m ${branch} ${wip} failed:\n${mv.stderr}`);
+    await pushLog(taskId, `↺ Önceki koşunun dalı korundu: ${wip}`);
+    return;
+  }
+  throw new Error(`no free -wip-N name for ${branch}`);
+}
+
+class QueuedAbort extends Error {}
+
+export async function run(task: Task, project: Project, opts: RunOptions = {}): Promise<void> {
+  const tx = uiText(opts.uiLang);
+  const token = randomUUID();
   const controller = new AbortController();
-  RUNNING.set(task.id, controller);
+  const handle: RunHandle = { token, controller };
+  PENDING.set(task.id, handle);
+  LATEST.set(task.id, token);
+  const isLatest = () => LATEST.get(task.id) === token;
 
   const branch = buildBranchName(task);
   const ref = taskRef(task);
+  let lease: RepoLease | null = null;
+  let createdBranch = false;
 
   try {
-    // Wait until no other executor is active for this project (DB-level, survives restarts)
-    await acquireSlot(project.id, task.id);
+    // Wait (FIFO, no timeout) until no other run/comment/merge touches this repo.
+    try {
+      lease = await acquireRepoLock(project.repoPath, {
+        owner: `task:${task.id}:${token}`,
+        signal: controller.signal,
+      });
+    } catch {
+      throw new QueuedAbort();
+    }
+    if (holds(PENDING, task.id, token)) PENDING.delete(task.id);
+    RUNNING.set(task.id, handle);
+    if (controller.signal.aborted) throw new QueuedAbort();
 
     // Stamp start time
     const startTask = await updateTask(task.id, {
@@ -242,13 +299,13 @@ export async function run(task: Task, project: Project): Promise<void> {
 
     // ── Step 2: create feature branch ────────────────────────────────────
     await setAgentStep(task.id, "branching", "create_branch");
-    // Delete any stale local branch from a previous failed run so retries
-    // don't trip over "branch already exists".
-    await gitRun("git", ["branch", "-D", branch], project.repoPath);
+    if (controller.signal.aborted) throw new Error("aborted");
+    await setAsideOldBranch(task.id, project, branch);
     const branchResult = await createBranch(project.repoPath, branch);
     if (branchResult.code !== 0) {
       throw new Error(`git checkout -b failed:\n${branchResult.stderr}`);
     }
+    createdBranch = true;
     {
       const t = await updateTask(task.id, { branch });
       broadcastTaskUpdated(t);
@@ -259,7 +316,7 @@ export async function run(task: Task, project: Project): Promise<void> {
 
     // ── Step 3: team run ──────────────────────────────────────────────────
     await setAgentStep(task.id, "running", "team");
-    const outcome = await runTeam({ task, project, controller });
+    const outcome = await runTeam({ task, project, controller, uiLang: opts.uiLang });
 
     if (outcome.kind === "awaiting_approval") {
       await returnToBase(task.id, project, branch, { deleteBranch: true });
@@ -273,7 +330,7 @@ export async function run(task: Task, project: Project): Promise<void> {
     }
 
     if (outcome.kind === "stuck") {
-      await stopStuck(task, project, branch, outcome.reasonText, outcome.summary);
+      await stopStuck(task, project, branch, outcome.reason, outcome.reasonText, outcome.summary);
       return;
     }
 
@@ -291,10 +348,7 @@ export async function run(task: Task, project: Project): Promise<void> {
       return;
     }
 
-    if (outcome.allText.includes("## Code Review Report")) {
-      postComment(task.id, outcome.allText, "code review report");
-    }
-    const teamPrSection = buildPrTeamSection(outcome);
+    const teamPrSection = buildPrTeamSection(outcome, opts.uiLang);
 
     // ── Step 4: git add . && commit ───────────────────────────────────────
     await setAgentStep(task.id, "pushing", "git_commit");
@@ -324,11 +378,13 @@ export async function run(task: Task, project: Project): Promise<void> {
       await pushBlock(task.id, [
         "",
         "ℹ Hiçbir değişiklik yok ve branch base'in ilerisinde değil.",
-        "  Değişiklik gerekmiyordu → task 'nothing' olarak işaretlendi.",
+        "  Değişiklik gerekmiyordu → görev 'done' olarak kapatıldı, dal silindi.",
       ]);
-      await returnToBase(task.id, project, branch, { deleteBranch: false });
+      await returnToBase(task.id, project, branch, { deleteBranch: true });
+      postComment(task.id, tx.noChanges, "no changes");
       const final = await updateTask(task.id, {
-        status: "nothing",
+        status: "done",
+        branch: null,
         agent: {
           status: "done",
           currentStep: "completed",
@@ -364,22 +420,16 @@ export async function run(task: Task, project: Project): Promise<void> {
       const recentLog = (refreshed?.agent.log ?? []).slice(-30).join("\n");
 
       const prBodyParts: string[] = [];
-      if (task.description) prBodyParts.push(`## Açıklama\n${task.description}`);
-      if (task.analysis) prBodyParts.push(`## Analiz\n${task.analysis}`);
+      if (task.description) prBodyParts.push(`${tx.prDescription}\n${task.description}`);
+      if (task.analysis) prBodyParts.push(`${tx.prAnalysis}\n${task.analysis}`);
       if (teamPrSection) prBodyParts.push(teamPrSection);
       prBodyParts.push(
-        `## Nasıl Test Edilir\n` +
+        `${tx.prHowToTest}\n` +
           (acceptanceCriteria
-            ? `Acceptance kriterleri (her biri test edilebilir):\n\n${acceptanceCriteria}\n\n` +
-              `Hızlı doğrulama:\n` +
-              `- Repo'nun test komutunu çalıştır (\`npm test\` / \`pytest\` / \`go test ./...\` — package.json/pyproject/go.mod'a göre).\n` +
-              `- Branch'i lokal'e çekip dev sunucusunu açarak davranışı UI/CLI üzerinden kontrol et.`
-            : `- Repo'nun test komutunu çalıştır (\`npm test\` / \`pytest\` / \`go test ./...\`).\n` +
-              `- Branch'i lokal'e çekip ilgili akışı manuel deneyle.`),
+            ? `${tx.prAcceptanceIntro}\n\n${acceptanceCriteria}\n\n${tx.prQuickCheck}\n${tx.prRunTests}\n${tx.prTryUi}`
+            : `${tx.prRunTestsShort}\n${tx.prTryManual}`),
       );
-      prBodyParts.push(
-        `## Agent Logu (son 30 satır)\n\`\`\`\n${recentLog}\n\`\`\``,
-      );
+      prBodyParts.push(`${tx.prAgentLog}\n\`\`\`\n${recentLog}\n\`\`\``);
 
       const prTitle = task.displayId
         ? `${task.displayId} — ${task.title}`
@@ -403,13 +453,14 @@ export async function run(task: Task, project: Project): Promise<void> {
       await pushBlock(task.id, ["", `✓ PR opened: ${prUrl}`]);
     }
 
-    // ── Done ──────────────────────────────────────────────────────────────
-    // The task branch stays; the repo returns to base so UI commits never land on it.
+    // ── Review ────────────────────────────────────────────────────────────
+    // D1: both flows end in review with the task branch kept and the repo back
+    // on base. With a remote the PR is reviewed and merged via `gh`; without
+    // one the drawer shows the local diff and Review→Done merges locally.
+    if (!hasRemote) await pushLog(task.id, `ℹ No remote: ${branch} stays local for review`);
     await returnToBase(task.id, project, branch, { deleteBranch: false });
-    // Remote yoksa done'a, PR varsa CI gate'e, remote-only ise review'a taşı
-    const finalStatus = hasRemote && prNumber ? "ci" : hasRemote ? "review" : "done";
     const final = await updateTask(task.id, {
-      status: finalStatus,
+      status: "review",
       prUrl,
       prNumber,
       agent: {
@@ -420,61 +471,50 @@ export async function run(task: Task, project: Project): Promise<void> {
     });
     broadcastStatus(task.id, "done", "completed");
     broadcastTaskUpdated(final);
-
-    if (finalStatus === "ci") {
-      startCiWatch(final, project);
-    }
-    if (finalStatus === "review") {
-      enqueueReview(final, project);
-    }
   } catch (err) {
+    const queued = err instanceof QueuedAbort;
     const aborted = controller.signal.aborted;
     const baseMessage = err instanceof Error ? err.message : String(err);
-    const message = aborted
-      ? `Kullanıcı tarafından durduruldu${baseMessage ? ` (${baseMessage})` : ""}`
-      : baseMessage;
-    console.error(`[executor] task ${ref} (${task.id}) failed:`, message);
-    if (aborted) await pushLog(task.id, "✖ Aborted by user");
+    const code = aborted ? "aborted_by_user" : baseMessage;
+    console.error(`[executor] task ${ref} (${task.id}) failed:`, aborted ? `aborted (${baseMessage})` : baseMessage);
 
-    // Roll back task status to "todo" so user can retry
-    const errTask = await updateTask(task.id, {
-      status: "todo",
-      agent: {
-        status: "error",
-        currentStep: undefined,
-        error: message,
-        finishedAt: new Date().toISOString(),
-      },
-    });
-    broadcastStatus(task.id, "error");
-    broadcastTaskUpdated(errTask);
-
-    // Cleanup: discard claude's uncommitted edits, return to base branch,
-    // delete the failed feature branch. Best-effort — git failures must not
-    // mask the original task error. Skip silently if the branch never existed
-    // (e.g. error happened before createBranch).
-    try {
-      await gitRun("git", ["reset", "--hard", "HEAD"], project.repoPath);
-      await gitRun("git", ["clean", "-fd"], project.repoPath);
-      const co = await gitRun(
-        "git",
-        ["checkout", project.defaultBranch],
-        project.repoPath,
-      );
-      if (co.code === 0) {
-        await gitRun("git", ["branch", "-D", branch], project.repoPath);
-        await pushLog(
-          task.id,
-          `↺ Cleaned up: returned to ${project.defaultBranch}, dropped ${branch}`,
-        );
+    // A1b: only clean up a branch this run created, while it still holds the
+    // repo lock. An error before that (queued abort, checkout failure) leaves
+    // git alone so it never touches another run's working tree.
+    if (createdBranch) {
+      try {
+        await gitRun("git", ["reset", "--hard", "HEAD"], project.repoPath);
+        await gitRun("git", ["clean", "-fd"], project.repoPath);
+        const co = await gitRun("git", ["checkout", project.defaultBranch], project.repoPath);
+        if (co.code === 0) {
+          await gitRun("git", ["branch", "-D", branch], project.repoPath);
+          await pushLog(task.id, `↺ Cleaned up: returned to ${project.defaultBranch}, dropped ${branch}`);
+        }
+      } catch (cleanupErr) {
+        console.warn(`[executor] post-error cleanup failed for ${ref}:`, cleanupErr);
       }
-    } catch (cleanupErr) {
-      console.warn(
-        `[executor] post-error cleanup failed for ${ref}:`,
-        cleanupErr,
-      );
+    }
+
+    if (aborted) await pushLog(task.id, queued ? "✖ Aborted while queued" : "✖ Aborted by user");
+
+    // A retry already enqueued a newer run for this task: leave its state alone.
+    if (isLatest()) {
+      const errTask = await updateTask(task.id, {
+        status: "todo",
+        agent: {
+          status: "error",
+          currentStep: undefined,
+          error: code,
+          finishedAt: new Date().toISOString(),
+        },
+      });
+      broadcastStatus(task.id, "error");
+      broadcastTaskUpdated(errTask);
     }
   } finally {
-    RUNNING.delete(task.id);
+    lease?.release();
+    if (holds(PENDING, task.id, token)) PENDING.delete(task.id);
+    if (holds(RUNNING, task.id, token)) RUNNING.delete(task.id);
+    if (isLatest()) LATEST.delete(task.id);
   }
 }

@@ -28,6 +28,8 @@ interface BoardColumnProps {
   loading?: boolean;
   /** The AI planner is still writing this project's tasks (Todo lane only). */
   planning?: boolean;
+  /** Project without a remote: Review holds local branches, not PRs (D7). */
+  localFlow?: boolean;
 }
 
 export function BoardColumn({
@@ -42,12 +44,17 @@ export function BoardColumn({
   keyById = {},
   loading = false,
   planning = false,
+  localFlow = false,
 }: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { status } });
   const t = useTranslation();
-  const emptyState = planning ? t.board.planner.todoEmpty : t.board.emptyStates[status];
+  const emptyState = planning
+    ? t.board.planner.todoEmpty
+    : status === "review" && localFlow
+      ? { ...t.board.emptyStates.review, hint: t.board.emptyStates.review.hintLocal }
+      : t.board.emptyStates[status];
   const tone = STATUS_COLOR[status];
-  const laneStyle = { "--lane": status === "nothing" ? "var(--ink-3)" : tone.fill } as CSSProperties;
+  const laneStyle = { "--lane": tone.fill } as CSSProperties;
 
   const hasActiveAgent = status === "doing" && tasks.some(isAgentWorking);
   const overState = isOver && dropTarget ? dropTarget : undefined;
@@ -77,7 +84,7 @@ export function BoardColumn({
           >
             <span
               aria-hidden
-              className={clsx("ui-dot", status === "nothing" && "ui-dot--hatched", hasActiveAgent && "ui-dot--live")}
+              className={clsx("ui-dot", hasActiveAgent && "ui-dot--live")}
               style={{ "--dot": tone.fill } as CSSProperties}
             />
             <span className="lane__count">{tasks.length}</span>
@@ -110,7 +117,7 @@ export function BoardColumn({
       <header className="lane__head">
         <span
           aria-hidden
-          className={clsx("ui-dot", status === "nothing" && "ui-dot--hatched", hasActiveAgent && "ui-dot--live")}
+          className={clsx("ui-dot", hasActiveAgent && "ui-dot--live")}
           style={{ "--dot": tone.fill } as CSSProperties}
         />
         <h2 className="min-w-0 truncate text-[14px] font-bold tracking-[-0.01em] text-ink">{title}</h2>

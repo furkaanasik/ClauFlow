@@ -20,7 +20,7 @@ export interface QuickFilters {
   prOpen: boolean;
 }
 
-export const EMPTY_FILTERS: QuickFilters = {
+const EMPTY_FILTERS: QuickFilters = {
   priorities: [],
   tags: [],
   agentRunning: false,

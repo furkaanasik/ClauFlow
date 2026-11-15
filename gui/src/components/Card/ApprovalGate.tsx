@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Textarea } from "@/components/ui/Input";
 import { IconAlert, IconArrowUpRight, IconClipboard, IconRetry } from "@/components/ui/icons";
+import { errorText } from "@/lib/errorText";
 import { useTranslation } from "@/hooks/useTranslation";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
@@ -61,7 +62,7 @@ export function ApprovalGate({ task, spec }: { task: Task; spec: TeamArtifact })
     try {
       await api.abortTask(task.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.taskDetail.abortFailed);
+      setError(errorText(t, err, t.taskDetail.abortFailed));
     } finally {
       setAborting(false);
     }

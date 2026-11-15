@@ -1,6 +1,7 @@
 {
   "name": "kanban-gui",
   "version": "0.2.0",
+  "license": "MIT",
   "packageManager": "pnpm@11.0.9",
   "private": true,
   "pnpm": {

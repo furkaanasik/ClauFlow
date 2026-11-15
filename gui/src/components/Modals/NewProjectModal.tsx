@@ -1,18 +1,22 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useCallback, useId, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Input";
 import { Segmented } from "@/components/ui/Segmented";
-import { IconAlert, IconArrowUpRight, IconBranch, IconFolder, IconGithub, IconLock, IconPlus } from "@/components/ui/icons";
+import { IconAlert, IconArrowUpRight, IconBranch, IconDownload, IconFolder, IconGithub, IconLock, IconPlus } from "@/components/ui/icons";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { slugify } from "@/lib/slug";
+import { errorText } from "@/lib/errorText";
+import { CloneRepoForm } from "./CloneRepoForm";
 import { FolderPicker } from "./FolderPicker";
 
 const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,10}[a-z0-9]$|^[a-z0-9]{2}$/;
+
+type NewProjectMode = "new" | "clone";
 
 interface NewProjectModalProps {
   open: boolean;
@@ -25,6 +29,11 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
   const t = useTranslation();
   const tn = t.newProject;
   const formId = useId();
+  const cloneFormId = useId();
+
+  const [mode, setMode] = useState<NewProjectMode>("new");
+  const [cloneBusy, setCloneBusy] = useState(false);
+  const [cloneReady, setCloneReady] = useState(false);
 
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -56,6 +65,8 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
     setAiPrompt("");
     setError(null);
     setGithubWarning(null);
+    setMode("new");
+    setCloneReady(false);
   };
 
   const deriveSlug = (nextName: string) => {
@@ -73,10 +84,15 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
   };
 
   const handleClose = () => {
-    if (submitting) return;
+    if (submitting || cloneBusy) return;
     reset();
     onClose();
   };
+
+  const handleCloned = useCallback(() => {
+    reset();
+    onClose();
+  }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,7 +136,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
       reset();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorText(t, err));
     } finally {
       setSubmitting(false);
     }
@@ -139,11 +155,27 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
         open={open}
         onClose={handleClose}
         title={tn.modalTitle}
-        description={tn.modalHint}
+        description={mode === "clone" ? tn.cloneHint : tn.modalHint}
         icon={<IconFolder size={18} />}
         size="lg"
         footer={
-          githubWarning ? (
+          mode === "clone" ? (
+            <>
+              <Button variant="secondary" onClick={handleClose} disabled={cloneBusy}>
+                {tn.cancel}
+              </Button>
+              <Button
+                type="submit"
+                form={cloneFormId}
+                variant="primary"
+                icon={<IconDownload size={15} />}
+                loading={cloneBusy}
+                disabled={!cloneReady}
+              >
+                {cloneBusy ? t.cloneModal.submitting : t.cloneModal.submit}
+              </Button>
+            </>
+          ) : githubWarning ? (
             <Button variant="primary" onClick={() => { reset(); onClose(); }}>
               {tn.close}
             </Button>
@@ -165,6 +197,25 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
           )
         }
       >
+        <Segmented<NewProjectMode>
+          label={tn.modeLabel}
+          value={mode}
+          onChange={setMode}
+          className="mb-5"
+          options={[
+            { value: "new", label: tn.modeNew, icon: <IconPlus size={13} />, disabled: submitting || cloneBusy },
+            { value: "clone", label: tn.modeClone, icon: <IconGithub size={13} />, disabled: submitting || cloneBusy },
+          ]}
+        />
+
+        {mode === "clone" ? (
+          <CloneRepoForm
+            formId={cloneFormId}
+            onCloned={handleCloned}
+            onBusyChange={setCloneBusy}
+            onReadyChange={setCloneReady}
+          />
+        ) : (
         <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
             <Field label={req(tn.nameLabel)}>
@@ -183,7 +234,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
 
             <Field
               label={tn.slugLabel}
-              aside={`${String(slug.length).padStart(2, "0")}/12`}
+              aside={`${slug.length}/12`}
               hint={slugError ? undefined : tn.slugHint}
               error={slugError ?? undefined}
             >
@@ -364,6 +415,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
             </div>
           )}
         </form>
+        )}
       </Modal>
       <FolderPicker
         open={open && pickerOpen}

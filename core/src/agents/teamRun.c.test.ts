@@ -54,7 +54,7 @@ async function waitForStatus(c: TeamCase, status: string) {
 describe("team run C: Keşif, approval gate, CLI arguments", () => {
   it("Keşif: no commits, no branch, summary comment, task done", async () => {
     const c = await makeTeamCase({ teamId: BUILTIN_TEAM_IDS.kesif });
-    const task = await runTeamCase(c);
+    const task = await runTeamCase(c, { uiLang: "tr" });
     const r = inspect(c);
 
     expect(r.roles).toEqual(["ceo:1", "analyst:1"]);
@@ -95,11 +95,11 @@ describe("team run C: Keşif, approval gate, CLI arguments", () => {
     expect(team.artifacts.map((a) => a.kind)).toEqual(["brief", "spec"]);
 
     const edited = "## Şartname\n\n### Kabul kriterleri\n- AC-1: EDITED-SPEC must hold";
-    const ok = await post(`/api/tasks/${c.task.id}/team/approve`, { specBody: edited });
+    const ok = await post(`/api/tasks/${c.task.id}/team/approve`, { specBody: edited, uiLang: "tr" });
     expect(ok.status).toBe(200);
     expect(ok.body.artifact).toMatchObject({ kind: "spec", approved: true, body: edited });
 
-    const done = await waitForStatus(c, "done");
+    const done = await waitForStatus(c, "review");
     r = inspect(c);
     expect(done.agent.status).toBe("done");
     expect(r.roles).toEqual(["ceo:1", "analyst:1", "developer:1", "qa:1"]);
@@ -110,6 +110,7 @@ describe("team run C: Keşif, approval gate, CLI arguments", () => {
     expect(r.runs[0]!.costUsd).toBeCloseTo(0.04, 6);
     expect(r.currentBranch).toBe("main");
     expect(r.branchFiles(done.branch!)).toEqual(["fake-1.txt"]);
+    expect(r.comments.map((x) => x.body.split("\n")[0])).toEqual(["## Ekip özeti"]);
 
     const again = await post(`/api/tasks/${c.task.id}/team/approve`, {});
     expect(again.status).toBe(409);
@@ -143,7 +144,7 @@ describe("team run C: Keşif, approval gate, CLI arguments", () => {
 
     const task = await runTeamCase(c);
     const r = inspect(c);
-    expect(task.status).toBe("done");
+    expect(task.status).toBe("review");
     expect(r.roles).toEqual(["developer:1", "qa:1"]);
 
     const [d, q] = r.calls;
@@ -184,8 +185,7 @@ describe("team run C: Keşif, approval gate, CLI arguments", () => {
       spec,
       qaVerdict: "pass",
       qaReport: "",
-      allText: "",
-    })!;
+    }, "tr")!;
     expect(section).toContain("## Ekip");
     expect(section).toContain("CEO → Analist → Yazılımcı → QA");
     expect(section).toContain("### Kabul kriterleri\n- AC-1: a\n- AC-2: b");
@@ -198,8 +198,48 @@ describe("team run C: Keşif, approval gate, CLI arguments", () => {
         spec: null,
         qaVerdict: null,
         qaReport: null,
-        allText: "",
       }),
     ).toBeNull();
+    const en = buildPrTeamSection({
+      kind: "delivered",
+      run: run(BUILTIN_TEAM_IDS.yazilimEkibi, 0),
+      summary: "",
+      spec,
+      qaVerdict: "fail",
+      qaReport: "",
+    })!;
+    expect(en.split("\n")[0]).toBe("## Team");
+    expect(en).toContain("FAIL · QA round 1");
+  });
+
+  it("D6a: uiLang picks the summary language (en → ## Team summary, tr → ## Ekip özeti)", async () => {
+    const en = await makeTeamCase({ scenario: "pass" });
+    await runTeamCase(en, { uiLang: "en" });
+    const enSummary = inspect(en).comments.find((x) => x.body.startsWith("## Team summary"))!;
+    expect(enSummary.body).toContain("**Outcome:** Delivered");
+    expect(enSummary.body).toContain("QA: PASS (round 1)");
+    expect(inspect(en).artifacts.find((a) => a.kind === "summary")!.body).toBe(enSummary.body);
+
+    const tr = await makeTeamCase({ scenario: "pass" });
+    await runTeamCase(tr, { uiLang: "tr" });
+    const trSummary = inspect(tr).comments.find((x) => x.body.startsWith("## Ekip özeti"))!;
+    expect(trSummary.body).toContain("**Sonuç:** Teslim edildi");
+    expect(trSummary.body).toContain("QA: PASS (tur 1)");
+  });
+
+  it("D6a: /team/approve and /retry validate uiLang", async () => {
+    const c = await makeTeamCase({});
+    expect(await post(`/api/tasks/${c.task.id}/team/approve`, { uiLang: "de" })).toMatchObject({
+      status: 400,
+      body: { error: "invalid_body" },
+    });
+    expect(await post(`/api/tasks/${c.task.id}/retry`, { uiLang: "de" })).toMatchObject({
+      status: 400,
+      body: { error: "invalid_body" },
+    });
+    expect(await post(`/api/tasks/${c.task.id}/retry`, { uiLang: "tr" })).toMatchObject({
+      status: 400,
+      body: { error: "task_not_in_doing" },
+    });
   });
 });

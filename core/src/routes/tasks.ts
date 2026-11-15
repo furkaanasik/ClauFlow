@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import {
+  appendAgentLog,
   createTask,
   deleteTask,
   getAgentTexts,
@@ -14,14 +15,17 @@ import {
 import { errorMessage } from "../utils/error.js";
 import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import {
+  broadcastLog,
   broadcastTaskCreated,
   broadcastTaskDeleted,
   broadcastTaskUpdated,
 } from "../services/wsService.js";
+import type { TaskPatch } from "../services/taskService.js";
 import {
   enqueue as enqueueExecutor,
   abort as abortExecutor,
   isRunning as isExecutorRunning,
+  runPhase as executorRunPhase,
   waitForIdle as waitForExecutorIdle,
 } from "../agents/executor.js";
 import {
@@ -33,13 +37,19 @@ import {
   updateTeamRun,
 } from "../services/teamRunService.js";
 import { broadcastTeamArtifact, broadcastTeamRunUpdated } from "../services/wsService.js";
-import { mergePr, checkoutBase } from "../services/gitService.js";
-import { stopCiWatch } from "../services/ciWatcher.js";
+import { mergeTaskBranch } from "../services/mergeService.js";
 import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
+import { getTaskDiff } from "../services/taskDiff.js";
+import { uiLangSchema } from "../agents/uiText.js";
 
 const router = Router();
 
-const taskStatus = z.enum(["todo", "doing", "ci", "review", "done", "nothing"]);
+async function logLine(taskId: string, line: string): Promise<void> {
+  await appendAgentLog(taskId, line);
+  broadcastLog(taskId, line);
+}
+
+const taskStatus = z.enum(["todo", "doing", "review", "done"]);
 const taskPriority = z.enum(["low", "medium", "high", "critical"]);
 const agentStatus = z.enum([
   "idle",
@@ -81,6 +91,7 @@ const updateTaskSchema = z.object({
   budgetUsd: z.number().min(0.1).nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
   teamId: z.string().min(1).nullable().optional(),
+  uiLang: uiLangSchema.optional(),
   agent: z
     .object({
       status: agentStatus.optional(),
@@ -97,7 +108,7 @@ router.get("/", async (req: Request, res: Response) => {
   try {
     const { projectId } = req.query as { projectId?: string };
     if (!projectId) {
-      return res.status(400).json({ error: "projectId query param required" });
+      return res.status(400).json({ error: "project_id_required" });
     }
     const tasks = await listTasks(projectId);
     res.json({ tasks });
@@ -138,6 +149,24 @@ router.get("/:id/node-runs", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/:id/diff", async (req: Request, res: Response) => {
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    const project = await getProject(task.projectId);
+    if (!project) return res.status(404).json({ error: "project_not_found" });
+    const result = await getTaskDiff(task, project);
+    if (!result.ok) {
+      return res
+        .status(result.code === "no_branch" ? 404 : 500)
+        .json({ error: result.code, ...(result.detail ? { detail: result.detail } : {}) });
+    }
+    res.json(result.diff);
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
 router.get("/:id/agent-texts", async (req: Request, res: Response) => {
   try {
     const task = await getTask(req.params.id!);
@@ -161,7 +190,9 @@ router.post("/", async (req: Request, res: Response) => {
     res.status(201).json({ task });
   } catch (err) {
     if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
-    res.status(400).json({ error: errorMessage(err) });
+    const msg = errorMessage(err);
+    if (msg.startsWith("Project not found")) return res.status(404).json({ error: "project_not_found" });
+    res.status(400).json({ error: msg });
   }
 });
 
@@ -171,91 +202,93 @@ router.patch("/:id", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
   }
   try {
-    if (parsed.data.teamId) {
-      const existing = await getTask(req.params.id!);
-      if (!existing) return res.status(404).json({ error: "not_found" });
-      assertTeamUsableByProject(parsed.data.teamId, existing.projectId);
+    const existing = await getTask(req.params.id!);
+    if (!existing) return res.status(404).json({ error: "not_found" });
+    const { uiLang, ...patch } = parsed.data;
+    // D4: a finished task's team is part of its history.
+    if (patch.teamId !== undefined && existing.status === "done" && patch.teamId !== existing.teamId) {
+      return res.status(409).json({ error: "task_done" });
     }
+    if (patch.teamId) assertTeamUsableByProject(patch.teamId, existing.projectId);
+
     // Reset agent state immediately so queued tasks show "Sırada" instead of stale error
-    const updateData =
-      parsed.data.status === "doing"
+    let updateData: TaskPatch =
+      patch.status === "doing"
         ? {
-            ...parsed.data,
+            ...patch,
             agent: { status: "idle" as const, currentStep: undefined, log: [], error: null, startedAt: null, finishedAt: null },
           }
-        : parsed.data;
+        : patch;
 
-    const task = await updateTask(req.params.id!, updateData);
+    // D1 / §3/5-6: only review → done merges, and it does so before answering.
+    // A failed merge leaves the task where it was and returns 409 <code>.
+    if (parsed.data.status === "done" && existing.status === "review") {
+      const project = await getProject(existing.projectId);
+      if (!project) return res.status(404).json({ error: "project_not_found" });
+      const merge = await mergeTaskBranch(existing, project);
+      if (!merge.ok) {
+        console.warn(`[merge] task ${existing.displayId ?? existing.id}: ${merge.code}`, merge.detail ?? merge.files ?? "");
+        if (merge.code !== "repo_busy") {
+          await logLine(
+            existing.id,
+            merge.files?.length
+              ? `✖ Merge conflict (${merge.files.join(", ")}); merge aborted, task stays in review`
+              : `✖ Merge failed (${merge.code})${merge.detail ? `: ${merge.detail}` : ""}`,
+          );
+          const errTask = await updateTask(existing.id, {
+            agent: { status: "error", error: merge.code, finishedAt: new Date().toISOString() },
+          });
+          broadcastTaskUpdated(errTask);
+        }
+        return res.status(409).json({
+          error: merge.code,
+          ...(merge.files ? { files: merge.files } : {}),
+          ...(merge.detail ? { detail: merge.detail } : {}),
+        });
+      }
+      if (merge.mode === "local") {
+        await logLine(
+          existing.id,
+          `✓ Merged ${existing.branch} into ${project.defaultBranch} (--no-ff ${merge.mergeCommit?.slice(0, 7) ?? ""})${merge.branchDeleted ? `, branch deleted` : ""}`,
+        );
+      } else if (merge.mode === "pr") {
+        await logLine(existing.id, `✓ PR #${existing.prNumber} merged, branch deleted`);
+      }
+      if (merge.stash) await logLine(existing.id, `ℹ Dirty working tree stashed as "${merge.stash}"`);
+      if (merge.note && merge.mode !== "skipped") await logLine(existing.id, `[warn] ${merge.note}`);
+      updateData = {
+        ...updateData,
+        ...(merge.branchDeleted ? { branch: null } : {}),
+        agent: { ...updateData.agent, status: "done", error: null },
+      };
+    }
+
+    const task = await updateTask(existing.id, updateData);
     broadcastTaskUpdated(task);
     res.json({ task });
-
-    // Stop CI watcher if task is being manually moved away from "ci"
-    if (parsed.data.status && parsed.data.status !== "ci") {
-      stopCiWatch(req.params.id!);
-    }
 
     // Fire-and-forget: trigger executor when task moves to "doing"
     if (parsed.data.status === "doing" && !isExecutorRunning(task.id)) {
       const project = await getProject(task.projectId);
       if (project) {
-        enqueueExecutor(task, project);
-      }
-    }
-
-    if (parsed.data.status === "done") {
-      const project = await getProject(task.projectId);
-      if (project && task.prNumber) {
-        mergePr(project.repoPath, task.prNumber)
-          .then(async (result) => {
-            if (result.code !== 0) {
-              const errMsg = result.stderr || result.stdout || "unknown error";
-              console.error(
-                `[merger] pr merge failed for task ${task.id}:`,
-                errMsg,
-              );
-              const rolled = await updateTask(task.id, {
-                status: "review",
-                agent: {
-                  status: "error",
-                  error: `PR merge hatası: ${errMsg}`,
-                  finishedAt: new Date().toISOString(),
-                },
-              });
-              broadcastTaskUpdated(rolled);
-            } else {
-              console.log(
-                `[merger] merged PR #${task.prNumber} for task ${task.id}`,
-              );
-              checkoutBase(project.repoPath, project.defaultBranch).catch(
-                (err: unknown) => console.warn("[merger] post-merge checkout failed:", err),
-              );
-            }
-          })
-          .catch(async (err: unknown) => {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error("[merge] failed for task", task.id, msg);
-            // task'ı review'a geri al, agent.status = error
-            const rolled = await updateTask(task.id, {
-              status: "review",
-              agent: {
-                status: "error",
-                error: `PR merge hatası: ${msg}`,
-                finishedAt: new Date().toISOString(),
-              },
-            });
-            broadcastTaskUpdated(rolled);
-          });
+        enqueueExecutor(task, project, { uiLang });
       }
     }
   } catch (err) {
     if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
     const msg = errorMessage(err);
-    const code = msg.startsWith("Task not found") ? 404 : 400;
-    res.status(code).json({ error: msg });
+    if (msg.startsWith("Task not found")) return res.status(404).json({ error: "not_found" });
+    res.status(400).json({ error: msg });
   }
 });
 
+const retrySchema = z.object({ uiLang: uiLangSchema.optional() });
+
 router.post("/:id/retry", async (req: Request, res: Response) => {
+  const parsed = retrySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
   try {
     const task = await getTask(req.params.id!);
     if (!task) return res.status(404).json({ error: "not_found" });
@@ -263,16 +296,16 @@ router.post("/:id/retry", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "task_not_in_doing" });
     }
 
-    // If a claude run is currently in flight, kill it first and wait for the
-    // run() catch+finally to unwind so we can re-enqueue cleanly. Without this,
-    // the new enqueueExecutor call would block on acquireSlot waiting for the
-    // old run to finish, leaving the user staring at "Sırada".
+    // Kill the live (or queued) run and give it a moment to unwind. If it is
+    // slower than that, the new run simply queues behind it on the repo lock;
+    // run tokens keep the old run's late finally from touching the new one.
     if (isExecutorRunning(task.id)) {
       abortExecutor(task.id);
       await waitForExecutorIdle(task.id, 5000);
     }
 
     const reset = await updateTask(task.id, {
+      status: "doing",
       agent: {
         status: "idle",
         currentStep: undefined,
@@ -286,7 +319,7 @@ router.post("/:id/retry", async (req: Request, res: Response) => {
     res.json({ task: reset });
 
     const project = await getProject(task.projectId);
-    if (project) enqueueExecutor(reset, project);
+    if (project) enqueueExecutor(reset, project, { uiLang: parsed.data.uiLang });
   } catch (err) {
     const msg = errorMessage(err);
     res.status(500).json({ error: msg });
@@ -299,9 +332,10 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
     const task = await getTask(id);
     if (!task) return res.status(404).json({ error: "not_found" });
 
-    if (isExecutorRunning(id)) {
+    const phase = executorRunPhase(id);
+    if (phase) {
       abortExecutor(id);
-      return res.json({ aborted: true, source: "in_memory" });
+      return res.json({ aborted: true, source: phase === "queued" ? "queued" : "in_memory" });
     }
 
     // No live process for this task. A task paused for spec approval, or an
@@ -324,9 +358,7 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
         agent: {
           status: "error",
           currentStep: undefined,
-          error: paused
-            ? "Kullanıcı tarafından durduruldu (şartname onayı beklerken)"
-            : "Kullanıcı tarafından durduruldu (orphan task)",
+          error: paused ? "aborted_while_awaiting_approval" : "aborted_orphan",
           finishedAt: new Date().toISOString(),
         },
       });
@@ -352,6 +384,7 @@ router.get("/:id/team", async (req: Request, res: Response) => {
 
 const approveSchema = z.object({
   specBody: z.string().trim().min(1).max(100_000).optional(),
+  uiLang: uiLangSchema.optional(),
 });
 
 router.post("/:id/team/approve", async (req: Request, res: Response) => {
@@ -387,7 +420,7 @@ router.post("/:id/team/approve", async (req: Request, res: Response) => {
     });
     broadcastTaskUpdated(reset);
     res.json({ task: reset, artifact: approved });
-    enqueueExecutor(reset, project);
+    enqueueExecutor(reset, project, { uiLang: parsed.data.uiLang });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
@@ -396,18 +429,22 @@ router.post("/:id/team/approve", async (req: Request, res: Response) => {
 const breakdownSchema = z.object({
   prompt: z.string().min(1).max(6000),
   maxTasks: z.number().int().min(1).max(20).optional(),
+  uiLang: uiLangSchema.optional(),
 });
 
 router.post("/:id/breakdown", async (req: Request, res: Response) => {
   const task = await getTask(req.params.id!).catch(() => null);
   if (!task) return res.status(404).json({ error: "task_not_found" });
+  // D4: a finished task is history; a running one belongs to the executor.
+  if (task.status === "done") return res.status(409).json({ error: "task_done" });
+  if (task.status === "doing") return res.status(409).json({ error: "task_running" });
 
   const parsed = breakdownSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
   }
 
-  runTaskBreakdown(task.id, parsed.data.prompt, parsed.data.maxTasks ?? 6)
+  runTaskBreakdown(task.id, parsed.data.prompt, parsed.data.maxTasks ?? 6, parsed.data.uiLang)
     .catch((err) => console.error("[tasks] breakdown failed:", err));
 
   res.json({ status: "started" });
@@ -421,8 +458,8 @@ router.delete("/:id", async (req: Request, res: Response) => {
     res.status(204).end();
   } catch (err) {
     const msg = errorMessage(err);
-    const code = msg.startsWith("Task not found") ? 404 : 400;
-    res.status(code).json({ error: msg });
+    if (msg.startsWith("Task not found")) return res.status(404).json({ error: "not_found" });
+    res.status(400).json({ error: msg });
   }
 });
 

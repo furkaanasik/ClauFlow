@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { ADVISOR_SUPPORTED } from "./claudeCapabilities.js";
 
-export interface ParsedToolCall {
+interface ParsedToolCall {
   id: string;
   toolName: string;
   args: unknown;
@@ -12,7 +12,7 @@ export interface ParsedToolCall {
   durationMs: number | null;
 }
 
-export interface StreamJsonParserHandlers {
+interface StreamJsonParserHandlers {
   onText?: (text: string) => void;
   onToolCallStart?: (toolCall: ParsedToolCall) => void;
   onToolCallEnd?: (toolCall: ParsedToolCall) => void;
@@ -226,7 +226,7 @@ export interface ClaudeRunOptions {
   bare?: boolean;
   /** Passed as `--model`. CLI aliases (`sonnet`, `opus`) are accepted. */
   model?: string;
-  /** Passed as `--tools`, which restricts the built-in tool set (unlike `--allowedTools`). */
+  /** Passed as `--tools`, which restricts the built-in tool set (unlike `--allowedTools`); `[]` disables all tools. */
   tools?: string[];
   appendSystemPrompt?: string;
   /** Passed as `--advisor` only while ADVISOR_SUPPORTED is true. */
@@ -294,15 +294,71 @@ function emitText(
   }
 }
 
+/**
+ * A8e: total argv bytes we allow. Linux caps a single argument at 128 KiB
+ * (MAX_ARG_STRLEN); the prompt is one argument, so stay well below that.
+ */
+export const ARG_BYTES_LIMIT = 100 * 1024;
+
+class PromptTooLargeError extends Error {
+  constructor() {
+    super("prompt_too_large");
+    this.name = "PromptTooLargeError";
+  }
+}
+
+const PROMPT_BLOCK_RE = /<([a-z][a-z0-9_]*)>\n([\s\S]*?)\n<\/\1>/g;
+const MIN_BLOCK_CHARS = 1_000;
+
+function argvBytes(args: string[]): number {
+  return args.reduce((n, a) => n + Buffer.byteLength(a, "utf8") + 1, 0);
+}
+
+/**
+ * Shrinks the largest `<tag>…</tag>` block of `prompt` (repeatedly) until the
+ * whole argv fits in `limit` bytes. Throws `prompt_too_large` when no block
+ * is left to shrink.
+ */
+function fitPromptToArgLimit(prompt: string, otherBytes: number, limit = ARG_BYTES_LIMIT): string {
+  let p = prompt;
+  const over = () => Buffer.byteLength(p, "utf8") + otherBytes - limit;
+  for (let guard = 0; guard < 64 && over() > 0; guard++) {
+    let best: { start: number; tag: string; body: string } | null = null;
+    for (const m of p.matchAll(PROMPT_BLOCK_RE)) {
+      const body = m[2]!;
+      if (body.length <= MIN_BLOCK_CHARS + 200) continue;
+      if (!best || Buffer.byteLength(body, "utf8") > Buffer.byteLength(best.body, "utf8")) {
+        best = { start: m.index! + m[1]!.length + 3, tag: m[1]!, body };
+      }
+    }
+    if (!best) break;
+    const bodyBytes = Buffer.byteLength(best.body, "utf8");
+    const bytesPerChar = bodyBytes / best.body.length;
+    const keep = Math.max(MIN_BLOCK_CHARS, Math.floor((bodyBytes - over() - 256) / bytesPerChar));
+    const cut = `${best.body.slice(0, keep)}\n[${best.tag} truncated to ${keep} characters to fit the CLI argument limit]`;
+    p = p.slice(0, best.start) + cut + p.slice(best.start + best.body.length);
+  }
+  if (over() > 0) throw new PromptTooLargeError();
+  return p;
+}
+
 export function buildClaudeArgs(options: ClaudeRunOptions): string[] {
+  const args = buildClaudeArgsRaw(options);
+  const total = argvBytes(args);
+  if (total <= ARG_BYTES_LIMIT) return args;
+  const promptBytes = Buffer.byteLength(options.prompt, "utf8") + 1;
+  const prompt = fitPromptToArgLimit(options.prompt, total - promptBytes);
+  return buildClaudeArgsRaw({ ...options, prompt });
+}
+
+function buildClaudeArgsRaw(options: ClaudeRunOptions): string[] {
   // -p must be immediately followed by the prompt string.
   // Other flags come after so the CLI parser picks up the prompt correctly.
   const args = ["-p", options.prompt, "--permission-mode", "bypassPermissions"];
   if (options.bare) args.push("--bare");
   if (options.model) args.push("--model", options.model);
-  if (options.tools && options.tools.length > 0) {
-    args.push("--tools", options.tools.join(","));
-  }
+  // An explicit empty list disables every built-in tool (`--tools ""`).
+  if (options.tools) args.push("--tools", options.tools.join(","));
   if (options.allowedTools && options.allowedTools.length > 0) {
     args.push("--allowedTools", options.allowedTools.join(","));
   }

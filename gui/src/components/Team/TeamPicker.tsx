@@ -14,8 +14,10 @@ interface TeamPickerProps {
   /** Task-level choice; null = project default. */
   value: string | null;
   onChange: (teamId: string | null) => void;
-  /** Running tasks keep their team. */
+  /** Running and finished tasks keep their team. */
   locked?: boolean;
+  /** Why it is locked; defaults to the "while it runs" line. */
+  lockedReason?: string;
   /** Re-fetch teams when this changes (e.g. the modal opening). */
   refreshKey?: unknown;
   /** Hide the visible label (the caller renders its own). */
@@ -29,7 +31,7 @@ interface TeamPickerProps {
  * option follows the project default, then built-ins, user templates and project
  * teams. The chosen team's role order and description sit under it.
  */
-export function TeamPicker({ project, value, onChange, locked, refreshKey, hideLabel, size = "sm", error }: TeamPickerProps) {
+export function TeamPicker({ project, value, onChange, locked, lockedReason, refreshKey, hideLabel, size = "sm", error }: TeamPickerProps) {
   const t = useTranslation();
   const tp = t.team.picker;
   const id = useId();
@@ -94,7 +96,7 @@ export function TeamPicker({ project, value, onChange, locked, refreshKey, hideL
         {locked && (
           <p className="flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
             <IconLock size={12} className="shrink-0" />
-            {tp.locked}
+            {lockedReason ?? tp.locked}
           </p>
         )}
         {error && (

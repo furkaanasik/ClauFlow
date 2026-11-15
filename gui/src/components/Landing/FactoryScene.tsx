@@ -51,7 +51,7 @@ export interface FactoryDrive {
   shiftY: number;
 }
 
-export interface FactoryStationCopy {
+interface FactoryStationCopy {
   name: string;
   note: string;
 }
@@ -70,7 +70,7 @@ const ARM_Z = -2.05;
 const BIN_X = 11.75;
 
 /** A moment where every station is mid-action — the reduced-motion still. */
-export const POSTER_TIME = PERIOD * 12 + PERIOD * (MOVE + (1 - MOVE) * 0.5);
+const POSTER_TIME = PERIOD * 12 + PERIOD * (MOVE + (1 - MOVE) * 0.5);
 
 const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const backOut = (x: number) => {

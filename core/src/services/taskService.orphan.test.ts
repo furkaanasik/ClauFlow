@@ -1,12 +1,28 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Own throwaway DB: never touch the shared core/data/tasks.db (dev server, master).
+vi.hoisted(() => {
+  const tmp = process.env.TMPDIR ?? "/tmp";
+  process.env.CLAUFLOW_DATA_DIR = `${tmp}/clauflow-taskService-orphan-${process.pid}-${Date.now()}`;
+});
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import { WebSocket } from "ws";
 import {
   createProject,
   createTask,
   db,
+  getNodeRun,
+  getProject,
   getTask,
+  insertNodeRun,
   recoverOrphanedTasks,
   updateTask,
 } from "./taskService.js";
+import { recoverAndBroadcastOrphans } from "./orphanRecovery.js";
+import { createTeamRun, getTeamRun } from "./teamRunService.js";
+import { resolveTeamForTask } from "./teamService.js";
+import { attachWebSocket, closeWebSocket } from "./wsService.js";
 
 const SUFFIX = `orphantest_${Date.now()}`;
 let projectId = "";
@@ -52,4 +68,45 @@ describe("recoverOrphanedTasks", () => {
     const recovered = await recoverOrphanedTasks();
     expect(recovered).toBe(0);
   });
+
+  it("writes the server_restart code, errors stuck node runs and broadcasts every changed row (A8a)", async () => {
+    await updateTask(taskId, { status: "doing", agent: { status: "running", error: null } });
+    const run = createTeamRun(taskId, resolveTeamForTask((await getTask(taskId))!, (await getProject(projectId))!));
+    const nodeRun = insertNodeRun({ id: `nr-${SUFFIX}`, taskId, nodeId: "role:developer:1", nodeType: "developer" });
+    expect(nodeRun.status).toBe("running");
+
+    const server = http.createServer();
+    attachWebSocket(server);
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const { port } = server.address() as AddressInfo;
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+    const messages: Array<{ type: string; taskId?: string; payload?: { id?: string; status?: string } }> = [];
+    ws.on("message", (data) => messages.push(JSON.parse(String(data))));
+    await new Promise<void>((r) => ws.once("open", () => r()));
+    try {
+      const result = await recoverAndBroadcastOrphans();
+      expect(result).toEqual({ taskIds: [taskId], runIds: [run.id], nodeRunIds: [nodeRun.id] });
+      for (let i = 0; i < 50 && messages.length < 4; i++) await new Promise((r) => setTimeout(r, 20));
+
+      const task = (await getTask(taskId))!;
+      expect(task.status).toBe("todo");
+      expect(task.agent.error).toBe("server_restart");
+      expect(getNodeRun(nodeRun.id)).toMatchObject({ status: "error", errorMessage: "server_restart" });
+      expect(getTeamRun(run.id)).toMatchObject({ status: "error", stopReason: "server_restart" });
+
+      const types = messages.map((m) => m.type);
+      expect(types).toEqual(expect.arrayContaining(["task_updated", "team_run_updated", "node_finished"]));
+      expect(messages.find((m) => m.type === "team_run_updated")!.payload).toMatchObject({ id: run.id, status: "error" });
+      expect(messages.find((m) => m.type === "node_finished")!.payload).toMatchObject({ id: nodeRun.id, status: "error" });
+    } finally {
+      ws.close();
+      await closeWebSocket();
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+});
+
+afterAll(async () => {
+  const { rmSync } = await import("node:fs");
+  rmSync(process.env.CLAUFLOW_DATA_DIR!, { recursive: true, force: true });
 });

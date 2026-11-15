@@ -4,14 +4,14 @@
 
 **Drag a task. The agent ships the PR.**
 
-An open-source agentic kanban board. Move a card to **DOING** and the Claude Code CLI branches, writes the code, commits, pushes and opens a pull request. Comment in **REVIEW** and Claude re-runs on the same branch.
+An open-source agentic kanban board. Move a card to **DOING** and a team of Claude Code CLI roles branches, writes the code, commits, pushes and opens a pull request. No remote? The work stays on a local branch you review and merge from the board. Comment in **REVIEW** and Claude re-runs on the same branch.
 
 <img src="docs/assets/gifs/landing.gif" alt="ClauFlow landing page: a 3D toy factory moves task crates through the TODO, DOING, REVIEW and DONE stations, then the camera walks down the line" width="100%">
 
 [![Release](https://img.shields.io/github/v/release/furkaanasik/ClauFlow?style=flat)](https://github.com/furkaanasik/ClauFlow/releases)
 [![Stack](https://img.shields.io/badge/stack-Next.js%2015%20·%20Express%20·%20SQLite-1e1e1e?style=flat)](#architecture)
 [![AI](https://img.shields.io/badge/agent-Claude%20Code%20CLI-f2c33d?style=flat&labelColor=1b1712)](https://docs.claude.com/en/docs/claude-code/overview)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](#license)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
 
 [Quickstart](#quickstart) · [How it works](#how-it-works) · [Design system](DESIGN.md) · [Architecture notes](CLAUDE.md) · [Issues](https://github.com/furkaanasik/ClauFlow/issues)
 
@@ -26,12 +26,11 @@ An open-source agentic kanban board. Move a card to **DOING** and the Claude Cod
 3. [Feature tour](#feature-tour)
 4. [Quickstart](#quickstart)
 5. [Configuration](#configuration)
-6. [Docker](#docker)
-7. [Architecture](#architecture)
-8. [Design system](#design-system)
-9. [Scripts](#scripts)
-10. [Contributing](#contributing)
-11. [License](#license)
+6. [Architecture](#architecture)
+7. [Design system](#design-system)
+8. [Scripts](#scripts)
+9. [Contributing](#contributing)
+10. [License](#license)
 
 ---
 
@@ -44,7 +43,7 @@ Most "agentic" tools are chat boxes with extra steps: you paste a prompt, watch 
 | Idea | In ClauFlow |
 |---|---|
 | A unit of work | a kanban card |
-| A unit of review | a pull request |
+| A unit of review | a pull request, or a local branch when the repo has no remote |
 | The interface | the board, with no chat and no copy-paste |
 | Your job | drag, comment, merge |
 
@@ -53,22 +52,23 @@ Most "agentic" tools are chat boxes with extra steps: you paste a prompt, watch 
 ## How it works
 
 ```
-TODO ──▶ DOING ──▶ CI ──▶ REVIEW ──▶ DONE
-           │        │        │          │
-         agent   gh pr    human +     gh pr
-         codes   checks   comments    merge
+TODO ──▶ DOING ──▶ REVIEW ──▶ DONE
+           │          │          │
+         agent     human +    merge (PR or
+         team      comments   local --no-ff)
 ```
 
 | Column | Trigger | What happens |
 |---|---|---|
-| **TODO** | You add a card, import GitHub issues, or let the AI planner fill the board | Title, description, analysis and priority become the agent's work order. |
-| **DOING** | You drag the card here | The executor checks out the base branch, creates `feature/<id>-<title-slug>`, runs the task's team (one `claude -p` call per role, committing between roles), pushes and opens a PR with `gh pr create`. |
-| **CI** | Automatic, once a PR exists | Polls `gh pr checks`. On failure Claude pushes fixes (up to `CI_MAX_FIX_ITERATIONS`). With no checks configured the gate is skipped. The column is collapsed on the board by default. |
-| **REVIEW** | Automatic | Claude posts an automated review comment. You read the diff in the built-in PR viewer and comment, and each comment re-runs Claude on the **same branch** as new commits. No new PR is opened. |
-| **DONE** | You drag the card here | The PR is merged with `gh pr merge --merge --delete-branch`. |
+| **TODO** | You add a card or let the AI planner fill the board | Title, description, analysis and priority become the agent's work order. |
+| **DOING** | You drag the card here | The executor waits for the repo lock (one run per repository at a time; queued cards show as queued), checks out the base branch, creates `feature/<id>-<title-slug>`, runs the task's team (one `claude -p` call per role, committing after the Developer) and, when the repo has a remote, pushes with `--force-with-lease` and opens a PR with `gh pr create`. |
+| **REVIEW** | Automatic, when the team delivers | You read the diff (the built-in PR viewer, or the task's **Changes** tab when there is no PR) and comment, and each comment re-runs Claude on the **same branch** as new commits. No new PR is opened. |
+| **DONE** | You drag the card here | With a PR: `gh pr merge --merge --delete-branch`. Without a remote: a local `git merge --no-ff` into the base branch, then the branch is deleted. A conflict aborts the merge and the card stays in **REVIEW**. |
 
-- **No remote:** the task goes straight from DOING to **DONE**.
-- **Executor failure:** the task returns to **TODO** with the agent error attached.
+- **No remote:** no push and no PR; the task still lands in **REVIEW** on its local branch, with the diff against base in the task drawer.
+- **No changes:** if the team finds nothing to change, the task goes to **DONE**, the branch is deleted and a comment says why.
+- **Executor failure:** the task returns to **TODO** with the agent error attached. Retrying keeps an earlier branch that carries commits as `<branch>-wip-N`.
+- **Cost:** every role, comment, breakdown and planner run adds the CLI's reported `total_cost_usd`; cards, the drawer and Insights show that real spend.
 - **Live updates:** every step (checkout, prompt, tool calls, commit, push, PR) streams over WebSocket into the task's Agent Log.
 
 ---
@@ -77,16 +77,17 @@ TODO ──▶ DOING ──▶ CI ──▶ REVIEW ──▶ DONE
 
 ### Board and task drawer
 
-<img src="docs/assets/gifs/board.gif" alt="Hovering cards on the board lifts them; clicking one opens the task detail drawer with Details, Agent Log, Flow and Comments tabs, and Escape closes it" width="100%">
+<img src="docs/assets/gifs/board.gif" alt="Hovering cards on the board lifts them; clicking one opens the task detail drawer, and Escape closes it" width="100%">
 
 | Feature | Details |
 |---|---|
 | **Board, List, Factory views** | Trello-style columns with drag and drop, a Jira-style table, and a live 3D factory. |
-| **Task drawer** | Tabs for Details, Agent Log, Team and Comments, plus a budget gauge, a "Who does this task?" team picker and AI "Break down task" into subtasks. The Team tab reads like a conversation: brief, spec, delivery note and QA verdict per round, with a spec-approval gate when the project asks for one. |
-| **Live agent logs** | Tool-call traces and token / cost observability per run. |
-| **Built-in PR viewer** | Full-screen drawer with a side-by-side diff, file tree, per-file collapse and Mark viewed. |
-| **Insights** | Per-project token spend, cost, completion and CI pass rate, exportable as JSON or CSV. |
+| **Task drawer** | Tabs for Details, Agent Log, Team and Comments (plus **Changes**, the local diff, when the task has a branch but no PR), a budget gauge for the latest run, a "Who does this task?" team picker and AI "Break down task" into subtasks (both locked once the task is done). The Team tab reads like a conversation: brief, spec, delivery note and QA verdict per round, with a spec-approval gate when the project asks for one. |
+| **Live agent logs** | Tool-call traces, the agent's Markdown messages, run time, tokens and the real cost of each run. |
+| **Built-in PR viewer** | Opens from a card with a PR: full-screen drawer with a side-by-side diff, file tree, per-file collapse, Mark viewed and Merge. |
+| **Insights** | Per-project token spend, real cost (tasks plus planner runs) by role, completion and average run time, exportable as JSON or CSV. |
 | **Keyboard** | `N` new task, `/` search, `?` shortcut help, `Esc` closes the top layer. |
+| **Mobile** | Below the `md` breakpoint the rail becomes a slide-in menu and search collapses to an icon. |
 
 ### Fabrika: the factory view
 
@@ -118,16 +119,16 @@ The **Atölye** look is a printed workshop: cream paper, 2px ink rules, hard off
 | **Non-git folder** | ClauFlow creates the folder if needed, runs `git init` on the default branch, adds a `README.md` if missing and makes an initial commit. |
 | **Create GitHub repository** | Optionally creates the remote with `gh repo create` (private or public). |
 | **AI Prompt** | Describe the project and the planner agent splits it into tasks. A banner on the board shows progress and elapsed time. If planning fails, edit the AI Prompt in project details and save to retry. |
-| **Clone from GitHub** | The rail lists your repos via `gh repo list`. Click one to clone it as a new project. |
+| **Clone from GitHub** | The New Project modal's second tab lists your repos via `gh repo list` (searchable, already-added repos hidden). Pick one and a target folder to clone it as a new project. Connect GitHub from the prerequisites indicator in the top bar if you haven't yet. |
 
 ### Project control panel
 
-Each project gets a Claude Config drawer with two segments:
+Each project gets a Claude settings drawer with two segments:
 
 | Segment | What it does |
 |---|---|
-| **Instructions** | `CLAUDE.md` split editor with a live Markdown preview. Saving commits it only while the repo is on its base branch. A prereq banner checks the `claude` / `git` / `gh` versions and offers copy-paste install commands. |
-| **Team** | The team editor. A team is an ordered list of roles (CEO → Analyst → Developer ⇄ QA) that run one after another, with one feedback loop from QA back to the Developer. Built-in teams (Solo, Software Team, Bug Hunt, Exploration) are read-only; **Customize** copies one into the project. Each role has instructions, a model, an optional advisor model, allowed tools and skills (user, project and plugin skills, injected into the role's prompt). Project settings: the default team, the QA round limit (a number or Unlimited) and the spec-approval gate. Teams live in ClauFlow's database and are never written to your repo. The **Skill manager** (Installed / Registry / Marketplaces, backed by the real `claude plugin` CLI) opens from here. |
+| **Instructions** | `CLAUDE.md` split editor with a live Markdown preview. Saving commits it only while the repo is on its base branch, and is refused while a task, comment or merge holds the repo. A prereq banner checks the `claude` / `git` / `gh` versions and offers copy-paste install commands. |
+| **Team** | The team editor. A team is an ordered list of roles (CEO → Analyst → Developer ⇄ QA) that run one after another, with one feedback loop from QA back to the Developer. Built-in teams (Solo, Software Team, Bug Hunt, Exploration) are read-only; **Customize** copies one into the project. Each role has instructions, a model, an optional advisor model, allowed tools and skills (user, project and plugin skills, injected into the role's prompt). Project settings: the default team, the QA round limit (a number or Unlimited) and the spec-approval gate. Teams live in ClauFlow's database and are never written to your repo. The **Skill manager** opens from here: it lists the installed plugins (enable, disable, uninstall), backed by the real `claude plugin` CLI; install new ones with `claude plugin install`. |
 
 ---
 
@@ -162,7 +163,7 @@ cd gui && pnpm install && pnpm dev
 
 > `core/` uses **npm** and `gui/` uses **pnpm**. Don't cross them. If pnpm isn't installed globally, use the version pinned in `gui/package.json`: `npx pnpm@11.0.9 install` and `npx pnpm@11.0.9 dev`.
 
-Open <http://localhost:3000>, create or clone a project, drop a card on **DOING** and watch the agent work.
+Open <http://localhost:3000>, create or clone a project, drop a card on **DOING** and watch the agent work. The landing page shows on the first visit; after that `/` opens the board directly, and the logo brings the landing back (`/?landing=1`).
 
 ---
 
@@ -187,51 +188,12 @@ NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws
 | Variable | Default | Notes |
 |---|---|---|
 | `PORT` | `3001` | HTTP and WebSocket port. |
-| `HOST` | `127.0.0.1` | Bind address. Docker sets `0.0.0.0`. |
+| `HOST` | `127.0.0.1` | Bind address. |
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS and WebSocket origins. |
-| `CLAUFLOW_DEFAULT_MODEL` | unset | Default Claude model for executor runs. |
-| `CI_POLL_INTERVAL_MS` | `30000` | How often the CI gate polls `gh pr checks`. |
-| `CI_MAX_FIX_ITERATIONS` | `3` | Fix attempts before a failing PR moves on to REVIEW. |
-| `API_KEY` | unset | When set, every request except `/health` must send an `x-api-key` header. The bundled GUI doesn't send it, so only set it behind a proxy that does. |
+| `CLAUFLOW_DATA_DIR` | `./data` (relative to where core starts, i.e. `core/data`) | Folder for `tasks.db`. |
+| `CLAUFLOW_CLAUDE_BIN` | `claude` | The Claude Code CLI binary to spawn (the tests point it at a fake CLI). |
 
-Data lives in `core/data/tasks.db` (SQLite, WAL mode). A legacy `tasks.json` is migrated automatically on first start.
-
----
-
-## Docker
-
-Run the full stack with no Node install:
-
-```bash
-docker compose up
-# core → http://localhost:3001
-# gui  → http://localhost:3000
-```
-
-SQLite data persists in the named volume `clauflow_data`.
-
-> **Important:** the containers run only the Express API and the Next.js UI. The `claude` and `gh` CLIs must still be installed and authenticated **on the host machine**. The executor spawns them from the host, not inside a container.
-
-### Remote deployment
-
-`NEXT_PUBLIC_API_BASE` and `NEXT_PUBLIC_WS_URL` are baked in at build time. For a server other than localhost, pass them as build args:
-
-```bash
-docker compose build \
-  --build-arg NEXT_PUBLIC_API_BASE=https://api.example.com/api \
-  --build-arg NEXT_PUBLIC_WS_URL=wss://api.example.com/ws
-```
-
-### GHCR images
-
-`docker-compose.yml` tags the images as:
-
-```
-ghcr.io/furkaanasik/clauflow/core:latest
-ghcr.io/furkaanasik/clauflow/gui:latest
-```
-
-The release workflow that published these multi-arch images has been removed, so the registry tags may lag behind `main`. Run `docker compose build` to build from source.
+Data lives in `core/data/tasks.db` by default (SQLite, WAL mode). A legacy `tasks.json` is migrated automatically on first start.
 
 ---
 
@@ -252,7 +214,7 @@ The release workflow that published these multi-arch images has been removed, so
 
 | Package | Stack | Package manager | Port | Role |
 |---|---|---|---|---|
-| [`core/`](core/) | Node.js, Express, `ws`, `better-sqlite3`, zod | `npm` | `3001` | SQLite store, executor / CI watcher / comment runner / planner pipelines, REST + WebSocket routes |
+| [`core/`](core/) | Node.js, Express, `ws`, `better-sqlite3`, zod | `npm` | `3001` | SQLite store, executor / comment runner / planner pipelines, REST + WebSocket routes |
 | [`gui/`](gui/) | Next.js 15 (App Router), React 19, Tailwind CSS 4, Zustand, dnd-kit, Three.js + React Three Fiber | `pnpm` | `3000` | Landing page, board / list / factory views, PR viewer, team editor, insights |
 
 | Layer | Tool |
@@ -300,4 +262,4 @@ PRs welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md). A few notes before
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 Furkan Aşık

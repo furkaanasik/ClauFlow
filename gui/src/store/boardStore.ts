@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskStatus, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
-import type { SkillInstallProgress, SkillInstallStatus } from "@/lib/api";
+import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
+import { mergeById, newerAgentText, newerTeamArtifact, newerTeamRun, newerToolCall } from "./mergeById";
 
 type Lang = "tr" | "en";
 
@@ -28,14 +28,8 @@ interface BoardState {
   agentTexts: Record<string, AgentText[]>;
   /** Clone progress per targetPath */
   cloneStatus: Record<string, { status: CloneStatus; message: string }>;
-  /** Skill install progress keyed by `${projectId}:${skillSlug}` */
-  skillProgress: Record<string, { status: SkillInstallStatus; message?: string }>;
   /** Node runs per task, keyed by taskId then nodeId — last-write-wins */
   nodeRuns: Record<string, Record<string, NodeRun>>;
-  /** Node logs per task, keyed by taskId then nodeId — capped ring buffer */
-  nodeLogs: Record<string, Record<string, string[]>>;
-  /** CI iteration progress per task */
-  ciIterations: Record<string, { iteration: number; maxIterations: number }>;
   budgetExceeded: Record<string, { spentUsd: number; budgetUsd: number }>;
   gitStatusByProject: Record<string, GitStatus>;
   projectDetailRequest: string | null;
@@ -89,14 +83,8 @@ interface BoardState {
   completeClone: (targetPath: string, project?: Project) => void;
   failClone: (targetPath: string, message: string) => void;
 
-  setSkillProgress: (progress: SkillInstallProgress) => void;
-  clearSkillProgress: (projectId: string, pluginId: string) => void;
-
   upsertNodeRun: (run: NodeRun) => void;
-  appendNodeLog: (taskId: string, nodeId: string, line: string) => void;
-  clearNodeRuns: (taskId: string) => void;
 
-  setCiIteration: (taskId: string, iteration: number, maxIterations: number) => void;
   setBudgetExceeded: (taskId: string, payload: { spentUsd: number; budgetUsd: number }) => void;
   clearBudgetExceeded: (taskId: string) => void;
   setProjectGitStatus: (projectId: string, status: GitStatus) => void;
@@ -114,7 +102,6 @@ interface BoardState {
   upsertTeamRun: (run: TeamRun) => void;
   upsertTeamArtifact: (artifact: TeamArtifact) => void;
 
-  getByStatus: (status: TaskStatus) => Task[];
 }
 
 const LOG_LIMIT = 500;
@@ -141,10 +128,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   toolCalls: {},
   agentTexts: {},
   cloneStatus: {},
-  skillProgress: {},
   nodeRuns: {},
-  nodeLogs: {},
-  ciIterations: {},
   budgetExceeded: {},
   gitStatusByProject: {},
   breakdownStatus: {},
@@ -250,7 +234,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   setToolCalls: (taskId, calls) =>
     set((state) => ({
-      toolCalls: { ...state.toolCalls, [taskId]: calls },
+      toolCalls: {
+        ...state.toolCalls,
+        [taskId]: mergeById(state.toolCalls[taskId], calls, (c) => c.id, newerToolCall),
+      },
     })),
 
   appendAgentText: (taskId, agentText) =>
@@ -267,7 +254,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   setAgentTexts: (taskId, list) =>
     set((state) => ({
-      agentTexts: { ...state.agentTexts, [taskId]: list },
+      agentTexts: {
+        ...state.agentTexts,
+        [taskId]: mergeById(state.agentTexts[taskId], list, (x) => x.id, newerAgentText),
+      },
     })),
 
   upsertComment: (comment) =>
@@ -398,23 +388,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       cloneStatus: { ...state.cloneStatus, [targetPath]: { status: "error", message } },
     })),
 
-  setSkillProgress: ({ projectId, pluginId, status, message }) =>
-    set((state) => ({
-      skillProgress: {
-        ...state.skillProgress,
-        [`${projectId}:${pluginId}`]: { status, message },
-      },
-    })),
-
-  clearSkillProgress: (projectId, pluginId) =>
-    set((state) => {
-      const key = `${projectId}:${pluginId}`;
-      if (!state.skillProgress[key]) return state;
-      const { [key]: _removed, ...rest } = state.skillProgress;
-      void _removed;
-      return { skillProgress: rest };
-    }),
-
   upsertNodeRun: (run) =>
     set((state) => ({
       nodeRuns: {
@@ -423,39 +396,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
           ...(state.nodeRuns[run.taskId] ?? {}),
           [run.nodeId]: run,
         },
-      },
-    })),
-
-  appendNodeLog: (taskId, nodeId, line) =>
-    set((state) => {
-      const perTask = state.nodeLogs[taskId] ?? {};
-      const existing = perTask[nodeId] ?? [];
-      const next =
-        existing.length >= LOG_LIMIT
-          ? [...existing.slice(-(LOG_LIMIT - 1)), line]
-          : [...existing, line];
-      return {
-        nodeLogs: {
-          ...state.nodeLogs,
-          [taskId]: { ...perTask, [nodeId]: next },
-        },
-      };
-    }),
-
-  clearNodeRuns: (taskId) =>
-    set((state) => {
-      const { [taskId]: _runs, ...restRuns } = state.nodeRuns;
-      const { [taskId]: _logs, ...restLogs } = state.nodeLogs;
-      void _runs;
-      void _logs;
-      return { nodeRuns: restRuns, nodeLogs: restLogs };
-    }),
-
-  setCiIteration: (taskId, iteration, maxIterations) =>
-    set((state) => ({
-      ciIterations: {
-        ...state.ciIterations,
-        [taskId]: { iteration, maxIterations },
       },
     })),
 
@@ -491,8 +431,11 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   setTaskTeam: (taskId, { runs, artifacts }) =>
     set((s) => ({
-      teamRuns: { ...s.teamRuns, [taskId]: runs },
-      teamArtifacts: { ...s.teamArtifacts, [taskId]: artifacts },
+      teamRuns: { ...s.teamRuns, [taskId]: mergeById(s.teamRuns[taskId], runs, (r) => r.id, newerTeamRun) },
+      teamArtifacts: {
+        ...s.teamArtifacts,
+        [taskId]: mergeById(s.teamArtifacts[taskId], artifacts, (a) => a.id, newerTeamArtifact),
+      },
     })),
 
   upsertTeamRun: (run) =>
@@ -511,18 +454,5 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setLang: (lang) => {
     if (typeof window !== "undefined") localStorage.setItem("lang", lang);
     set(() => ({ lang }));
-  },
-
-  getByStatus: (status) => {
-    const { tasks, order, filterText } = get();
-    const needle = filterText.trim().toLowerCase();
-    return order
-      .map((id) => tasks[id])
-      .filter((t) => {
-        if (!t || t.status !== status) return false;
-        if (!needle) return true;
-        return t.title.toLowerCase().includes(needle) ||
-          (t.description ?? "").toLowerCase().includes(needle);
-      });
   },
 }));

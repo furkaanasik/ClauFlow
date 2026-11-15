@@ -1,4 +1,4 @@
-export type TaskStatus = "todo" | "doing" | "ci" | "review" | "done" | "nothing";
+export type TaskStatus = "todo" | "doing" | "review" | "done";
 
 export type AgentStatus =
   | "idle"
@@ -48,6 +48,8 @@ export interface Task {
   budgetUsd?: number | null;
   parentTaskId?: string | null;
   teamId?: string | null;
+  /** Lifetime spend in USD: sum of every CLI call's `total_cost_usd` (roles, comments, breakdowns). */
+  costUsd?: number;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -68,11 +70,16 @@ export interface Project {
   defaultTeamId?: string | null;
   qaMaxRounds?: number;
   specApproval?: boolean;
+  /** Project planner spend in USD (belongs to no task). */
+  planningCostUsd?: number;
+  /**
+   * Derived from `git remote` when the project is served (30 s cache), never
+   * stored. `false` = local flow: Review, local diff, local `--no-ff` merge.
+   */
+  hasRemote?: boolean;
 }
 
 export type RoleKind = "ceo" | "analyst" | "developer" | "qa";
-
-export const ROLE_KINDS: readonly RoleKind[] = ["ceo", "analyst", "developer", "qa"];
 
 export interface TeamRole {
   id: string;
@@ -156,11 +163,6 @@ export interface SkillCatalogEntry {
   description: string;
 }
 
-export interface SystemCapabilities {
-  advisor: boolean;
-  models: string[];
-}
-
 export interface TasksFile {
   version: string;
   updatedAt?: string;
@@ -194,8 +196,6 @@ export type NodeType =
   | "coder"
   | "reviewer"
   | "tester"
-  | "ci"
-  | "fix"
   | "custom"
   | "subagent"
   | "ceo"
@@ -221,6 +221,8 @@ export interface NodeRun {
   ciIteration: number | null;
   errorMessage: string | null;
   createdAt: string;
+  /** CLI-reported cost of this node (role) run; null for legacy rows and subagents. */
+  costUsd: number | null;
 }
 
 export type ToolCallStatus = "running" | "done" | "error";
@@ -255,11 +257,6 @@ export type WsMessage =
   | { type: "node_finished"; taskId: string; payload: NodeRun }
   | { type: "team_run_updated"; taskId: string; payload: TeamRun }
   | { type: "team_artifact"; taskId: string; payload: TeamArtifact }
-  | {
-      type: "node_log";
-      taskId: string;
-      payload: { nodeId: string; line: string };
-    }
   | { type: "project_planning_started"; projectId: string }
   | {
       type: "project_planning_done";
@@ -267,15 +264,6 @@ export type WsMessage =
       taskCount: number;
     }
   | { type: "project_planning_error"; projectId: string; error: string }
-  | {
-      type: "skill_install_progress";
-      projectId: string;
-      payload: {
-        pluginId: string;
-        status: "running" | "done" | "error";
-        message: string;
-      };
-    }
   | {
       type: "clone_progress";
       targetPath: string;
@@ -287,53 +275,13 @@ export type WsMessage =
     }
   | { type: "hello"; payload: { serverVersion: string } }
   | {
-      type: "ci_check_status";
-      taskId: string;
-      payload: { prNumber: number; verdict: CiVerdict };
-    }
-  | {
-      type: "ci_iteration_started";
-      taskId: string;
-      payload: { iteration: number; maxIterations: number };
-    }
-  | {
-      type: "ci_iteration_result";
-      taskId: string;
-      payload: { iteration: number; outcome: "pass" | "fail" | "exhausted" };
-    }
-  | {
       type: "budget_exceeded";
       taskId: string;
-      payload: { spentUsd: number; budgetUsd: number };
+      payload: BudgetExceededPayload;
     }
   | { type: "task_breakdown_started"; taskId: string }
   | { type: "task_breakdown_done"; taskId: string; taskCount: number }
   | { type: "task_breakdown_error"; taskId: string; error: string };
-
-export interface AvailablePluginSource {
-  source: string;
-  url?: string;
-  repo?: string;
-  path?: string;
-  ref?: string;
-  sha?: string;
-}
-
-export interface AvailablePluginAuthor {
-  name?: string;
-  email?: string;
-}
-
-export interface AvailablePlugin {
-  pluginId: string;
-  name: string;
-  description: string;
-  marketplaceName: string;
-  source: AvailablePluginSource;
-  installCount?: number;
-  homepage?: string;
-  author?: AvailablePluginAuthor;
-}
 
 export interface InstalledPlugin {
   id: string;
@@ -346,39 +294,6 @@ export interface InstalledPlugin {
   projectPath?: string;
 }
 
-export interface ClaudeMarketplaceSource {
-  source: string;
-  repo?: string;
-  url?: string;
-  path?: string;
-}
-
-export interface ClaudeMarketplace {
-  name: string;
-  source: ClaudeMarketplaceSource;
-}
-
-export interface CiFailure {
-  jobName: string;
-  conclusion: "FAILURE" | "CANCELLED" | "TIMED_OUT" | "ACTION_REQUIRED";
-  link: string | null;
-  logTail: string | null;
-}
-
-export interface CiFailureArtifact {
-  prNumber: number;
-  iteration: number;
-  failures: CiFailure[];
-  capturedAt: string;
-}
-
-export type CiVerdict =
-  | { kind: "pending" }
-  | { kind: "pass" }
-  | { kind: "fail"; failures: CiFailure[] }
-  | { kind: "no_checks" }
-  | { kind: "timeout" };
-
 export function createEmptyAgentState(): AgentState {
   return {
     status: "idle",
@@ -388,4 +303,13 @@ export function createEmptyAgentState(): AgentState {
     startedAt: null,
     finishedAt: null,
   };
+}
+
+export interface BudgetExceededPayload {
+  spentUsd: number;
+  budgetUsd: number;
+  taskTitle: string;
+  displayId: string | null;
+  projectId: string;
+  projectName: string;
 }
