@@ -35,10 +35,8 @@ const BoardFactoryScene = dynamic(() => import("./scene/BoardFactoryScene"), { s
 const ACCENT_VAR: Record<string, string> = {
   ink3: "var(--ink-3)",
   orange: "var(--orange)",
-  cobalt: "var(--cobalt)",
   mustard: "var(--mustard)",
   green: "var(--green)",
-  sunken: "var(--panel)",
 };
 
 /**
@@ -151,7 +149,7 @@ export function FactoryView({ tasks, epoch }: { tasks: Task[]; epoch: string }) 
               >
                 <span
                   aria-hidden
-                  className={clsx("h-2.5 w-2.5 flex-none rounded-full border-2 border-line", s.status === "nothing" && "ui-hatch")}
+                  className="h-2.5 w-2.5 flex-none rounded-full border-2 border-line"
                   style={{ background: ACCENT_VAR[s.accent] }}
                 />
                 <span className="text-[12px] font-bold">{t.board.columns[s.status]}</span>

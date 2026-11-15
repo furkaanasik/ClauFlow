@@ -16,7 +16,6 @@ import {
   IconClock,
   IconCoin,
   IconDownload,
-  IconFlow,
   IconList,
   IconRetry,
 } from "@/components/ui/icons";
@@ -245,21 +244,13 @@ function InsightsContent() {
             </KpiTile>
 
             <KpiTile
-              icon={<IconFlow size={15} />}
-              label={ti.statCiPassRate}
-              value={s.ciPassRate !== null ? `${Math.round(s.ciPassRate * 100)}%` : "—"}
+              icon={<IconClock size={15} />}
+              label={ti.statAvgRunTime}
+              value={formatTimeToGreen(s.avgTimeToGreenMs)}
               accent="var(--cobalt)"
-              gauge={
-                <RingGauge value={Math.round((s.ciPassRate ?? 0) * 100)} max={100} size={64} thickness={8} color="var(--cobalt)" ariaLabel={ti.statCiPassRate}>
-                  <span className="text-[11px]">CI</span>
-                </RingGauge>
-              }
             >
-              <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-3">
-                <IconClock size={12} />
-                {s.avgTimeToGreenMs !== null
-                  ? ti.statAvgTimeToGreen.replace("{time}", formatTimeToGreen(s.avgTimeToGreenMs))
-                  : ti.noCiYet}
+              <span className="text-[12px] text-ink-3">
+                {s.avgTimeToGreenMs !== null ? ti.statAvgRunTimeSub : ti.noRunsYet}
               </span>
             </KpiTile>
           </section>
@@ -345,7 +336,7 @@ function InsightsContent() {
               <ul className="flex flex-col gap-2">
                 {data.recentTasks.map((task) => {
                   const kind: StatusKind =
-                    task.agentStatus === "error" ? "error" : (["todo", "doing", "ci", "review", "done", "nothing"].includes(task.status) ? task.status : "info") as StatusKind;
+                    task.agentStatus === "error" ? "error" : (["todo", "doing", "review", "done"].includes(task.status) ? task.status : "info") as StatusKind;
                   const label =
                     task.agentStatus === "error"
                       ? ti.statusError

@@ -23,7 +23,7 @@ import { useTranslation } from "@/hooks/useTranslation";
  * notifications, prerequisites, language, theme and the GitHub account.
  * Quick filters live in the board toolbar right under it.
  */
-export function TopBar({ section }: { section?: "prs" | "insights" } = {}) {
+export function TopBar({ section }: { section?: "insights" } = {}) {
   const t = useTranslation();
   const wsConnected = useBoardStore((s) => s.wsConnected);
   const lang = useBoardStore((s) => s.lang);

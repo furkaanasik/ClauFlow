@@ -22,6 +22,7 @@ import {
 import { ensureUniqueSlug, slugify } from "./slug.js";
 import { DEFAULT_TASK_BUDGET_USD } from "./pricingService.js";
 import { applyEkiplerMigration } from "./ekiplerMigration.js";
+import { applyTemizlikMigration } from "./temizlikMigration.js";
 import { DEFAULT_NEW_PROJECT_TEAM_ID, upsertBuiltinTeams } from "./teamTemplates.js";
 
 export const DEFAULT_QA_MAX_ROUNDS = 3;
@@ -372,6 +373,7 @@ db.exec(`
 `);
 
 applyEkiplerMigration(db);
+applyTemizlikMigration(db);
 upsertBuiltinTeams(db);
 
 // Unique indexes (idempotent — also created above for fresh installs).

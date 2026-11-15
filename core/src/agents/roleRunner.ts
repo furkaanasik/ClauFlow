@@ -20,7 +20,6 @@ import {
   broadcastBudgetExceeded,
   broadcastLog,
   broadcastNodeFinished,
-  broadcastNodeLog,
   broadcastNodeStarted,
   broadcastTaskUpdated,
   broadcastToolCall,
@@ -137,7 +136,6 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
     const entry = stream === "stderr" ? `[stderr] ${line}` : line;
     await appendAgentLog(taskId, entry);
     broadcastLog(taskId, entry);
-    broadcastNodeLog(taskId, nodeId, entry);
     logBuffer.push(entry);
     if (logBuffer.length > 200) logBuffer.splice(0, logBuffer.length - 200);
   };
@@ -174,9 +172,6 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
           inputArtifact: { description: description || null, subagent_type: subagentType },
         });
         broadcastNodeStarted(nr);
-        broadcastNodeLog(taskId, tc.id, `▸ Subagent started: ${subagentType}`);
-        if (description) broadcastNodeLog(taskId, tc.id, `  ${description}`);
-        broadcastNodeLog(taskId, tc.id, "  Running… (logs appear when subagent finishes)");
       } catch (e) {
         console.error(`[roleRunner] insertNodeRun(subagent) failed for ${tc.id}:`, e);
       }

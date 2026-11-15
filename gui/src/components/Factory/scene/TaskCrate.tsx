@@ -291,7 +291,6 @@ export const TaskCrate = memo(function TaskCrate({
   );
   const labelMat = useMemo(() => new THREE.MeshBasicMaterial({ map: labelTex, toneMapped: false }), [labelTex]);
 
-  const bodyColor = spec.status === "nothing" ? "steel" : "kraft";
   const lidY = H;
 
   return (
@@ -316,7 +315,7 @@ export const TaskCrate = memo(function TaskCrate({
       {/* squash pivot on the crate floor */}
       <group ref={body} position-y={-H / 2}>
         <group position-y={H / 2}>
-          <RoundedBox args={[W, H, D]} radius={0.07} smoothness={2} material={toon(bodyColor)}>
+          <RoundedBox args={[W, H, D]} radius={0.07} smoothness={2} material={toon("kraft")}>
             <Ink width={hovered ? 3.25 : 2} color={hovered ? "cobalt" : spec.error ? "red" : "outline"} />
           </RoundedBox>
           <Block size={[W + 0.02, 0.03, 0.3]} position-y={H / 2 + 0.005} color="kraftDark" ink={false} />

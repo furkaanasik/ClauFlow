@@ -26,12 +26,11 @@ An open-source agentic kanban board. Move a card to **DOING** and the Claude Cod
 3. [Feature tour](#feature-tour)
 4. [Quickstart](#quickstart)
 5. [Configuration](#configuration)
-6. [Docker](#docker)
-7. [Architecture](#architecture)
-8. [Design system](#design-system)
-9. [Scripts](#scripts)
-10. [Contributing](#contributing)
-11. [License](#license)
+6. [Architecture](#architecture)
+7. [Design system](#design-system)
+8. [Scripts](#scripts)
+9. [Contributing](#contributing)
+10. [License](#license)
 
 ---
 
@@ -53,18 +52,17 @@ Most "agentic" tools are chat boxes with extra steps: you paste a prompt, watch 
 ## How it works
 
 ```
-TODO ──▶ DOING ──▶ CI ──▶ REVIEW ──▶ DONE
-           │        │        │          │
-         agent   gh pr    human +     gh pr
-         codes   checks   comments    merge
+TODO ──▶ DOING ──▶ REVIEW ──▶ DONE
+           │          │          │
+         agent     human +     gh pr
+         codes     comments    merge
 ```
 
 | Column | Trigger | What happens |
 |---|---|---|
-| **TODO** | You add a card, import GitHub issues, or let the AI planner fill the board | Title, description, analysis and priority become the agent's work order. |
+| **TODO** | You add a card or let the AI planner fill the board | Title, description, analysis and priority become the agent's work order. |
 | **DOING** | You drag the card here | The executor checks out the base branch, creates `feature/<id>-<title-slug>`, runs the task's team (one `claude -p` call per role, committing between roles), pushes and opens a PR with `gh pr create`. |
-| **CI** | Automatic, once a PR exists | Polls `gh pr checks`. On failure Claude pushes fixes (up to `CI_MAX_FIX_ITERATIONS`). With no checks configured the gate is skipped. The column is collapsed on the board by default. |
-| **REVIEW** | Automatic | Claude posts an automated review comment. You read the diff in the built-in PR viewer and comment, and each comment re-runs Claude on the **same branch** as new commits. No new PR is opened. |
+| **REVIEW** | Automatic, when the repo has a remote and the PR is open | You read the diff in the built-in PR viewer and comment, and each comment re-runs Claude on the **same branch** as new commits. No new PR is opened. |
 | **DONE** | You drag the card here | The PR is merged with `gh pr merge --merge --delete-branch`. |
 
 - **No remote:** the task goes straight from DOING to **DONE**.
@@ -85,7 +83,7 @@ TODO ──▶ DOING ──▶ CI ──▶ REVIEW ──▶ DONE
 | **Task drawer** | Tabs for Details, Agent Log, Team and Comments, plus a budget gauge, a "Who does this task?" team picker and AI "Break down task" into subtasks. The Team tab reads like a conversation: brief, spec, delivery note and QA verdict per round, with a spec-approval gate when the project asks for one. |
 | **Live agent logs** | Tool-call traces and token / cost observability per run. |
 | **Built-in PR viewer** | Full-screen drawer with a side-by-side diff, file tree, per-file collapse and Mark viewed. |
-| **Insights** | Per-project token spend, cost, completion and CI pass rate, exportable as JSON or CSV. |
+| **Insights** | Per-project token spend, cost, completion and average run time, exportable as JSON or CSV. |
 | **Keyboard** | `N` new task, `/` search, `?` shortcut help, `Esc` closes the top layer. |
 
 ### Fabrika: the factory view
@@ -187,51 +185,11 @@ NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws
 | Variable | Default | Notes |
 |---|---|---|
 | `PORT` | `3001` | HTTP and WebSocket port. |
-| `HOST` | `127.0.0.1` | Bind address. Docker sets `0.0.0.0`. |
+| `HOST` | `127.0.0.1` | Bind address. |
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS and WebSocket origins. |
 | `CLAUFLOW_DEFAULT_MODEL` | unset | Default Claude model for executor runs. |
-| `CI_POLL_INTERVAL_MS` | `30000` | How often the CI gate polls `gh pr checks`. |
-| `CI_MAX_FIX_ITERATIONS` | `3` | Fix attempts before a failing PR moves on to REVIEW. |
-| `API_KEY` | unset | When set, every request except `/health` must send an `x-api-key` header. The bundled GUI doesn't send it, so only set it behind a proxy that does. |
 
 Data lives in `core/data/tasks.db` (SQLite, WAL mode). A legacy `tasks.json` is migrated automatically on first start.
-
----
-
-## Docker
-
-Run the full stack with no Node install:
-
-```bash
-docker compose up
-# core → http://localhost:3001
-# gui  → http://localhost:3000
-```
-
-SQLite data persists in the named volume `clauflow_data`.
-
-> **Important:** the containers run only the Express API and the Next.js UI. The `claude` and `gh` CLIs must still be installed and authenticated **on the host machine**. The executor spawns them from the host, not inside a container.
-
-### Remote deployment
-
-`NEXT_PUBLIC_API_BASE` and `NEXT_PUBLIC_WS_URL` are baked in at build time. For a server other than localhost, pass them as build args:
-
-```bash
-docker compose build \
-  --build-arg NEXT_PUBLIC_API_BASE=https://api.example.com/api \
-  --build-arg NEXT_PUBLIC_WS_URL=wss://api.example.com/ws
-```
-
-### GHCR images
-
-`docker-compose.yml` tags the images as:
-
-```
-ghcr.io/furkaanasik/clauflow/core:latest
-ghcr.io/furkaanasik/clauflow/gui:latest
-```
-
-The release workflow that published these multi-arch images has been removed, so the registry tags may lag behind `main`. Run `docker compose build` to build from source.
 
 ---
 
@@ -252,7 +210,7 @@ The release workflow that published these multi-arch images has been removed, so
 
 | Package | Stack | Package manager | Port | Role |
 |---|---|---|---|---|
-| [`core/`](core/) | Node.js, Express, `ws`, `better-sqlite3`, zod | `npm` | `3001` | SQLite store, executor / CI watcher / comment runner / planner pipelines, REST + WebSocket routes |
+| [`core/`](core/) | Node.js, Express, `ws`, `better-sqlite3`, zod | `npm` | `3001` | SQLite store, executor / comment runner / planner pipelines, REST + WebSocket routes |
 | [`gui/`](gui/) | Next.js 15 (App Router), React 19, Tailwind CSS 4, Zustand, dnd-kit, Three.js + React Three Fiber | `pnpm` | `3000` | Landing page, board / list / factory views, PR viewer, team editor, insights |
 
 | Layer | Tool |

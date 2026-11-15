@@ -47,7 +47,6 @@ export function SectionPill({
 export type StatusKind =
   | "todo"
   | "doing"
-  | "ci"
   | "review"
   | "done"
   | "nothing"
@@ -58,7 +57,6 @@ export type StatusKind =
 export const STATUS_COLOR: Record<StatusKind, { fill: string; on: string; text: string }> = {
   todo: { fill: "var(--ink-3)", on: "var(--on-ink)", text: "var(--ink-2)" },
   doing: { fill: "var(--orange)", on: "var(--on-orange)", text: "var(--orange-text)" },
-  ci: { fill: "var(--cobalt)", on: "var(--on-cobalt)", text: "var(--cobalt-text)" },
   review: { fill: "var(--mustard)", on: "var(--on-mustard)", text: "var(--mustard-text)" },
   done: { fill: "var(--green)", on: "var(--on-green)", text: "var(--green-text)" },
   nothing: { fill: "var(--ink-3)", on: "var(--on-ink)", text: "var(--ink-3)" },

@@ -85,7 +85,6 @@ export interface InsightsSummary {
   totalCacheWriteTokens: number;
   estimatedUsd: number;
   avgTimeToGreenMs: number | null;
-  ciPassRate: number | null;
   pricingStale?: boolean;
 }
 
@@ -214,11 +213,6 @@ export const api = {
     fetch(`${BASE}/projects/${id}`, { method: "DELETE" }).then((r) => {
       if (!r.ok) throw new Error(`API ${r.status}`);
     }),
-
-  deleteProjectGithub: (id: string): Promise<Project> =>
-    fetch(`${BASE}/projects/${id}/github`, { method: "DELETE" })
-      .then((r) => handle<{ project: Project }>(r))
-      .then((d) => d.project),
 
   getClaudeInstructions: (id: string): Promise<{ exists: boolean; content: string; path: string }> =>
     fetch(`${BASE}/projects/${id}/claude/instructions`, { cache: "no-store" })
@@ -486,14 +480,6 @@ export interface PrereqItem {
   docsUrl: string;
 }
 
-export interface GhIssue {
-  number: number;
-  title: string;
-  body: string;
-  labels: { name: string; color: string }[];
-  state: string;
-}
-
 export interface PRListItem {
   number: number;
   title: string;
@@ -520,10 +506,6 @@ export interface PRDetails {
 const GHBASE = BASE.replace(/\/api$/, "");
 
 export const githubApi = {
-  listPRs: (projectId: string): Promise<PRListItem[]> =>
-    fetch(`${GHBASE}/github/prs?projectId=${encodeURIComponent(projectId)}`)
-      .then((r) => handle<PRListItem[]>(r)),
-
   getPRDetails: (number: number, projectId: string): Promise<PRDetails> =>
     fetch(`${GHBASE}/github/prs/${number}/details?projectId=${encodeURIComponent(projectId)}`)
       .then((r) => handle<PRDetails>(r)),
@@ -536,31 +518,6 @@ export const githubApi = {
     fetch(`${GHBASE}/github/prs/${number}/merge?projectId=${encodeURIComponent(projectId)}`, {
       method: "POST",
     }).then((r) => handle<{ success: boolean }>(r)),
-
-  listIssues: (projectId: string): Promise<{ issues: GhIssue[] }> =>
-    fetch(`${GHBASE}/github/issues?projectId=${encodeURIComponent(projectId)}`)
-      .then((r) => handle<{ issues: GhIssue[] }>(r)),
-
-  importIssues: (
-    projectId: string,
-    issues: Pick<GhIssue, "number" | "title" | "body">[],
-  ): Promise<{ tasks: Task[] }> =>
-    fetch(`${GHBASE}/github/issues/import`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId, issues }),
-    }).then((r) => handle<{ tasks: Task[] }>(r)),
-
-  createIssue: (
-    projectId: string,
-    title: string,
-    body: string,
-  ): Promise<{ number: number; url: string }> =>
-    fetch(`${GHBASE}/github/issues/create`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId, title, body }),
-    }).then((r) => handle<{ number: number; url: string }>(r)),
 };
 
 export interface GithubAuthStart {

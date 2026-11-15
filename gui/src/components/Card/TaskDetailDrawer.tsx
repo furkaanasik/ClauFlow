@@ -16,10 +16,8 @@ import {
   IconBranch,
   IconChat,
   IconCheck,
-  IconChevronRight,
   IconClipboard,
   IconCoin,
-  IconFlow,
   IconInfo,
   IconPencil,
   IconPR,
@@ -34,7 +32,6 @@ import {
 import { AgentBadge } from "@/components/Card/AgentBadge";
 import { CommentsTab } from "@/components/Card/CommentsTab";
 import { LogViewer } from "@/components/Card/LogViewer";
-import { MiniDagView } from "@/components/Card/MiniDagView";
 import { TeamTimeline } from "@/components/Card/TeamTimeline";
 import { ApprovalGate } from "@/components/Card/ApprovalGate";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
@@ -60,10 +57,8 @@ const ACTIVE_STEPS = ["branching", "running", "pushing", "pr_opening"] as const;
 const STATUS_KIND: Record<Task["status"], StatusKind> = {
   todo: "todo",
   doing: "doing",
-  ci: "ci",
   review: "review",
   done: "done",
-  nothing: "nothing",
 };
 
 interface DraftState {
@@ -116,7 +111,6 @@ export function TaskDetailDrawer() {
   const setAgentTexts = useBoardStore((s) => s.setAgentTexts);
   const openTeamEditor = useBoardStore((s) => s.openTeamEditor);
   const upsertNodeRun = useBoardStore((s) => s.upsertNodeRun);
-  const appendNodeLog = useBoardStore((s) => s.appendNodeLog);
   const setTaskTeam = useBoardStore((s) => s.setTaskTeam);
 
   // Keep the last task on screen while the drawer plays its exit animation.
@@ -170,16 +164,8 @@ export function TaskDetailDrawer() {
     api.getTaskTeam(selectedTaskId).then((state) => {
       setTaskTeam(selectedTaskId, state);
     }).catch(() => {});
-        api.getNodeRuns(selectedTaskId).then((runs) => {
-      for (const run of runs) {
-        upsertNodeRun(run);
-        const buffered = run.outputArtifact?.logLines;
-        if (Array.isArray(buffered)) {
-          for (const line of buffered) {
-            appendNodeLog(selectedTaskId, run.nodeId, line as string);
-          }
-        }
-      }
+    api.getNodeRuns(selectedTaskId).then((runs) => {
+      for (const run of runs) upsertNodeRun(run);
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
@@ -312,13 +298,11 @@ export function TaskDetailDrawer() {
     [allTasks, task?.parentTaskId],
   );
   const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
-  const nodeRunCount = useBoardStore((s) => (task ? Object.keys(s.nodeRuns[task.id] ?? {}).length : 0));
   const teamArtifactCount = useBoardStore((s) => (task ? s.teamArtifacts[task.id]?.length ?? 0 : 0));
   const teamQaRound = useBoardStore((s) => {
     const runs = task ? s.teamRuns[task.id] : undefined;
     return runs?.[runs.length - 1]?.qaRound ?? 0;
   });
-  const [flowOpen, setFlowOpen] = useState(false);
 
   const budget = useMemo<BudgetView | null>(() => {
     if (!task) return null;
@@ -491,38 +475,7 @@ export function TaskDetailDrawer() {
           {tab === "comments" ? (
             <CommentsTab task={task} />
           ) : tab === "team" ? (
-            <div className="flex flex-col gap-6">
-              <TeamTimeline task={task} renderApproval={(spec) => <ApprovalGate task={task} spec={spec} />} />
-              {/* Technical flow: the raw node runs behind the timeline */}
-              <section className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  aria-expanded={flowOpen}
-                  aria-controls="task-detail-flow"
-                  onClick={() => setFlowOpen((v) => !v)}
-                  className="ui-focus ui-sechead !mb-0 rounded-[6px] text-left"
-                >
-                  <IconChevronRight
-                    size={13}
-                    className="shrink-0 text-ink-3 transition-transform"
-                    style={{ transform: flowOpen ? "rotate(90deg)" : undefined }}
-                  />
-                  <IconFlow size={13} className="shrink-0 text-ink-2" />
-                  <span className="ui-sechead__t">{tt.team.technicalFlow}</span>
-                  {nodeRunCount > 0 && <span className="ui-sechead__n">{nodeRunCount}</span>}
-                </button>
-                {flowOpen && (
-                  <div id="task-detail-flow" className="flex min-h-[12rem] flex-col">
-                    <MiniDagView
-                      taskId={task.id}
-                      noNodesLabel={td.flowNoNodes}
-                      nodeLogsTitle={td.flowNodeLogsTitle}
-                      nodeNoLogLabel={td.flowNodeNoLog}
-                    />
-                  </div>
-                )}
-              </section>
-            </div>
+            <TeamTimeline task={task} renderApproval={(spec) => <ApprovalGate task={task} spec={spec} />} />
           ) : tab === "log" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-4">
               <div className="flex flex-wrap items-center gap-3">

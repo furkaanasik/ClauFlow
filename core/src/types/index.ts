@@ -1,4 +1,4 @@
-export type TaskStatus = "todo" | "doing" | "ci" | "review" | "done" | "nothing";
+export type TaskStatus = "todo" | "doing" | "review" | "done";
 
 export type AgentStatus =
   | "idle"
@@ -194,8 +194,6 @@ export type NodeType =
   | "coder"
   | "reviewer"
   | "tester"
-  | "ci"
-  | "fix"
   | "custom"
   | "subagent"
   | "ceo"
@@ -255,11 +253,6 @@ export type WsMessage =
   | { type: "node_finished"; taskId: string; payload: NodeRun }
   | { type: "team_run_updated"; taskId: string; payload: TeamRun }
   | { type: "team_artifact"; taskId: string; payload: TeamArtifact }
-  | {
-      type: "node_log";
-      taskId: string;
-      payload: { nodeId: string; line: string };
-    }
   | { type: "project_planning_started"; projectId: string }
   | {
       type: "project_planning_done";
@@ -286,21 +279,6 @@ export type WsMessage =
       };
     }
   | { type: "hello"; payload: { serverVersion: string } }
-  | {
-      type: "ci_check_status";
-      taskId: string;
-      payload: { prNumber: number; verdict: CiVerdict };
-    }
-  | {
-      type: "ci_iteration_started";
-      taskId: string;
-      payload: { iteration: number; maxIterations: number };
-    }
-  | {
-      type: "ci_iteration_result";
-      taskId: string;
-      payload: { iteration: number; outcome: "pass" | "fail" | "exhausted" };
-    }
   | {
       type: "budget_exceeded";
       taskId: string;
@@ -357,27 +335,6 @@ export interface ClaudeMarketplace {
   name: string;
   source: ClaudeMarketplaceSource;
 }
-
-export interface CiFailure {
-  jobName: string;
-  conclusion: "FAILURE" | "CANCELLED" | "TIMED_OUT" | "ACTION_REQUIRED";
-  link: string | null;
-  logTail: string | null;
-}
-
-export interface CiFailureArtifact {
-  prNumber: number;
-  iteration: number;
-  failures: CiFailure[];
-  capturedAt: string;
-}
-
-export type CiVerdict =
-  | { kind: "pending" }
-  | { kind: "pass" }
-  | { kind: "fail"; failures: CiFailure[] }
-  | { kind: "no_checks" }
-  | { kind: "timeout" };
 
 export function createEmptyAgentState(): AgentState {
   return {

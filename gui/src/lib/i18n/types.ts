@@ -83,7 +83,6 @@ export interface Translations {
       board: string;
       list: string;
       factory: string;
-      prs: string;
       insights: string;
     };
   };
@@ -128,12 +127,6 @@ export interface Translations {
       awaiting_approval: string;
       done: string;
       error: string;
-    };
-    ci: {
-      checking: string;
-      passing: string;
-      fail: string;
-      fix: string;
     };
   };
   addTask: {
@@ -236,7 +229,6 @@ export interface Translations {
     };
     newTask: string;
     addTask: string;
-    importIssues: string;
     collapseColumn: string;
     expandColumn: string;
     needsConfirm: string;
@@ -279,26 +271,22 @@ export interface Translations {
       legendLabel: string;
       legend: { running: string; queued: string; error: string; budget: string };
       controlsHint: string;
-      notes: Record<"todo" | "doing" | "ci" | "review" | "done" | "nothing", string>;
+      notes: Record<"todo" | "doing" | "review" | "done", string>;
       tooltip: { open: string; openList: string; error: string; budget: string; more: string };
     };
     loadError: string;
     agentStarted: string;
     columns: {
-      todo:    string;
-      doing:   string;
-      ci:      string;
-      review:  string;
-      done:    string;
-      nothing: string;
+      todo:   string;
+      doing:  string;
+      review: string;
+      done:   string;
     };
     emptyStates: {
-      todo:    { title: string; hint: string };
-      doing:   { title: string; hint: string };
-      ci:      { title: string; hint: string };
-      review:  { title: string; hint: string };
-      done:    { title: string; hint: string };
-      nothing: { title: string; hint: string };
+      todo:   { title: string; hint: string };
+      doing:  { title: string; hint: string };
+      review: { title: string; hint: string };
+      done:   { title: string; hint: string };
     };
     searchPlaceholder: string;
     loadingTasks: string;
@@ -411,9 +399,6 @@ export interface Translations {
       cancel: string;
     };
     flowLabel: string;
-    flowNoNodes: string;
-    flowNodeLogsTitle: string;
-    flowNodeNoLog: string;
     errors: {
       titleRequired: string;
       updateFailed: string;
@@ -570,7 +555,7 @@ export interface Translations {
     legendDone: string;
     legendError: string;
     tokensTotal: string;
-    noCiYet: string;
+    noRunsYet: string;
     tokInput: string;
     tokOutput: string;
     tokCacheRead: string;
@@ -588,8 +573,8 @@ export interface Translations {
     statCost: string;
     statCompletion: string;
     statCompletionSub: string;
-    statCiPassRate: string;
-    statAvgTimeToGreen: string;
+    statAvgRunTime: string;
+    statAvgRunTimeSub: string;
     sectionByNodeType: string;
     colNodeType: string;
     colRuns: string;
@@ -603,27 +588,6 @@ export interface Translations {
     navInsights: string;
     pricingStaleBanner: string;
     pricingStaleDate: string;
-  };
-  importIssues: {
-    selectedCount: (n: number, total: number) => string;
-    modalHint: string;
-    buttonLabel: string;
-    modalTitle: string;
-    loading: string;
-    loadError: string;
-    noRemote: string;
-    empty: string;
-    selectAll: string;
-    deselectAll: string;
-    importButton: (n: number) => string;
-    importing: string;
-    successToast: (n: number) => string;
-    errorGeneric: string;
-    issueNumber: string;
-    cancel: string;
-    createIssueCheckbox: string;
-    noRemoteHint: string;
-    configureLink: string;
   };
   projectDetail: {
     nameRequired: string;
@@ -663,9 +627,7 @@ export interface Translations {
     saveChanges: string;
     saving: string;
     dangerZone: string;
-    deleteFromGithub: string;
     deleteFromKanban: string;
-    confirmDeleteGithub: string;
     confirmDeleteKanban: string;
     openInGithub: string;
     activeTasksBlockPath: string;
@@ -695,23 +657,6 @@ export interface Translations {
     statusErr: string;
     agent: string;
     mix: string;
-  };
-  flow: {
-    running: string;
-    done: string;
-    error: string;
-    aborted: string;
-    subagent: string;
-    agent: string;
-    task: string;
-    status: string;
-    model: string;
-    inOut: string;
-    started: string;
-    finished: string;
-    error2: string;
-    closeLog: string;
-    nodes: (n: number) => string;
   };
   comments: {
     queued: string;
@@ -754,41 +699,13 @@ export interface Translations {
     notRequested: string;
     enable: string;
     toggle: string;
-    webhook: string;
-    webhookHint: string;
-    webhookPlaceholder: string;
-    save: string;
   };
   prs: {
-    eyebrow: string;
-    title: string;
-    subtitle: string;
-    refresh: string;
-    summary: string;
     state: {
       OPEN: string;
       MERGED: string;
       CLOSED: string;
     };
-    openHint: string;
-    mergedHint: string;
-    closedHint: string;
-    loading: string;
-    noProjectTitle: string;
-    noProject: string;
-    backToBoard: string;
-    noRemoteTitle: string;
-    noRemoteBody: string;
-    openProjectSettings: string;
-    retry: string;
-    errorTitle: string;
-    errorBody: string;
-    emptyTitle: string;
-    emptyBody: string;
-    filterLabel: string;
-    filterAll: string;
-    showing: (n: number, total: number) => string;
-    filterEmpty: string;
     unknownAuthor: string;
     openOnGithub: string;
     unknownError: string;
@@ -838,7 +755,6 @@ export interface Translations {
     };
     editTeam: string;
     tabTeam: string;
-    technicalFlow: string;
     timeline: {
       label: string;
       empty: string;

@@ -314,15 +314,13 @@ function Gallery({ theme, wide }: { theme: ThemeName; wide: boolean }) {
         <Row label="status">
           <StatusPill status="todo">Todo</StatusPill>
           <StatusPill status="doing" live>Running</StatusPill>
-          <StatusPill status="ci">CI pending</StatusPill>
           <StatusPill status="review">Waiting for review</StatusPill>
           <StatusPill status="done">Merged</StatusPill>
-          <StatusPill status="nothing">No changes</StatusPill>
+          <StatusPill status="nothing">Offline</StatusPill>
           <StatusPill status="error">Failed</StatusPill>
         </Row>
         <Row label="solid">
           <StatusPill status="doing" variant="solid" live>branching</StatusPill>
-          <StatusPill status="ci" variant="solid">checks</StatusPill>
           <StatusPill status="review" variant="solid">review</StatusPill>
           <StatusPill status="done" variant="solid" icon={<IconCheck size={12} />}>done</StatusPill>
           <StatusPill status="error" variant="solid" icon={<IconAlert size={12} />}>error</StatusPill>
@@ -469,7 +467,7 @@ function Gallery({ theme, wide }: { theme: ThemeName; wide: boolean }) {
             <IconBolt size={22} />
           </RingGauge>
           <RingGauge value={72} color="var(--orange)" label="Budget" sublabel="$7.20 / $10" ariaLabel="Budget" />
-          <RingGauge value={100} color="var(--green)" size={72} thickness={8} label="CI" sublabel="12 / 12" ariaLabel="CI">
+          <RingGauge value={100} color="var(--green)" size={72} thickness={8} label="Merged" sublabel="12 / 12" ariaLabel="Merged">
             <IconCheck size={20} />
           </RingGauge>
         </div>
@@ -495,7 +493,7 @@ function Gallery({ theme, wide }: { theme: ThemeName; wide: boolean }) {
           <div className="p-4 text-[13px] text-ink-2">
             {tab === "detail" && "Parent, description, analysis, subtasks, execution mode, priority, branch / PR, budget."}
             {tab === "log" && <span className="font-mono">[12:04:31] branching clf-6-paginate-history…</span>}
-            {tab === "flow" && "Tool-call timeline and the mini DAG."}
+            {tab === "flow" && "Tool-call timeline."}
             {tab === "comments" && "Review comments the agent applies on the branch."}
           </div>
         </Panel>
@@ -598,13 +596,13 @@ function Gallery({ theme, wide }: { theme: ThemeName; wide: boolean }) {
         </Row>
       </Section>
 
-      <Modal open={modal} onClose={() => setModal(false)} title="Import issues">
+      <Modal open={modal} onClose={() => setModal(false)} title="Rename project">
         <p className="text-[13.5px] text-ink-2">
-          Pick GitHub issues to turn into cards. Each one lands in Todo with its labels.
+          Pick a new display name. The slug and task keys stay the same.
         </p>
         <div className="mt-4 flex justify-end gap-2.5">
           <Button onClick={() => setModal(false)}>Cancel</Button>
-          <Button variant="primary" onClick={() => setModal(false)}>Import 3</Button>
+          <Button variant="primary" onClick={() => setModal(false)}>Rename</Button>
         </div>
       </Modal>
 
@@ -717,16 +715,6 @@ const CARD_STATES: Task[] = [
     status: "doing",
     priority: "medium",
     tags: ["backend"],
-  }),
-  mockTask({
-    id: "sg-ci",
-    displayId: "CLF-84",
-    title: "Cache pnpm store in CI",
-    status: "ci",
-    priority: "low",
-    tags: ["ci"],
-    prNumber: 41,
-    usage: { ...USAGE, inputTokens: 40_000, cacheReadTokens: 90_000 },
   }),
   mockTask({
     id: "sg-review",

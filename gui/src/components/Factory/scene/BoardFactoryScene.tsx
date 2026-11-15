@@ -50,7 +50,7 @@ import {
 } from "../factoryLayout";
 import { FactoryContext, type FactoryRuntime, type HoverTarget } from "./runtime";
 import { TaskCrate } from "./TaskCrate";
-import { Andon, BlobFieldMesh, CiGate, FactorySign, Pile, useBlobField, type AndonState } from "./props";
+import { Andon, BlobFieldMesh, FactorySign, Pile, useBlobField, type AndonState } from "./props";
 
 /*
  * Board "Fabrika" view: the live board as a toon diorama. Columns are
@@ -231,8 +231,6 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
   const scan = useRef<ScannerDrive>({ sweep: -0.6, beam: 0, pass: 0 });
   const press = useRef(0);
   const andon = useRef<AndonState>({ run: 0, queue: 0, alarm: 0 });
-  const ciActive = useRef(0);
-  const ciWaiting = useRef(0);
   const idle = useMemo(() => new THREE.Vector3(), []);
   const weld = useMemo(() => new THREE.Vector3(), []);
 
@@ -268,8 +266,6 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
     andon.current.run = L.doingActive ? 1 : 0;
     andon.current.queue = anyQueued && !L.doingActive ? 1 : 0;
     andon.current.alarm = L.anyError ? 1 : 0;
-    ciActive.current = L.ciActive ? 1 : 0;
-    ciWaiting.current = L.counts.ci > 0 ? 1 : 0;
 
     scan.current.beam = L.reviewWaiting ? 0.85 : 0;
     scan.current.sweep = L.reviewWaiting ? Math.sin(t * 0.8) * 0.8 : -0.6;
@@ -298,28 +294,9 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
       const { ctx, k, at } = p;
       STATIONS.forEach((s, i) => {
         const accent = palette[s.accent as PaletteKey];
-        const tint = s.status === "nothing" ? palette.ink3 : accent;
         const zc = (s.padZ[0] + s.padZ[1]) / 2;
         const zd = s.padZ[1] - s.padZ[0];
-        paintPad(p, s.x, zc, s.padW, zd, mixHex(palette.floor, tint, colors.night ? 0.2 : 0.22), tint);
-        if (s.status === "nothing") {
-          // hatched "shelved" pad
-          const [x0, z0] = at(s.x - s.padW / 2, s.padZ[0]);
-          ctx.save();
-          ctx.beginPath();
-          roundRect(ctx, x0, z0, s.padW * k, zd * k, k * 0.35);
-          ctx.clip();
-          ctx.strokeStyle = palette.ink3;
-          ctx.globalAlpha = 0.28;
-          ctx.lineWidth = Math.max(3, k * 0.05);
-          for (let o = -zd * k; o < s.padW * k + zd * k; o += k * 0.32) {
-            ctx.beginPath();
-            ctx.moveTo(x0 + o, z0);
-            ctx.lineTo(x0 + o - zd * k, z0 + zd * k);
-            ctx.stroke();
-          }
-          ctx.restore();
-        }
+        paintPad(p, s.x, zc, s.padW, zd, mixHex(palette.floor, accent, colors.night ? 0.2 : 0.22), accent);
         const [cx, cz] = at(s.x, s.padZ[1] + 0.42);
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -352,14 +329,10 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
     switch (accent) {
       case "orange":
         return colors.onOrange;
-      case "cobalt":
-        return colors.onCobalt;
       case "mustard":
         return colors.onMustard;
       case "green":
         return colors.onGreen;
-      case "sunken":
-        return palette.ink;
       default:
         return colors.night ? palette.sunken : palette.panel; // on ink-3
     }
@@ -396,7 +369,7 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
       <BlobFieldMesh field={blobs} capacity={BLOB_CAP} />
 
       <Conveyor from={BELT_FROM} to={BELT_TO} top={BELT_TOP} travelRef={travel} />
-      {/* chute off the end of the belt towards the shelf */}
+      {/* chute off the end of the belt */}
       <Block size={[1.5, 0.08, 1.4]} position={[BELT_TO + 0.7, 0.62, 0]} rotation-z={-0.26} color="steel" />
 
       {STATIONS.map((s, i) => (
@@ -424,10 +397,7 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
       <Terminal position={[doingX + 1.85, 0, -2.45]} rotationY={-0.3} activeRef={armEyes} />
       <Andon position={[doingX - 1.75, 0, -1.55]} stateRef={andon} />
 
-      {/* 03 CI — test gate */}
-      <CiGate position={[STATION_BY_STATUS.ci.x, 0, 0]} activeRef={ciActive} waitingRef={ciWaiting} lidY={LID_Y} />
-
-      {/* 04 REVIEW — scanner */}
+      {/* 03 REVIEW — scanner */}
       <Scanner
         position={[STATION_BY_STATUS.review.x, 0, 0]}
         driveRef={scan}
@@ -437,7 +407,7 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
         reach={1.8}
       />
 
-      {/* 05 DONE — stamp press */}
+      {/* 04 DONE — stamp press */}
       <StampPress position={[STATION_BY_STATUS.done.x, 0, 0]} pressRef={press} contactY={LID_Y} topY={3.25} reach={1.8} />
 
       {/* movers — hidden during the shadow bake */}

@@ -40,8 +40,6 @@ export type TeamStopReason = "stalled" | "round_limit" | "budget";
 
 interface OutcomeBase {
   run: TeamRun;
-  /** Every agent text chunk of every role, for the legacy "## Code Review Report" auto-comment. */
-  allText: string;
 }
 
 export type TeamOutcome =
@@ -220,7 +218,6 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
   let prevBugs: string[] | null = null;
   let qaVerdict: QaVerdict | null = null;
   let qaReport: string | null = null;
-  let allText = "";
 
   const runId = run.id;
   const current = (): TeamRun => run!;
@@ -246,7 +243,7 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
     const reasonText = stopReasonText(reason, { qaMaxRounds, spent: current().costUsd, budget });
     await pushLog(task.id, `✖ Takıldı: ${reasonText}`);
     const summary = finish("stuck", reasonText, reason);
-    return { kind: "stuck", run: current(), reason, reasonText, summary, allText };
+    return { kind: "stuck", run: current(), reason, reasonText, summary };
   };
 
   try {
@@ -306,7 +303,6 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
         spentBeforeUsd: current().costUsd,
         inputArtifact: { roleId: role.id, round, team: team.name },
       });
-      allText += (allText ? "\n" : "") + out.text;
       run = patchRun(runId, { costUsd: current().costUsd + out.costUsd });
 
       const artifactBase = {
@@ -364,7 +360,7 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
         if (gate) {
           run = patchRun(runId, { status: "awaiting_approval" });
           await pushLog(task.id, "⏸ Şartname onayı bekleniyor");
-          return { kind: "awaiting_approval", run: current(), allText };
+          return { kind: "awaiting_approval", run: current() };
         }
       }
 
@@ -395,11 +391,11 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
     if (devIndex < 0) {
       const summary = finish("explored");
       await pushLog(task.id, "✓ Keşif tamamlandı");
-      return { kind: "explored", run: current(), summary, allText };
+      return { kind: "explored", run: current(), summary };
     }
     const summary = finish("delivered");
     await pushLog(task.id, "✓ Ekip teslim etti");
-    return { kind: "delivered", run: current(), summary, spec, qaVerdict, qaReport, allText };
+    return { kind: "delivered", run: current(), summary, spec, qaVerdict, qaReport };
   } catch (err) {
     const aborted = controller.signal.aborted || (err instanceof RoleRunError && err.aborted);
     const message = err instanceof Error ? err.message : String(err);

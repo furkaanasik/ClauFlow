@@ -21,7 +21,6 @@ import {
   IconGithub,
   IconList,
   IconPlus,
-  IconPR,
 } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
 import { useViewStore, type BoardView } from "@/store/viewStore";
@@ -51,7 +50,7 @@ export function AppRail() {
   const pathname = usePathname();
   const router = useRouter();
   const onBoard = pathname === "/board";
-  const section = pathname?.startsWith("/github") ? "prs" : pathname?.startsWith("/insights") ? "insights" : null;
+  const section = pathname?.startsWith("/insights") ? "insights" : null;
 
   const projects = useBoardStore((s) => s.projects);
   const selectedProjectId = useBoardStore((s) => s.selectedProjectId);
@@ -188,11 +187,6 @@ export function AppRail() {
                   undefined,
                 ),
               )}
-              {item("prs", t.shell.viewNames.prs, <IconPR size={17} />, (cls, inner) => (
-                <Link href={`/github${pq}`} className={cls} aria-current={section === "prs" ? "page" : undefined}>
-                  {inner}
-                </Link>
-              ))}
               {item("insights", t.shell.viewNames.insights, <IconChart size={17} />, (cls, inner) => (
                 <Link href={`/insights${pq}`} className={cls} aria-current={section === "insights" ? "page" : undefined}>
                   {inner}

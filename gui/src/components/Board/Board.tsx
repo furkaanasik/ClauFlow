@@ -20,7 +20,6 @@ import { FactoryView } from "@/components/Factory/FactoryView";
 import { TaskCardView } from "@/components/Card/TaskCard";
 import { TaskDetailDrawer } from "@/components/Card/TaskDetailDrawer";
 import { AddTaskModal } from "@/components/Modals/AddTaskModal";
-import { ImportIssuesModal } from "@/components/Modals/ImportIssuesModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -32,7 +31,6 @@ import {
   IconAlert,
   IconBoard,
   IconBranch,
-  IconDownload,
   IconFactory,
   IconFilter,
   IconFolder,
@@ -61,12 +59,10 @@ import {
 import type { Task, TaskStatus } from "@/types";
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  todo:    ["doing"],
-  doing:   [],
-  ci:      ["review"],
-  review:  ["done"],
-  done:    [],
-  nothing: [],
+  todo:   ["doing"],
+  doing:  [],
+  review: ["done"],
+  done:   [],
 };
 
 const VIEW_ICON: Record<BoardView, typeof IconBoard> = {
@@ -132,9 +128,12 @@ export function Board() {
   const [collapsedCols, setCollapsedCols] = useState<Set<TaskStatus>>(() => {
     try {
       const s = localStorage.getItem("board-collapsed-cols");
-      return s ? new Set(JSON.parse(s) as TaskStatus[]) : new Set<TaskStatus>(["ci", "nothing"]);
+      if (!s) return new Set<TaskStatus>();
+      // Drop saved lanes that no longer exist (stale localStorage).
+      const saved = JSON.parse(s) as string[];
+      return new Set(COLUMN_STATUSES.filter((c) => saved.includes(c)));
     } catch {
-      return new Set<TaskStatus>(["ci", "nothing"]);
+      return new Set<TaskStatus>();
     }
   });
 
@@ -154,11 +153,9 @@ export function Board() {
   }, [selectedProjectId]);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
-  const hasRemote       = Boolean(selectedProject?.remote);
 
   const [activeId, setActiveId]     = useState<string | null>(null);
   const [addOpen, setAddOpen]       = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [showHelp, setShowHelp]     = useState(false);
   const [pendingMove, setPendingMove] = useState<{ taskId: string; from: TaskStatus; to: TaskStatus } | null>(null);
 
@@ -184,10 +181,9 @@ export function Board() {
   );
 
   const byStatus = useMemo(() => {
-    const map: Record<TaskStatus, Task[]> = {
-      todo: [], doing: [], ci: [], review: [], done: [], nothing: [],
-    };
-    for (const x of visible) map[x.status].push(x);
+    const map: Record<TaskStatus, Task[]> = { todo: [], doing: [], review: [], done: [] };
+    // Unknown statuses (stale data from removed lanes) are skipped, not crashed on.
+    for (const x of visible) map[x.status]?.push(x);
     for (const s of COLUMN_STATUSES) map[s] = applyManualOrder(map[s], rank);
     return map;
   }, [visible, rank]);
@@ -202,9 +198,9 @@ export function Board() {
 
   const stats = useMemo(() => {
     let done = 0, running = 0, cost = 0;
-    const counts: Record<TaskStatus, number> = { todo: 0, doing: 0, ci: 0, review: 0, done: 0, nothing: 0 };
+    const counts: Record<TaskStatus, number> = { todo: 0, doing: 0, review: 0, done: 0 };
     for (const x of projectTasks) {
-      counts[x.status] += 1;
+      if (x.status in counts) counts[x.status] += 1;
       if (x.status === "done") done += 1;
       if (isAgentWorking(x)) running += 1;
       cost += taskCost(x) ?? 0;
@@ -338,11 +334,6 @@ export function Board() {
         <span aria-hidden className="h-6 w-[2px] rounded bg-hair" />
         <QuickFilters tasks={projectTasks} shown={visible.length} />
         <span className="flex-1" />
-        {hasRemote && (
-          <Button size="sm" variant="ghost" icon={<IconDownload size={14} />} onClick={() => setImportOpen(true)}>
-            {t.board.importIssues}
-          </Button>
-        )}
         <Tooltip content={t.board.shortcuts.newTask} shortcut="N" side="bottom">
           <Button size="sm" variant="primary" icon={<IconPlus size={14} />} onClick={() => setAddOpen(true)}>
             {t.board.newTask}
@@ -456,7 +447,6 @@ export function Board() {
       })()}
 
       <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} />
-      <ImportIssuesModal open={importOpen} onClose={() => setImportOpen(false)} />
 
       <Modal open={showHelp} onClose={() => setShowHelp(false)} title={t.board.shortcuts.title}>
         <div className="flex flex-col px-5 py-3">

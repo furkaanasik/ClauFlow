@@ -6,10 +6,10 @@ import { TopBar } from "@/components/Shell/TopBar";
 import { ToastContainer } from "@/components/ui/Toast";
 
 /**
- * Rail + top bar frame for the non-board views (PRs, insights). The board
+ * Rail + top bar frame for the non-board views (insights). The board
  * page composes the same pieces itself because its main area is fixed-height.
  */
-export function AppShell({ section, children }: { section: "prs" | "insights"; children: ReactNode }) {
+export function AppShell({ section, children }: { section: "insights"; children: ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden bg-paper">
       <AppRail />

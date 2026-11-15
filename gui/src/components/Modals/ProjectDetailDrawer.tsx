@@ -97,14 +97,14 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
     done:   projectTasks.filter((x) => x.status === "done").length,
   }), [projectTasks]);
 
-  const total = projectTasks.length;
+  // Sum of the four lanes, so the rows always add up to the total shown.
+  const total = stats.todo + stats.doing + stats.review + stats.done;
   const projectHasActiveTasks = stats.doing > 0 || stats.review > 0;
 
   const [activeTab,     setActiveTab]     = useState<Tab>("overview");
   const [draft,         setDraft]         = useState<DraftState | null>(null);
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState<string | null>(null);
-  const [confirmGithub, setConfirmGithub] = useState(false);
   const [confirmKanban, setConfirmKanban] = useState(false);
   const [deleting,      setDeleting]      = useState(false);
 
@@ -172,21 +172,6 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
     }
   };
 
-  const handleDeleteGithub = async () => {
-    if (!project) return;
-    setConfirmGithub(false);
-    setDeleting(true);
-    setError(null);
-    try {
-      const updated = await api.deleteProjectGithub(project.id);
-      updateProject(project.id, { remote: updated.remote });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : pd.deleteFailed);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   const handleDeleteKanban = async () => {
     if (!project) return;
     setConfirmKanban(false);
@@ -215,19 +200,6 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
   const dangerBlock = (
     <div className="flex flex-col gap-2.5">
       <p className="text-[12.5px] leading-snug text-ink-2">{pd.dangerHint}</p>
-      {project.remote && (
-        <Button
-          variant="danger"
-          size="sm"
-          block
-          icon={<IconGithub size={14} />}
-          onClick={() => setConfirmGithub(true)}
-          loading={deleting}
-          className="!justify-start"
-        >
-          {deleting ? pd.deleting : pd.deleteFromGithub}
-        </Button>
-      )}
       <Button
         variant="danger"
         size="sm"
@@ -492,17 +464,6 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
           </div>
         )}
       </Drawer>
-
-      <ConfirmDialog
-        open={confirmGithub}
-        title={pd.deleteFromGithub}
-        description={pd.confirmDeleteGithub}
-        confirmLabel={pd.deleteFromGithub}
-        cancelLabel={pd.cancel}
-        variant="danger"
-        onConfirm={handleDeleteGithub}
-        onCancel={() => setConfirmGithub(false)}
-      />
 
       <ConfirmDialog
         open={confirmKanban}

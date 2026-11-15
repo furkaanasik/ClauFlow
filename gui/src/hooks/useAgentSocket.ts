@@ -7,7 +7,7 @@ import { useToastStore } from "@/hooks/useToast";
 import { useNotificationStore } from "@/hooks/useNotification";
 import { tr } from "@/lib/i18n/tr";
 import { en } from "@/lib/i18n/en";
-import type { WsMessage } from "@/types";
+import type { Task, WsMessage } from "@/types";
 
 const RECONNECT_DELAY_MS = 3000;
 
@@ -49,8 +49,6 @@ export function useAgentSocket(url?: string) {
       failClone,
       setSkillProgress,
       upsertNodeRun,
-      appendNodeLog,
-      setCiIteration,
       setBudgetExceeded,
       setBreakdownStatus,
       upsertTeamRun,
@@ -87,18 +85,22 @@ export function useAgentSocket(url?: string) {
           switch ((msg as { type: string }).type) {
             case "task_updated": {
               const t = (msg as Extract<WsMessage, { type: "task_updated" }>).payload;
+              // Read the previous copy before upserting. Notify only when the task
+              // leaves the Doing column with a finished agent; title edits, drags and
+              // tasks of other projects (no `prev`) stay silent.
+              const prev: Task | undefined = useBoardStore.getState().tasks[t.id];
               upsertTask(t);
               if (t.agent.status === "idle" && t.status === "doing") {
                 useBoardStore.getState().clearBudgetExceeded(t.id);
               }
-              if (t.agent.status === "done" || t.agent.status === "error") {
+              const finished = t.agent.status === "done" || t.agent.status === "error";
+              if (prev?.status === "doing" && t.status !== "doing" && finished) {
                 const isError = t.agent.status === "error";
-useNotificationStore.getState().notify(
+                useNotificationStore.getState().notify(
                   isError ? `Error: ${t.title}` : `Done: ${t.title}`,
                   isError
                     ? (t.agent.error ?? "Agent encountered an error")
                     : "Agent finished successfully",
-                  isError,
                 );
               }
               break;
@@ -139,11 +141,6 @@ useNotificationStore.getState().notify(
             case "node_finished": {
               const m = msg as Extract<WsMessage, { type: "node_finished" }>;
               upsertNodeRun(m.payload);
-              break;
-            }
-            case "node_log": {
-              const m = msg as Extract<WsMessage, { type: "node_log" }>;
-              appendNodeLog(m.taskId, m.payload.nodeId, m.payload.line);
               break;
             }
             case "team_run_updated": {
@@ -220,19 +217,12 @@ useNotificationStore.getState().notify(
               });
               break;
             }
-            case "ci_iteration_started": {
-              const m = msg as Extract<WsMessage, { type: "ci_iteration_started" }>;
-              setCiIteration(m.taskId, m.payload.iteration, m.payload.maxIterations);
-              break;
-            }
             case "budget_exceeded": {
               const m = msg as Extract<WsMessage, { type: "budget_exceeded" }>;
               setBudgetExceeded(m.taskId, m.payload);
               useToastStore.getState().push("error", `Budget exceeded: $${m.payload.spentUsd.toFixed(4)} / $${m.payload.budgetUsd.toFixed(2)}`);
               break;
             }
-            case "ci_check_status":
-            case "ci_iteration_result":
             case "hello":
             default:
               break;

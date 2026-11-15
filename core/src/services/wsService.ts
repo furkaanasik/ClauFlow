@@ -183,50 +183,6 @@ export function broadcastNodeFinished(nodeRun: NodeRun): void {
   });
 }
 
-export function broadcastNodeLog(
-  taskId: string,
-  nodeId: string,
-  line: string,
-): void {
-  broadcast({
-    type: "node_log",
-    taskId,
-    payload: { nodeId, line },
-  });
-}
-
-export function broadcastCiCheckStatus(
-  taskId: string,
-  prNumber: number,
-  verdict: import("../types/index.js").CiVerdict,
-): void {
-  broadcast({ type: "ci_check_status", taskId, payload: { prNumber, verdict } });
-}
-
-export function broadcastCiIterationStarted(
-  taskId: string,
-  iteration: number,
-  maxIterations: number,
-): void {
-  broadcast({
-    type: "ci_iteration_started",
-    taskId,
-    payload: { iteration, maxIterations },
-  });
-}
-
-export function broadcastCiIterationResult(
-  taskId: string,
-  iteration: number,
-  outcome: "pass" | "fail" | "exhausted",
-): void {
-  broadcast({
-    type: "ci_iteration_result",
-    taskId,
-    payload: { iteration, outcome },
-  });
-}
-
 export function broadcastTeamRunUpdated(run: TeamRun): void {
   broadcast({ type: "team_run_updated", taskId: run.taskId, payload: run });
 }

@@ -34,12 +34,11 @@ import {
 } from "../services/teamRunService.js";
 import { broadcastTeamArtifact, broadcastTeamRunUpdated } from "../services/wsService.js";
 import { mergePr, checkoutBase } from "../services/gitService.js";
-import { stopCiWatch } from "../services/ciWatcher.js";
 import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
 
 const router = Router();
 
-const taskStatus = z.enum(["todo", "doing", "ci", "review", "done", "nothing"]);
+const taskStatus = z.enum(["todo", "doing", "review", "done"]);
 const taskPriority = z.enum(["low", "medium", "high", "critical"]);
 const agentStatus = z.enum([
   "idle",
@@ -188,11 +187,6 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const task = await updateTask(req.params.id!, updateData);
     broadcastTaskUpdated(task);
     res.json({ task });
-
-    // Stop CI watcher if task is being manually moved away from "ci"
-    if (parsed.data.status && parsed.data.status !== "ci") {
-      stopCiWatch(req.params.id!);
-    }
 
     // Fire-and-forget: trigger executor when task moves to "doing"
     if (parsed.data.status === "doing" && !isExecutorRunning(task.id)) {

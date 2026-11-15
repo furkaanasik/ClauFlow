@@ -156,19 +156,6 @@ router.get("/", (req: Request, res: Response) => {
       )
       .all(projectId) as NodeAggRow[];
 
-    const ciRow = db
-      .prepare(
-        `
-      SELECT
-        SUM(CASE WHEN nr.nodeType = 'ci' AND nr.status = 'done' THEN 1 ELSE 0 END) as ciDone,
-        SUM(CASE WHEN nr.nodeType = 'ci' THEN 1 ELSE 0 END) as ciTotal
-      FROM task_node_runs nr
-      JOIN tasks t ON t.id = nr.taskId
-      WHERE t.projectId = ?
-    `,
-      )
-      .get(projectId) as { ciDone: number; ciTotal: number };
-
     const recentRows = db
       .prepare(
         `
@@ -238,8 +225,6 @@ router.get("/", (req: Request, res: Response) => {
         totalCacheWriteTokens: summaryRow.totalCacheWriteTokens,
         estimatedUsd: summaryUsd,
         avgTimeToGreenMs: summaryRow.avgTimeToGreenMs ?? null,
-        ciPassRate:
-          ciRow.ciTotal > 0 ? ciRow.ciDone / ciRow.ciTotal : null,
         pricingStale: isPricingStale(),
       },
       byNodeType,

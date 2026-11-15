@@ -800,7 +800,6 @@ Ekranlara özel diğer sınıflar da `globals.css` içinde tanımlı. Aynı dili
 | `.task-table` | Jira tarzı liste görünümü: yapışkan `sunken` başlık, `height: 3rem` satırlar, hover'da hardal %14, çalışan satırda `inset 5px 0 0 var(--orange)` |
 | `.tl`, `.tl__*` | Araç çağrısı zaman çizelgesi: saat oluğu, kesik ray, renkli düğüm, açılır kart, konuşma balonu |
 | `.logpane`, `.logpane__*` | Mono log paneli: satır no oluğu ve tonlar (`error`/`ok`/`cmd`/`warn` → `--*-text`), canlıyken yanıp sönen `▍` imleç |
-| `.flow-node` | Mini DAG düğümü (üstte 7px renk şapkası `--flow`) |
 | `.cmt` | Yorum balonu (`14px 14px 14px 4px` köşe) |
 | `.team-bubble`, `.team-chip` | Ekip zaman çizelgesi balonu (`4px 14px 14px 14px` köşe, solda `--role` renk şeridi; `data-tone` = `stuck` kırmızı taralı, `live` kesik çizgili, `summary` sunken) ve mono meta çipi |
 | `.ui-banner--approval` | Şartname onay kapısı: hardal zeminli banner ("sıra sende") |
@@ -1351,7 +1350,7 @@ export function frameloopFor({ active, reducedMotion }) {
 |---|---|
 | Güvenlik ağı (`@layer base`, sıfır özgüllük `:where(...)`) | `a[href], button, summary, [role="button"], [role="link"], [role="tab"], [role="radio"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [tabindex]:not([tabindex="-1"])` → `:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }` |
 | `.ui-focus`, `.focus-ring` | `outline: 2.5px solid var(--focus); outline-offset: 3px;` (sert gölgenin dışında kalır) |
-| `.task-card`, `.ui-check`, `.ui-switch`, `.ui-option`, `.ui-linkrow`, `.flow-node` | `outline-offset: 3px` |
+| `.task-card`, `.ui-check`, `.ui-switch`, `.ui-option`, `.ui-linkrow` | `outline-offset: 3px` |
 | `.rail-item`, `.task-card__btn`, `button.tl__head` | `outline-offset: 2px` |
 | `.ui-seg__item` | `outline-offset: -5px; border-radius: 6px;` (içe) |
 | `.ui-tab` | `outline-offset: -4px` |

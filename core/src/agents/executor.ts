@@ -23,8 +23,6 @@ import {
   broadcastTaskUpdated,
 } from "../services/wsService.js";
 import { createComment, updateComment } from "../services/commentService.js";
-import { startCiWatch } from "../services/ciWatcher.js";
-import { enqueue as enqueueReview } from "./prReviewRunner.js";
 import type { AgentStatus, Project, Task } from "../types/index.js";
 
 const ACTIVE: AgentStatus[] = ["branching", "running", "pushing", "pr_opening"];
@@ -291,9 +289,6 @@ export async function run(task: Task, project: Project): Promise<void> {
       return;
     }
 
-    if (outcome.allText.includes("## Code Review Report")) {
-      postComment(task.id, outcome.allText, "code review report");
-    }
     const teamPrSection = buildPrTeamSection(outcome);
 
     // ── Step 4: git add . && commit ───────────────────────────────────────
@@ -324,11 +319,17 @@ export async function run(task: Task, project: Project): Promise<void> {
       await pushBlock(task.id, [
         "",
         "ℹ Hiçbir değişiklik yok ve branch base'in ilerisinde değil.",
-        "  Değişiklik gerekmiyordu → task 'nothing' olarak işaretlendi.",
+        "  Değişiklik gerekmiyordu → görev 'done' olarak kapatıldı, dal silindi.",
       ]);
-      await returnToBase(task.id, project, branch, { deleteBranch: false });
+      await returnToBase(task.id, project, branch, { deleteBranch: true });
+      postComment(
+        task.id,
+        "Değişiklik gerekmedi: ekip çalıştı ama repoda değiştirilecek bir şey bulmadı. Görev kapatıldı, dal silindi.",
+        "no changes",
+      );
       const final = await updateTask(task.id, {
-        status: "nothing",
+        status: "done",
+        branch: null,
         agent: {
           status: "done",
           currentStep: "completed",
@@ -406,8 +407,8 @@ export async function run(task: Task, project: Project): Promise<void> {
     // ── Done ──────────────────────────────────────────────────────────────
     // The task branch stays; the repo returns to base so UI commits never land on it.
     await returnToBase(task.id, project, branch, { deleteBranch: false });
-    // Remote yoksa done'a, PR varsa CI gate'e, remote-only ise review'a taşı
-    const finalStatus = hasRemote && prNumber ? "ci" : hasRemote ? "review" : "done";
+    // Remote varsa (PR açıldı) review'a, yoksa done'a. Remote'suz review F4'te gelir.
+    const finalStatus = hasRemote ? "review" : "done";
     const final = await updateTask(task.id, {
       status: finalStatus,
       prUrl,
@@ -420,13 +421,6 @@ export async function run(task: Task, project: Project): Promise<void> {
     });
     broadcastStatus(task.id, "done", "completed");
     broadcastTaskUpdated(final);
-
-    if (finalStatus === "ci") {
-      startCiWatch(final, project);
-    }
-    if (finalStatus === "review") {
-      enqueueReview(final, project);
-    }
   } catch (err) {
     const aborted = controller.signal.aborted;
     const baseMessage = err instanceof Error ? err.message : String(err);

@@ -106,7 +106,8 @@ function replyFor(role, round, scenario, cwd, stateDir) {
       return "## Şartname\n\n### Ne yapılacak\nFake work.\n\n### Dosyalar\n- fake.txt\n\n### Kabul kriterleri\n- AC-1: fake file exists\n\n### Test önerisi\n- ls";
     case "developer": {
       const name = `fake-${round}.txt`;
-      writeFileSync(join(cwd, name), `fake developer output round ${round}\n`);
+      // no_change: the developer finds nothing to change (executor closes the task as done).
+      if (scenario !== "no_change") writeFileSync(join(cwd, name), `fake developer output round ${round}\n`);
       return `## Teslim notu\n\n- ${name} yazıldı\n- AC-1 → ${name}\n- Tests: 1 passed`;
     }
     case "qa":

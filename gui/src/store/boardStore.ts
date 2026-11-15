@@ -32,10 +32,6 @@ interface BoardState {
   skillProgress: Record<string, { status: SkillInstallStatus; message?: string }>;
   /** Node runs per task, keyed by taskId then nodeId — last-write-wins */
   nodeRuns: Record<string, Record<string, NodeRun>>;
-  /** Node logs per task, keyed by taskId then nodeId — capped ring buffer */
-  nodeLogs: Record<string, Record<string, string[]>>;
-  /** CI iteration progress per task */
-  ciIterations: Record<string, { iteration: number; maxIterations: number }>;
   budgetExceeded: Record<string, { spentUsd: number; budgetUsd: number }>;
   gitStatusByProject: Record<string, GitStatus>;
   projectDetailRequest: string | null;
@@ -93,10 +89,8 @@ interface BoardState {
   clearSkillProgress: (projectId: string, pluginId: string) => void;
 
   upsertNodeRun: (run: NodeRun) => void;
-  appendNodeLog: (taskId: string, nodeId: string, line: string) => void;
   clearNodeRuns: (taskId: string) => void;
 
-  setCiIteration: (taskId: string, iteration: number, maxIterations: number) => void;
   setBudgetExceeded: (taskId: string, payload: { spentUsd: number; budgetUsd: number }) => void;
   clearBudgetExceeded: (taskId: string) => void;
   setProjectGitStatus: (projectId: string, status: GitStatus) => void;
@@ -143,8 +137,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   cloneStatus: {},
   skillProgress: {},
   nodeRuns: {},
-  nodeLogs: {},
-  ciIterations: {},
   budgetExceeded: {},
   gitStatusByProject: {},
   breakdownStatus: {},
@@ -426,38 +418,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       },
     })),
 
-  appendNodeLog: (taskId, nodeId, line) =>
-    set((state) => {
-      const perTask = state.nodeLogs[taskId] ?? {};
-      const existing = perTask[nodeId] ?? [];
-      const next =
-        existing.length >= LOG_LIMIT
-          ? [...existing.slice(-(LOG_LIMIT - 1)), line]
-          : [...existing, line];
-      return {
-        nodeLogs: {
-          ...state.nodeLogs,
-          [taskId]: { ...perTask, [nodeId]: next },
-        },
-      };
-    }),
-
   clearNodeRuns: (taskId) =>
     set((state) => {
       const { [taskId]: _runs, ...restRuns } = state.nodeRuns;
-      const { [taskId]: _logs, ...restLogs } = state.nodeLogs;
       void _runs;
-      void _logs;
-      return { nodeRuns: restRuns, nodeLogs: restLogs };
+      return { nodeRuns: restRuns };
     }),
-
-  setCiIteration: (taskId, iteration, maxIterations) =>
-    set((state) => ({
-      ciIterations: {
-        ...state.ciIterations,
-        [taskId]: { iteration, maxIterations },
-      },
-    })),
 
   setBudgetExceeded: (taskId, payload) =>
     set((state) => ({

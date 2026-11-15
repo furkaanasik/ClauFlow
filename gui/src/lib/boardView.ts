@@ -7,7 +7,7 @@ import { calculateCost, totalTokens } from "@/lib/cost";
  * store data; nothing here mutates tasks or calls the API.
  */
 
-export const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "ci", "review", "done", "nothing"];
+export const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "review", "done"];
 
 export function isAgentWorking(task: Task): boolean {
   const s = task.agent?.status;
@@ -92,7 +92,7 @@ export function subtaskStats(tasks: Record<string, Task>): Record<string, Subtas
     if (!t?.parentTaskId) continue;
     const s = (map[t.parentTaskId] ??= { total: 0, done: 0 });
     s.total += 1;
-    if (t.status === "done" || t.status === "nothing") s.done += 1;
+    if (t.status === "done") s.done += 1;
   }
   return map;
 }

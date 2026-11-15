@@ -5,7 +5,6 @@ import { useEffect, useState, type CSSProperties, type HTMLAttributes, type Poin
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AgentBadge } from "@/components/Card/AgentBadge";
-import { CiBadge } from "@/components/Card/CiBadge";
 import { PriorityMark, StatusPill, type PriorityLevel } from "@/components/ui/Pills";
 import { IconArrowUpRight, IconClose, IconCoin, IconPR, IconSubtask } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
@@ -99,7 +98,6 @@ export function TaskCardView({
   const t = useTranslation();
   const selectPRTask = useBoardStore((s) => s.selectPRTask);
   const newTaskIds = useBoardStore((s) => s.newTaskIds);
-  const ciIterations = useBoardStore((s) => s.ciIterations);
   const clearNewTaskId = useBoardStore((s) => s.clearNewTaskId);
   const overBudget = useBoardStore((s) => Boolean(s.budgetExceeded[task.id]));
   const [cancelling, setCancelling] = useState(false);
@@ -138,10 +136,10 @@ export function TaskCardView({
   const hasSubtasks = Boolean(subtasks && subtasks.total > 0);
   const openPR = Boolean(task.prNumber) && task.status !== "done";
   const mergedPR = Boolean(task.prNumber) && task.status === "done";
-  const agentPill = showAgentBadge(task) && task.status !== "ci";
+  const agentPill = showAgentBadge(task);
 
   const hasFooter =
-    hasSubtasks || cost !== null || queued || task.status === "ci" || openPR || mergedPR || (agentPill && !working);
+    hasSubtasks || cost !== null || queued || openPR || mergedPR || (agentPill && !working);
 
   const stop = {
     onPointerDown: (e: PointerEvent) => e.stopPropagation(),
@@ -280,14 +278,6 @@ export function TaskCardView({
                   <IconClose size={11} />
                 </button>
               </span>
-            )}
-
-            {task.status === "ci" && (
-              <CiBadge
-                iteration={ciIterations[task.id]?.iteration ?? 0}
-                maxIterations={ciIterations[task.id]?.maxIterations ?? 3}
-                lastConclusion="pending"
-              />
             )}
 
             {agentPill && !working && (

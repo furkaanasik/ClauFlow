@@ -4,11 +4,9 @@ import { create } from "zustand";
 
 interface NotificationState {
   browserEnabled: boolean;
-  webhookUrl: string;
   setBrowserEnabled: (v: boolean) => void;
-  setWebhookUrl: (url: string) => void;
   requestPermission: () => Promise<void>;
-  notify: (title: string, body: string, isError: boolean) => void;
+  notify: (title: string, body: string) => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
@@ -16,19 +14,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     typeof window !== "undefined"
       ? localStorage.getItem("notif-browser-enabled") === "true"
       : false,
-  webhookUrl:
-    typeof window !== "undefined"
-      ? (localStorage.getItem("notif-webhook-url") ?? "")
-      : "",
 
   setBrowserEnabled: (v) => {
     localStorage.setItem("notif-browser-enabled", String(v));
     set({ browserEnabled: v });
-  },
-
-  setWebhookUrl: (url) => {
-    localStorage.setItem("notif-webhook-url", url);
-    set({ webhookUrl: url });
   },
 
   requestPermission: async () => {
@@ -41,8 +30,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     if (result === "granted") get().setBrowserEnabled(true);
   },
 
-  notify: (title, body, isError) => {
-    const { browserEnabled, webhookUrl } = get();
+  notify: (title, body) => {
+    const { browserEnabled } = get();
 
     if (
       browserEnabled &&
@@ -50,14 +39,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       Notification.permission === "granted"
     ) {
       new Notification(title, { body });
-    }
-
-    if (webhookUrl) {
-      fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, body, isError, ts: Date.now() }),
-      }).catch(() => {});
     }
   },
 }));

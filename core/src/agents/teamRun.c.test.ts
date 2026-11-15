@@ -184,7 +184,6 @@ describe("team run C: Keşif, approval gate, CLI arguments", () => {
       spec,
       qaVerdict: "pass",
       qaReport: "",
-      allText: "",
     })!;
     expect(section).toContain("## Ekip");
     expect(section).toContain("CEO → Analist → Yazılımcı → QA");
@@ -198,7 +197,6 @@ describe("team run C: Keşif, approval gate, CLI arguments", () => {
         spec: null,
         qaVerdict: null,
         qaReport: null,
-        allText: "",
       }),
     ).toBeNull();
   });

@@ -5,7 +5,6 @@ import tasksRouter from "./routes/tasks.js";
 import teamsRouter from "./routes/teams.js";
 import projectsRouter from "./routes/projects.js";
 import projectsClaudeRouter from "./routes/projectsClaude.js";
-import projectsGithubRouter from "./routes/projectsGithub.js";
 import authRouter from "./routes/auth.js";
 import githubRouter from "./routes/github.js";
 import commentsRouter from "./routes/comments.js";
@@ -15,7 +14,6 @@ import insightsRouter from "./routes/insights.js";
 import fsRouter from "./routes/fs.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
 import { recoverOrphanedTasks } from "./services/taskService.js";
-import { apiKeyAuth } from "./middleware/auth.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1";
@@ -29,7 +27,6 @@ const ALLOWED_ORIGINS = (
 const app = express();
 app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
-app.use(apiKeyAuth);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "kanban-core", version: "0.1.0" });
@@ -39,7 +36,6 @@ app.use("/api/tasks", tasksRouter);
 app.use("/api/tasks/:id/comments", commentsRouter);
 app.use("/api/teams", teamsRouter);
 app.use("/api/projects", projectsClaudeRouter);
-app.use("/api/projects", projectsGithubRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/auth", authRouter);
 app.use("/github", githubRouter);
