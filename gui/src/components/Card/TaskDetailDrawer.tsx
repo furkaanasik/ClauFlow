@@ -661,7 +661,11 @@ export function TaskDetailDrawer() {
                     className="resize-y"
                   />
                 ) : task.analysis ? (
-                  <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 font-mono text-[12.5px] leading-relaxed text-ink">
+                  <pre
+                    tabIndex={0}
+                    aria-label={td.analysisLabel}
+                    className="ui-focus max-h-80 overflow-auto whitespace-pre-wrap rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 font-mono text-[12.5px] leading-relaxed text-ink"
+                  >
                     {task.analysis}
                   </pre>
                 ) : latestSpec ? (
@@ -680,7 +684,12 @@ export function TaskDetailDrawer() {
                         {td.analysisOpenTeam}
                       </button>
                     </div>
-                    <div className="comment-markdown max-h-80 overflow-auto rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 text-[13.5px] leading-relaxed text-ink">
+                    <div
+                      role="region"
+                      tabIndex={0}
+                      aria-label={td.analysisFromSpec}
+                      className="comment-markdown ui-focus max-h-80 overflow-auto rounded-[12px] border-2 border-line bg-sunken px-4 py-3.5 text-[13.5px] leading-relaxed text-ink"
+                    >
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{latestSpec.body}</ReactMarkdown>
                     </div>
                   </div>

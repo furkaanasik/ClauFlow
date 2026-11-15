@@ -260,7 +260,7 @@ export const tr: Translations = {
       pushing: "Push ediyor",
       pr_opening: "PR açıyor",
       awaiting_approval: "Onay bekliyor",
-      done: "Bitti",
+      done: "Tamamlandı",
       error: "Hata",
     },
   },

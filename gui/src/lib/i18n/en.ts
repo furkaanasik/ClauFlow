@@ -260,7 +260,7 @@ export const en: Translations = {
       pushing: "Pushing",
       pr_opening: "Opening PR",
       awaiting_approval: "Awaiting approval",
-      done: "Done",
+      done: "Finished",
       error: "Error",
     },
   },
