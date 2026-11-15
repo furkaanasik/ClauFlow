@@ -12,6 +12,7 @@ import {
   updateTask,
 } from "../services/taskService.js";
 import { errorMessage } from "../utils/error.js";
+import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import {
   broadcastTaskCreated,
   broadcastTaskDeleted,
@@ -40,6 +41,7 @@ const agentStatus = z.enum([
   "running",
   "pushing",
   "pr_opening",
+  "awaiting_approval",
   "done",
   "error",
 ]);
@@ -53,6 +55,7 @@ const createTaskSchema = z.object({
   tags: z.array(z.string()).optional(),
   status: taskStatus.optional(),
   parentTaskId: z.string().nullable().optional(),
+  teamId: z.string().min(1).nullable().optional(),
 });
 
 const updateTaskSchema = z.object({
@@ -70,9 +73,8 @@ const updateTaskSchema = z.object({
   prUrl: z.string().nullable().optional(),
   prNumber: z.number().nullable().optional(),
   budgetUsd: z.number().min(0.1).nullable().optional(),
-  executionMode: z.enum(['simple', 'graph']).optional(),
-  graphId: z.string().nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
+  teamId: z.string().min(1).nullable().optional(),
   agent: z
     .object({
       status: agentStatus.optional(),
@@ -147,10 +149,12 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
   }
   try {
+    if (parsed.data.teamId) assertTeamUsableByProject(parsed.data.teamId, parsed.data.projectId);
     const task = await createTask(parsed.data);
     broadcastTaskCreated(task);
     res.status(201).json({ task });
   } catch (err) {
+    if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
     res.status(400).json({ error: errorMessage(err) });
   }
 });
@@ -161,6 +165,11 @@ router.patch("/:id", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
   }
   try {
+    if (parsed.data.teamId) {
+      const existing = await getTask(req.params.id!);
+      if (!existing) return res.status(404).json({ error: "not_found" });
+      assertTeamUsableByProject(parsed.data.teamId, existing.projectId);
+    }
     // Reset agent state immediately so queued tasks show "Sırada" instead of stale error
     const updateData =
       parsed.data.status === "doing"
@@ -233,6 +242,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       }
     }
   } catch (err) {
+    if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
     const msg = errorMessage(err);
     const code = msg.startsWith("Task not found") ? 404 : 400;
     res.status(code).json({ error: msg });

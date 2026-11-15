@@ -122,6 +122,7 @@ export interface Translations {
       running: string;
       pushing: string;
       pr_opening: string;
+      awaiting_approval: string;
       done: string;
       error: string;
     };

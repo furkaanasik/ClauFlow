@@ -35,6 +35,7 @@ import {
 } from "../services/graphService.js";
 import type { AgentGraph } from "../types/index.js";
 import { errorMessage } from "../utils/error.js";
+import { defaultSkillRoots, getSkillCatalog } from "../services/skillCatalogService.js";
 import { GraphValidationError, planGraph } from "../agents/graphRunner.js";
 
 const router = Router();
@@ -77,7 +78,13 @@ router.put("/:id/claude/instructions", async (req: Request, res: Response) => {
     let commitSha: string | null = null;
     let commitWarning: string | null = null;
 
-    if (fs.existsSync(path.join(project.repoPath, ".git"))) {
+    const head = fs.existsSync(path.join(project.repoPath, ".git"))
+      ? await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], project.repoPath)
+      : null;
+
+    if (head && (head.code !== 0 || head.stdout.trim() !== project.defaultBranch)) {
+      commitWarning = "not_on_default_branch";
+    } else if (head) {
       const add = await run("git", ["add", "CLAUDE.md"], project.repoPath);
       if (add.code !== 0) {
         commitWarning = `git add failed: ${add.stderr || add.stdout}`.trim();
@@ -229,54 +236,6 @@ function isMinimalBootstrappedSettings(file: string): boolean {
   }
 }
 
-function ensureClaudeSettings(repoPath: string): { changed: boolean; path: string } {
-  const file = settingsPath(repoPath);
-  const dir = path.dirname(file);
-  fs.mkdirSync(dir, { recursive: true });
-
-  type SettingsShape = {
-    env?: Record<string, string>;
-    permissions?: { defaultMode?: string; allow?: string[]; [k: string]: unknown };
-    [k: string]: unknown;
-  };
-
-  let current: SettingsShape = {};
-  let raw = "";
-  if (fs.existsSync(file)) {
-    raw = fs.readFileSync(file, "utf8");
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        current = parsed as SettingsShape;
-      }
-    } catch {
-      // corrupt or non-JSON — leave current as {} and overwrite
-    }
-  }
-
-  const env = { ...(current.env ?? {}) };
-  const permissions = { ...(current.permissions ?? {}) };
-
-  let changed = false;
-  if (env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS !== "1") {
-    env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
-    changed = true;
-  }
-  if (permissions.defaultMode !== "bypassPermissions") {
-    permissions.defaultMode = "bypassPermissions";
-    changed = true;
-  }
-
-  if (!changed && raw) return { changed: false, path: file };
-
-  const next: SettingsShape = { ...current, env, permissions };
-  const serialized = JSON.stringify(next, null, 2) + "\n";
-  if (serialized === raw) return { changed: false, path: file };
-
-  fs.writeFileSync(file, serialized, "utf8");
-  return { changed: true, path: file };
-}
-
 async function commitAgentChange(
   repoPath: string,
   relPath: string | string[],
@@ -327,35 +286,6 @@ router.get("/:id/claude/agents", async (req: Request, res: Response) => {
       .readdirSync(dir)
       .filter((f) => f.endsWith(".md"))
       .sort();
-
-    const mainFile = agentFilePath(project.repoPath, "main");
-    if (!files.includes("main.md") && !fs.existsSync(mainFile)) {
-      fs.mkdirSync(dir, { recursive: true });
-      const mainFm: AgentFrontmatter = {
-        name: "Main",
-        description: "Entry point for this project's agent graph",
-      };
-      const mainBody = "\nYou are the main orchestrator for this project. Coordinate with other agents as needed.";
-      fs.writeFileSync(mainFile, serializeAgentFile(mainFm, mainBody), "utf8");
-      await commitAgentChange(
-        project.repoPath,
-        path.relative(project.repoPath, mainFile),
-        "chore(agents): bootstrap main entry-point agent",
-      );
-      files.unshift("main.md");
-    }
-
-    if (files.length > 0 && fs.existsSync(project.repoPath)) {
-      const settings = ensureClaudeSettings(project.repoPath);
-      if (settings.changed) {
-        const rel = path.relative(project.repoPath, settings.path);
-        await commitAgentChange(
-          project.repoPath,
-          rel,
-          "chore(claude): bootstrap settings.json for agent team",
-        );
-      }
-    }
 
     const agents = files.map((file) => {
       const slug = file.replace(/\.md$/, "");
@@ -511,14 +441,9 @@ router.post("/:id/claude/agents", async (req: Request, res: Response) => {
     const content = serializeAgentFile(fm, parsed.data.body ?? "");
     fs.writeFileSync(file, content, "utf8");
 
-    const settings = ensureClaudeSettings(project.repoPath);
-    const rel = path.relative(project.repoPath, file);
-    const paths = settings.changed
-      ? [rel, path.relative(project.repoPath, settings.path)]
-      : [rel];
     const commit = await commitAgentChange(
       project.repoPath,
-      paths,
+      path.relative(project.repoPath, file),
       `chore(agents): add ${parsed.data.slug}`,
     );
 
@@ -724,24 +649,6 @@ router.put("/:id/claude/graph", async (req: Request, res: Response) => {
     fs.writeFileSync(tmp, json, "utf8");
     fs.renameSync(tmp, file);
 
-    // Auto-commit graph so executor's checkoutBase doesn't
-    // auto-stash these files into oblivion when a task is dragged to doing.
-    try {
-      await run("git", ["add", ".claude/agents/_graph.json"], project.repoPath);
-      const commit = await run(
-        "git",
-        ["commit", "-m", "chore(agents): update graph layout"],
-        project.repoPath,
-      );
-      if (commit.code !== 0 && !/nothing to commit/i.test(commit.stdout + commit.stderr)) {
-        console.warn(
-          `[graph PUT] auto-commit failed (continuing): ${commit.stderr.slice(0, 200)}`,
-        );
-      }
-    } catch (err) {
-      console.warn(`[graph PUT] auto-commit threw (continuing):`, err);
-    }
-
     res.json(parsed.data);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
@@ -782,6 +689,18 @@ router.get("/:id/claude/skills/registry", async (req: Request, res: Response) =>
   } catch (err) {
     console.error("[skills.registry]", err);
     res.status(500).json({ error: "registry_load_failed" });
+  }
+});
+
+router.get("/:id/claude/skills/catalog", async (req: Request, res: Response) => {
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    const skills = await getSkillCatalog(defaultSkillRoots(project.repoPath));
+    res.json({ skills });
+  } catch (err) {
+    console.error("[skills.catalog]", err);
+    res.status(500).json({ error: "skill_catalog_failed" });
   }
 });
 

@@ -319,6 +319,7 @@ export const en: Translations = {
       running: "Agent writing",
       pushing: "Pushing",
       pr_opening: "Opening PR",
+      awaiting_approval: "Awaiting approval",
       done: "Done",
       error: "Error",
     },

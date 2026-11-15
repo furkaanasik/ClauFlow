@@ -117,11 +117,9 @@ export async function checkoutBase(repoPath: string, base: string): Promise<RunR
   const remotes = await run("git", ["remote"], repoPath);
   if (remotes.stdout.trim() === "") return co;
 
-  // Before stashing, auto-commit graph layout files that the GUI Studio just
-  // wrote. Without this, the user's just-saved `_graph.json` and CLAUDE.md
-  // mermaid block end up in a stash (silently consumed) and the executor
-  // reads stale graph data. Best-effort — failures are warned, not fatal.
-  const preserveFiles = [".claude/agents/_graph.json", "CLAUDE.md"];
+  // Before stashing, auto-commit a CLAUDE.md the user just saved from the GUI
+  // so it does not end up in a stash. Best-effort — failures are not fatal.
+  const preserveFiles = ["CLAUDE.md"];
   const dirtyPreserve = await run(
     "git",
     ["status", "--porcelain", "--", ...preserveFiles],
@@ -132,7 +130,7 @@ export async function checkoutBase(repoPath: string, base: string): Promise<RunR
     if (add.code === 0) {
       await run(
         "git",
-        ["commit", "-m", "chore(agents): autosave graph layout"],
+        ["commit", "-m", "chore: autosave CLAUDE.md"],
         repoPath,
       );
     }

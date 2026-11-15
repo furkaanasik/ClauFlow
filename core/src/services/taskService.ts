@@ -21,6 +21,10 @@ import {
 } from "../types/index.js";
 import { ensureUniqueSlug, slugify } from "./slug.js";
 import { DEFAULT_TASK_BUDGET_USD } from "./pricingService.js";
+import { applyEkiplerMigration } from "./ekiplerMigration.js";
+import { DEFAULT_NEW_PROJECT_TEAM_ID, upsertBuiltinTeams } from "./teamTemplates.js";
+
+export const DEFAULT_QA_MAX_ROUNDS = 3;
 
 // ─── DB Setup ─────────────────────────────────────────────────────────────
 
@@ -365,18 +369,8 @@ db.exec(`
   )
 `);
 
-// Migration: file-based graphs → DB
-{
-  const projects = db.prepare(`SELECT id, repoPath FROM projects`).all() as { id: string; repoPath: string }[];
-  for (const proj of projects) {
-    const existing = db.prepare(`SELECT id FROM graphs WHERE projectId = ? AND name = 'default'`).get(proj.id);
-    if (existing) continue;
-    const graphFile = path.join(proj.repoPath, ".claude", "agents", "_graph.json");
-    const data = existsSync(graphFile) ? readFileSync(graphFile, "utf8") : '{"nodes":[],"edges":[]}';
-    db.prepare(`INSERT INTO graphs (id, projectId, name, data, createdAt) VALUES (?, ?, 'default', ?, ?)`)
-      .run(`graph_${randomUUID().slice(0, 8)}`, proj.id, data, new Date().toISOString());
-  }
-}
+applyEkiplerMigration(db);
+upsertBuiltinTeams(db);
 
 // Unique indexes (idempotent — also created above for fresh installs).
 // Per-project composite enforces team spec; global partial keeps an extra
@@ -405,6 +399,9 @@ interface ProjectRow {
   slug: string | null;
   taskCounter: number | null;
   budgetUsd: number | null;
+  defaultTeamId: string | null;
+  qaMaxRounds: number | null;
+  specApproval: number | null;
 }
 
 interface TaskRow {
@@ -436,6 +433,7 @@ interface TaskRow {
   executionMode: string | null;
   graphId: string | null;
   parentTaskId: string | null;
+  teamId: string | null;
 }
 
 function rowToProject(row: ProjectRow): Project {
@@ -453,6 +451,9 @@ function rowToProject(row: ProjectRow): Project {
     slug: row.slug ?? null,
     taskCounter: row.taskCounter ?? 0,
     budgetUsd: row.budgetUsd ?? null,
+    defaultTeamId: row.defaultTeamId ?? null,
+    qaMaxRounds: row.qaMaxRounds ?? DEFAULT_QA_MAX_ROUNDS,
+    specApproval: row.specApproval === 1,
   };
 }
 
@@ -512,6 +513,7 @@ function rowToTask(row: TaskRow): Task {
     executionMode: (row.executionMode as 'simple' | 'graph' | null) ?? 'simple',
     graphId: row.graphId ?? null,
     parentTaskId: row.parentTaskId ?? null,
+    teamId: row.teamId ?? null,
   };
 }
 
@@ -522,8 +524,8 @@ const stmtListProjects = db.prepare(
 );
 const stmtGetProject = db.prepare(`SELECT * FROM projects WHERE id = ?`);
 const stmtInsertProject = db.prepare(
-  `INSERT INTO projects (id, name, description, aiPrompt, repoPath, defaultBranch, remote, createdAt, planningStatus, slug, taskCounter, budgetUsd)
-   VALUES (@id, @name, @description, @aiPrompt, @repoPath, @defaultBranch, @remote, @createdAt, @planningStatus, @slug, @taskCounter, @budgetUsd)`,
+  `INSERT INTO projects (id, name, description, aiPrompt, repoPath, defaultBranch, remote, createdAt, planningStatus, slug, taskCounter, budgetUsd, defaultTeamId, qaMaxRounds, specApproval)
+   VALUES (@id, @name, @description, @aiPrompt, @repoPath, @defaultBranch, @remote, @createdAt, @planningStatus, @slug, @taskCounter, @budgetUsd, @defaultTeamId, @qaMaxRounds, @specApproval)`,
 );
 
 const stmtListTasks = db.prepare(`SELECT * FROM tasks ORDER BY createdAt ASC`);
@@ -533,12 +535,12 @@ const stmtInsertTask = db.prepare(
     id, projectId, title, description, analysis, status, priority, tags,
     branch, prUrl, prNumber, displayId, createdAt, updatedAt,
     agentStatus, agentCurrentStep, agentLog, agentError, agentStartedAt, agentFinishedAt,
-    executionMode, graphId, parentTaskId
+    executionMode, graphId, parentTaskId, teamId
   ) VALUES (
     @id, @projectId, @title, @description, @analysis, @status, @priority, @tags,
     @branch, @prUrl, @prNumber, @displayId, @createdAt, @updatedAt,
     @agentStatus, @agentCurrentStep, @agentLog, @agentError, @agentStartedAt, @agentFinishedAt,
-    @executionMode, @graphId, @parentTaskId
+    @executionMode, @graphId, @parentTaskId, @teamId
   )`,
 );
 const stmtBumpTaskCounter = db.prepare(
@@ -568,6 +570,7 @@ const stmtUpdateTaskWithLog = db.prepare(
     executionMode = @executionMode,
     graphId = @graphId,
     parentTaskId = @parentTaskId,
+    teamId = @teamId,
     updatedAt = @updatedAt,
     agentStatus = @agentStatus,
     agentCurrentStep = @agentCurrentStep,
@@ -594,6 +597,7 @@ const stmtUpdateTaskWithoutLog = db.prepare(
     executionMode = @executionMode,
     graphId = @graphId,
     parentTaskId = @parentTaskId,
+    teamId = @teamId,
     updatedAt = @updatedAt,
     agentStatus = @agentStatus,
     agentCurrentStep = @agentCurrentStep,
@@ -820,6 +824,7 @@ export interface CreateTaskInput {
   executionMode?: "simple" | "graph";
   graphId?: string | null;
   parentTaskId?: string | null;
+  teamId?: string | null;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -870,6 +875,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       executionMode: input.executionMode ?? "simple",
       graphId: input.graphId ?? null,
       parentTaskId: input.parentTaskId ?? null,
+      teamId: input.teamId ?? null,
     });
     return displayId;
   });
@@ -898,6 +904,7 @@ export type TaskPatch = Partial<
     | "executionMode"
     | "graphId"
     | "parentTaskId"
+    | "teamId"
   >
 > & { agent?: Partial<AgentState> };
 
@@ -930,6 +937,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     executionMode: next.executionMode ?? 'simple',
     graphId: next.graphId ?? null,
     parentTaskId: next.parentTaskId ?? null,
+    teamId: next.teamId ?? null,
     updatedAt: next.updatedAt,
     agentStatus: next.agent.status,
     agentCurrentStep: next.agent.currentStep ?? null,
@@ -984,6 +992,9 @@ export interface CreateProjectInput {
   remote?: string | null;
   slug?: string | null;
   budgetUsd?: number | null;
+  defaultTeamId?: string | null;
+  qaMaxRounds?: number;
+  specApproval?: boolean;
 }
 
 export async function createProject(
@@ -1014,6 +1025,10 @@ export async function createProject(
     slug,
     taskCounter: 0,
     budgetUsd: input.budgetUsd ?? null,
+    defaultTeamId:
+      input.defaultTeamId === undefined ? DEFAULT_NEW_PROJECT_TEAM_ID : input.defaultTeamId,
+    qaMaxRounds: input.qaMaxRounds ?? DEFAULT_QA_MAX_ROUNDS,
+    specApproval: input.specApproval ?? false,
   };
 
   stmtInsertProject.run({
@@ -1029,6 +1044,9 @@ export async function createProject(
     slug: project.slug ?? null,
     taskCounter: project.taskCounter ?? 0,
     budgetUsd: project.budgetUsd ?? null,
+    defaultTeamId: project.defaultTeamId ?? null,
+    qaMaxRounds: project.qaMaxRounds ?? DEFAULT_QA_MAX_ROUNDS,
+    specApproval: project.specApproval ? 1 : 0,
   });
 
   return project;
@@ -1046,6 +1064,9 @@ export type ProjectPatch = Partial<
     | "planningStatus"
     | "slug"
     | "budgetUsd"
+    | "defaultTeamId"
+    | "qaMaxRounds"
+    | "specApproval"
   >
 >;
 
@@ -1098,7 +1119,10 @@ export async function updateProject(
       remote = @remote,
       planningStatus = @planningStatus,
       slug = @slug,
-      budgetUsd = @budgetUsd
+      budgetUsd = @budgetUsd,
+      defaultTeamId = @defaultTeamId,
+      qaMaxRounds = @qaMaxRounds,
+      specApproval = @specApproval
      WHERE id = @id`,
   ).run({
     id,
@@ -1111,6 +1135,9 @@ export async function updateProject(
     planningStatus: next.planningStatus ?? "idle",
     slug: next.slug ?? null,
     budgetUsd: next.budgetUsd ?? null,
+    defaultTeamId: next.defaultTeamId ?? null,
+    qaMaxRounds: next.qaMaxRounds ?? DEFAULT_QA_MAX_ROUNDS,
+    specApproval: next.specApproval ? 1 : 0,
   });
 
   return next;

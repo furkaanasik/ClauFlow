@@ -18,6 +18,7 @@ const STEP_KIND: Record<AgentStatus, StatusKind> = {
   running: "doing",
   pushing: "doing",
   pr_opening: "doing",
+  awaiting_approval: "review",
   done: "done",
   error: "error",
 };

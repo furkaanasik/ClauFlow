@@ -217,20 +217,21 @@ Solo'nun Yazılımcı'sı bugünkü `testingInstructions` metnini (`executor.ts:
 - [x] Faz sonu: §2/10 doğrulamaları, commit `feat: faz 0 - dal, CLI spike, sahte CLI`.
 
 ### Faz 1: Veri, API, repo yazmalarının durması
-- [ ] Tipler (§5.2), core ve gui. Henüz kullanılmayan alanlar derlenmeli.
-- [ ] Göç (§5.1): tablolar, kolonlar, `app_meta`, graf→Solo eşlemesi. `_graph.json` okuyan boot göçünü sil. İki kez boot'ta idempotent olduğunu test et.
-- [ ] `teamTemplates.ts` (§7) + boot upsert. `GET` ile 4 yerleşik dönüyor.
-- [ ] `teamService.ts` + `teamRolesSchema` (tür tekilliği, QA ⇒ Yazılımcı ve sonra, 1–4 rol, danışman sırası, Haiku danışman olamaz) + `resolveTeamForTask`. Birim testleri.
-- [ ] `routes/teams.ts` + `index.ts` mount, 403/409 kuralları. Vitest ya da curl ile doğrula.
-- [ ] Proje PATCH alanları ve `createProject` varsayılanları. Görev POST/PATCH `teamId`; `executionMode`/`graphId` şemadan çıkar (`tasks.ts:73-74`).
-- [ ] `skillCatalogService` + `/claude/skills/catalog`. Kökler parametreli (testte geçici HOME). `plugin:skill` ve proje skill'i testte çözülüyor.
-- [ ] `GET /api/system/capabilities`.
-- [ ] Repo yazmalarını durdur: `GET /claude/agents`'taki `main.md` + `ensureClaudeSettings` + commit'ler (`projectsClaude.ts:331-358`), POST'taki `ensureClaudeSettings` (`:514`), graf PUT commit'i (`:727-743`), `gitService.ts:124` listesinden `_graph.json`. CLAUDE.md PUT yalnızca base dalda commit eder (§3).
-- [ ] Doğrula: sandbox'ta `GET /claude/agents` sonrası `git -C atolye-lab/sandbox status --porcelain` boş ve yeni commit yok.
-- [ ] Faz sonu: doğrulamalar, commit `feat: faz 1 - ekip verisi, API, repo yazmaları durdu`.
+- [x] Tipler (§5.2), core ve gui. Henüz kullanılmayan alanlar derlenmeli.
+- [x] Göç (§5.1): tablolar, kolonlar, `app_meta`, graf→Solo eşlemesi. `_graph.json` okuyan boot göçünü sil. İki kez boot'ta idempotent olduğunu test et.
+- [x] `teamTemplates.ts` (§7) + boot upsert. `GET` ile 4 yerleşik dönüyor.
+- [x] `teamService.ts` + `teamRolesSchema` (tür tekilliği, QA ⇒ Yazılımcı ve sonra, 1–4 rol, danışman sırası, Haiku danışman olamaz) + `resolveTeamForTask`. Birim testleri.
+- [x] `routes/teams.ts` + `index.ts` mount, 403/409 kuralları. Vitest ya da curl ile doğrula.
+- [x] Proje PATCH alanları ve `createProject` varsayılanları. Görev POST/PATCH `teamId`; `executionMode`/`graphId` şemadan çıkar (`tasks.ts:73-74`).
+- [x] `skillCatalogService` + `/claude/skills/catalog`. Kökler parametreli (testte geçici HOME). `plugin:skill` ve proje skill'i testte çözülüyor.
+- [x] `GET /api/system/capabilities`.
+- [x] Repo yazmalarını durdur: `GET /claude/agents`'taki `main.md` + `ensureClaudeSettings` + commit'ler (`projectsClaude.ts:331-358`), POST'taki `ensureClaudeSettings` (`:514`), graf PUT commit'i (`:727-743`), `gitService.ts:124` listesinden `_graph.json`. CLAUDE.md PUT yalnızca base dalda commit eder (§3).
+- [x] Doğrula: sandbox'ta `GET /claude/agents` sonrası `git -C atolye-lab/sandbox status --porcelain` boş ve yeni commit yok.
+- [x] Faz sonu: doğrulamalar, commit `feat: faz 1 - ekip verisi, API, repo yazmaları durdu`.
 
 ### Faz 2: Motor
 - [ ] `claudeService`: `model`, `tools`, `appendSystemPrompt`, `advisorModel` seçenekleri (§6.2). Sahte CLI `calls.jsonl` ile test.
+- [ ] Rol koşularını kullanıcı düzeyi ayar ve hook'lardan yalıtmayı değerlendir (F0'da "Fact-Forcing Gate" hook'u ilk yazmayı engelledi, §12): ör. `--setting-sources project,local` ya da hook'ları kapatan `--settings`, planlanmış `--strict-mcp-config` ile birlikte. `claude --help` ile bayrakları doğrula, sahte CLI `calls.jsonl` ile argümanları test et, kararı §12'ye yaz.
 - [ ] `pricingService`: takma ad + aile eşlemesi (§7). Birim testleri.
 - [ ] `roleRunner.ts` (§6.1): executor'daki bloğu taşı, davranışı birebir koru (alt ajan satırları, metin yedeği, birikimli bütçe, rol modeliyle fiyat).
 - [ ] `teamPrompts.ts`: dört rol + Solo, rol işareti, skill enjeksiyonu ve tavanları. Testler: `plugin:skill` enjekte ediliyor, tavan uygulanıyor.
@@ -285,6 +286,8 @@ Solo'nun Yazılımcı'sı bugünkü `testingInstructions` metnini (`executor.ts:
 
 _(Faz 0: takılan yok.)_
 
+_(Faz 1: takılan yok.)_
+
 ## 12. Kendi kararlarım (otonom çalışırken verilen)
 
 **Spike sonuçları (Faz 0 doldurur):**
@@ -310,6 +313,20 @@ _(Diğer kararlar buraya, faz etiketiyle.)_
 - **F0 · `atolye-lab/` git'te yok.** `.git/info/exclude` ile hariç (`/atolye-lab/`). `start-fake-core.sh`, ekran betikleri ve DB yedeği yerelde kalır, faz commit'ine girmez. Sahte CLI repoda (`core/src/agents/__fixtures__/fake-claude.mjs`), §6.6'daki gibi.
 - **F0 · DB yedeği.** `.backup()` ile `atolye-lab/db-yedek/tasks-20261115-190711.db` (118 KB, `integrity_check` ok, 20 görev) + ham kopya `raw-20261115-190711/` (`tasks.db`, `-wal`, `-shm`).
 - **F0 · "Önce" görüntülerinde yazan GET'ler taklit edildi.** `GET /claude/agents` bugün sandbox reposuna yazıp commit ediyor (§4); betik `claude/agents`, `claude/graph`, `graphs`, `claude/skills` uçlarını tarayıcıda yanıtlar, GET dışını engeller. Çalışan kart ve graf modundaki görev `tasks` yanıtı değiştirilerek taklit edildi. Betik öncesi/sonrası sandbox `git log`/`status` değişmedi.
+- **F1 · `executionMode`/`graphId` tiplerde kaldı.** §5.2 bunları tiplerden çıkarıyor, ama hâlâ okuyanlar var: core'da `executor.ts:182` (Faz 2'de `runTeam` ile gider), GUI'de çalışma modu seçicisi (Faz 3). Tipler o maddelerle birlikte temizlenecek. API artık bu alanları kabul etmiyor (zod siliyor), yani bu dalda GUI'deki "Çalışma modu" seçicisi Faz 3'e kadar etkisiz.
+- **F1 · Servis katmanı alanları öne alındı.** `teamService` testleri `updateProject({ defaultTeamId })` ve `createTask({ teamId })` istediği için taskService'teki proje/görev alanları 4. maddede yapıldı. 6. madde yalnızca route şemaları ve doğrulamayla kaldı.
+- **F1 · Yazılım Ekibi varsayılanı `createProject` içinde.** Varsayılan yalnızca `POST /api/projects`'te değil, servis katmanında atanıyor. Böylece klonla açılan projeler de Yazılım Ekibi ile başlıyor. Mevcut projeler `NULL` (= Solo) kalıyor.
+- **F1 · Solo'nun Yazılımcı'sı = ekip Yazılımcı'sı (sonnet + danışman opus).** §1/9 varsayılanı uygulandı. "Bugünkü basit modun aynısı" akışı anlatıyor, model seçimini değil. Bugün `--model` geçilmiyor, kullanıcının varsayılan modeli kullanılıyor. Sabah gözden geçirmeye değer.
+- **F1 · Rol araçları `ROLE_TOOLS` listesiyle sınırlı.** Liste: Read, Write, Edit, Bash, Glob, Grep, WebFetch, WebSearch, NotebookEdit, TodoWrite. Alt ajan aracı (`Agent`/`Task`) sunulmuyor.
+- **F1 · Ekip erişim kuralı.** `tasks.teamId` ve `projects.defaultTeamId` yalnızca yerleşik bir ekibe, global bir şablona ya da projenin kendi ekibine işaret edebilir. Değilse 400 `invalid_team` döner. `resolveTeamForTask` aynı kuralı uygular ve yabancı ya da eksik id'de Solo'ya düşer.
+- **F1 · Ekip silinince görev seçimleri temizlenir.** `deleteTeam` o ekibi seçmiş görevlerde `teamId = NULL` yapar, görev proje varsayılanına döner. Proje varsayılanıysa silme 409 döner.
+- **F1 · Doğrulama mesajları makine kodu.** Kodlar: `duplicate_kind`, `duplicate_role_id`, `qa_requires_developer`, `qa_before_developer`, `advisor_below_model`, `haiku_advisor`, `invalid_model`, `invalid_skill_id`, `roles_min`, `roles_max`. Faz 4 bunları i18n'e eşler. Model adı `-` ile başlayamaz (CLI bayrağı gibi okunmasın diye).
+- **F1 · Skill kataloğu.** Yanıt `{ skills: [...] }` (diğer uçlarla tutarlı, §5.3'teki çıplak dizi yerine). Yalnızca etkin plugin'ler listeleniyor. Plugin önekinde plugin adı kullanılıyor (`@`'den önceki kısım: `ecc@ecc` → `ecc:<skill>`). `~/.claude/commands` katalogda yok (§1/11 yalnızca skill dizinlerini sayıyor).
+- **F1 · `ensureClaudeSettings` erken silindi.** Faz 4 listesindeydi, ama bu fazdan sonra çağıranı kalmadı. `bypassPermissions` yazan kod geri gelmesin diye şimdiden kaldırıldı. `isMinimalBootstrappedSettings` (agent DELETE'te eski dosyayı temizliyor) duruyor.
+- **F1 · Yerleşik upsert'te `updatedAt` korunuyor.** İçerik değişmediyse `updatedAt` dokunulmadan kalıyor. Her boot'ta tarih değişmiyor.
+- **F1 · Testler.** Göç ve şablon testleri geçici DB kullanıyor. Servis ve route testleri, mevcut test dosyaları gibi ortak DB'de kendi satırlarını açıp siliyor. Faz sonunda ortak DB'de 4 ekip ve 2 proje var, `integrity_check` ok. Route testleri `core/src/test-utils/httpApp.ts` ile geçici bir Express'e karşı çalışıyor.
+- **F1 · Sandbox doğrulaması güçlendirildi.** Sandbox'ta `.claude/agents` yok, bu yüzden `GET /claude/agents` zaten erken dönüyor ve kontrol tek başına kanıt sayılmaz. Aynı kontrol bir de yalıtılmış core'da (:3101) yapıldı: sandbox'ın remote'suz klonuna (`atolye-lab/fake/repos/sandbox-agents-f1`) bir ajan dosyası eklendi.
+- **F1 · Kullanıcı hook'u bu oturumu da etkiledi.** "Fact-Forcing Gate" iki kez devreye girdi: SQL `DELETE` içeren bir heredoc'ta ve `rm -rf` ile fake-core sıfırlamada. İstenen bilgiler verildi, komutlar tekrarlandı, sonuca etkisi olmadı. Rol koşularını yalıtma işi Faz 2'ye madde olarak eklendi.
 
 ## 13. İlerleme günlüğü
 
@@ -324,3 +341,15 @@ _(Diğer kararlar buraya, faz etiketiyle.)_
 - 2026-11-15 F0: Sandbox'a izolasyon `CLAUDE.md` eklendi, sandbox reposunda `a6a5c43`.
 - 2026-11-15 F0: "Önce" görüntüleri `ekipler-0-{studio,calisma-modu,addtask,kart-calisiyor,board}-{krem,gece}.png` (`scripts/shots-ekipler-once.mjs`, yalnızca GET, yazan GET'ler taklit).
 - 2026-11-15 F0: Faz sonu doğrulamaları yeşil (core typecheck + 99 test, gui typecheck + lint 0 uyarı); faz 0 commit'i.
+- 2026-11-15 F1: Tipler: core + gui `RoleKind`, `TeamRole`, `Team`, `TeamRun`, `TeamArtifact`, `SkillCatalogEntry`, `SystemCapabilities`; `AgentStatus`+`awaiting_approval`, `NodeType`+4 rol, `Project`+3 alan, `Task.teamId`, WS iki olay. GUI `Record<AgentStatus>` için `agentSteps.awaiting_approval` (tr/en/types) ve `AgentBadge` eşlemesi. İki paket typecheck yeşil.
+- 2026-11-15 F1: Göç `core/src/services/ekiplerMigration.ts` (`applyEkiplerMigration(db)`, taskService göç bloklarının sonunda): `teams`, `task_team_runs`, `task_team_artifacts`, `app_meta` + indeksler, `projects` 3 kolon, `tasks.teamId`, `ekipler_graph_to_solo` tek seferlik eşleme. `_graph.json` boot göçü silindi. `ekiplerMigration.test.ts` geçici DB'de iki boot: idempotent. Ortak DB'de göç çalıştı (dev sunucu yeniden başladı), graf modunda görev yoktu, `integrity_check` ok.
+- 2026-11-15 F1: `core/src/services/teamTemplates.ts`: 4 yerleşik ekip (sabit id), §7 rol varsayılanları, İngilizce rol talimatları, `ROLE_TOOLS`, `upsertBuiltinTeams` (boot'ta, `ON CONFLICT DO UPDATE`). `teamTemplates.test.ts` (idempotent, düzenlenen yerleşik geri yazılır, §7 varsayılanları) yeşil; ortak DB'de 4 satır. `GET /api/teams` doğrulaması `routes/teams.ts` maddesinde.
+- 2026-11-15 F1: `core/src/services/teamService.ts`: CRUD (`listTeams` yerleşik → şablon → proje sırası, `createTeam` `fromTeamId` kopyası, `updateTeam`/`deleteTeam` `builtin_readonly`/`team_in_use`), `teamRolesSchema` (1–4 rol, tür ve id tekilliği, QA ⇒ Yazılımcı ve sonra, danışman sırası, Haiku danışman olamaz, `ROLE_TOOLS`, skill id biçimi, `-` ile başlayan model reddi), `resolveTeamForTask` (görev → proje → Solo, yabancı/eksik id Solo + uyarı). taskService'e proje/görev alanları (madde 6'nın servis kısmı) öne alındı. `teamService.test.ts` 12 test yeşil, typecheck yeşil.
+- 2026-11-15 F1: `core/src/routes/teams.ts` (`GET /`, `GET /:id`, `POST`, `PUT /:id`, `DELETE /:id`; 403 `builtin_readonly`, 409 `team_in_use`, 400 `invalid_body` + zod mesajları) + `index.ts` mount. `routes/teams.test.ts` (5 test, `test-utils/httpApp.ts` ile geçici Express) yeşil. Canlı `curl :3001/api/teams` 4 yerleşiği doğru rol sırasıyla döndü.
+- 2026-11-15 F1: Proje `PATCH` `defaultTeamId` (erişilebilir ekip, değilse 400 `invalid_team`), `qaMaxRounds` (tam sayı 0–20), `specApproval`; `createProject` varsayılanları (Yazılım Ekibi, 3, kapalı). Görev `POST`/`PATCH` `teamId` (doğrulamalı), `executionMode`/`graphId` zod'dan çıktı (gelirse atılır), `agentStatus` enum'una `awaiting_approval`. `routes/projectTeamFields.test.ts` 3 test yeşil.
+- 2026-11-15 F1: `core/src/services/skillCatalogService.ts` (kökler parametreli `SkillCatalogRoots`: home, proje reposu, plugin listesi; plugin listesi repo başına 60 sn önbellek; yalnızca etkin plugin'ler; `readSkillBody` yalnızca katalogdan çözülen dosyayı okur, frontmatter'ı atar) + `GET /api/projects/:id/claude/skills/catalog` → `{ skills }`. `skillCatalogService.test.ts` (geçici HOME: `user:`, `project:`, `myplug:gamma`, devre dışı plugin, `../` reddi, plugin hatasında yedek) 4 test yeşil. Canlı: sandbox'ta 439 skill (133 user, 306 plugin), sandbox ağacı temiz.
+- 2026-11-15 F1: `GET /api/system/capabilities` → `getClaudeCapabilities()`; `routes/system.test.ts` yeşil; canlı `{"advisor":true,"models":["haiku","sonnet","opus","fable"]}`.
+- 2026-11-15 F1: Repo yazmaları durdu: `GET /claude/agents` artık yalnızca listeler (`main.md` önyüklemesi, `ensureClaudeSettings` ve iki commit silindi), `POST /claude/agents` `settings.json` yazmaz, graf `PUT` commit atmaz, `checkoutBase` korunan listesinde yalnızca `CLAUDE.md`, CLAUDE.md `PUT` base dal dışında `commitWarning: "not_on_default_branch"` ile yalnızca dosyayı kaydeder. `ensureClaudeSettings` çağıranı kalmadığı için silindi. `routes/projectsClaude.repoWrites.test.ts` (geçici git reposu) 4 test yeşil.
+- 2026-11-15 F1: Sandbox doğrulaması: `:3001` üzerinden `GET /claude/agents` (proj_c2dd3194) sonrası sandbox `status --porcelain` boş, HEAD `a6a5c43` ve commit sayısı (2) aynı. Sandbox'ta `.claude/agents` olmadığından bu kontrol zayıf; ek olarak yalıtılmış core (:3101, ayrı DB) üzerinde sandbox'ın remote'suz klonu + `.claude/agents/coder.md` ile aynı GET: ağaç temiz, HEAD aynı, `main.md`/`settings.json` oluşmadı. Yeni projede `defaultTeamId=team_yazilim_ekibi`. :3101 öldürüldü, :3001 ayakta.
+- 2026-11-15 F1: Plana Faz 2 maddesi eklendi: rol koşularını kullanıcı ayar/hook'larından yalıtmayı değerlendir (`--setting-sources project,local` / `--settings`, `--strict-mcp-config` ile).
+- 2026-11-15 F1: Faz sonu doğrulamaları yeşil (core typecheck + 132 test / 18 dosya, gui typecheck + lint 0 uyarı); faz 1 commit'i.

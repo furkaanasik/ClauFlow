@@ -319,6 +319,7 @@ export const tr: Translations = {
       running: "Ajan yazıyor",
       pushing: "Push ediyor",
       pr_opening: "PR açıyor",
+      awaiting_approval: "Onay bekliyor",
       done: "Bitti",
       error: "Hata",
     },
