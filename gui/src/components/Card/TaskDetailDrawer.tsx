@@ -16,6 +16,8 @@ import {
   IconBranch,
   IconChat,
   IconCheck,
+  IconChevronRight,
+  IconClipboard,
   IconCoin,
   IconFlow,
   IconInfo,
@@ -25,6 +27,7 @@ import {
   IconRobot,
   IconStop,
   IconSubtask,
+  IconTeam,
   IconTerminal,
   IconTrash,
 } from "@/components/ui/icons";
@@ -32,15 +35,20 @@ import { AgentBadge } from "@/components/Card/AgentBadge";
 import { CommentsTab } from "@/components/Card/CommentsTab";
 import { LogViewer } from "@/components/Card/LogViewer";
 import { MiniDagView } from "@/components/Card/MiniDagView";
+import { TeamTimeline } from "@/components/Card/TeamTimeline";
+import { ApprovalGate } from "@/components/Card/ApprovalGate";
 import { ToolCallTimeline } from "@/components/Card/ToolCallTimeline";
 import { api } from "@/lib/api";
 import { calculateCost, formatTokens, totalTokens } from "@/lib/cost";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { AgentText, GraphRecord, Project, Task, TaskPatch, ToolCall } from "@/types";
+import { TeamPicker } from "@/components/Team/TeamPicker";
+import { agentStepLabel, teamStepKind } from "@/components/Team/roleMeta";
+import { isAgentWorking } from "@/lib/boardView";
+import type { AgentText, Project, Task, TaskPatch, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
-type DrawerTab = "details" | "log" | "flow" | "comments";
+type DrawerTab = "details" | "log" | "team" | "comments";
 type Translations = ReturnType<typeof useTranslation>;
 
 const EMPTY_TOOL_CALLS: ToolCall[] = [];
@@ -106,9 +114,10 @@ export function TaskDetailDrawer() {
   const upsertComment = useBoardStore((s) => s.upsertComment);
   const setToolCalls = useBoardStore((s) => s.setToolCalls);
   const setAgentTexts = useBoardStore((s) => s.setAgentTexts);
-  const openStudio = useBoardStore((s) => s.openStudio);
+  const openTeamEditor = useBoardStore((s) => s.openTeamEditor);
   const upsertNodeRun = useBoardStore((s) => s.upsertNodeRun);
   const appendNodeLog = useBoardStore((s) => s.appendNodeLog);
+  const setTaskTeam = useBoardStore((s) => s.setTaskTeam);
 
   // Keep the last task on screen while the drawer plays its exit animation.
   const lastTaskRef = useRef<Task | null>(null);
@@ -132,8 +141,7 @@ export function TaskDetailDrawer() {
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
 
-  const [graphs, setGraphs] = useState<GraphRecord[]>([]);
-  const [graphsLoading, setGraphsLoading] = useState(false);
+  const [teamError, setTeamError] = useState<string | null>(null);
 
   const open = Boolean(selectedTaskId);
 
@@ -143,7 +151,9 @@ export function TaskDetailDrawer() {
     setError(null);
     setSaving(false);
     setDeleting(false);
-    setTab("details");
+    setTeamError(null);
+    // A run paused at the spec gate needs the user: open straight on the team tab.
+    setTab(useBoardStore.getState().tasks[selectedTaskId ?? ""]?.agent.status === "awaiting_approval" ? "team" : "details");
   }, [selectedTaskId]);
 
   useEffect(() => {
@@ -157,7 +167,10 @@ export function TaskDetailDrawer() {
     api.getAgentTexts(selectedTaskId).then((list) => {
       setAgentTexts(selectedTaskId, list);
     }).catch(() => {});
-    api.getNodeRuns(selectedTaskId).then((runs) => {
+    api.getTaskTeam(selectedTaskId).then((state) => {
+      setTaskTeam(selectedTaskId, state);
+    }).catch(() => {});
+        api.getNodeRuns(selectedTaskId).then((runs) => {
       for (const run of runs) {
         upsertNodeRun(run);
         const buffered = run.outputArtifact?.logLines;
@@ -171,26 +184,15 @@ export function TaskDetailDrawer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
 
-  useEffect(() => {
-    if (!liveTask?.projectId) return;
-    setGraphsLoading(true);
-    api.listGraphs(liveTask.projectId)
-      .then((resp) => setGraphs(resp.graphs))
-      .catch(() => {})
-      .finally(() => setGraphsLoading(false));
-  }, [liveTask?.projectId]);
-
-  const handleExecutionModeChange = async (mode: "simple" | "graph", graphId?: string | null) => {
+  const handleTeamChange = async (teamId: string | null) => {
     if (!task) return;
-    const patch: TaskPatch = {
-      executionMode: mode,
-      graphId: mode === "graph" ? (graphId ?? null) : null,
-    };
+    setTeamError(null);
     try {
-      const updated = await api.updateTask(task.id, patch);
+      const updated = await api.updateTask(task.id, { teamId });
       upsertTask(updated);
     } catch {
       // server is source of truth — no optimistic update to roll back
+      setTeamError(tt.team.picker.saveError);
     }
   };
 
@@ -311,6 +313,12 @@ export function TaskDetailDrawer() {
   );
   const budgetExceeded = useBoardStore((s) => s.budgetExceeded);
   const nodeRunCount = useBoardStore((s) => (task ? Object.keys(s.nodeRuns[task.id] ?? {}).length : 0));
+  const teamArtifactCount = useBoardStore((s) => (task ? s.teamArtifacts[task.id]?.length ?? 0 : 0));
+  const teamQaRound = useBoardStore((s) => {
+    const runs = task ? s.teamRuns[task.id] : undefined;
+    return runs?.[runs.length - 1]?.qaRound ?? 0;
+  });
+  const [flowOpen, setFlowOpen] = useState(false);
 
   const budget = useMemo<BudgetView | null>(() => {
     if (!task) return null;
@@ -336,12 +344,13 @@ export function TaskDetailDrawer() {
   const priority = normalizePriority(task.priority);
   const agentActive = (ACTIVE_STEPS as readonly string[]).includes(task.agent.status);
   const queued = task.status === "doing" && task.agent.status === "idle";
+  const awaitingApproval = task.status === "doing" && task.agent.status === "awaiting_approval";
   const showAgentBadge = task.agent.status !== "idle" && (task.status === "doing" || task.agent.status === "error");
 
   const tabItems = [
     { value: "details" as const, label: td.tabDetails, icon: <IconInfo size={14} /> },
     { value: "log" as const, label: td.tabLog, icon: <IconTerminal size={14} />, count: logs.length || toolCalls.length || undefined },
-    { value: "flow" as const, label: td.tabFlow, icon: <IconFlow size={14} />, count: nodeRunCount || undefined },
+    { value: "team" as const, label: tt.team.tabTeam, icon: <IconTeam size={14} />, count: teamArtifactCount || undefined },
     { value: "comments" as const, label: td.tabComments, icon: <IconChat size={14} />, count: commentCount || undefined },
   ];
 
@@ -349,13 +358,12 @@ export function TaskDetailDrawer() {
     <TaskMeta
       task={task}
       project={project}
-      graphs={graphs}
-      graphsLoading={graphsLoading}
       editing={editing}
       budget={budget}
       lang={lang}
       t={tt}
-      onModeChange={handleExecutionModeChange}
+      teamError={teamError}
+      onTeamChange={handleTeamChange}
     />
   );
 
@@ -378,12 +386,13 @@ export function TaskDetailDrawer() {
                 <button
                   type="button"
                   onClick={() => {
-                    openStudio(task.projectId, task.id);
+                    openTeamEditor(task.projectId, task.teamId ?? project.defaultTeamId ?? null);
                     selectTask(null);
                   }}
                   className="ui-focus inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 font-sans text-[12px] font-semibold text-[var(--cobalt-text)] transition hover:bg-hair"
                 >
-                  {td.openInStudio}
+                  <IconTeam size={12} />
+                  {tt.team.editTeam}
                   <IconArrowUpRight size={12} />
                 </button>
               </>
@@ -414,7 +423,7 @@ export function TaskDetailDrawer() {
                 <PriorityMark level={priority} label={tt.addTask.priorities[priority]} showLabel />
               </span>
             )}
-            {showAgentBadge && <AgentBadge agent={task.agent} taskTitle={task.title} />}
+            {showAgentBadge && <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />}
             {budget?.tokens && (
               <span
                 title={td.costApprox}
@@ -481,13 +490,39 @@ export function TaskDetailDrawer() {
         >
           {tab === "comments" ? (
             <CommentsTab task={task} />
-          ) : tab === "flow" ? (
-            <MiniDagView
-              taskId={task.id}
-              noNodesLabel={td.flowNoNodes}
-              nodeLogsTitle={td.flowNodeLogsTitle}
-              nodeNoLogLabel={td.flowNodeNoLog}
-            />
+          ) : tab === "team" ? (
+            <div className="flex flex-col gap-6">
+              <TeamTimeline task={task} renderApproval={(spec) => <ApprovalGate task={task} spec={spec} />} />
+              {/* Technical flow: the raw node runs behind the timeline */}
+              <section className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  aria-expanded={flowOpen}
+                  aria-controls="task-detail-flow"
+                  onClick={() => setFlowOpen((v) => !v)}
+                  className="ui-focus ui-sechead !mb-0 rounded-[6px] text-left"
+                >
+                  <IconChevronRight
+                    size={13}
+                    className="shrink-0 text-ink-3 transition-transform"
+                    style={{ transform: flowOpen ? "rotate(90deg)" : undefined }}
+                  />
+                  <IconFlow size={13} className="shrink-0 text-ink-2" />
+                  <span className="ui-sechead__t">{tt.team.technicalFlow}</span>
+                  {nodeRunCount > 0 && <span className="ui-sechead__n">{nodeRunCount}</span>}
+                </button>
+                {flowOpen && (
+                  <div id="task-detail-flow" className="flex min-h-[12rem] flex-col">
+                    <MiniDagView
+                      taskId={task.id}
+                      noNodesLabel={td.flowNoNodes}
+                      nodeLogsTitle={td.flowNodeLogsTitle}
+                      nodeNoLogLabel={td.flowNodeNoLog}
+                    />
+                  </div>
+                )}
+              </section>
+            </div>
           ) : tab === "log" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-4">
               <div className="flex flex-wrap items-center gap-3">
@@ -503,7 +538,7 @@ export function TaskDetailDrawer() {
                 />
                 {agentActive && (
                   <StatusPill status="doing" live className="ml-auto">
-                    {td.agentStatus[task.agent.status as keyof typeof td.agentStatus] ?? task.agent.status}
+                    {teamStepKind(task.agent.currentStep) ? agentStepLabel(task.agent, tt, teamQaRound) : td.agentStatus[task.agent.status as keyof typeof td.agentStatus] ?? task.agent.status}
                   </StatusPill>
                 )}
               </div>
@@ -559,11 +594,13 @@ export function TaskDetailDrawer() {
                   meter={
                     queued ? (
                       <StatusPill status="todo">{td.queueWaiting}</StatusPill>
+                    ) : awaitingApproval ? (
+                      <StatusPill status="review" variant="solid">{tt.team.awaitingApproval}</StatusPill>
                     ) : task.agent.status === "error" ? (
                       <StatusPill status="error" variant="solid">{td.errorOccurred}</StatusPill>
                     ) : (
                       <StatusPill status="doing" live>
-                        {td.agentStatus[task.agent.status as keyof typeof td.agentStatus] ?? task.agent.status}
+                        {teamStepKind(task.agent.currentStep) ? agentStepLabel(task.agent, tt, teamQaRound) : td.agentStatus[task.agent.status as keyof typeof td.agentStatus] ?? task.agent.status}
                       </StatusPill>
                     )
                   }
@@ -581,15 +618,26 @@ export function TaskDetailDrawer() {
                         {aborting ? td.abortingButton : td.abortButton}
                       </Button>
                     )}
-                    <Button
-                      variant={agentActive ? "secondary" : "primary"}
-                      size="sm"
-                      icon={<IconRetry size={14} />}
-                      onClick={doRetry}
-                      loading={retrying}
-                    >
-                      {retrying ? td.retryingButton : agentActive ? td.restartButton : td.retryButton}
-                    </Button>
+                    {awaitingApproval ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={<IconClipboard size={14} />}
+                        onClick={() => setTab("team")}
+                      >
+                        {tt.team.approval.review}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant={agentActive ? "secondary" : "primary"}
+                        size="sm"
+                        icon={<IconRetry size={14} />}
+                        onClick={doRetry}
+                        loading={retrying}
+                      >
+                        {retrying ? td.retryingButton : agentActive ? td.restartButton : td.retryButton}
+                      </Button>
+                    )}
                   </div>
                 </Panel>
               )}
@@ -806,27 +854,25 @@ export function TaskDetailDrawer() {
 function TaskMeta({
   task,
   project,
-  graphs,
-  graphsLoading,
   editing,
   budget,
   lang,
   t,
-  onModeChange,
+  teamError,
+  onTeamChange,
 }: {
   task: Task;
   project: Project | null;
-  graphs: GraphRecord[];
-  graphsLoading: boolean;
   editing: boolean;
   budget: BudgetView | null;
   lang: string;
   t: Translations;
-  onModeChange: (mode: "simple" | "graph", graphId?: string | null) => void;
+  teamError: string | null;
+  onTeamChange: (teamId: string | null) => void;
 }) {
   const td = t.taskDetail;
-  const mode = task.executionMode === "graph" ? "graph" : "simple";
-  const activeGraph = task.graphId ?? graphs[0]?.id;
+  // The team is fixed once the task is picked up (queued, running or paused at the gate).
+  const teamLocked = task.status === "doing" || isAgentWorking(task);
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "tr-TR", {
       day: "2-digit",
@@ -896,51 +942,19 @@ function TaskMeta({
         </div>
       )}
 
-      {/* Execution mode */}
-      {!editing && (
+      {/* Team: "who does this task?" */}
+      {!editing && project && (
         <div className="ui-meta">
-          <MetaLabel icon={<IconFlow size={12} />}>{td.executionModeLabel}</MetaLabel>
-          <Segmented
-            size="sm"
-            label={td.executionModeLabel}
-            value={mode}
-            onChange={(v) => onModeChange(v, v === "graph" ? task.graphId ?? graphs[0]?.id ?? null : null)}
-            options={[
-              { value: "simple", label: td.modeSimple },
-              { value: "graph", label: td.modeGraph },
-            ]}
-            className="self-start"
+          <MetaLabel icon={<IconTeam size={12} />}>{t.team.picker.label}</MetaLabel>
+          <TeamPicker
+            project={project}
+            value={task.teamId ?? null}
+            onChange={onTeamChange}
+            locked={teamLocked}
+            refreshKey={task.id}
+            hideLabel
+            error={teamError}
           />
-          {mode === "graph" && (
-            <div className="mt-1 flex flex-col gap-1.5">
-              <span className="text-[12px] font-semibold text-ink-2">{td.graphSelect}</span>
-              {graphsLoading ? (
-                <p className="font-mono text-[12px] text-ink-3">{td.graphsLoading}</p>
-              ) : graphs.length === 0 ? (
-                <p className="text-[12px] text-ink-3">{td.graphsEmpty}</p>
-              ) : (
-                <div role="radiogroup" aria-label={td.graphSelect} className="flex flex-col gap-1.5">
-                  {graphs.map((g) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={activeGraph === g.id}
-                      onClick={() => onModeChange("graph", g.id)}
-                      className="ui-option !py-1.5 font-mono text-[12px]"
-                    >
-                      <span
-                        aria-hidden
-                        className="ui-dot"
-                        style={{ "--dot": activeGraph === g.id ? "var(--mustard)" : "var(--sunken)" } as CSSProperties}
-                      />
-                      <span className="min-w-0 truncate">{g.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 

@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import { StudioCanvas } from "@/components/Studio/StudioCanvas";
+import { TeamEditor } from "@/components/Team/TeamEditor";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Segmented";
 import { Textarea } from "@/components/ui/Input";
@@ -19,13 +20,13 @@ import {
   IconClose,
   IconEye,
   IconFile,
-  IconFlow,
   IconInfo,
   IconPencil,
   IconRetry,
+  IconTeam,
 } from "@/components/ui/icons";
 
-type Segment = "instructions" | "studio";
+type Segment = "instructions" | "team";
 
 interface ClaudeConfigTabProps {
   projectId: string;
@@ -34,14 +35,12 @@ interface ClaudeConfigTabProps {
 
 export function ClaudeConfigTab({ projectId, hasRemote }: ClaudeConfigTabProps) {
   const cc = useTranslation().claudeConfig;
-  const studioRequest = useBoardStore((s) => s.studioRequest);
-  const wantsStudio = !!studioRequest && studioRequest.projectId === projectId;
-  const [segment, setSegment] = useState<Segment>(
-    wantsStudio ? "studio" : "instructions",
-  );
+  const teamEditorRequest = useBoardStore((s) => s.teamEditorRequest);
+  const wantsTeam = !!teamEditorRequest && teamEditorRequest.projectId === projectId;
+  const [segment, setSegment] = useState<Segment>(wantsTeam ? "team" : "instructions");
   useEffect(() => {
-    if (wantsStudio) setSegment("studio");
-  }, [wantsStudio]);
+    if (wantsTeam) setSegment("team");
+  }, [wantsTeam]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -53,11 +52,11 @@ export function ClaudeConfigTab({ projectId, hasRemote }: ClaudeConfigTabProps) 
           onChange={setSegment}
           options={[
             { value: "instructions", label: cc.segmentInstructions, icon: <IconFile size={13} /> },
-            { value: "studio", label: cc.segmentStudio, icon: <IconFlow size={13} /> },
+            { value: "team", label: cc.segmentTeam, icon: <IconTeam size={13} /> },
           ]}
         />
         <span className="hidden min-w-0 truncate text-[12.5px] text-ink-3 md:inline">
-          {segment === "instructions" ? cc.instructionsHint : cc.studioHint}
+          {segment === "instructions" ? cc.instructionsHint : cc.teamHint}
         </span>
       </div>
 
@@ -66,8 +65,10 @@ export function ClaudeConfigTab({ projectId, hasRemote }: ClaudeConfigTabProps) 
           <InstructionsSegment projectId={projectId} hasRemote={hasRemote} />
         </div>
       )}
-      {segment === "studio" && (
-        <StudioSegmentNew projectId={projectId} />
+      {segment === "team" && (
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <TeamEditor projectId={projectId} initialTeamId={wantsTeam ? teamEditorRequest?.teamId : null} />
+        </div>
       )}
     </div>
   );
@@ -490,7 +491,7 @@ function ExpandedEditor(p: ExpandedEditorProps) {
             >
               {p.content.trim() ? (
                 <article className="prose-claude">
-                  <ReactMarkdown>{p.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{p.content}</ReactMarkdown>
                 </article>
               ) : (
                 <div className="ui-hatch flex h-full items-center justify-center rounded-[10px] border-2 border-dashed border-hair text-[13px] text-ink-3">
@@ -520,19 +521,5 @@ function ExpandedEditor(p: ExpandedEditorProps) {
       </footer>
     </div>,
     document.body,
-  );
-}
-
-function StudioSegmentNew({ projectId }: { projectId: string }) {
-  const studioRequest = useBoardStore((s) => s.studioRequest);
-  const taskId =
-    studioRequest && studioRequest.projectId === projectId
-      ? studioRequest.taskId
-      : undefined;
-  // Fixed minimum height: React Flow needs a parent with a definite height.
-  return (
-    <div className="flex min-h-[560px] flex-1 flex-col">
-      <StudioCanvas projectId={projectId} taskId={taskId} />
-    </div>
   );
 }

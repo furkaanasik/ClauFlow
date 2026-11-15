@@ -48,15 +48,13 @@ export function useAgentSocket(url?: string) {
       completeClone,
       failClone,
       setSkillProgress,
-      studioStart,
-      studioAppend,
-      studioFinish,
-      studioError,
       upsertNodeRun,
       appendNodeLog,
       setCiIteration,
       setBudgetExceeded,
       setBreakdownStatus,
+      upsertTeamRun,
+      upsertTeamArtifact,
     } = useBoardStore.getState();
 
     const resyncTasks = async () => {
@@ -148,6 +146,16 @@ useNotificationStore.getState().notify(
               appendNodeLog(m.taskId, m.payload.nodeId, m.payload.line);
               break;
             }
+            case "team_run_updated": {
+              const m = msg as Extract<WsMessage, { type: "team_run_updated" }>;
+              upsertTeamRun(m.payload);
+              break;
+            }
+            case "team_artifact": {
+              const m = msg as Extract<WsMessage, { type: "team_artifact" }>;
+              upsertTeamArtifact(m.payload);
+              break;
+            }
             case "comment_updated": {
               const m = msg as Extract<WsMessage, { type: "comment_updated" }>;
               upsertComment(m.payload);
@@ -210,22 +218,6 @@ useNotificationStore.getState().notify(
                 status: m.payload.status,
                 message: m.payload.message,
               });
-              break;
-            }
-            case "studio_generation": {
-              const m = msg as Extract<WsMessage, { type: "studio_generation" }>;
-              const { generationId, status, chunk, error } = m.payload;
-              if (status === "running") {
-                if (chunk !== undefined) {
-                  studioAppend(chunk);
-                } else {
-                  studioStart(generationId);
-                }
-              } else if (status === "done") {
-                studioFinish();
-              } else if (status === "error") {
-                studioError(error ?? "generation failed");
-              }
               break;
             }
             case "ci_iteration_started": {

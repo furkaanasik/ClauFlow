@@ -22,12 +22,12 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
-    "@xyflow/react": "^12.10.2",
     "clsx": "^2.1.1",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "three": "^0.187.0",
     "zustand": "^5.0.3"
   },

@@ -37,7 +37,7 @@ import {
   type ScannerDrive,
 } from "@/components/three";
 import type { Frameloop } from "@/components/three/activity";
-import type { AgentStatus, TaskStatus } from "@/types";
+import type { AgentStatus, RoleKind, TaskStatus } from "@/types";
 import {
   BELT_FROM,
   BELT_TO,
@@ -67,6 +67,9 @@ export interface FactoryCopy {
   columns: Record<TaskStatus, string>;
   notes: Record<TaskStatus, string>;
   steps: Record<AgentStatus, string>;
+  /** Team role names (DOING sign) and their live activity (crate label). */
+  roles: Record<RoleKind, string>;
+  activity: Record<RoleKind, string>;
 }
 
 export interface FactoryCameraApi {
@@ -366,6 +369,10 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
     () => Object.fromEntries(Object.entries(copy.steps).map(([k, v]) => [k, { stepLabel: v }])) as Record<string, { stepLabel: string }>,
     [copy.steps],
   );
+  const roleCopies = useMemo(
+    () => Object.fromEntries(Object.entries(copy.activity).map(([k, v]) => [k, { stepLabel: v }])) as Record<string, { stepLabel: string }>,
+    [copy.activity],
+  );
   const doingX = STATION_BY_STATUS.doing.x;
   const hoveredId = hover?.kind === "crate" ? hover.spec.id : null;
   const hoveredPile = hover?.kind === "pile" ? hover.pile.status : null;
@@ -396,7 +403,11 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
         <FactorySign
           key={s.status}
           position={[s.x, 0, -3.75]}
-          kicker={`${String(i + 1).padStart(2, "0")} · ${layout.counts[s.status]}`}
+          kicker={
+            s.status === "doing" && layout.doingRole
+              ? `${String(i + 1).padStart(2, "0")} · ${layout.counts[s.status]} · ${copy.roles[layout.doingRole].toUpperCase()}`
+              : `${String(i + 1).padStart(2, "0")} · ${layout.counts[s.status]}`
+          }
           text={copy.columns[s.status].toUpperCase()}
           accent={s.accent as PaletteKey}
           on={onColor(s.accent)}
@@ -441,7 +452,7 @@ function World({ layout, epoch, copy, cameraRef, onHover, onMove, onOpen, onPile
           spec={c}
           index={i}
           hovered={hoveredId === c.id}
-          copy={c.working ? stepCopies[c.step] ?? NO_COPY : NO_COPY}
+          copy={c.working ? (c.role ? roleCopies[c.role] : stepCopies[c.step]) ?? NO_COPY : NO_COPY}
         />
       ))}
 

@@ -12,6 +12,8 @@ import type {
   NodeRun,
   Project,
   Task,
+  TeamArtifact,
+  TeamRun,
   ToolCall,
   WsMessage,
 } from "../types/index.js";
@@ -152,15 +154,6 @@ export function broadcastCloneProgress(
   });
 }
 
-export function broadcastStudioGeneration(payload: {
-  generationId: string;
-  status: "running" | "done" | "error";
-  chunk?: string;
-  error?: string;
-}): void {
-  broadcast({ type: "studio_generation", payload });
-}
-
 export function broadcastSkillInstallProgress(
   projectId: string,
   pluginId: string,
@@ -232,6 +225,14 @@ export function broadcastCiIterationResult(
     taskId,
     payload: { iteration, outcome },
   });
+}
+
+export function broadcastTeamRunUpdated(run: TeamRun): void {
+  broadcast({ type: "team_run_updated", taskId: run.taskId, payload: run });
+}
+
+export function broadcastTeamArtifact(artifact: TeamArtifact): void {
+  broadcast({ type: "team_artifact", taskId: artifact.taskId, payload: artifact });
 }
 
 export function broadcastBudgetExceeded(

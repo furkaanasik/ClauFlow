@@ -64,16 +64,59 @@ export interface UsageInput {
   cacheWriteTokens: number;
 }
 
-export function calculateCostUsd(
-  usage: UsageInput,
-  model?: string | null,
-): number {
+const PRICED_FAMILIES = ["haiku", "sonnet", "opus"] as const;
+type PricedFamily = (typeof PRICED_FAMILIES)[number];
+
+// Families without a pricing row borrow the most expensive known family so
+// budget estimates err on the safe side.
+const FAMILY_ALIASES: Record<string, PricedFamily> = { fable: "opus", mythos: "opus" };
+
+function familyOf(model: string): PricedFamily | null {
+  const m = model.toLowerCase();
+  for (const f of PRICED_FAMILIES) if (m.includes(f)) return f;
+  for (const [alias, f] of Object.entries(FAMILY_ALIASES)) if (m.includes(alias)) return f;
+  return null;
+}
+
+function versionOf(model: string): number[] {
+  return (model.match(/\d+/g) ?? []).map(Number);
+}
+
+function compareVersions(a: number[], b: number[]): number {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] ?? 0) - (b[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+/**
+ * Exact model id first, then the newest pricing row of the model's family
+ * (`opus`, `claude-opus-5-5` → newest opus row), then DEFAULT_MODEL.
+ */
+export function resolveModelPricing(model?: string | null): ModelPricing {
   const requested = model ?? DEFAULT_MODEL;
+  const exact = MODEL_PRICING.find((m) => m.model === requested);
+  if (exact) return exact;
+  const family = familyOf(requested);
+  if (family) {
+    const newest = MODEL_PRICING.filter((m) => familyOf(m.model) === family).sort((a, b) =>
+      compareVersions(versionOf(b.model), versionOf(a.model)),
+    )[0];
+    if (newest) return newest;
+  }
   const fallback = MODEL_PRICING.find((m) => m.model === DEFAULT_MODEL);
   if (!fallback) {
     throw new Error(`Default model missing from MODEL_PRICING: ${DEFAULT_MODEL}`);
   }
-  const p = MODEL_PRICING.find((m) => m.model === requested) ?? fallback;
+  return fallback;
+}
+
+export function calculateCostUsd(
+  usage: UsageInput,
+  model?: string | null,
+): number {
+  const p = resolveModelPricing(model);
   return (
     (usage.inputTokens * p.inputPerM +
       usage.outputTokens * p.outputPerM +

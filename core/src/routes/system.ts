@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { spawn } from "node:child_process";
 import { errorMessage } from "../utils/error.js";
+import { getClaudeCapabilities } from "../services/claudeCapabilities.js";
 
 interface PrereqCheck {
   name: string;
@@ -95,6 +96,10 @@ router.get("/prereqs", async (_req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
+});
+
+router.get("/capabilities", (_req: Request, res: Response) => {
+  res.json(getClaudeCapabilities());
 });
 
 export default router;

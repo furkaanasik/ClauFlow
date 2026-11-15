@@ -62,7 +62,7 @@ TODO ──▶ DOING ──▶ CI ──▶ REVIEW ──▶ DONE
 | Column | Trigger | What happens |
 |---|---|---|
 | **TODO** | You add a card, import GitHub issues, or let the AI planner fill the board | Title, description, analysis and priority become the agent's work order. |
-| **DOING** | You drag the card here | The executor checks out the base branch, creates `feature/<id>-<title-slug>`, runs `claude -p "<task>"`, commits, pushes and opens a PR with `gh pr create`. |
+| **DOING** | You drag the card here | The executor checks out the base branch, creates `feature/<id>-<title-slug>`, runs the task's team (one `claude -p` call per role, committing between roles), pushes and opens a PR with `gh pr create`. |
 | **CI** | Automatic, once a PR exists | Polls `gh pr checks`. On failure Claude pushes fixes (up to `CI_MAX_FIX_ITERATIONS`). With no checks configured the gate is skipped. The column is collapsed on the board by default. |
 | **REVIEW** | Automatic | Claude posts an automated review comment. You read the diff in the built-in PR viewer and comment, and each comment re-runs Claude on the **same branch** as new commits. No new PR is opened. |
 | **DONE** | You drag the card here | The PR is merged with `gh pr merge --merge --delete-branch`. |
@@ -82,7 +82,7 @@ TODO ──▶ DOING ──▶ CI ──▶ REVIEW ──▶ DONE
 | Feature | Details |
 |---|---|
 | **Board, List, Factory views** | Trello-style columns with drag and drop, a Jira-style table, and a live 3D factory. |
-| **Task drawer** | Tabs for Details, Agent Log, Flow and Comments, plus a budget gauge, Simple/Graph execution mode and AI "Break down task" into subtasks. |
+| **Task drawer** | Tabs for Details, Agent Log, Team and Comments, plus a budget gauge, a "Who does this task?" team picker and AI "Break down task" into subtasks. The Team tab reads like a conversation: brief, spec, delivery note and QA verdict per round, with a spec-approval gate when the project asks for one. |
 | **Live agent logs** | Tool-call traces and token / cost observability per run. |
 | **Built-in PR viewer** | Full-screen drawer with a side-by-side diff, file tree, per-file collapse and Mark viewed. |
 | **Insights** | Per-project token spend, cost, completion and CI pass rate, exportable as JSON or CSV. |
@@ -122,13 +122,12 @@ The **Atölye** look is a printed workshop: cream paper, 2px ink rules, hard off
 
 ### Project control panel
 
-Each project gets a Claude Config drawer with three tabs:
+Each project gets a Claude Config drawer with two segments:
 
-| Tab | What it does |
+| Segment | What it does |
 |---|---|
-| **CLAUDE.md** | Split editor with a live Markdown preview. Saving commits and pushes it with the project. A prereq banner checks the `claude` / `git` / `gh` versions and offers copy-paste install commands. |
-| **Agents** | Agent Studio, a React Flow canvas. Each agent is a node and skills are pills you drag onto it. Agents can be drafted from a one-line prompt. The topology is saved to `.claude/agents/_graph.json` and mirrored as a Mermaid block in `CLAUDE.md`. |
-| **Skills** | Installed / Registry / Marketplaces, backed by the real `claude plugin` CLI. Anything installed here shows up in `claude /skills` for the executor and the comment runner. |
+| **Instructions** | `CLAUDE.md` split editor with a live Markdown preview. Saving commits it only while the repo is on its base branch. A prereq banner checks the `claude` / `git` / `gh` versions and offers copy-paste install commands. |
+| **Team** | The team editor. A team is an ordered list of roles (CEO → Analyst → Developer ⇄ QA) that run one after another, with one feedback loop from QA back to the Developer. Built-in teams (Solo, Software Team, Bug Hunt, Exploration) are read-only; **Customize** copies one into the project. Each role has instructions, a model, an optional advisor model, allowed tools and skills (user, project and plugin skills, injected into the role's prompt). Project settings: the default team, the QA round limit (a number or Unlimited) and the spec-approval gate. Teams live in ClauFlow's database and are never written to your repo. The **Skill manager** (Installed / Registry / Marketplaces, backed by the real `claude plugin` CLI) opens from here. |
 
 ---
 
@@ -254,7 +253,7 @@ The release workflow that published these multi-arch images has been removed, so
 | Package | Stack | Package manager | Port | Role |
 |---|---|---|---|---|
 | [`core/`](core/) | Node.js, Express, `ws`, `better-sqlite3`, zod | `npm` | `3001` | SQLite store, executor / CI watcher / comment runner / planner pipelines, REST + WebSocket routes |
-| [`gui/`](gui/) | Next.js 15 (App Router), React 19, Tailwind CSS 4, Zustand, dnd-kit, React Flow (`@xyflow/react`), Three.js + React Three Fiber | `pnpm` | `3000` | Landing page, board / list / factory views, PR viewer, Agent Studio, insights |
+| [`gui/`](gui/) | Next.js 15 (App Router), React 19, Tailwind CSS 4, Zustand, dnd-kit, Three.js + React Three Fiber | `pnpm` | `3000` | Landing page, board / list / factory views, PR viewer, team editor, insights |
 
 | Layer | Tool |
 |---|---|

@@ -142,3 +142,37 @@ describe("getActivePricing", () => {
     ).toBe(true);
   });
 });
+
+describe("resolveModelPricing aliases and families", () => {
+  it("maps CLI aliases to the newest row of their family", async () => {
+    const { resolveModelPricing } = await import("./pricingService.js");
+    expect(resolveModelPricing("opus").model).toBe("claude-opus-4-7");
+    expect(resolveModelPricing("sonnet").model).toBe("claude-sonnet-4-6");
+    expect(resolveModelPricing("haiku").model).toBe("claude-haiku-4-5");
+  });
+
+  it("maps unknown full ids by family substring", async () => {
+    const { resolveModelPricing } = await import("./pricingService.js");
+    expect(resolveModelPricing("claude-opus-5-5").model).toBe("claude-opus-4-7");
+    expect(resolveModelPricing("claude-sonnet-5-5[1m]").model).toBe("claude-sonnet-4-6");
+    expect(resolveModelPricing("claude-haiku-5-5").model).toBe("claude-haiku-4-5");
+  });
+
+  it("prices fable like the newest opus row", async () => {
+    const { resolveModelPricing } = await import("./pricingService.js");
+    expect(resolveModelPricing("fable").model).toBe("claude-opus-4-7");
+    expect(resolveModelPricing("claude-fable-5-1").model).toBe("claude-opus-4-7");
+  });
+
+  it("keeps exact matches and the default fallback", async () => {
+    const { resolveModelPricing } = await import("./pricingService.js");
+    expect(resolveModelPricing("claude-opus-4-5").model).toBe("claude-opus-4-5");
+    expect(resolveModelPricing("gpt-something").model).toBe(DEFAULT_MODEL);
+    expect(resolveModelPricing(null).model).toBe(DEFAULT_MODEL);
+  });
+
+  it("an opus alias is no longer priced as sonnet", () => {
+    const usage = { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    expect(calculateCostUsd(usage, "opus")).toBeGreaterThan(calculateCostUsd(usage, "sonnet"));
+  });
+});

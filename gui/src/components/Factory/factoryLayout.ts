@@ -1,5 +1,6 @@
-import type { Task, TaskStatus } from "@/types";
+import type { RoleKind, Task, TaskStatus } from "@/types";
 import { isAgentWorking } from "@/lib/boardView";
+import { teamStepKind } from "@/components/Team/roleMeta";
 
 /*
  * Factory view layout: which board column becomes which station, where each
@@ -69,6 +70,8 @@ export interface CrateSpec {
   smoke: boolean;
   /** Agent step shown above a working crate. */
   step: Task["agent"]["status"];
+  /** Team role running on this crate (`agent.currentStep = "team:<kind>"`), else null. */
+  role: RoleKind | null;
 }
 
 export interface PileSpec {
@@ -83,6 +86,8 @@ export interface FactoryLayout {
   counts: Record<TaskStatus, number>;
   /** Machine drives. */
   doingActive: boolean;
+  /** Role of the lead working DOING crate (the one on the belt), shown on the station sign. */
+  doingRole: RoleKind | null;
   ciActive: boolean;
   anyError: boolean;
   reviewWaiting: boolean;
@@ -144,6 +149,7 @@ export function buildLayout(tasks: Task[], budgetExceeded: Record<string, unknow
   let running = 0;
   let anyError = false;
   let doingActive = false;
+  let doingRole: RoleKind | null = null;
   let ciActive = false;
 
   for (const s of STATIONS) {
@@ -164,7 +170,9 @@ export function buildLayout(tasks: Task[], budgetExceeded: Record<string, unknow
       const error = t.agent?.status === "error";
       if (working) running += 1;
       if (error) anyError = true;
+      const role = working && t.agent?.status === "running" ? teamStepKind(t.agent.currentStep) : null;
       if (working && s.status === "doing") doingActive = true;
+      if (role && s.status === "doing" && !doingRole) doingRole = role;
       if (s.status === "ci" && working) ciActive = true;
       const onBelt = s.beltSpot && i === 0;
       const pos = onBelt ? beltPosition(s) : slotPosition(s, yard++);
@@ -180,6 +188,7 @@ export function buildLayout(tasks: Task[], budgetExceeded: Record<string, unknow
         error,
         smoke: Boolean(budgetExceeded[t.id]),
         step: t.agent?.status ?? "idle",
+        role,
       });
     });
 
@@ -198,6 +207,7 @@ export function buildLayout(tasks: Task[], budgetExceeded: Record<string, unknow
     piles,
     counts,
     doingActive,
+    doingRole,
     ciActive,
     anyError,
     reviewWaiting: counts.review > 0,
@@ -219,7 +229,8 @@ function sameSpec(a: CrateSpec, b: CrateSpec): boolean {
     a.queued === b.queued &&
     a.error === b.error &&
     a.smoke === b.smoke &&
-    a.step === b.step
+    a.step === b.step &&
+    a.role === b.role
   );
 }
 
@@ -246,6 +257,7 @@ export function stabilizeLayout(prev: FactoryLayout | null, next: FactoryLayout)
     pilesSame &&
     countsSame &&
     prev.doingActive === next.doingActive &&
+    prev.doingRole === next.doingRole &&
     prev.ciActive === next.ciActive &&
     prev.anyError === next.anyError &&
     prev.reviewWaiting === next.reviewWaiting &&

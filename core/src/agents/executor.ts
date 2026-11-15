@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   checkoutBase,
   createBranch,
@@ -7,37 +6,21 @@ import {
   createPr,
   run as gitRun,
 } from "../services/gitService.js";
-import { parseUsageFromResult, runClaude, type ClaudeUsage } from "../services/claudeService.js";
-import { calculateCostUsd, DEFAULT_MODEL } from "../services/pricingService.js";
-import { runGraph, GraphValidationError } from "./graphRunner.js";
+import { buildPrTeamSection, runTeam } from "./teamRunner.js";
 import {
   appendAgentLog,
-  getGraph,
-  getProject,
   getTask,
-  getTaskEffectiveBudget,
-  insertAgentText,
-  insertNodeRun,
-  insertToolCall,
   listTasks,
   resetTaskUsage,
-  updateNodeRun,
   updateTask,
-  updateTaskUsage,
-  updateToolCall,
 } from "../services/taskService.js";
+import { getLatestTeamRun } from "../services/teamRunService.js";
 import { slugify } from "../services/slug.js";
 import {
-  broadcastAgentText,
-  broadcastBudgetExceeded,
   broadcastCommentUpdated,
   broadcastLog,
-  broadcastNodeFinished,
-  broadcastNodeLog,
-  broadcastNodeStarted,
   broadcastStatus,
   broadcastTaskUpdated,
-  broadcastToolCall,
 } from "../services/wsService.js";
 import { createComment, updateComment } from "../services/commentService.js";
 import { startCiWatch } from "../services/ciWatcher.js";
@@ -90,24 +73,8 @@ export async function waitForIdle(taskId: string, timeoutMs = 5000): Promise<voi
   }
 }
 
-export interface EnqueueOptions {
-  resumeFromNodeId?: string;
-}
-
-export function enqueue(
-  task: Task,
-  project: Project,
-  options: EnqueueOptions = {},
-): void {
-  run(task, project, options).catch(() => {}); // errors handled inside run()
-}
-
-export function enqueueResume(
-  task: Task,
-  project: Project,
-  options: { resumeFromNodeId: string },
-): void {
-  enqueue(task, project, options);
+export function enqueue(task: Task, project: Project): void {
+  run(task, project).catch(() => {}); // errors handled inside run()
 }
 
 async function setAgentStep(
@@ -166,22 +133,74 @@ function taskRef(task: Task): string {
   return task.displayId ?? task.id;
 }
 
+function postComment(taskId: string, body: string, label: string): void {
+  try {
+    const comment = createComment(taskId, body);
+    const done = updateComment(comment.id, { status: "done" });
+    broadcastCommentUpdated(done);
+  } catch (e) {
+    console.error(`[executor] auto-comment (${label}) failed:`, e);
+  }
+}
 
-export async function run(
+async function returnToBase(
+  taskId: string,
+  project: Project,
+  branch: string,
+  opts: { deleteBranch: boolean },
+): Promise<void> {
+  const co = await gitRun("git", ["checkout", project.defaultBranch], project.repoPath);
+  if (co.code !== 0) {
+    await pushLog(taskId, `[warn] git checkout ${project.defaultBranch} failed: ${co.stderr.trim()}`);
+    return;
+  }
+  if (opts.deleteBranch) {
+    await gitRun("git", ["branch", "-D", branch], project.repoPath);
+    await pushLog(taskId, `↺ Returned to ${project.defaultBranch}, dropped ${branch}`);
+  } else {
+    await pushLog(taskId, `↺ Returned to ${project.defaultBranch}; ${branch} kept`);
+  }
+}
+
+/**
+ * Stuck / round limit / budget (plan §3): keep the work as a `wip:` commit on
+ * the task branch, return to base without deleting the branch, and hand the
+ * task back as todo + error.
+ */
+async function stopStuck(
   task: Task,
   project: Project,
-  options: EnqueueOptions = {},
+  branch: string,
+  reasonText: string,
+  summary: string,
 ): Promise<void> {
+  const dirty = await gitRun("git", ["status", "--porcelain"], project.repoPath);
+  if (dirty.code === 0 && dirty.stdout.trim()) {
+    const wip = await commitAll(project.repoPath, `wip: ${taskRef(task)} takıldı (${reasonText})`);
+    await pushCmdResult(task.id, wip);
+  }
+  await returnToBase(task.id, project, branch, { deleteBranch: false });
+  postComment(task.id, summary, "stuck");
+  const message = `Takıldı: ${reasonText}`;
+  const errTask = await updateTask(task.id, {
+    status: "todo",
+    agent: {
+      status: "error",
+      currentStep: undefined,
+      error: message,
+      finishedAt: new Date().toISOString(),
+    },
+  });
+  broadcastStatus(task.id, "error");
+  broadcastTaskUpdated(errTask);
+}
+
+export async function run(task: Task, project: Project): Promise<void> {
   const controller = new AbortController();
   RUNNING.set(task.id, controller);
 
   const branch = buildBranchName(task);
   const ref = taskRef(task);
-
-  // Graph mode: load graph from DB. Simple mode or missing/empty graph → null (single CLI path)
-  const isGraphMode = task.executionMode === 'graph' && !!task.graphId;
-  let graph = isGraphMode ? (getGraph(task.graphId!)?.data ?? null) : null;
-  if (graph && graph.nodes.length === 0) graph = null;
 
   try {
     // Wait until no other executor is active for this project (DB-level, survives restarts)
@@ -203,7 +222,8 @@ export async function run(
 
     await pushLog(task.id, `▸ Feature: ${ref}`);
 
-    resetTaskUsage(task.id);
+    // Resuming after spec approval keeps the usage of the roles that already ran.
+    if (getLatestTeamRun(task.id)?.status !== "awaiting_approval") resetTaskUsage(task.id);
 
     // ── Step 0: refresh git credential helper ─────────────────────────────
     // Ensures gh's git credential helper is registered even if auth was
@@ -234,286 +254,47 @@ export async function run(
       broadcastTaskUpdated(t);
     }
 
-    // Acceptance criteria are needed by both branches' PR body building below.
+    // Acceptance criteria are needed by the PR body building below.
     const acceptanceCriteria = extractAcceptanceCriteria(task.analysis);
 
-    let textBuffer = "";
+    // ── Step 3: team run ──────────────────────────────────────────────────
+    await setAgentStep(task.id, "running", "team");
+    const outcome = await runTeam({ task, project, controller });
 
-    // ── Step 3: run agent work ────────────────────────────────────────────
-    if (graph) {
-      await setAgentStep(task.id, "running", "graph_run");
-      await pushBlock(task.id, [
-        "",
-        `▸ Running graph (${graph.nodes.length} nodes)…`,
-      ]);
-      try {
-        await runGraph(task, project, graph, controller, project.defaultBranch, {
-          resumeFromNodeId: options.resumeFromNodeId,
-        });
-      } catch (err) {
-        if (err instanceof GraphValidationError) {
-          throw new Error(`Invalid agent graph: ${err.reason}`);
-        }
-        throw err;
-      }
-    } else {
-    await setAgentStep(task.id, "running", "claude_cli");
-
-    const mainNodeRunId = `noderun_${randomUUID().slice(0, 8)}`;
-    try {
-      const nr = insertNodeRun({
-        id: mainNodeRunId,
-        taskId: task.id,
-        nodeId: "main",
-        nodeType: "coder",
-        status: "running",
-        startedAt: new Date().toISOString(),
-        model: process.env.CLAUFLOW_DEFAULT_MODEL ?? null,
+    if (outcome.kind === "awaiting_approval") {
+      await returnToBase(task.id, project, branch, { deleteBranch: true });
+      const paused = await updateTask(task.id, {
+        branch: null,
+        agent: { status: "awaiting_approval", currentStep: "team:awaiting_approval" },
       });
-      broadcastNodeStarted(nr);
-    } catch (e) {
-      console.error(`[executor] insertNodeRun(main) failed:`, e);
+      broadcastStatus(task.id, "awaiting_approval", "team:awaiting_approval");
+      broadcastTaskUpdated(paused);
+      return;
     }
 
-    const taskBrief = task.analysis || task.description || task.title;
-    const background = project.aiPrompt?.trim();
-    const testingInstructions =
-      `Testing requirements:\n` +
-      `- Before coding, detect the repo's test runner: check package.json scripts ("test", "test:unit"), and config files (vitest.config.*, jest.config.*, pytest.ini, pyproject.toml with pytest, go.mod for go test).\n` +
-      `- If a runner exists, write unit tests that cover each acceptance criterion as an assertion. Prefer testing observable behavior over implementation details.\n` +
-      `- If NO test runner is configured and this looks like a greenfield repo, set up a minimal one matching the stack: vitest for TypeScript/JavaScript, pytest for Python, go test for Go. Add an "npm test" (or equivalent) script.\n` +
-      `- Run the test command after writing tests. Do not finish until tests pass. If a test reveals a bug in your implementation, fix the implementation — do not weaken the test.\n` +
-      `- Skip tests only for pure config/docs changes where behavior cannot be meaningfully asserted.`;
-
-    const prompt = background
-      ? `Project background (reference only — do NOT implement features beyond the current task's scope):\n` +
-        `<project_background>\n${background}\n</project_background>\n\n` +
-        `Current task — implement exactly what this describes, nothing more:\n` +
-        `<task>\n${taskBrief}\n</task>\n\n` +
-        `${testingInstructions}\n\n` +
-        `When done, exit the terminal.`
-      : `Implement the following task and exit the terminal when done:\n\n` +
-        `<task>\n${taskBrief}\n</task>\n\n` +
-        testingInstructions;
-
-    await pushBlock(task.id, [
-      "",
-      "▸ Running claude CLI…",
-    ]);
-
-    const onLogLine = async (
-      line: string,
-      stream: "stdout" | "stderr",
-    ): Promise<void> => {
-      const entry = stream === "stderr" ? `[stderr] ${line}` : line;
-      await appendAgentLog(task.id, entry);
-      broadcastLog(task.id, entry);
-      broadcastNodeLog(task.id, "main", entry);
-    };
-
-    const subagentRunIds = new Set<string>();
-
-    const onToolCallStart = (tc: {
-      id: string;
-      toolName: string;
-      args: unknown;
-      startedAt: string;
-    }): void => {
-      try {
-        const stored = insertToolCall({
-          id: tc.id,
-          taskId: task.id,
-          toolName: tc.toolName,
-          args: tc.args,
-          status: "running",
-          startedAt: tc.startedAt,
-        });
-        broadcastToolCall(stored);
-      } catch (e) {
-        console.error(`[executor] insertToolCall failed for ${tc.id}:`, e);
-      }
-      if (tc.toolName === "Agent") {
-        const args = tc.args as Record<string, unknown> | null;
-        subagentRunIds.add(tc.id);
-        try {
-          const nr = insertNodeRun({
-            id: tc.id,
-            taskId: task.id,
-            nodeId: tc.id,
-            nodeType: "subagent",
-            status: "running",
-            startedAt: tc.startedAt,
-            inputArtifact: {
-              description: typeof args?.description === "string" ? args.description : null,
-              subagent_type: typeof args?.subagent_type === "string" ? args.subagent_type : "subagent",
-            },
-          });
-          broadcastNodeStarted(nr);
-          const subagentType = typeof args?.subagent_type === "string" ? args.subagent_type : "subagent";
-          const description = typeof args?.description === "string" ? args.description : "";
-          broadcastNodeLog(task.id, tc.id, `▸ Subagent started: ${subagentType}`);
-          if (description) broadcastNodeLog(task.id, tc.id, `  ${description}`);
-          broadcastNodeLog(task.id, tc.id, "  Running… (logs appear when subagent finishes)");
-        } catch (e) {
-          console.error(`[executor] insertNodeRun(subagent) failed for ${tc.id}:`, e);
-        }
-      }
-    };
-
-    const onToolCallEnd = (tc: {
-      id: string;
-      result: string | null;
-      status: "running" | "done" | "error";
-      finishedAt: string | null;
-      durationMs: number | null;
-    }): void => {
-      try {
-        const updated = updateToolCall(tc.id, {
-          status: tc.status,
-          result: tc.result,
-          finishedAt: tc.finishedAt,
-          durationMs: tc.durationMs,
-        });
-        if (updated) broadcastToolCall(updated);
-      } catch (e) {
-        console.error(`[executor] updateToolCall failed for ${tc.id}:`, e);
-      }
-      if (subagentRunIds.has(tc.id)) {
-        subagentRunIds.delete(tc.id);
-        try {
-          const logLines = tc.result
-            ? tc.result.split(/\r?\n/).filter((l) => l.trim().length > 0)
-            : [];
-          const finished = updateNodeRun(tc.id, {
-            status: tc.status === "error" ? "error" : "done",
-            finishedAt: tc.finishedAt ?? new Date().toISOString(),
-            errorMessage: tc.status === "error" ? (tc.result?.slice(0, 300) ?? null) : null,
-            outputArtifact: logLines.length > 0 ? { logLines } : null,
-          });
-          if (finished) broadcastNodeFinished(finished);
-        } catch (e) {
-          console.error(`[executor] updateNodeRun(subagent) failed for ${tc.id}:`, e);
-        }
-      }
-    };
-
-    const onAgentText = (text: string): void => {
-      // Skip empty/whitespace-only chunks — narrative meaning is zero and
-      // they would just clutter the timeline.
-      if (!text || !text.trim()) return;
-      textBuffer += text;
-      try {
-        const stored = insertAgentText({ taskId: task.id, text });
-        broadcastAgentText(stored);
-      } catch (e) {
-        console.error(`[executor] insertAgentText failed:`, e);
-      }
-    };
-
-    const effectiveBudget = getTaskEffectiveBudget(task.id);
-
-    let midRunCost = 0;
-    let usageTurnFired = false;
-
-    const onUsageTurn = (usage: ClaudeUsage): void => {
-      usageTurnFired = true;
-      midRunCost += calculateCostUsd(usage, DEFAULT_MODEL);
-      // Write delta first so DB reflects accurate spend even on abort turn.
-      updateTaskUsage(task.id, usage)
-        .then((t) => { if (t) broadcastTaskUpdated(t); })
-        .catch((e) => { console.error(`[executor] mid-run updateTaskUsage failed:`, e); });
-      if (effectiveBudget != null && midRunCost >= effectiveBudget) {
-        broadcastBudgetExceeded(task.id, midRunCost, effectiveBudget);
-        controller.abort();
-      }
-    };
-
-    const onClaudeResult = (raw: unknown): void => {
-      const usage = parseUsageFromResult(raw);
-      if (!usage) return;
-      if (effectiveBudget != null) {
-        const spentUsd = calculateCostUsd(usage, DEFAULT_MODEL);
-        if (spentUsd >= effectiveBudget) {
-          broadcastBudgetExceeded(task.id, spentUsd, effectiveBudget);
-          controller.abort();
-        }
-      }
-      // Only write to DB if onUsageTurn never fired — avoids double-count.
-      if (usageTurnFired) return;
-      updateTaskUsage(task.id, usage)
-        .then((t) => {
-          if (t) broadcastTaskUpdated(t);
-        })
-        .catch((e) => {
-          console.error(`[executor] updateTaskUsage failed:`, e);
-        });
-    };
-
-    let claudeResult = await runClaude({
-      prompt,
-      cwd: project.repoPath,
-      allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-      signal: controller.signal,
-      outputFormat: "stream-json",
-      onLine: onLogLine,
-      onText: onAgentText,
-      onToolCallStart,
-      onToolCallEnd,
-      onUsage: onUsageTurn,
-      onResult: onClaudeResult,
-    });
-
-    // Fallback safety: if stream-json mode fails (e.g. CLI version mismatch),
-    // retry once with plain text output so the executor still completes.
-    if (claudeResult.code !== 0 && !controller.signal.aborted) {
-      const errSnippet = (claudeResult.stderr || claudeResult.stdout).slice(0, 200);
-      const looksLikeFormatError = /unknown.*output[- ]format|stream-json|--verbose/i.test(
-        errSnippet,
-      );
-      if (looksLikeFormatError) {
-        await pushLog(
-          task.id,
-          "[fallback] stream-json mode failed; retrying with text output",
-        );
-        claudeResult = await runClaude({
-          prompt,
-          cwd: project.repoPath,
-          allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-          signal: controller.signal,
-          onLine: onLogLine,
-        });
-      }
+    if (outcome.kind === "stuck") {
+      await stopStuck(task, project, branch, outcome.reasonText, outcome.summary);
+      return;
     }
 
-    if (claudeResult.code !== 0) {
-      try { updateNodeRun(mainNodeRunId, { status: "error", finishedAt: new Date().toISOString(), errorMessage: `exit ${claudeResult.code}` }); } catch {}
-      throw new Error(
-        `claude CLI exited ${claudeResult.code}:\n` +
-          claudeResult.stderr.slice(0, 500),
-      );
-    }
-    if (controller.signal.aborted) {
-      try { updateNodeRun(mainNodeRunId, { status: "aborted", finishedAt: new Date().toISOString() }); } catch {}
-      throw new Error("aborted");
+    postComment(task.id, outcome.summary, "team summary");
+
+    if (outcome.kind === "explored") {
+      await returnToBase(task.id, project, branch, { deleteBranch: true });
+      const final = await updateTask(task.id, {
+        status: "done",
+        branch: null,
+        agent: { status: "done", currentStep: "completed", finishedAt: new Date().toISOString() },
+      });
+      broadcastStatus(task.id, "done", "completed");
+      broadcastTaskUpdated(final);
+      return;
     }
 
-    try {
-      const finished = updateNodeRun(mainNodeRunId, { status: "done", finishedAt: new Date().toISOString() });
-      if (finished) broadcastNodeFinished(finished);
-    } catch (e) {
-      console.error(`[executor] finalizeNodeRun(main) failed:`, e);
+    if (outcome.allText.includes("## Code Review Report")) {
+      postComment(task.id, outcome.allText, "code review report");
     }
-
-    if (textBuffer.includes("## Code Review Report")) {
-      try {
-        const comment = createComment(task.id, textBuffer);
-        const done = updateComment(comment.id, { status: "done" });
-        broadcastCommentUpdated(done);
-      } catch (e) {
-        console.error(`[executor] auto-comment failed:`, e);
-      }
-    }
-    } // end else (single-claude branch)
+    const teamPrSection = buildPrTeamSection(outcome);
 
     // ── Step 4: git add . && commit ───────────────────────────────────────
     await setAgentStep(task.id, "pushing", "git_commit");
@@ -545,15 +326,7 @@ export async function run(
         "ℹ Hiçbir değişiklik yok ve branch base'in ilerisinde değil.",
         "  Değişiklik gerekmiyordu → task 'nothing' olarak işaretlendi.",
       ]);
-      if (textBuffer.trim()) {
-        try {
-          const comment = createComment(task.id, textBuffer);
-          const done = updateComment(comment.id, { status: "done" });
-          broadcastCommentUpdated(done);
-        } catch (e) {
-          console.error(`[executor] auto-comment(nothing) failed:`, e);
-        }
-      }
+      await returnToBase(task.id, project, branch, { deleteBranch: false });
       const final = await updateTask(task.id, {
         status: "nothing",
         agent: {
@@ -593,6 +366,7 @@ export async function run(
       const prBodyParts: string[] = [];
       if (task.description) prBodyParts.push(`## Açıklama\n${task.description}`);
       if (task.analysis) prBodyParts.push(`## Analiz\n${task.analysis}`);
+      if (teamPrSection) prBodyParts.push(teamPrSection);
       prBodyParts.push(
         `## Nasıl Test Edilir\n` +
           (acceptanceCriteria
@@ -630,6 +404,8 @@ export async function run(
     }
 
     // ── Done ──────────────────────────────────────────────────────────────
+    // The task branch stays; the repo returns to base so UI commits never land on it.
+    await returnToBase(task.id, project, branch, { deleteBranch: false });
     // Remote yoksa done'a, PR varsa CI gate'e, remote-only ise review'a taşı
     const finalStatus = hasRemote && prNumber ? "ci" : hasRemote ? "review" : "done";
     const final = await updateTask(task.id, {

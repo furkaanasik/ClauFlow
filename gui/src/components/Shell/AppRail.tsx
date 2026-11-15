@@ -63,14 +63,14 @@ export function AppRail() {
   const [reposOpen, setReposOpen] = useState(true);
   const [reposAll, setReposAll] = useState(false);
 
-  // Studio / project-detail intents raised elsewhere (task drawer, insights)
-  const studioRequest = useBoardStore((s) => s.studioRequest);
-  const closeStudio = useBoardStore((s) => s.closeStudio);
+  // Team-editor / project-detail intents raised elsewhere (task drawer, insights)
   const projectDetailRequest = useBoardStore((s) => s.projectDetailRequest);
   const clearProjectDetailRequest = useBoardStore((s) => s.clearProjectDetailRequest);
+  const teamEditorRequest = useBoardStore((s) => s.teamEditorRequest);
+  const closeTeamEditor = useBoardStore((s) => s.closeTeamEditor);
   useEffect(() => {
-    if (studioRequest) setDetailProjectId(studioRequest.projectId);
-  }, [studioRequest]);
+    if (teamEditorRequest) setDetailProjectId(teamEditorRequest.projectId);
+  }, [teamEditorRequest]);
   useEffect(() => {
     if (projectDetailRequest) {
       setDetailProjectId(projectDetailRequest);
@@ -277,7 +277,7 @@ export function AppRail() {
         projectId={detailProjectId}
         onClose={() => {
           setDetailProjectId(null);
-          closeStudio();
+          closeTeamEditor();
         }}
       />
       <CloneRepoModal repo={cloneRepo} onClose={() => setCloneRepo(null)} />

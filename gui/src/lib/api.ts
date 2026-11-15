@@ -1,4 +1,4 @@
-import type { AgentGraph, AgentText, Comment, GithubRepo, GitStatus, GraphRecord, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, ToolCall } from "@/types";
+import type { AgentText, Comment, GithubRepo, GitStatus, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -36,8 +36,8 @@ export interface CreateTaskInput {
   priority?: TaskPriority | string;
   status?: Task["status"];
   budgetUsd?: number | null;
-  executionMode?: "simple" | "graph";
-  graphId?: string | null;
+  /** null / omitted = the project's default team. */
+  teamId?: string | null;
 }
 
 export interface CreateProjectInput {
@@ -252,54 +252,6 @@ export const api = {
     fetch(`${BASE}/system/prereqs`, { cache: "no-store" })
       .then((r) => handle<{ allOk: boolean; items: PrereqItem[] }>(r)),
 
-  pushClaude: async (id: string): Promise<{ pushed: true; branch: string }> => {
-    const res = await fetch(`${BASE}/projects/${id}/claude/push`, { method: "POST" });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: res.statusText }));
-      const detail = data.detail ? ` — ${data.detail}` : "";
-      throw new Error(`${data.error ?? "push_failed"}${detail}`);
-    }
-    return res.json();
-  },
-
-  listClaudeAgents: (id: string): Promise<{ exists: boolean; dir: string; agents: ClaudeAgent[] }> =>
-    fetch(`${BASE}/projects/${id}/claude/agents`, { cache: "no-store" })
-      .then((r) => handle<{ exists: boolean; dir: string; agents: ClaudeAgent[] }>(r)),
-
-  getClaudeAgent: (id: string, slug: string): Promise<ClaudeAgent> =>
-    fetch(`${BASE}/projects/${id}/claude/agents/${slug}`, { cache: "no-store" })
-      .then((r) => handle<ClaudeAgent>(r)),
-
-  createClaudeAgent: (
-    id: string,
-    input: { slug: string; name?: string; model?: string; description?: string; body?: string },
-  ): Promise<ClaudeAgentSaveResult> =>
-    fetch(`${BASE}/projects/${id}/claude/agents`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    }).then((r) => handle<ClaudeAgentSaveResult>(r)),
-
-  updateClaudeAgent: (
-    id: string,
-    slug: string,
-    input: { name?: string; model?: string; description?: string; body?: string },
-  ): Promise<ClaudeAgentSaveResult> =>
-    fetch(`${BASE}/projects/${id}/claude/agents/${slug}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    }).then((r) => handle<ClaudeAgentSaveResult>(r)),
-
-  deleteClaudeAgent: (
-    id: string,
-    slug: string,
-  ): Promise<{ deleted: true; slug: string; committed: boolean; commitSha: string | null; commitWarning: string | null }> =>
-    fetch(`${BASE}/projects/${id}/claude/agents/${slug}`, { method: "DELETE" })
-      .then((r) =>
-        handle<{ deleted: true; slug: string; committed: boolean; commitSha: string | null; commitWarning: string | null }>(r),
-      ),
-
   listSkillRegistry: (id: string): Promise<{ available: AvailablePlugin[] }> =>
     fetch(`${BASE}/projects/${id}/claude/skills/registry`, { cache: "no-store" })
       .then((r) => handle<{ available: AvailablePlugin[] }>(r)),
@@ -307,10 +259,6 @@ export const api = {
   listInstalledSkills: (id: string): Promise<{ installed: InstalledPlugin[] }> =>
     fetch(`${BASE}/projects/${id}/claude/skills`, { cache: "no-store" })
       .then((r) => handle<{ installed: InstalledPlugin[] }>(r)),
-
-  listSkillItems: (id: string): Promise<{ skills: SkillItem[] }> =>
-    fetch(`${BASE}/projects/${id}/claude/skills/installed-skills`, { cache: "no-store" })
-      .then((r) => handle<{ skills: SkillItem[] }>(r)),
 
   installSkill: (
     id: string,
@@ -357,83 +305,67 @@ export const api = {
       method: "DELETE",
     }).then((r) => handle<{ ok: true; name: string }>(r)),
 
-  postStudioGenerate: (
-    id: string,
-    body: { prompt: string; skills?: string[] },
-  ): Promise<{ generationId: string; markdown: string }> =>
-    fetch(`${BASE}/projects/${id}/claude/agents/studio/generate`, {
+  listTeams: (projectId: string): Promise<Team[]> =>
+    fetch(`${BASE}/teams?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" })
+      .then((r) => handle<{ teams: Team[] }>(r))
+      .then((d) => d.teams ?? []),
+
+  /** Copy (`fromTeamId`) or create a team. `projectId: null` = a global template. */
+  createTeam: (body: {
+    name: string;
+    description?: string;
+    projectId: string | null;
+    roles?: TeamRole[];
+    fromTeamId?: string;
+  }): Promise<Team> =>
+    fetch(`${BASE}/teams`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then((r) => handle<{ generationId: string; markdown: string }>(r)),
+    })
+      .then((r) => handle<{ team: Team }>(r))
+      .then((d) => d.team),
 
-  getProjectSkills: (id: string): Promise<InstalledPlugin[]> =>
-    fetch(`${BASE}/projects/${id}/claude/skills`, { cache: "no-store" })
-      .then((r) => handle<{ installed: InstalledPlugin[] }>(r))
-      .then((d) => d.installed ?? []),
-
-  getProjectGraph: (id: string): Promise<AgentGraph> =>
-    fetch(`${BASE}/projects/${id}/claude/graph`, { cache: "no-store" })
-      .then((r) => handle<AgentGraph>(r)),
-
-  putProjectGraph: (id: string, body: AgentGraph): Promise<AgentGraph> =>
-    fetch(`${BASE}/projects/${id}/claude/graph`, {
+  updateTeam: (id: string, patch: { name?: string; description?: string; roles?: TeamRole[] }): Promise<Team> =>
+    fetch(`${BASE}/teams/${encodeURIComponent(id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then((r) => handle<AgentGraph>(r)),
+      body: JSON.stringify(patch),
+    })
+      .then((r) => handle<{ team: Team }>(r))
+      .then((d) => d.team),
 
-  listGraphs: (projectId: string): Promise<{ graphs: GraphRecord[] }> =>
-    fetch(`${BASE}/projects/${projectId}/graphs`, { cache: "no-store" })
-      .then((r) => handle<{ graphs: GraphRecord[] }>(r)),
-
-  createGraph: (projectId: string, body: { name: string; data?: AgentGraph }): Promise<GraphRecord> =>
-    fetch(`${BASE}/projects/${projectId}/graphs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then((r) => handle<{ graph: GraphRecord }>(r)).then((b) => b.graph),
-
-  updateGraph: (
-    projectId: string,
-    graphId: string,
-    body: { name?: string; data?: AgentGraph },
-  ): Promise<GraphRecord> =>
-    fetch(`${BASE}/projects/${projectId}/graphs/${encodeURIComponent(graphId)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then((r) => handle<{ graph: GraphRecord }>(r)).then((b) => b.graph),
-
-  deleteGraph: (projectId: string, graphId: string): Promise<void> =>
-    fetch(`${BASE}/projects/${projectId}/graphs/${encodeURIComponent(graphId)}`, {
-      method: "DELETE",
-    }).then((r) => {
+  deleteTeam: (id: string): Promise<void> =>
+    fetch(`${BASE}/teams/${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => {
       if (!r.ok) return handle<void>(r);
     }),
+
+  /** Unified skill list (user, project, plugin) for the role editor. */
+  listSkillCatalog: (projectId: string): Promise<SkillCatalogEntry[]> =>
+    fetch(`${BASE}/projects/${projectId}/claude/skills/catalog`, { cache: "no-store" })
+      .then((r) => handle<{ skills: SkillCatalogEntry[] }>(r))
+      .then((d) => d.skills ?? []),
+
+  getCapabilities: (): Promise<SystemCapabilities> =>
+    fetch(`${BASE}/system/capabilities`, { cache: "no-store" }).then((r) => handle<SystemCapabilities>(r)),
+
+  getTaskTeam: (taskId: string): Promise<TaskTeamState> =>
+    fetch(`${BASE}/tasks/${taskId}/team`, { cache: "no-store" })
+      .then((r) => handle<TaskTeamState>(r))
+      .then((d) => ({ runs: d.runs ?? [], artifacts: d.artifacts ?? [] })),
+
+  /** Resume a run paused at the spec gate. `specBody` replaces the spec when the user edited it. */
+  approveTeamSpec: (taskId: string, specBody?: string): Promise<{ task: Task; artifact: TeamArtifact }> =>
+    fetch(`${BASE}/tasks/${taskId}/team/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(specBody ? { specBody } : {}),
+    }).then((r) => handle<{ task: Task; artifact: TeamArtifact }>(r)),
 
   getNodeRuns: (taskId: string): Promise<NodeRun[]> =>
     fetch(`${BASE}/tasks/${taskId}/node-runs`, { cache: "no-store" })
       .then((r) => handle<{ nodeRuns: NodeRun[] }>(r))
       .then((d) => d.nodeRuns ?? []),
-
-  abortNode: (
-    taskId: string,
-    nodeId: string,
-  ): Promise<{ aborted: true; nodeId: string }> =>
-    fetch(
-      `${BASE}/tasks/${taskId}/nodes/${encodeURIComponent(nodeId)}/abort`,
-      { method: "POST" },
-    ).then((r) => handle<{ aborted: true; nodeId: string }>(r)),
-
-  retryNode: (
-    taskId: string,
-    nodeId: string,
-  ): Promise<{ task: Task; resumeFromNodeId: string }> =>
-    fetch(
-      `${BASE}/tasks/${taskId}/nodes/${encodeURIComponent(nodeId)}/retry`,
-      { method: "POST" },
-    ).then((r) => handle<{ task: Task; resumeFromNodeId: string }>(r)),
 
   getPricing: async (): Promise<PricingResponse> => {
     const res = await fetch(`${BASE}/pricing`, { cache: "no-store" });
@@ -523,12 +455,6 @@ export interface InstalledPlugin {
   projectPath?: string;
 }
 
-export interface SkillItem {
-  id: string;
-  source: "user" | "plugin" | "command";
-  pluginId?: string;
-}
-
 export interface ClaudeMarketplace {
   name: string;
   source: { source: string; repo?: string; url?: string; path?: string };
@@ -541,22 +467,6 @@ export interface SkillInstallProgress {
   projectId: string;
   status: SkillInstallStatus;
   message?: string;
-}
-
-export interface ClaudeAgent {
-  slug: string;
-  name: string;
-  model: string | null;
-  description: string | null;
-  allowedTools: string | null;
-  body: string;
-  path: string;
-}
-
-export interface ClaudeAgentSaveResult extends ClaudeAgent {
-  committed: boolean;
-  commitSha: string | null;
-  commitWarning: string | null;
 }
 
 export interface ClaudeInstructionsSaveResult {

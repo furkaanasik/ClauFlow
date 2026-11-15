@@ -12,6 +12,7 @@ import {
   updateTask,
 } from "../services/taskService.js";
 import { errorMessage } from "../utils/error.js";
+import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import {
   broadcastTaskCreated,
   broadcastTaskDeleted,
@@ -19,13 +20,19 @@ import {
 } from "../services/wsService.js";
 import {
   enqueue as enqueueExecutor,
-  enqueueResume as enqueueExecutorResume,
   abort as abortExecutor,
   isRunning as isExecutorRunning,
   waitForIdle as waitForExecutorIdle,
 } from "../agents/executor.js";
-import { loadGraph } from "../services/graphService.js";
-import { planGraph } from "../agents/graphRunner.js";
+import {
+  getLatestTeamRun,
+  listTeamArtifactsByRun,
+  listTeamArtifactsByTask,
+  listTeamRunsByTask,
+  updateTeamArtifact,
+  updateTeamRun,
+} from "../services/teamRunService.js";
+import { broadcastTeamArtifact, broadcastTeamRunUpdated } from "../services/wsService.js";
 import { mergePr, checkoutBase } from "../services/gitService.js";
 import { stopCiWatch } from "../services/ciWatcher.js";
 import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
@@ -40,6 +47,7 @@ const agentStatus = z.enum([
   "running",
   "pushing",
   "pr_opening",
+  "awaiting_approval",
   "done",
   "error",
 ]);
@@ -53,6 +61,7 @@ const createTaskSchema = z.object({
   tags: z.array(z.string()).optional(),
   status: taskStatus.optional(),
   parentTaskId: z.string().nullable().optional(),
+  teamId: z.string().min(1).nullable().optional(),
 });
 
 const updateTaskSchema = z.object({
@@ -70,9 +79,8 @@ const updateTaskSchema = z.object({
   prUrl: z.string().nullable().optional(),
   prNumber: z.number().nullable().optional(),
   budgetUsd: z.number().min(0.1).nullable().optional(),
-  executionMode: z.enum(['simple', 'graph']).optional(),
-  graphId: z.string().nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
+  teamId: z.string().min(1).nullable().optional(),
   agent: z
     .object({
       status: agentStatus.optional(),
@@ -147,10 +155,12 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
   }
   try {
+    if (parsed.data.teamId) assertTeamUsableByProject(parsed.data.teamId, parsed.data.projectId);
     const task = await createTask(parsed.data);
     broadcastTaskCreated(task);
     res.status(201).json({ task });
   } catch (err) {
+    if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
     res.status(400).json({ error: errorMessage(err) });
   }
 });
@@ -161,6 +171,11 @@ router.patch("/:id", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
   }
   try {
+    if (parsed.data.teamId) {
+      const existing = await getTask(req.params.id!);
+      if (!existing) return res.status(404).json({ error: "not_found" });
+      assertTeamUsableByProject(parsed.data.teamId, existing.projectId);
+    }
     // Reset agent state immediately so queued tasks show "Sırada" instead of stale error
     const updateData =
       parsed.data.status === "doing"
@@ -233,6 +248,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       }
     }
   } catch (err) {
+    if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
     const msg = errorMessage(err);
     const code = msg.startsWith("Task not found") ? 404 : 400;
     res.status(code).json({ error: msg });
@@ -288,21 +304,34 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
       return res.json({ aborted: true, source: "in_memory" });
     }
 
-    // No live process for this task. If task is in "doing" state with no live
-    // executor (orphan from a crashed/restarted run, or stuck-queued task),
-    // force-rollback to todo+error so user can retry.
+    // No live process for this task. A task paused for spec approval, or an
+    // orphan "doing" task (crashed/restarted run, stuck-queued), is rolled back
+    // to todo+error so the user can retry.
     if (task.status === "doing") {
+      const paused = task.agent.status === "awaiting_approval";
+      const run = getLatestTeamRun(id);
+      if (run && (run.status === "awaiting_approval" || run.status === "running")) {
+        broadcastTeamRunUpdated(
+          updateTeamRun(run.id, {
+            status: "aborted",
+            stopReason: "aborted",
+            finishedAt: new Date().toISOString(),
+          }),
+        );
+      }
       const rolled = await updateTask(id, {
         status: "todo",
         agent: {
           status: "error",
           currentStep: undefined,
-          error: "Kullanıcı tarafından durduruldu (orphan task)",
+          error: paused
+            ? "Kullanıcı tarafından durduruldu (şartname onayı beklerken)"
+            : "Kullanıcı tarafından durduruldu (orphan task)",
           finishedAt: new Date().toISOString(),
         },
       });
       broadcastTaskUpdated(rolled);
-      return res.json({ aborted: true, source: "orphan_cleanup" });
+      return res.json({ aborted: true, source: paused ? "awaiting_approval" : "orphan_cleanup" });
     }
 
     return res.status(409).json({ error: "task_not_running" });
@@ -311,62 +340,54 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/:id/nodes/:nodeId/abort", async (req: Request, res: Response) => {
+router.get("/:id/team", async (req: Request, res: Response) => {
   try {
-    const { id, nodeId } = req.params as { id: string; nodeId: string };
-    const task = await getTask(id);
+    const task = await getTask(req.params.id!);
     if (!task) return res.status(404).json({ error: "not_found" });
-    if (!isExecutorRunning(id)) {
-      return res.status(409).json({ error: "task_not_running" });
-    }
-    const runs = listNodeRunsByTask(id);
-    const live = runs.find((r) => r.nodeId === nodeId && r.status === "running");
-    if (!live) return res.status(409).json({ error: "node_not_running" });
-    abortExecutor(id);
-    return res.json({ aborted: true, nodeId });
+    res.json({ runs: listTeamRunsByTask(task.id), artifacts: listTeamArtifactsByTask(task.id) });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
 });
 
-router.post("/:id/nodes/:nodeId/retry", async (req: Request, res: Response) => {
+const approveSchema = z.object({
+  specBody: z.string().trim().min(1).max(100_000).optional(),
+});
+
+router.post("/:id/team/approve", async (req: Request, res: Response) => {
+  const parsed = approveSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
   try {
-    const { id, nodeId } = req.params as { id: string; nodeId: string };
-    const task = await getTask(id);
+    const task = await getTask(req.params.id!);
     if (!task) return res.status(404).json({ error: "not_found" });
-    if (task.status !== "doing") {
-      return res.status(400).json({ error: "task_not_in_doing" });
+    const run = getLatestTeamRun(task.id);
+    if (
+      task.status !== "doing" ||
+      task.agent.status !== "awaiting_approval" ||
+      run?.status !== "awaiting_approval" ||
+      isExecutorRunning(task.id)
+    ) {
+      return res.status(409).json({ error: "not_awaiting_approval" });
     }
+    const spec = [...listTeamArtifactsByRun(run.id)].reverse().find((a) => a.kind === "spec");
+    if (!spec) return res.status(409).json({ error: "spec_missing" });
     const project = await getProject(task.projectId);
     if (!project) return res.status(404).json({ error: "project_not_found" });
 
-    const graph = loadGraph(project.repoPath);
-    if (!graph || graph.nodes.length < 2) {
-      return res.status(400).json({ error: "no_graph_use_task_retry" });
-    }
-    const plan = planGraph(graph);
-    if (!plan.order.includes(nodeId)) {
-      return res.status(400).json({ error: "node_not_in_graph" });
-    }
+    const approved = updateTeamArtifact(spec.id, {
+      approved: true,
+      ...(parsed.data.specBody ? { body: parsed.data.specBody } : {}),
+    });
+    broadcastTeamArtifact(approved);
 
-    if (isExecutorRunning(id)) {
-      abortExecutor(id);
-      await waitForExecutorIdle(id, 5000);
-    }
-
-    const reset = await updateTask(id, {
-      agent: {
-        status: "idle",
-        currentStep: undefined,
-        log: [],
-        error: null,
-        startedAt: null,
-        finishedAt: null,
-      },
+    const reset = await updateTask(task.id, {
+      agent: { status: "idle", currentStep: undefined, error: null, finishedAt: null },
     });
     broadcastTaskUpdated(reset);
-    res.json({ task: reset, resumeFromNodeId: nodeId });
-    enqueueExecutorResume(reset, project, { resumeFromNodeId: nodeId });
+    res.json({ task: reset, artifact: approved });
+    enqueueExecutor(reset, project);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }

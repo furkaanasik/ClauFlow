@@ -62,6 +62,7 @@ import {
   run,
 } from "../services/gitService.js";
 import { runProjectPlanner } from "../agents/projectPlanner.js";
+import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import { runCloneRepo } from "../agents/cloneRunner.js";
 
 const router = Router();
@@ -300,6 +301,9 @@ const updateProjectSchema = z.object({
   defaultBranch: z.string().min(1).optional(),
   slug: slugSchema.optional(),
   budgetUsd: z.number().min(0.1).nullable().optional(),
+  defaultTeamId: z.string().min(1).nullable().optional(),
+  qaMaxRounds: z.number().int().min(0).max(20).optional(),
+  specApproval: z.boolean().optional(),
 });
 
 router.patch("/:id", async (req: Request, res: Response) => {
@@ -313,6 +317,15 @@ router.patch("/:id", async (req: Request, res: Response) => {
     if (!existing) return res.status(404).json({ error: "not_found" });
 
     const data = parsed.data;
+
+    if (data.defaultTeamId) {
+      try {
+        assertTeamUsableByProject(data.defaultTeamId, id);
+      } catch (err) {
+        if (err instanceof TeamServiceError) return res.status(400).json({ error: err.code });
+        throw err;
+      }
+    }
 
     if (data.repoPath !== undefined && !path.isAbsolute(data.repoPath)) {
       return res.status(400).json({ error: "repoPath mutlak bir yol olmalıdır" });

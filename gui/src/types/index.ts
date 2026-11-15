@@ -8,6 +8,7 @@ export type AgentStatus =
   | "running"
   | "pushing"
   | "pr_opening"
+  | "awaiting_approval"
   | "done"
   | "error";
 
@@ -39,9 +40,9 @@ export interface Task {
   comments?: Comment[];
   usage?: TaskUsage;
   budgetUsd?: number | null;
-  executionMode?: "simple" | "graph";
-  graphId?: string | null;
   parentTaskId?: string | null;
+  /** Team chosen for this task; null = the project's default team. */
+  teamId?: string | null;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -60,6 +61,113 @@ export interface Project {
   planningStatus?: ProjectPlanningStatus;
   planningError?: string | null;
   budgetUsd?: number | null;
+  defaultTeamId?: string | null;
+  qaMaxRounds?: number;
+  specApproval?: boolean;
+}
+
+export type RoleKind = "ceo" | "analyst" | "developer" | "qa";
+
+export interface TeamRole {
+  id: string;
+  kind: RoleKind;
+  name: string;
+  instructions: string;
+  model: string;
+  advisorModel: string | null;
+  tools: string[];
+  skills: string[];
+}
+
+export interface Team {
+  id: string;
+  projectId: string | null;
+  templateKey: string | null;
+  name: string;
+  description: string;
+  roles: TeamRole[];
+  builtin: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TeamRunStatus =
+  | "running"
+  | "awaiting_approval"
+  | "delivered"
+  | "explored"
+  | "stuck"
+  | "error"
+  | "aborted";
+
+export interface TeamRun {
+  id: string;
+  taskId: string;
+  teamId: string | null;
+  teamSnapshot: Team;
+  status: TeamRunStatus;
+  qaRound: number;
+  stopReason: string | null;
+  costUsd: number;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+export type TeamArtifactKind =
+  | "brief"
+  | "spec"
+  | "delivery"
+  | "qa_report"
+  | "stuck"
+  | "summary";
+
+export type QaVerdict = "pass" | "fail";
+
+/** Why a team run stopped early (`TeamRun.stopReason`). Other values are free text (errors). */
+export type TeamStopReason =
+  | "stalled"
+  | "round_limit"
+  | "budget"
+  | "aborted"
+  | "superseded"
+  | "server_restart";
+
+/** `GET /api/tasks/:id/team` */
+export interface TaskTeamState {
+  runs: TeamRun[];
+  artifacts: TeamArtifact[];
+}
+
+export interface TeamArtifact {
+  id: string;
+  runId: string;
+  taskId: string;
+  roleId: string | null;
+  roleKind: RoleKind | null;
+  kind: TeamArtifactKind;
+  round: number;
+  body: string;
+  verdict: QaVerdict | null;
+  approved: boolean | null;
+  commitSha: string | null;
+  nodeRunId: string | null;
+  costUsd: number | null;
+  createdAt: string;
+}
+
+export type SkillSource = "user" | "project" | "plugin";
+
+export interface SkillCatalogEntry {
+  id: string;
+  name: string;
+  source: SkillSource;
+  pluginId?: string;
+  description: string;
+}
+
+export interface SystemCapabilities {
+  advisor: boolean;
+  models: string[];
 }
 
 export interface GitStatus {
@@ -68,7 +176,20 @@ export interface GitStatus {
 }
 
 export type ProjectPatch = Partial<
-  Pick<Project, "name" | "slug" | "description" | "aiPrompt" | "repoPath" | "defaultBranch" | "remote" | "budgetUsd">
+  Pick<
+    Project,
+    | "name"
+    | "slug"
+    | "description"
+    | "aiPrompt"
+    | "repoPath"
+    | "defaultBranch"
+    | "remote"
+    | "budgetUsd"
+    | "defaultTeamId"
+    | "qaMaxRounds"
+    | "specApproval"
+  >
 >;
 
 export type TaskPatch = Partial<
@@ -84,19 +205,10 @@ export type TaskPatch = Partial<
     | "prUrl"
     | "prNumber"
     | "budgetUsd"
-    | "executionMode"
-    | "graphId"
     | "parentTaskId"
+    | "teamId"
   >
 > & { agent?: Partial<AgentState> };
-
-export interface GraphRecord {
-  id: string;
-  projectId: string;
-  name: string;
-  data: AgentGraph;
-  createdAt: string;
-}
 
 export type CommentStatus = "pending" | "running" | "done" | "error";
 
@@ -134,7 +246,11 @@ export type NodeType =
   | "ci"
   | "fix"
   | "custom"
-  | "subagent";
+  | "subagent"
+  | "ceo"
+  | "analyst"
+  | "developer"
+  | "qa";
 
 export interface NodeRun {
   id: string;
@@ -191,24 +307,6 @@ export interface CloneProgress {
   project?: Project;
 }
 
-export interface AgentGraphNode {
-  id: string;
-  type: "agent";
-  position: { x: number; y: number };
-  data: { slug: string };
-}
-
-export interface AgentGraphEdge {
-  id: string;
-  source: string;
-  target: string;
-}
-
-export interface AgentGraph {
-  nodes: AgentGraphNode[];
-  edges: AgentGraphEdge[];
-}
-
 export interface CiFailure {
   jobName: string;
   conclusion: "FAILURE" | "CANCELLED" | "TIMED_OUT" | "ACTION_REQUIRED";
@@ -245,6 +343,8 @@ export type WsMessage =
   | { type: "agent_text"; taskId: string; payload: AgentText }
   | { type: "node_started"; taskId: string; payload: NodeRun }
   | { type: "node_finished"; taskId: string; payload: NodeRun }
+  | { type: "team_run_updated"; taskId: string; payload: TeamRun }
+  | { type: "team_artifact"; taskId: string; payload: TeamArtifact }
   | {
       type: "node_log";
       taskId: string;
@@ -266,15 +366,6 @@ export type WsMessage =
         pluginId: string;
         status: "running" | "done" | "error";
         message?: string;
-      };
-    }
-  | {
-      type: "studio_generation";
-      payload: {
-        generationId: string;
-        status: "running" | "done" | "error";
-        chunk?: string;
-        error?: string;
       };
     }
   | {

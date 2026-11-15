@@ -108,9 +108,9 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
   const [confirmKanban, setConfirmKanban] = useState(false);
   const [deleting,      setDeleting]      = useState(false);
 
-  // Studio intents land straight on the Claude Config tab.
-  const studioRequest = useBoardStore((s) => s.studioRequest);
-  const wantsStudio = !!studioRequest && studioRequest.projectId === projectId;
+  // "Edit team" (task drawer) lands on Claude Config → Ekip.
+  const teamEditorRequest = useBoardStore((s) => s.teamEditorRequest);
+  const wantsTeam = !!teamEditorRequest && teamEditorRequest.projectId === projectId;
 
   useEffect(() => {
     if (liveProject) {
@@ -121,12 +121,12 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
     setError(null);
     setSaving(false);
     setDeleting(false);
-    setActiveTab(wantsStudio ? "claude" : "overview");
+    setActiveTab(wantsTeam ? "claude" : "overview");
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (wantsStudio) setActiveTab("claude");
-  }, [wantsStudio]);
+    if (wantsTeam) setActiveTab("claude");
+  }, [wantsTeam]);
 
   useEffect(() => {
     if (!projectId) {

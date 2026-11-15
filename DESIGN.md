@@ -301,7 +301,7 @@ Kodda mono fontun kullanıldığı yerler: görev anahtarı (`task-card__key`, `
 | Kalınlık | Nerede |
 |---|---|
 | `2px solid var(--line)` | Varsayılan kural: panel, buton, girdi, pil, çip, segment, sekme, kart, sütun, modal, drawer kenarı, ray, üst bar alt çizgisi |
-| `2.5px` | Odak outline'ı. Ana Studio düğümü (`agent-node[data-kind="main"]`). |
+| `2.5px` | Odak outline'ı. |
 | `1.5px` | İkincil küçük öğeler: `ui-dot`, `ui-kbd` (alt kenar `3px`), `lane__count`, `task-card__btn`, `ui-keyplate`, `Tag`, `Badge`, `ui-seg__count` (`currentColor`) |
 | `1.5px solid var(--hair)` | Tablo satır ayracı, kart alt bilgi üst çizgisi (`border-t-[1.5px] border-hair`) |
 | `2px dashed var(--hair)` | Bölüm ayracı (`ui-meta + .ui-meta`, `tl__body`, `agent-node__foot`) |
@@ -312,7 +312,7 @@ Kodda mono fontun kullanıldığı yerler: görev anahtarı (`task-card__key`, `
 
 | Token / değer | Nerede |
 |---|---|
-| `--r-panel` `14px` | Panel, sütun (`.lane`), modal, KPI tile, PR satırı, Studio ajan düğümü |
+| `--r-panel` `14px` | Panel, sütun (`.lane`), modal, KPI tile, PR satırı, Ekip editörü paneli |
 | `12px` (sabit) | Görev kartı, menü (`ui-menu`), log paneli, flow düğümü, diff dosyası, toast, sütun başlığının üst köşeleri |
 | `--r-btn` `10px` | Buton (md/lg), girdi (md), segment, rail öğesi, linkrow, option, banner, logo monogramı, modal ikon plakası |
 | `8px` (sabit) | Küçük buton ve girdi (`--sm`), panel ikon plakası, tooltip, menü öğesi |
@@ -332,7 +332,7 @@ Kodda mono fontun kullanıldığı yerler: görev anahtarı (`task-card__key`, `
 | `2px 2px 0 var(--shadow-ink)` | sabit | Küçük plakalar: aktif rail öğesi, SectionPill, logo, ikon plakaları, checkbox işaretli |
 | `8px 10px 0 var(--shadow-ink)` | sabit | Sürüklenen kart (overlay) |
 | `-4px 0 0 var(--shadow-ink)` | sabit | Drawer'ın sol kenarı |
-| Renkli ofset | `2px 2px 0 var(--mustard)` (seçili çip), `3px 3px 0 var(--mustard)` (tooltip), `3px 3px 0 var(--orange)` (çalışan yorum, Studio canlı pili), `3px 3px 0 var(--green)` (görüldü diff) | Durum vurgusu |
+| Renkli ofset | `2px 2px 0 var(--mustard)` (seçili çip), `3px 3px 0 var(--mustard)` (tooltip), `3px 3px 0 var(--orange)` (çalışan yorum), `3px 3px 0 var(--green)` (görüldü diff) | Durum vurgusu |
 | İç şerit | `inset 4px 0 0 var(--red)`, `inset 5px 0 0 <accent>`, `inset 6px 0 0 var(--pr)` | Sol kenar vurgusu (banner, tile, PR satırı) |
 | İç çizgi | `inset 0 5px 0 var(--lane)` | Sütun başlığının üst renk şeridi |
 | Girdi iç gölgesi | `inset 2px 2px 0 color-mix(in srgb, var(--ink) 9%, transparent)` | Gömük girdi |
@@ -802,11 +802,13 @@ Ekranlara özel diğer sınıflar da `globals.css` içinde tanımlı. Aynı dili
 | `.logpane`, `.logpane__*` | Mono log paneli: satır no oluğu ve tonlar (`error`/`ok`/`cmd`/`warn` → `--*-text`), canlıyken yanıp sönen `▍` imleç |
 | `.flow-node` | Mini DAG düğümü (üstte 7px renk şapkası `--flow`) |
 | `.cmt` | Yorum balonu (`14px 14px 14px 4px` köşe) |
+| `.team-bubble`, `.team-chip` | Ekip zaman çizelgesi balonu (`4px 14px 14px 14px` köşe, solda `--role` renk şeridi; `data-tone` = `stuck` kırmızı taralı, `live` kesik çizgili, `summary` sunken) ve mono meta çipi |
+| `.ui-banner--approval` | Şartname onay kapısı: hardal zeminli banner ("sıra sende") |
+| Ekip editörü (`components/Team/TeamEditor.tsx`) | Yeni sınıf yok: ekip kartları `.ui-option` (seçili `data-checked`), rol satırları solda `inset 4px 0 0` rol rengi şeridi (seçiliyken `+ 3px 3px 0` gölge), salt okunur rol `dl` satırları `1.5px` `--hair` ayraçlı, proje ayarları `Segmented` + `Switch`. |
 | `.pr-row`, `.diff-*` | PR listesi ve split diff |
 | `.kpi-tile` | Üstünde 6px renk şeridi (`--kpi`) olan KPI kartı |
-| `.studio-*`, `.agent-node*` | React Flow tabanlı Studio tuvali ve ajan düğümleri |
 | `.factory-*` | 3D fabrika sahnesinin DOM katmanı (nokta ızgaralı sahne, lejant, tooltip) |
-| `.prose-claude`, `.comment-markdown` | Markdown önizleme |
+| `.prose-claude`, `.comment-markdown` | Markdown önizleme. `ReactMarkdown` her yerde `remark-gfm` ile çalışır: tablolar `1px solid var(--border)` hücreli, `.comment-markdown` tablosu taşınca yatay kayar. |
 
 ### 5.17 Ölçerler: DotMeter ve RingGauge (`Meters.tsx`)
 
@@ -851,7 +853,7 @@ Elle ayarlanmış küçük stroke ikon seti: *"16px grid, 2px stroke, round caps
   strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false" />
 ```
 
-Varsayılan `size` 16. Mevcut ikonlar: `IconPlus`, `IconClose`, `IconCheck`, `IconChevronDown/Right/Left/Up`, `IconSearch`, `IconBolt`, `IconPlay`, `IconStop`, `IconRetry`, `IconTrash`, `IconGear`, `IconBranch`, `IconPR`, `IconEye`, `IconSun`, `IconMoon`, `IconAlert`, `IconInfo`, `IconCoin`, `IconClock`, `IconBoard`, `IconList`, `IconFactory`, `IconChart`, `IconBell`, `IconRobot`, `IconSpinner`, `IconRail`, `IconFolder`, `IconSubtask`, `IconTag`, `IconFilter`, `IconDots` (`strokeWidth={2.6}`), `IconDownload`, `IconArrowUpRight`, `IconSort`, `IconLock`, `IconGithub`, `IconTerminal`, `IconChat`, `IconCopy`, `IconFlow`, `IconFile`, `IconPencil`.
+Varsayılan `size` 16. Mevcut ikonlar: `IconPlus`, `IconClose`, `IconCheck`, `IconChevronDown/Right/Left/Up`, `IconSearch`, `IconBolt`, `IconPlay`, `IconStop`, `IconRetry`, `IconTrash`, `IconGear`, `IconBranch`, `IconPR`, `IconEye`, `IconSun`, `IconMoon`, `IconAlert`, `IconInfo`, `IconCoin`, `IconClock`, `IconBoard`, `IconList`, `IconFactory`, `IconChart`, `IconBell`, `IconRobot`, `IconSpinner`, `IconRail`, `IconFolder`, `IconSubtask`, `IconTag`, `IconFilter`, `IconDots` (`strokeWidth={2.6}`), `IconDownload`, `IconArrowUpRight`, `IconSort`, `IconLock`, `IconGithub`, `IconTerminal`, `IconChat`, `IconCopy`, `IconFlow`, `IconFile`, `IconPencil`. Ekip rolleri: `IconBriefcase` (CEO), `IconClipboard` (Analist), `IconCode` (Yazılımcı), `IconShieldCheck` (QA), `IconTeam` (ekip). Ekip editörü: `IconStar` (varsayılan yap), `IconUpload` (şablon olarak kaydet).
 
 `IconSpinner`: `r=6` daire, `strokeOpacity 0.25`, `strokeWidth 2.5`, üstünde `M8 2a6 6 0 0 1 6 6` yayı. `ui-spin` sınıfıyla döner (`0.8s linear infinite`).
 
