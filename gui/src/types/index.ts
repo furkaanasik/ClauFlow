@@ -68,6 +68,11 @@ export interface Project {
   specApproval?: boolean;
   /** Project planner spend in USD (belongs to no task). */
   planningCostUsd?: number;
+  /**
+   * Derived from `git remote` when the project is served (30 s cache), never
+   * stored. `false` = local flow: Review, local diff, local `--no-ff` merge.
+   */
+  hasRemote?: boolean;
 }
 
 export type RoleKind = "ceo" | "analyst" | "developer" | "qa";
@@ -177,6 +182,17 @@ export interface SystemCapabilities {
 export interface GitStatus {
   branch: string | null;
   isDirty: boolean;
+}
+
+/** `GET /tasks/:id/diff`: the task branch against base (`<base>...<branch>`). */
+export interface TaskDiff {
+  base: string;
+  branch: string;
+  /** `git diff --stat` output. */
+  stat: string;
+  /** Unified diff, cut at 200 000 characters when `truncated`. */
+  diff: string;
+  truncated: boolean;
 }
 
 export type ProjectPatch = Partial<

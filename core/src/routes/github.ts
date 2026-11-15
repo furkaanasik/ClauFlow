@@ -8,6 +8,7 @@ import {
   updateTask,
 } from "../services/taskService.js";
 import { broadcastTaskUpdated } from "../services/wsService.js";
+import { mergePullRequest, mergeTaskBranch } from "../services/mergeService.js";
 import type { Project } from "../types/index.js";
 
 const execFileAsync = promisify(execFile);
@@ -149,7 +150,6 @@ router.get("/prs/:number/diff", async (req: Request, res: Response) => {
 });
 
 router.post("/prs/:number/merge", async (req: Request, res: Response) => {
-  const { projectId } = req.query as { projectId?: string };
   const prNumber = req.params.number;
 
   if (!prNumber || !validatePRNumber(prNumber)) {
@@ -161,37 +161,43 @@ router.post("/prs/:number/merge", async (req: Request, res: Response) => {
   if (!project) return;
 
   try {
-    await execFileAsync(
-      "gh",
-      ["pr", "merge", prNumber, "--merge"],
-      { cwd: project.repoPath },
-    );
+    // The one merge path (plan §3/7): same function as Review → Done.
+    const n = Number.parseInt(prNumber, 10);
+    const matched = (await listTasks(project.id)).find((t) => t.prNumber === n);
+    const result = matched
+      ? await mergeTaskBranch(matched, project)
+      : await mergePullRequest(project, n, `merge:pr-${n}`);
 
-    // prNumber ile eşleşen task'ı done'a taşı
-    const tasks = await listTasks();
-    const matched = tasks.find(
-      (t) => t.projectId === projectId && t.prNumber === parseInt(prNumber, 10),
-    );
+    if (!result.ok) {
+      if (result.code === "repo_busy") {
+        res.status(409).json({ error: "repo_busy" });
+        return;
+      }
+      const detail = result.detail ?? "";
+      if (/already merged/i.test(detail)) {
+        res.status(409).json({ error: "pr_already_merged" });
+        return;
+      }
+      if (/not logged into|GITHUB_TOKEN|401|gh auth/.test(detail)) {
+        handleGhError(new Error(detail), res, "pr merge");
+        return;
+      }
+      console.error("[github] pr merge error:", detail || result.code);
+      res.status(500).json({ error: result.code, ...(detail ? { detail } : {}) });
+      return;
+    }
+
     if (matched && matched.status !== "done") {
       const updated = await updateTask(matched.id, {
         status: "done",
-        agent: { status: "done", currentStep: "completed", finishedAt: new Date().toISOString() },
+        branch: null,
+        agent: { status: "done", currentStep: "completed", error: null, finishedAt: new Date().toISOString() },
       });
       broadcastTaskUpdated(updated);
     }
 
     res.json({ success: true });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-
-    if (
-      message.includes("already merged") ||
-      /Pull request #\d+.*is already merged/i.test(message)
-    ) {
-      res.status(409).json({ error: "Already merged" });
-      return;
-    }
-
     handleGhError(err, res, "pr merge");
   }
 });

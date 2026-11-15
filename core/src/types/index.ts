@@ -72,6 +72,11 @@ export interface Project {
   specApproval?: boolean;
   /** Project planner spend in USD (belongs to no task). */
   planningCostUsd?: number;
+  /**
+   * Derived from `git remote` when the project is served (30 s cache), never
+   * stored. `false` = local flow: Review, local diff, local `--no-ff` merge.
+   */
+  hasRemote?: boolean;
 }
 
 export type RoleKind = "ceo" | "analyst" | "developer" | "qa";

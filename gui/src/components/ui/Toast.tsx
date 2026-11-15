@@ -33,7 +33,7 @@ export function ToastContainer() {
             key={toast.id}
             role={toast.type === "error" ? "alert" : "status"}
             className="ui-modal relative flex min-w-[280px] max-w-[420px] items-center gap-3 overflow-hidden rounded-[12px] border-2 border-line bg-panel py-2.5 pl-2.5 pr-2"
-            style={{ boxShadow: "var(--shadow)", "--toast": st.bg } as CSSProperties}
+            style={{ boxShadow: "var(--shadow)", "--toast": st.bg, "--toast-ms": `${toast.ms}ms` } as CSSProperties}
           >
             <span
               aria-hidden
@@ -56,7 +56,7 @@ export function ToastContainer() {
             >
               <IconClose size={12} />
             </button>
-            {/* drains over the store's 3s auto-dismiss */}
+            {/* drains over the store's auto-dismiss delay */}
             <span aria-hidden className="ui-toast__bar" />
           </div>
         );

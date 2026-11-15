@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import {
+  appendAgentLog,
   createTask,
   deleteTask,
   getAgentTexts,
@@ -14,10 +15,12 @@ import {
 import { errorMessage } from "../utils/error.js";
 import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import {
+  broadcastLog,
   broadcastTaskCreated,
   broadcastTaskDeleted,
   broadcastTaskUpdated,
 } from "../services/wsService.js";
+import type { TaskPatch } from "../services/taskService.js";
 import {
   enqueue as enqueueExecutor,
   abort as abortExecutor,
@@ -34,10 +37,16 @@ import {
   updateTeamRun,
 } from "../services/teamRunService.js";
 import { broadcastTeamArtifact, broadcastTeamRunUpdated } from "../services/wsService.js";
-import { mergePr, checkoutBase } from "../services/gitService.js";
+import { mergeTaskBranch } from "../services/mergeService.js";
 import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
+import { getTaskDiff } from "../services/taskDiff.js";
 
 const router = Router();
+
+async function logLine(taskId: string, line: string): Promise<void> {
+  await appendAgentLog(taskId, line);
+  broadcastLog(taskId, line);
+}
 
 const taskStatus = z.enum(["todo", "doing", "review", "done"]);
 const taskPriority = z.enum(["low", "medium", "high", "critical"]);
@@ -138,6 +147,24 @@ router.get("/:id/node-runs", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/:id/diff", async (req: Request, res: Response) => {
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    const project = await getProject(task.projectId);
+    if (!project) return res.status(404).json({ error: "project_not_found" });
+    const result = await getTaskDiff(task, project);
+    if (!result.ok) {
+      return res
+        .status(result.code === "no_branch" ? 404 : 500)
+        .json({ error: result.code, ...(result.detail ? { detail: result.detail } : {}) });
+    }
+    res.json(result.diff);
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
 router.get("/:id/agent-texts", async (req: Request, res: Response) => {
   try {
     const task = await getTask(req.params.id!);
@@ -171,13 +198,12 @@ router.patch("/:id", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
   }
   try {
-    if (parsed.data.teamId) {
-      const existing = await getTask(req.params.id!);
-      if (!existing) return res.status(404).json({ error: "not_found" });
-      assertTeamUsableByProject(parsed.data.teamId, existing.projectId);
-    }
+    const existing = await getTask(req.params.id!);
+    if (!existing) return res.status(404).json({ error: "not_found" });
+    if (parsed.data.teamId) assertTeamUsableByProject(parsed.data.teamId, existing.projectId);
+
     // Reset agent state immediately so queued tasks show "Sırada" instead of stale error
-    const updateData =
+    let updateData: TaskPatch =
       parsed.data.status === "doing"
         ? {
             ...parsed.data,
@@ -185,7 +211,50 @@ router.patch("/:id", async (req: Request, res: Response) => {
           }
         : parsed.data;
 
-    const task = await updateTask(req.params.id!, updateData);
+    // D1 / §3/5-6: only review → done merges, and it does so before answering.
+    // A failed merge leaves the task where it was and returns 409 <code>.
+    if (parsed.data.status === "done" && existing.status === "review") {
+      const project = await getProject(existing.projectId);
+      if (!project) return res.status(404).json({ error: "project_not_found" });
+      const merge = await mergeTaskBranch(existing, project);
+      if (!merge.ok) {
+        console.warn(`[merge] task ${existing.displayId ?? existing.id}: ${merge.code}`, merge.detail ?? merge.files ?? "");
+        if (merge.code !== "repo_busy") {
+          await logLine(
+            existing.id,
+            merge.files?.length
+              ? `✖ Merge conflict (${merge.files.join(", ")}); merge aborted, task stays in review`
+              : `✖ Merge failed (${merge.code})${merge.detail ? `: ${merge.detail}` : ""}`,
+          );
+          const errTask = await updateTask(existing.id, {
+            agent: { status: "error", error: merge.code, finishedAt: new Date().toISOString() },
+          });
+          broadcastTaskUpdated(errTask);
+        }
+        return res.status(409).json({
+          error: merge.code,
+          ...(merge.files ? { files: merge.files } : {}),
+          ...(merge.detail ? { detail: merge.detail } : {}),
+        });
+      }
+      if (merge.mode === "local") {
+        await logLine(
+          existing.id,
+          `✓ Merged ${existing.branch} into ${project.defaultBranch} (--no-ff ${merge.mergeCommit?.slice(0, 7) ?? ""})${merge.branchDeleted ? `, branch deleted` : ""}`,
+        );
+      } else if (merge.mode === "pr") {
+        await logLine(existing.id, `✓ PR #${existing.prNumber} merged, branch deleted`);
+      }
+      if (merge.stash) await logLine(existing.id, `ℹ Dirty working tree stashed as "${merge.stash}"`);
+      if (merge.note && merge.mode !== "skipped") await logLine(existing.id, `[warn] ${merge.note}`);
+      updateData = {
+        ...updateData,
+        ...(merge.branchDeleted ? { branch: null } : {}),
+        agent: { ...updateData.agent, status: "done", error: null },
+      };
+    }
+
+    const task = await updateTask(existing.id, updateData);
     broadcastTaskUpdated(task);
     res.json({ task });
 
@@ -194,52 +263,6 @@ router.patch("/:id", async (req: Request, res: Response) => {
       const project = await getProject(task.projectId);
       if (project) {
         enqueueExecutor(task, project);
-      }
-    }
-
-    if (parsed.data.status === "done") {
-      const project = await getProject(task.projectId);
-      if (project && task.prNumber) {
-        mergePr(project.repoPath, task.prNumber)
-          .then(async (result) => {
-            if (result.code !== 0) {
-              const errMsg = result.stderr || result.stdout || "unknown error";
-              console.error(
-                `[merger] pr merge failed for task ${task.id}:`,
-                errMsg,
-              );
-              const rolled = await updateTask(task.id, {
-                status: "review",
-                agent: {
-                  status: "error",
-                  error: "pr_merge_failed",
-                  finishedAt: new Date().toISOString(),
-                },
-              });
-              broadcastTaskUpdated(rolled);
-            } else {
-              console.log(
-                `[merger] merged PR #${task.prNumber} for task ${task.id}`,
-              );
-              checkoutBase(project.repoPath, project.defaultBranch).catch(
-                (err: unknown) => console.warn("[merger] post-merge checkout failed:", err),
-              );
-            }
-          })
-          .catch(async (err: unknown) => {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error("[merge] failed for task", task.id, msg);
-            // task'ı review'a geri al, agent.status = error
-            const rolled = await updateTask(task.id, {
-              status: "review",
-              agent: {
-                status: "error",
-                error: "pr_merge_failed",
-                finishedAt: new Date().toISOString(),
-              },
-            });
-            broadcastTaskUpdated(rolled);
-          });
       }
     }
   } catch (err) {

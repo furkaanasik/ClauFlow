@@ -24,7 +24,7 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     const task = await runTeamCase(c);
     const r = inspect(c);
 
-    expect(task.status).toBe("done");
+    expect(task.status).toBe("review");
     expect(task.agent.status).toBe("done");
     expect(r.roles).toEqual(["developer:1"]);
     expect(r.calls[0]!.prompt).toBe(buildSoloPrompt({ task: c.task, project: c.project }));
@@ -52,7 +52,7 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     const task = await runTeamCase(c);
     const r = inspect(c);
 
-    expect(task.status).toBe("done");
+    expect(task.status).toBe("review");
     expect(r.roles).toEqual(["ceo:1", "analyst:1", "developer:1", "qa:1"]);
     expect(r.calls.map((x) => x.model)).toEqual(["sonnet", "opus", "sonnet", "sonnet"]);
     expect(r.calls.map((x) => x.advisor)).toEqual([null, null, "opus", "opus"]);
@@ -85,7 +85,7 @@ describe("team run A: Solo and Yazılım Ekibi", () => {
     const task = await runTeamCase(c);
     const r = inspect(c);
 
-    expect(task.status).toBe("done");
+    expect(task.status).toBe("review");
     expect(r.roles).toEqual(["ceo:1", "analyst:1", "developer:1", "qa:1", "developer:2", "qa:2"]);
     expect(r.branchLog(task.branch!)).toEqual([
       `fix(${task.displayId}): QA turu 2`,

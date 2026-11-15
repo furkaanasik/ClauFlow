@@ -1338,7 +1338,7 @@ body::before {
     height: 3px;
     background: var(--toast, var(--ink));
     transform-origin: left center;
-    animation: toast-drain 3000ms linear both;
+    animation: toast-drain var(--toast-ms, 3000ms) linear both;
   }
   .ui-modal[data-state="closing"] { animation: ui-pop-out 140ms ease-in both; }
 

@@ -64,6 +64,7 @@ import {
 import { runProjectPlanner } from "../agents/projectPlanner.js";
 import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import { runCloneRepo } from "../agents/cloneRunner.js";
+import { invalidateHasRemote, withHasRemote, withHasRemoteAll } from "../services/remoteInfo.js";
 
 const router = Router();
 
@@ -93,7 +94,7 @@ const createProjectSchema = z.object({
 
 router.get("/", async (_req: Request, res: Response) => {
   try {
-    const projects = await listProjects();
+    const projects = await withHasRemoteAll(await listProjects());
     res.json({ projects });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
@@ -128,7 +129,7 @@ router.get("/:id", async (req: Request, res: Response) => {
   try {
     const project = await getProject(req.params.id!);
     if (!project) return res.status(404).json({ error: "not_found" });
-    res.json({ project });
+    res.json({ project: await withHasRemote(project) });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
@@ -234,7 +235,8 @@ router.post("/", async (req: Request, res: Response) => {
       });
     }
 
-    res.status(201).json({ project, githubError });
+    invalidateHasRemote(project.repoPath);
+    res.status(201).json({ project: await withHasRemote(project), githubError });
   } catch (err) {
     res.status(400).json({ error: errorMessage(err) });
   }
@@ -357,7 +359,11 @@ router.patch("/:id", async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ project });
+    if (data.repoPath !== undefined) {
+      invalidateHasRemote(existing.repoPath);
+      invalidateHasRemote(project.repoPath);
+    }
+    res.json({ project: await withHasRemote(project) });
   } catch (err) {
     const msg = errorMessage(err);
     if (msg.startsWith("Slug already in use")) {

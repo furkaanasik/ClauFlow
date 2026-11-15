@@ -99,6 +99,9 @@ export async function moveTaskOptimistic(
     upsertTask(updated);
   } catch (err) {
     rollbackTask(id, previous);
+    // The server may have changed the row while refusing the move (a failed
+    // merge sets agent.error); the snapshot would hide that, so re-read it.
+    api.getTask(id).then(upsertTask).catch(() => {});
     throw err;
   }
 }

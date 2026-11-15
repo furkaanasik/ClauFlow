@@ -1,4 +1,4 @@
-import type { AgentText, Comment, GithubRepo, GitStatus, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
+import type { AgentText, Comment, GithubRepo, GitStatus, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
@@ -133,6 +133,9 @@ export const api = {
     })
       .then((r) => handle<{ task: Task }>(r))
       .then((d) => d.task),
+
+  getTaskDiff: (id: string): Promise<TaskDiff> =>
+    fetch(`${BASE}/tasks/${id}/diff`).then((r) => handle<TaskDiff>(r)),
 
   deleteTask: (id: string): Promise<void> =>
     fetch(`${BASE}/tasks/${id}`, { method: "DELETE" }).then((r) => {

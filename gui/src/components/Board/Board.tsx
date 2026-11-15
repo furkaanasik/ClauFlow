@@ -46,6 +46,9 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useDoneBurstWatcher } from "@/lib/doneBurst";
 import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
+import { ApiError } from "@/lib/api";
+import { apiErrorCode, errorText } from "@/lib/errorText";
+import type { Translations } from "@/lib/i18n/types";
 import {
   COLUMN_STATUSES,
   applyManualOrder,
@@ -64,6 +67,22 @@ const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   review: ["done"],
   done:   [],
 };
+
+/** Success toast for a move to Done: only review → done merges (plan §3/6). */
+function doneToast(t: Translations, before: Task | undefined): string {
+  if (before?.status !== "review") return t.board.movedDone;
+  if (before.prNumber) return t.board.prMerged;
+  if (before.branch) return t.board.localMerged;
+  return t.board.movedDone;
+}
+
+/** Failed move: translated core code, plus the files of a merge conflict. */
+function moveErrorText(t: Translations, err: unknown): string {
+  const body = err instanceof ApiError ? (err.body as { files?: unknown } | null) : null;
+  const files = Array.isArray(body?.files) ? body.files.filter((f): f is string => typeof f === "string") : [];
+  const filesText = files.length > 0 ? ` ${t.board.mergeConflictFiles(files.join(", "))}` : "";
+  return `${t.board.moveFailed}: ${errorText(t, err)}${filesText}`;
+}
 
 const VIEW_ICON: Record<BoardView, typeof IconBoard> = {
   board: IconBoard,
@@ -153,6 +172,8 @@ export function Board() {
   }, [selectedProjectId]);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  // D7: no remote → no PR; review and merge happen locally.
+  const localFlow = selectedProject?.hasRemote === false;
 
   const [activeId, setActiveId]     = useState<string | null>(null);
   const [addOpen, setAddOpen]       = useState(false);
@@ -221,6 +242,17 @@ export function Board() {
     return ALLOWED_TRANSITIONS[dragFrom].includes(status) ? "allowed" : "confirm";
   };
 
+  const moveTask = async (taskId: string, to: TaskStatus) => {
+    const before = useBoardStore.getState().tasks[taskId];
+    try {
+      await moveTaskOptimistic(taskId, to);
+      if (to === "doing") toast.info(t.board.agentStarted);
+      if (to === "done") toast.success(doneToast(t, before));
+    } catch (err) {
+      toast.error(moveErrorText(t, err), apiErrorCode(err) === "merge_conflict" ? 10_000 : 5_000);
+    }
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
   };
@@ -262,13 +294,7 @@ export function Board() {
       return;
     }
 
-    try {
-      await moveTaskOptimistic(taskId, target);
-      if (target === "doing")  toast.info(t.board.agentStarted);
-      if (target === "done")   toast.success(t.board.prMerged);
-    } catch (err) {
-      toast.error(`${t.board.moveFailed}: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    await moveTask(taskId, target);
   };
 
   if (!selectedProjectId) {
@@ -314,7 +340,7 @@ export function Board() {
             )}
           </div>
           <h1 className="t-display mt-2 truncate text-[32px] text-ink">{selectedProject?.name ?? t.board.title}</h1>
-          <p className="mt-1 text-[13px] text-ink-3">{t.board.hint}</p>
+          <p className="mt-1 text-[13px] text-ink-3">{localFlow ? t.board.hintLocal : t.board.hint}</p>
         </div>
         <BoardStats total={stats.total} done={stats.done} running={stats.running} cost={stats.cost} />
       </div>
@@ -392,6 +418,7 @@ export function Board() {
                 keyById={keyById}
                 loading={loading && projectTasks.length === 0}
                 planning={status === "todo" && selectedProject?.planningStatus === "planning"}
+                localFlow={localFlow}
               />
             ))}
           </div>
@@ -484,13 +511,7 @@ export function Board() {
           if (!pendingMove) return;
           const { taskId, to } = pendingMove;
           setPendingMove(null);
-          try {
-            await moveTaskOptimistic(taskId, to);
-            if (to === "doing") toast.info(t.board.agentStarted);
-            if (to === "done")  toast.success(t.board.prMerged);
-          } catch (err) {
-            toast.error(`${t.board.moveFailed}: ${err instanceof Error ? err.message : String(err)}`);
-          }
+          await moveTask(taskId, to);
         }}
         onCancel={() => setPendingMove(null)}
       />

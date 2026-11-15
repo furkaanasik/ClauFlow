@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/icons";
 import { AgentBadge } from "@/components/Card/AgentBadge";
 import { CommentsTab } from "@/components/Card/CommentsTab";
+import { LocalChangesTab } from "@/components/Card/LocalChangesTab";
 import { LogViewer } from "@/components/Card/LogViewer";
 import { TeamTimeline } from "@/components/Card/TeamTimeline";
 import { ApprovalGate } from "@/components/Card/ApprovalGate";
@@ -46,7 +47,7 @@ import { formatUsd, isAgentWorking, taskCost } from "@/lib/boardView";
 import type { AgentText, Project, Task, TaskPatch, ToolCall } from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
-type DrawerTab = "details" | "log" | "team" | "comments";
+type DrawerTab = "details" | "changes" | "log" | "team" | "comments";
 type Translations = ReturnType<typeof useTranslation>;
 
 const EMPTY_TOOL_CALLS: ToolCall[] = [];
@@ -340,8 +341,13 @@ export function TaskDetailDrawer() {
   const awaitingApproval = task.status === "doing" && task.agent.status === "awaiting_approval";
   const showAgentBadge = task.agent.status !== "idle" && (task.status === "doing" || task.agent.status === "error");
 
+  // D1: no PR → the branch is reviewed here, on its local diff.
+  const showChanges = Boolean(task.branch) && !task.prNumber && (task.status === "review" || task.status === "done");
+  const activeTab: DrawerTab = tab === "changes" && !showChanges ? "details" : tab;
+
   const tabItems = [
     { value: "details" as const, label: td.tabDetails, icon: <IconInfo size={14} /> },
+    ...(showChanges ? [{ value: "changes" as const, label: td.tabChanges, icon: <IconBranch size={14} /> }] : []),
     { value: "log" as const, label: td.tabLog, icon: <IconTerminal size={14} />, count: logs.length || toolCalls.length || undefined },
     { value: "team" as const, label: tt.team.tabTeam, icon: <IconTeam size={14} />, count: teamArtifactCount || undefined },
     { value: "comments" as const, label: td.tabComments, icon: <IconChat size={14} />, count: commentCount || undefined },
@@ -438,15 +444,15 @@ export function TaskDetailDrawer() {
         tabs={
           <Tabs
             items={tabItems}
-            value={tab}
+            value={activeTab}
             onChange={setTab}
             label={td.tabsLabel}
             idBase="task-detail"
           />
         }
         aside={meta}
-        bodyKey={tab}
-        bodyClassName={tab === "details" ? undefined : "flex flex-col px-5 py-5"}
+        bodyKey={activeTab}
+        bodyClassName={activeTab === "details" ? undefined : "flex flex-col px-5 py-5"}
         footer={
           editing ? (
             <>
@@ -478,15 +484,17 @@ export function TaskDetailDrawer() {
       >
         <div
           role="tabpanel"
-          id={`task-detail-panel-${tab}`}
-          aria-labelledby={`task-detail-tab-${tab}`}
-          className={tab === "details" ? undefined : "flex min-h-0 flex-1 flex-col"}
+          id={`task-detail-panel-${activeTab}`}
+          aria-labelledby={`task-detail-tab-${activeTab}`}
+          className={activeTab === "details" ? undefined : "flex min-h-0 flex-1 flex-col"}
         >
-          {tab === "comments" ? (
+          {activeTab === "changes" ? (
+            <LocalChangesTab task={task} />
+          ) : activeTab === "comments" ? (
             <CommentsTab task={task} />
-          ) : tab === "team" ? (
+          ) : activeTab === "team" ? (
             <TeamTimeline task={task} renderApproval={(spec) => <ApprovalGate task={task} spec={spec} />} />
-          ) : tab === "log" ? (
+          ) : activeTab === "log" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Segmented

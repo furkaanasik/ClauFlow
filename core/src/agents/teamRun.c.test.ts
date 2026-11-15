@@ -99,7 +99,7 @@ describe("team run C: Keşif, approval gate, CLI arguments", () => {
     expect(ok.status).toBe(200);
     expect(ok.body.artifact).toMatchObject({ kind: "spec", approved: true, body: edited });
 
-    const done = await waitForStatus(c, "done");
+    const done = await waitForStatus(c, "review");
     r = inspect(c);
     expect(done.agent.status).toBe("done");
     expect(r.roles).toEqual(["ceo:1", "analyst:1", "developer:1", "qa:1"]);
@@ -143,7 +143,7 @@ describe("team run C: Keşif, approval gate, CLI arguments", () => {
 
     const task = await runTeamCase(c);
     const r = inspect(c);
-    expect(task.status).toBe("done");
+    expect(task.status).toBe("review");
     expect(r.roles).toEqual(["developer:1", "qa:1"]);
 
     const [d, q] = r.calls;

@@ -3,6 +3,7 @@ import path from "node:path";
 import { runWithProgress, run } from "../services/gitService.js";
 import { createProject } from "../services/taskService.js";
 import { broadcastCloneProgress } from "../services/wsService.js";
+import { withHasRemote } from "../services/remoteInfo.js";
 
 export interface CloneRepoInput {
   repoUrl: string;
@@ -59,7 +60,7 @@ export async function runCloneRepo(input: CloneRepoInput): Promise<void> {
       defaultBranch,
     });
 
-    broadcastCloneProgress(targetPath, "done", "Clone complete", project);
+    broadcastCloneProgress(targetPath, "done", "Clone complete", await withHasRemote(project));
   } catch (err) {
     cleanupPartial();
     const message = err instanceof Error ? err.message : String(err);

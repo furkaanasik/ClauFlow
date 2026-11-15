@@ -62,10 +62,10 @@ TODO ──▶ DOING ──▶ REVIEW ──▶ DONE
 |---|---|---|
 | **TODO** | You add a card or let the AI planner fill the board | Title, description, analysis and priority become the agent's work order. |
 | **DOING** | You drag the card here | The executor checks out the base branch, creates `feature/<id>-<title-slug>`, runs the task's team (one `claude -p` call per role, committing between roles), pushes and opens a PR with `gh pr create`. |
-| **REVIEW** | Automatic, when the repo has a remote and the PR is open | You read the diff in the built-in PR viewer and comment, and each comment re-runs Claude on the **same branch** as new commits. No new PR is opened. |
-| **DONE** | You drag the card here | The PR is merged with `gh pr merge --merge --delete-branch`. |
+| **REVIEW** | Automatic, when the team delivers | You read the diff (the built-in PR viewer, or the task's **Changes** tab when there is no PR) and comment, and each comment re-runs Claude on the **same branch** as new commits. No new PR is opened. |
+| **DONE** | You drag the card here | With a PR: `gh pr merge --merge --delete-branch`. Without a remote: a local `git merge --no-ff` into the base branch, then the branch is deleted. A conflict aborts the merge and the card stays in **REVIEW**. |
 
-- **No remote:** the task goes straight from DOING to **DONE**.
+- **No remote:** no push and no PR; the task still lands in **REVIEW** on its local branch, with the diff against base in the task drawer.
 - **Executor failure:** the task returns to **TODO** with the agent error attached.
 - **Live updates:** every step (checkout, prompt, tool calls, commit, push, PR) streams over WebSocket into the task's Agent Log.
 

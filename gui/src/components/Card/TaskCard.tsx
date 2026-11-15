@@ -6,7 +6,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AgentBadge } from "@/components/Card/AgentBadge";
 import { PriorityMark, StatusPill, type PriorityLevel } from "@/components/ui/Pills";
-import { IconArrowUpRight, IconClose, IconCoin, IconPR, IconSubtask } from "@/components/ui/icons";
+import { IconArrowUpRight, IconBranch, IconClose, IconCoin, IconPR, IconSubtask } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { api } from "@/lib/api";
@@ -136,10 +136,12 @@ export function TaskCardView({
   const hasSubtasks = Boolean(subtasks && subtasks.total > 0);
   const openPR = Boolean(task.prNumber) && task.status !== "done";
   const mergedPR = Boolean(task.prNumber) && task.status === "done";
+  // D1: in review without a PR, the work sits on a local branch (no remote).
+  const localBranch = task.status === "review" && Boolean(task.branch) && !task.prNumber;
   const agentPill = showAgentBadge(task);
 
   const hasFooter =
-    hasSubtasks || cost !== null || queued || openPR || mergedPR || (agentPill && !working);
+    hasSubtasks || cost !== null || queued || openPR || mergedPR || localBranch || (agentPill && !working);
 
   const stop = {
     onPointerDown: (e: PointerEvent) => e.stopPropagation(),
@@ -283,6 +285,13 @@ export function TaskCardView({
             {agentPill && !working && (
               <span {...stop}>
                 <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />
+              </span>
+            )}
+
+            {localBranch && task.branch && (
+              <span className="task-card__meta" title={t.taskCard.localBranchTitle(task.branch)}>
+                <IconBranch size={12} />
+                {t.taskCard.localBranch}
               </span>
             )}
 

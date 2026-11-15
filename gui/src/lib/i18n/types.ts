@@ -14,7 +14,12 @@ export type ErrorCode =
   | "pr_merge_failed"
   | "stuck_stalled"
   | "stuck_round_limit"
-  | "stuck_budget";
+  | "stuck_budget"
+  | "merge_conflict"
+  | "merge_failed"
+  | "pr_already_merged"
+  | "diff_failed"
+  | "project_not_found";
 
 export interface Translations {
   errors: Record<ErrorCode, string>;
@@ -131,6 +136,9 @@ export interface Translations {
     overBudget: string;
     subtaskOf: string;
     dragLocked: string;
+    /** Review card of a task whose branch lives only in the local repo (no remote, no PR). */
+    localBranch: string;
+    localBranchTitle: (branch: string) => string;
     agentLog: string;
     logEmpty: string;
     openLog: string;
@@ -235,6 +243,8 @@ export interface Translations {
     budgetToast: (ref: string, spent: string, budget: string) => string;
     title: string;
     hint: string;
+    /** `hint` for a project without a remote (local review + merge). */
+    hintLocal: string;
     noProject: { title: string; hint: string };
     stats: {
       label: string;
@@ -252,6 +262,11 @@ export interface Translations {
     dropHere: string;
     moveFailed: string;
     prMerged: string;
+    /** Review → Done merged the local branch into base (no remote). */
+    localMerged: string;
+    /** Moved to Done without a merge (no branch, or not from Review). */
+    movedDone: string;
+    mergeConflictFiles: (files: string) => string;
     viewLabel: string;
     filters: {
       label: string;
@@ -302,7 +317,7 @@ export interface Translations {
     emptyStates: {
       todo:   { title: string; hint: string };
       doing:  { title: string; hint: string };
-      review: { title: string; hint: string };
+      review: { title: string; hint: string; hintLocal: string };
       done:   { title: string; hint: string };
     };
     searchPlaceholder: string;
@@ -378,6 +393,13 @@ export interface Translations {
     tabDetails: string;
     tabLog: string;
     tabComments: string;
+    /** Local changes tab (`git diff <base>...<branch>`), tasks without a PR. */
+    tabChanges: string;
+    changesFiles: (files: number) => string;
+    changesLocalNote: (base: string) => string;
+    changesTruncated: (base: string, branch: string) => string;
+    changesEmpty: string;
+    changesStatLabel: string;
     commentsLabel: string;
     retryButton: string;
     restartButton: string;

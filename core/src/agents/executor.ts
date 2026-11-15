@@ -456,13 +456,14 @@ export async function run(task: Task, project: Project): Promise<void> {
       await pushBlock(task.id, ["", `✓ PR opened: ${prUrl}`]);
     }
 
-    // ── Done ──────────────────────────────────────────────────────────────
-    // The task branch stays; the repo returns to base so UI commits never land on it.
+    // ── Review ────────────────────────────────────────────────────────────
+    // D1: both flows end in review with the task branch kept and the repo back
+    // on base. With a remote the PR is reviewed and merged via `gh`; without
+    // one the drawer shows the local diff and Review→Done merges locally.
+    if (!hasRemote) await pushLog(task.id, `ℹ No remote: ${branch} stays local for review`);
     await returnToBase(task.id, project, branch, { deleteBranch: false });
-    // Remote varsa (PR açıldı) review'a, yoksa done'a. Remote'suz review F4'te gelir.
-    const finalStatus = hasRemote ? "review" : "done";
     const final = await updateTask(task.id, {
-      status: finalStatus,
+      status: "review",
       prUrl,
       prNumber,
       agent: {

@@ -28,6 +28,8 @@ interface BoardColumnProps {
   loading?: boolean;
   /** The AI planner is still writing this project's tasks (Todo lane only). */
   planning?: boolean;
+  /** Project without a remote: Review holds local branches, not PRs (D7). */
+  localFlow?: boolean;
 }
 
 export function BoardColumn({
@@ -42,10 +44,15 @@ export function BoardColumn({
   keyById = {},
   loading = false,
   planning = false,
+  localFlow = false,
 }: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { status } });
   const t = useTranslation();
-  const emptyState = planning ? t.board.planner.todoEmpty : t.board.emptyStates[status];
+  const emptyState = planning
+    ? t.board.planner.todoEmpty
+    : status === "review" && localFlow
+      ? { ...t.board.emptyStates.review, hint: t.board.emptyStates.review.hintLocal }
+      : t.board.emptyStates[status];
   const tone = STATUS_COLOR[status];
   const laneStyle = { "--lane": tone.fill } as CSSProperties;
 
