@@ -92,6 +92,7 @@ export const IconChevronLeft = (p: IconProps) => <Svg {...p}><path d="M10 4L6 8l
 export const IconChevronUp = (p: IconProps) => <Svg {...p}><path d="M4 10l4-4 4 4" /></Svg>;
 export const IconRail = (p: IconProps) => <Svg {...p}><rect x="2" y="2.5" width="12" height="11" rx="2" /><path d="M6.25 2.5v11" /></Svg>;
 export const IconFolder = (p: IconProps) => <Svg {...p}><path d="M2 4.5a1.5 1.5 0 0 1 1.5-1.5h2.75l1.5 1.75h4.75A1.5 1.5 0 0 1 14 6.25v5.25a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" /></Svg>;
+export const IconHome = (p: IconProps) => <Svg {...p}><path d="M2.5 7.5L8 3l5.5 4.5" /><path d="M4 6.5v6.75h3V10h2v3.25h3V6.5" /></Svg>;
 export const IconSubtask = (p: IconProps) => <Svg {...p}><path d="M3.5 2.5v6.5a2 2 0 0 0 2 2h4" /><path d="M8 8.75L10.25 11 8 13.25" /><rect x="10.5" y="9" width="3.5" height="4" rx="1" /></Svg>;
 export const IconTag = (p: IconProps) => <Svg {...p}><path d="M2.25 2.25h5.5l6 6-5.5 5.5-6-6z" /><path d="M5.25 5.25h.01" /></Svg>;
 export const IconFilter = (p: IconProps) => <Svg {...p}><path d="M2 3h12l-4.5 5.5v4.25L6.5 14V8.5z" /></Svg>;

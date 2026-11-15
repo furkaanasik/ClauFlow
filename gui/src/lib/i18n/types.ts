@@ -189,6 +189,36 @@ export interface Translations {
     slugPlaceholder: string;
     slugHint: string;
     slugError: string;
+    browse: string;
+  };
+  folderPicker: {
+    title: string;
+    hint: string;
+    up: string;
+    home: string;
+    pathLabel: string;
+    listLabel: string;
+    showHidden: string;
+    showHiddenLabel: string;
+    newFolder: string;
+    newFolderPlaceholder: string;
+    create: string;
+    cancelCreate: string;
+    loading: string;
+    empty: string;
+    emptyHint: string;
+    gitRepo: string;
+    errorNotFound: string;
+    errorForbidden: string;
+    errorInvalid: string;
+    errorExists: string;
+    errorName: string;
+    errorGeneric: string;
+    retry: string;
+    goHome: string;
+    cancel: string;
+    choose: string;
+    keyHint: string;
   };
   board: {
     title: string;
@@ -283,6 +313,18 @@ export interface Translations {
       descriptionTemplate: string;
       confirm: string;
       cancel: string;
+    };
+    planner: {
+      label: string;
+      title: string;
+      body: string;
+      elapsed: string;
+      errorTitle: string;
+      errorHint: string;
+      dismiss: string;
+      doneToast: string;
+      errorToast: string;
+      todoEmpty: { title: string; hint: string };
     };
   };
   taskDetail: {

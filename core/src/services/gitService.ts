@@ -195,8 +195,8 @@ export interface PrResult {
   raw: RunResult;
 }
 
-export async function initRepo(repoPath: string): Promise<RunResult> {
-  return run("git", ["init"], repoPath);
+export async function initRepo(repoPath: string, branch?: string): Promise<RunResult> {
+  return run("git", branch ? ["init", "-b", branch] : ["init"], repoPath);
 }
 
 export async function createGithubRepo(

@@ -447,7 +447,37 @@ export const api = {
 
   getInsightsExportUrl: (projectId: string, format: "csv" | "json"): string =>
     `${BASE}/insights/export?projectId=${encodeURIComponent(projectId)}&format=${format}`,
+
+  browseDirs: (path?: string, showHidden = false): Promise<DirListing> => {
+    const params = new URLSearchParams();
+    if (path) params.set("path", path);
+    if (showHidden) params.set("showHidden", "1");
+    const qs = params.toString();
+    return fetch(`${BASE}/fs/browse${qs ? `?${qs}` : ""}`, { cache: "no-store" }).then((r) =>
+      handle<DirListing>(r),
+    );
+  },
+
+  makeDir: (parent: string, name: string): Promise<DirEntry> =>
+    fetch(`${BASE}/fs/mkdir`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parent, name }),
+    }).then((r) => handle<DirEntry>(r)),
 };
+
+export interface DirEntry {
+  name: string;
+  path: string;
+  isGitRepo: boolean;
+}
+
+export interface DirListing {
+  path: string;
+  parent: string | null;
+  home: string;
+  entries: DirEntry[];
+}
 
 export interface ModelPricing {
   model: string;

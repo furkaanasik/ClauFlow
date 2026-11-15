@@ -19,6 +19,26 @@ function assertIsGitRepo(repoPath: string): void {
   }
 }
 
+async function ensureLocalRepo(repoPath: string, branch: string, name: string): Promise<void> {
+  fs.mkdirSync(repoPath, { recursive: true });
+  if (fs.existsSync(path.join(repoPath, ".git"))) return;
+
+  const init = await initRepo(repoPath, branch);
+  if (init.code !== 0) {
+    throw new Error(`git init failed: ${init.stderr || init.stdout}`);
+  }
+
+  const readmePath = path.join(repoPath, "README.md");
+  if (!fs.existsSync(readmePath)) {
+    fs.writeFileSync(readmePath, `# ${name}\n`);
+  }
+
+  const commit = await commitAll(repoPath, "chore: initial commit");
+  if (commit.code !== 0) {
+    throw new Error(`initial commit failed: ${commit.stderr || commit.stdout}`);
+  }
+}
+
 function normalizeClonePath(raw: string): string {
   const expanded = expandHome(raw.trim());
   if (!path.isAbsolute(expanded)) return expanded;
@@ -139,7 +159,7 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     if (!data.createGithubRepo) {
-      assertIsGitRepo(data.repoPath);
+      await ensureLocalRepo(data.repoPath, data.defaultBranch ?? "main", data.name);
     }
 
     let remote = data.remote ?? null;
