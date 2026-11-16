@@ -31,10 +31,12 @@ import {
   IconAlert,
   IconBoard,
   IconBranch,
+  IconChain,
   IconFactory,
   IconFilter,
   IconFolder,
   IconList,
+  IconPlay,
   IconPlus,
 } from "@/components/ui/icons";
 import { PRDetailDrawer, type PullRequest } from "@/components/Github/PRDetailDrawer";
@@ -45,7 +47,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useDoneBurstWatcher } from "@/lib/doneBurst";
 import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
-import { ApiError } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { apiErrorCode, errorText } from "@/lib/errorText";
 import type { Translations } from "@/lib/i18n/types";
 import {
@@ -53,6 +55,7 @@ import {
   applyManualOrder,
   isAgentWorking,
   loadManualOrder,
+  readyWaiting,
   startsOnMerge,
   unmetDeps,
   saveManualOrder,
@@ -233,6 +236,27 @@ export function Board() {
 
   const filtering = activeFilterCount(filters) > 0 || filterText.trim().length > 0;
 
+  // zincir E5 (§3/25): waiting tasks whose dependencies are all done but that
+  // never started (crash window, boot). Nothing starts on its own: the user does.
+  const ready = useMemo(() => readyWaiting(tasks), [tasks]);
+  const [startingReady, setStartingReady] = useState(false);
+  const startReady = async () => {
+    setStartingReady(true);
+    let started = 0;
+    const failures: string[] = [];
+    for (const x of ready) {
+      try {
+        upsertTask(await api.startWaiting(x.id));
+        started += 1;
+      } catch (err) {
+        failures.push(`${x.displayId ?? x.title}: ${errorText(t, err)}`);
+      }
+    }
+    setStartingReady(false);
+    if (started > 0) toast.success(t.board.readyWaitingStarted(started));
+    if (failures.length > 0) toast.error(failures.join(" · "), 6_000);
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -302,6 +326,12 @@ export function Board() {
 
     if (task.status === "review" && target === "done") {
       setPendingMerge(taskId);
+      // The polled git status can be up to 30 s old; the dialog's stash line needs it fresh.
+      const pid = task.projectId;
+      api
+        .getProjectGitStatus(pid)
+        .then((st) => useBoardStore.getState().setProjectGitStatus(pid, st))
+        .catch(() => {});
       return;
     }
 
@@ -384,6 +414,21 @@ export function Board() {
       </div>
 
       <PlannerBanner project={selectedProject} />
+
+      {ready.length > 0 && (
+        <div role="status" className="ui-banner ui-banner--info items-center" data-ready-waiting>
+          <IconChain size={15} className="shrink-0" />
+          <span className="min-w-0 flex-1">
+            {t.board.readyWaiting(ready.length)}{" "}
+            <span className="ml-1 font-mono text-[12px] text-ink-2">
+              {ready.map((x) => x.displayId ?? x.title).join(", ")}
+            </span>
+          </span>
+          <Button size="sm" variant="primary" icon={<IconPlay size={14} />} loading={startingReady} onClick={startReady}>
+            {t.board.readyWaitingStart}
+          </Button>
+        </div>
+      )}
 
       {error && (
         <div
