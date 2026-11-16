@@ -6,6 +6,7 @@ import { runComment } from "../agents/commentRunner.js";
 import { run as gitRun } from "../services/gitService.js";
 import { errorMessage } from "../utils/error.js";
 import { uiLangSchema } from "../agents/uiText.js";
+import { isConflictResolving } from "../agents/conflictResolver.js";
 
 // mergeParams so we can read :id from the parent "/api/tasks/:id/comments" mount.
 const router = Router({ mergeParams: true });
@@ -40,6 +41,8 @@ router.post("/", async (req: Request, res: Response) => {
     // §3/12: never on a running task (the runner would fight the executor for
     // the repo); on a done task only while its branch still exists.
     if (task.status === "doing") return res.status(409).json({ error: "task_running" });
+    // zincir F4.6 (§3/42, Z38): the conflict resolver holds the branch.
+    if (isConflictResolving(task)) return res.status(409).json({ error: "conflict_resolving" });
     const project = await getProject(task.projectId);
     if (task.status === "done") {
       const exists =

@@ -9,6 +9,8 @@ export type AgentStatus =
   | "awaiting_approval"
   /** zincir: in Doing but not started; waits for its dependencies (holds no repo lock). */
   | "waiting_deps"
+  /** zincir F4.6: in Review while the AI conflict resolver runs (plan §3/33). */
+  | "resolving_conflict"
   | "done"
   | "error";
 

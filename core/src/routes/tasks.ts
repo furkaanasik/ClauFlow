@@ -51,6 +51,7 @@ import {
   unmetDependencies,
 } from "../services/dependencyService.js";
 import { abortWaiting, gateDoing, tryStartWaiting } from "../services/chainService.js";
+import { abortResolution, isConflictResolving, resolverPhase } from "../agents/conflictResolver.js";
 import { existsSync } from "node:fs";
 import type { Project } from "../types/index.js";
 
@@ -82,6 +83,7 @@ const agentStatus = z.enum([
   "pr_opening",
   "awaiting_approval",
   "waiting_deps",
+  "resolving_conflict",
   "done",
   "error",
 ]);
@@ -280,6 +282,17 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const existing = await getTask(req.params.id!);
     if (!existing) return res.status(404).json({ error: "not_found" });
     const { uiLang, ...patch } = parsed.data;
+    // zincir F4.6 (§3/42, Z38): while the conflict resolver works on the
+    // branch, no status move (Done included: no merge attempt), no agent or
+    // branch rewrite. Title / description edits do not touch git and pass.
+    if (
+      isConflictResolving(existing) &&
+      ((patch.status !== undefined && patch.status !== existing.status) ||
+        patch.agent !== undefined ||
+        (patch.branch !== undefined && patch.branch !== existing.branch))
+    ) {
+      return res.status(409).json({ error: "conflict_resolving" });
+    }
     // D4: a finished task's team is part of its history.
     if (patch.teamId !== undefined && existing.status === "done" && patch.teamId !== existing.teamId) {
       return res.status(409).json({ error: "task_done" });
@@ -421,6 +434,28 @@ router.post("/:id/abort", async (req: Request, res: Response) => {
     const task = await getTask(id);
     if (!task) return res.status(404).json({ error: "not_found" });
 
+    // zincir F4.6 (§3/42): the conflict resolver first. Queued: the lock wait
+    // drops out, git untouched; running: the run restores the branch (§3/40).
+    // The run writes `conflict_unresolved:aborted` itself.
+    if (resolverPhase(id)) {
+      abortResolution(id);
+      return res.json({ aborted: true, source: "resolver" });
+    }
+    // Persisted "resolving" state without a run in this process (lost to a
+    // restart before boot recovery): close it the way the run would.
+    if (task.status === "review" && task.agent.status === "resolving_conflict") {
+      const rolled = await updateTask(id, {
+        agent: {
+          status: "error",
+          currentStep: undefined,
+          error: "conflict_unresolved:aborted",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+      broadcastTaskUpdated(rolled);
+      return res.json({ aborted: true, source: "resolver" });
+    }
+
     const phase = executorRunPhase(id);
     if (phase) {
       abortExecutor(id);
@@ -560,6 +595,11 @@ router.post("/:id/breakdown", async (req: Request, res: Response) => {
 router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id!;
+    // zincir F4.6 (§3/42, Z38): never delete a task whose branch the resolver is working on.
+    const existing = await getTask(id);
+    if (existing && isConflictResolving(existing)) {
+      return res.status(409).json({ error: "conflict_resolving" });
+    }
     const dependents = listDependents(id);
     await deleteTask(id);
     broadcastTaskDeleted(id);
