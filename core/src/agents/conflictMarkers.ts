@@ -94,3 +94,30 @@ export function parseMergeSubject(subject: string): MergeSubject | null {
 
   return null;
 }
+
+/**
+ * The conflicted parts of a file for the resolver's prompt (§3/36): every
+ * `<<<<<<<` … `>>>>>>>` block with `context` lines around it, overlapping
+ * ranges joined, each range headed `@@ lines a-b @@`. Empty when the text has
+ * no complete block.
+ */
+export function conflictHunks(text: string, context = 3): string {
+  const lines = text.split("\n");
+  const markers = findConflictMarkers(text);
+  const ranges: Array<[number, number]> = [];
+  let start: number | null = null;
+  for (const m of markers) {
+    if (m.kind === "start" && start === null) start = m.line;
+    else if (m.kind === "end" && start !== null) {
+      const from = Math.max(1, start - context);
+      const to = Math.min(lines.length, m.line + context);
+      const last = ranges[ranges.length - 1];
+      if (last && from <= last[1] + 1) last[1] = Math.max(last[1], to);
+      else ranges.push([from, to]);
+      start = null;
+    }
+  }
+  return ranges
+    .map(([from, to]) => `@@ lines ${from}-${to} @@\n${lines.slice(from - 1, to).join("\n")}`)
+    .join("\n");
+}

@@ -23,6 +23,41 @@ function formatDuration(ms: number, lang: UiLang): string {
   return lang === "tr" ? `${m} dk` : `${m} min`;
 }
 
+/** Why a conflict resolver run failed (`conflict_unresolved:<reason>`, zincir F4.6 §3/33). */
+export type ConflictReason =
+  | "markers_left"
+  | "qa_fail"
+  | "role_timeout"
+  | "budget"
+  | "aborted"
+  | "server_restart"
+  | "unsupported"
+  | "claude_exit"
+  | "push_failed"
+  | "git";
+
+/** Texts of the conflict resolver's summary comment (zincir F4.6, §5.10). */
+export interface ResolverText {
+  title: string;
+  result: string;
+  resolved: string;
+  unresolved: (reason: string) => string;
+  clean: string;
+  qa: string;
+  qaSkipped: string;
+  cost: string;
+  target: string;
+  files: string;
+  mergedTasks: string;
+  newCommit: (sha: string) => string;
+  upToDate: string;
+  restored: (sha: string) => string;
+  cleanNote: (mode: "conflict" | "update") => string;
+  note: string;
+  qaReport: string;
+  reason: Record<ConflictReason, string>;
+}
+
 export interface UiText {
   summaryTitle: string;
   team: string;
@@ -59,6 +94,7 @@ export interface UiText {
   prAgentLog: string;
   noChanges: string;
   brokenDown: (count: number) => string;
+  resolver: ResolverText;
 }
 
 const TR: UiText = {
@@ -100,6 +136,40 @@ const TR: UiText = {
   noChanges:
     "Değişiklik gerekmedi: ekip çalıştı ama repoda değiştirilecek bir şey bulmadı. Görev kapatıldı, dal silindi.",
   brokenDown: (count) => `${count} alt göreve bölündü.`,
+  resolver: {
+    title: "## Çakışma çözücü",
+    result: "Sonuç",
+    resolved: "Çözüldü",
+    unresolved: (reason) => `Çözülemedi (${reason})`,
+    clean: "Temiz birleşti",
+    qa: "QA",
+    qaSkipped: "atlandı",
+    cost: "Maliyet",
+    target: "Hedef",
+    files: "Çakışan dosyalar",
+    mergedTasks: "Ana dala girenler",
+    newCommit: (sha) => `Yeni birleştirme commit'i: ${sha}`,
+    upToDate: "Dal ana dalın güncel hâlini zaten içeriyordu; yeni commit yok.",
+    restored: (sha) => `Dal koşudan önceki hâline döndü (${sha})`,
+    cleanNote: (mode) =>
+      mode === "update"
+        ? "Ana dal temiz birleşti; çakışma yoktu, QA atlandı."
+        : "Çakışma artık yok: ana dal temiz birleşti, QA atlandı.",
+    note: "### Çözücünün notu",
+    qaReport: "### QA raporu",
+    reason: {
+      markers_left: "çakışma işaretçisi kaldı",
+      qa_fail: "QA FAIL verdi",
+      role_timeout: "rol zaman aşımına uğradı",
+      budget: "bütçe aşıldı",
+      aborted: "durduruldu",
+      server_restart: "sunucu yeniden başladı",
+      unsupported: "desteklenmeyen çakışma (ikili dosya ya da sil/değiştir)",
+      claude_exit: "claude hatayla çıktı",
+      push_failed: "push başarısız",
+      git: "git hatası",
+    },
+  },
 };
 
 const EN: UiText = {
@@ -141,6 +211,40 @@ const EN: UiText = {
   noChanges:
     "No changes needed: the team ran but found nothing to change in the repo. Task closed, branch deleted.",
   brokenDown: (count) => `Split into ${count} subtask${count === 1 ? "" : "s"}.`,
+  resolver: {
+    title: "## Conflict resolver",
+    result: "Result",
+    resolved: "Resolved",
+    unresolved: (reason) => `Not resolved (${reason})`,
+    clean: "Merged cleanly",
+    qa: "QA",
+    qaSkipped: "skipped",
+    cost: "Cost",
+    target: "Target",
+    files: "Conflicted files",
+    mergedTasks: "Merged into base",
+    newCommit: (sha) => `New merge commit: ${sha}`,
+    upToDate: "The branch already contained the latest base; no new commit.",
+    restored: (sha) => `The branch is back where it was before the run (${sha})`,
+    cleanNote: (mode) =>
+      mode === "update"
+        ? "The base merged cleanly; there was no conflict, QA skipped."
+        : "The conflict is gone: the base merged cleanly, QA skipped.",
+    note: "### Resolver's note",
+    qaReport: "### QA report",
+    reason: {
+      markers_left: "conflict markers left",
+      qa_fail: "QA returned FAIL",
+      role_timeout: "the role timed out",
+      budget: "budget exceeded",
+      aborted: "stopped",
+      server_restart: "the server restarted",
+      unsupported: "unsupported conflict (binary file or delete/modify)",
+      claude_exit: "claude exited with an error",
+      push_failed: "push failed",
+      git: "git error",
+    },
+  },
 };
 
 export function uiText(lang: UiLang | undefined): UiText {

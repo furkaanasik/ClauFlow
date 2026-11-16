@@ -1,6 +1,7 @@
 import { defaultSkillRoots, readSkillBody, type SkillCatalogRoots } from "../services/skillCatalogService.js";
 import type { Project, QaVerdict, RoleKind, Task, TeamRole } from "../types/index.js";
 import type { UiLang } from "./uiText.js";
+import { conflictHunks } from "./conflictMarkers.js";
 
 export const SKILL_CHAR_CAP = 20_000;
 export const SKILL_TOTAL_CAP = 60_000;
@@ -33,6 +34,15 @@ export function roleMarker(kind: RoleKind, round: number): string {
  */
 export function buildCommentSystemMarker(n: number): string {
   return `<!-- clauflow-role: comment round: ${n} -->`;
+}
+
+/**
+ * Marker of a conflict resolver round (zincir F4.6, plan §3/35): the developer
+ * role's system prompt with this marker, so the fake CLI answers as the
+ * `conflict_resolver` role instead of a team developer round.
+ */
+export function buildConflictSystemMarker(n: number): string {
+  return `<!-- clauflow-role: conflict_resolver round: ${n} -->`;
 }
 
 const OUTPUT_CONTRACT: Record<RoleKind, string> = {
@@ -279,4 +289,98 @@ export function buildCommentPrompt(role: TeamRole, ctx: CommentPromptContext): s
     "When done, write the delivery note and exit the terminal.",
   ];
   return sections.filter((s): s is string => !!s).join("\n\n");
+}
+
+/** Per-file and total caps of the `<conflicts>` section (§3/36). */
+export const CONFLICT_FILE_CHAR_CAP = 8_000;
+const MERGED_TASK_DESC_CAP = 2_000;
+const MERGED_TASKS_MAX = 10;
+
+interface ConflictPromptContext {
+  task: Pick<Task, "title" | "description" | "analysis">;
+  project: Pick<Project, "aiPrompt">;
+  /** Last `spec` artifact of the task, if a team wrote one. */
+  spec?: string | null;
+  /** What was merged into the branch (`origin/main` or `main`). */
+  target: string;
+  branch: string;
+  /** Tasks merged into the base since the branch point (§3/37), oldest first. */
+  mergedTasks: Array<Pick<Task, "title" | "description"> & { displayId?: string | null }>;
+  /** Conflicted files with their working-tree text (null: unreadable). */
+  conflicts: Array<{ path: string; text: string | null }>;
+  /** GUI language of the resolution note; English when absent. */
+  uiLang?: UiLang;
+}
+
+function conflictsSection(conflicts: ConflictPromptContext["conflicts"]): string {
+  const parts: string[] = [];
+  const overflow: string[] = [];
+  let total = 0;
+  for (const c of conflicts) {
+    const hunks = c.text ? conflictHunks(c.text) : "";
+    if (!hunks) {
+      parts.push(`File: ${c.path}\n(no conflict block shown here; open the file)`);
+      continue;
+    }
+    if (hunks.length > CONFLICT_FILE_CHAR_CAP || total + hunks.length > DIFF_CHAR_CAP) {
+      overflow.push(c.path);
+      continue;
+    }
+    total += hunks.length;
+    parts.push(`File: ${c.path}\n${hunks}`);
+  }
+  for (const path of overflow) parts.push(`File: ${path}\n(conflict too large to include here; open the file)`);
+  return `<conflicts>\n${parts.join("\n\n")}\n</conflicts>`;
+}
+
+/**
+ * The conflict resolver's prompt (zincir F4.6, plan §3/36): the task, its
+ * spec, the work merged into the base since the branch point, the conflicted
+ * hunks, and the rules (keep both intents, remove every marker, never touch git).
+ */
+export function buildConflictPrompt(ctx: ConflictPromptContext): string {
+  const background = block("project_background", ctx.project.aiPrompt);
+  const merged = ctx.mergedTasks.slice(0, MERGED_TASKS_MAX).map((t) => {
+    const head = `${t.displayId ?? "?"} · ${t.title}`;
+    const desc = t.description?.trim();
+    if (!desc) return head;
+    const capped =
+      desc.length > MERGED_TASK_DESC_CAP ? `${desc.slice(0, MERGED_TASK_DESC_CAP)} [truncated]` : desc;
+    return `${head}\n${capped}`;
+  });
+  const sections: Array<string | null> = [
+    background ? `Project background (reference only — do NOT go beyond the task's scope):\n${background}` : null,
+    `Task:\n${taskBlock(ctx.task)}`,
+    block("specification", ctx.spec),
+    merged.length > 0
+      ? `Work merged into the base branch (${ctx.target}) since this task's branch was created:\n` +
+        `<merged_into_base>\n${merged.join("\n\n")}\n</merged_into_base>`
+      : null,
+    `ClauFlow merged \`${ctx.target}\` into this task's branch \`${ctx.branch}\` and git stopped on conflicts. ` +
+      `The conflicted files are in the working tree with their conflict markers:`,
+    conflictsSection(ctx.conflicts),
+    [
+      "Rules:",
+      "- Keep BOTH intents: the base side carries work that is already merged and approved; this task's side carries the task above.",
+      "- Remove every conflict marker (<<<<<<<, |||||||, =======, >>>>>>>) from every conflicted file.",
+      "- Do NOT run git commit, merge, rebase, reset, checkout, stash or push; ClauFlow owns git.",
+    ].join("\n"),
+    TESTING_INSTRUCTIONS,
+    "End with a resolution note: one line per file, what each side wanted and what you kept.",
+    `Write the note in ${UI_LANG_NAME[ctx.uiLang ?? "en"]}.`,
+  ];
+  return sections.filter((s): s is string => !!s).join("\n\n");
+}
+
+/**
+ * The QA round's extra block after a conflict resolution (§5.10): the
+ * conflicted files and the resolver's note, in `<conflict_resolution>`.
+ */
+export function buildConflictResolutionBlock(target: string, files: string[], note: string): string {
+  return [
+    `This QA round checks a conflict resolution: ClauFlow merged \`${target}\` into the task branch and the resolver resolved the conflicts below. ` +
+      "Check that both sides' intents survived and that the tests pass.",
+    `<conflict_resolution>\nConflicted files:\n${files.map((f) => `- ${f}`).join("\n")}\n\n` +
+      `Resolution note:\n${capSection(note.trim() || "(empty)", "resolution_note")}\n</conflict_resolution>`,
+  ].join("\n\n");
 }

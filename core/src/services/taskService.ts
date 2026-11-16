@@ -1066,6 +1066,8 @@ export interface OrphanRecovery {
   taskIds: string[];
   runIds: string[];
   nodeRunIds: string[];
+  /** zincir F4.6 (§3/41): `review` tasks whose conflict resolver run died with the process. */
+  resolvingTaskIds: string[];
 }
 
 /**
@@ -1073,8 +1075,11 @@ export interface OrphanRecovery {
  * maps are in memory). Tasks left in "doing" go back to todo + `server_restart`
  * — except tasks paused for spec approval and tasks waiting for their
  * dependencies (zincir, `waiting_deps`), which wait on purpose and hold no
- * process or lock — and running team runs / node runs become errors. Returns the ids
- * so the caller can broadcast them.
+ * process or lock — and running team runs / node runs become errors. A
+ * conflict resolver run (zincir F4.6, §3/41) lives in memory too: `review` +
+ * `resolving_conflict` becomes `error` + `conflict_unresolved:server_restart`
+ * (the task stays in review; its git state is `recoverConflictRuns`'s job).
+ * Returns the ids so the caller can broadcast them.
  */
 export function recoverOrphans(): OrphanRecovery {
   const now = new Date().toISOString();
@@ -1095,6 +1100,20 @@ export function recoverOrphans(): OrphanRecovery {
              updatedAt = @now
        WHERE status = 'doing' AND agentStatus NOT IN ('awaiting_approval', 'waiting_deps')`,
     ).run({ now });
+    const resolvingTaskIds = (
+      db
+        .prepare(`SELECT id FROM tasks WHERE status = 'review' AND agentStatus = 'resolving_conflict'`)
+        .all() as { id: string }[]
+    ).map((r) => r.id);
+    db.prepare(
+      `UPDATE tasks
+         SET agentStatus = 'error',
+             agentCurrentStep = NULL,
+             agentError = 'conflict_unresolved:server_restart',
+             agentFinishedAt = @now,
+             updatedAt = @now
+       WHERE status = 'review' AND agentStatus = 'resolving_conflict'`,
+    ).run({ now });
     const runIds = (
       db.prepare(`SELECT id FROM task_team_runs WHERE status = 'running'`).all() as { id: string }[]
     ).map((r) => r.id);
@@ -1109,7 +1128,7 @@ export function recoverOrphans(): OrphanRecovery {
       `UPDATE task_node_runs SET status = 'error', errorMessage = 'server_restart', finishedAt = @now
         WHERE status = 'running'`,
     ).run({ now });
-    return { taskIds, runIds, nodeRunIds };
+    return { taskIds, runIds, nodeRunIds, resolvingTaskIds };
   })();
 }
 

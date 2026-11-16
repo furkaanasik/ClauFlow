@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findConflictMarkers, parseDiffCheck, parseMergeSubject } from "./conflictMarkers.js";
+import { conflictHunks, findConflictMarkers, parseDiffCheck, parseMergeSubject } from "./conflictMarkers.js";
 
 describe("findConflictMarkers (zincir F4.6, plan §3/38, Z43)", () => {
   it("a two-sided block yields start, sep and end with 1-based lines", () => {
@@ -104,5 +104,19 @@ describe("parseMergeSubject (plan §3/37, Z41)", () => {
     expect(parseMergeSubject("fix: typo in README")).toBeNull();
     expect(parseMergeSubject("Merge the docs")).toBeNull();
     expect(parseMergeSubject("")).toBeNull();
+  });
+});
+
+describe("conflictHunks (zincir F4.6, §3/36)", () => {
+  it("each block with three lines of context, close blocks joined, far ones apart", () => {
+    const lines = ["a1", "a2", "a3", "a4", "<<<<<<< HEAD", "ours", "=======", "theirs", ">>>>>>> main"];
+    for (let i = 0; i < 10; i++) lines.push(`mid${i}`);
+    lines.push("<<<<<<< HEAD", "x", "=======", "y", ">>>>>>> main", "z1");
+    const out = conflictHunks(lines.join("\n"));
+    expect(out).toContain("@@ lines 2-12 @@\na2\na3\na4\n<<<<<<< HEAD");
+    expect(out).not.toContain("a1");
+    expect(out).toContain("@@ lines 17-25 @@\nmid7");
+    expect(out.trimEnd().endsWith("z1")).toBe(true);
+    expect(conflictHunks("no markers\nhere")).toBe("");
   });
 });

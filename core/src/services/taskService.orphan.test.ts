@@ -89,6 +89,46 @@ describe("recoverOrphanedTasks", () => {
     }
   });
 
+  it("zincir F4.6 (§3/41, Z36): review/resolving_conflict → error + conflict_unresolved:server_restart; other review rows and doing unchanged", async () => {
+    const make = async (title: string, status: "review" | "doing", agent: Record<string, unknown>) => {
+      const t = await createTask({ projectId, title });
+      return updateTask(t.id, { status, agent: agent as never });
+    };
+    const resolving = await make("resolving", "review", {
+      status: "resolving_conflict",
+      currentStep: "resolving",
+      error: null,
+    });
+    const reviewDone = await make("review done", "review", { status: "done", currentStep: "conflict_resolved", error: null });
+    const reviewError = await make("review error", "review", { status: "error", error: "merge_conflict" });
+    const doing = await make("doing", "doing", { status: "running", error: null });
+    const ids = [resolving.id, reviewDone.id, reviewError.id, doing.id];
+    const row = (id: string) => db.prepare(`SELECT * FROM tasks WHERE id = ?`).get(id);
+    try {
+      const beforeDone = row(reviewDone.id);
+      const beforeError = row(reviewError.id);
+      const result = await recoverAndBroadcastOrphans();
+      expect(result.resolvingTaskIds).toEqual([resolving.id]);
+      expect(result.taskIds).toEqual([doing.id]);
+
+      const r = (await getTask(resolving.id))!;
+      expect(r.status).toBe("review");
+      expect(r.agent.status).toBe("error");
+      expect(r.agent.error).toBe("conflict_unresolved:server_restart");
+      expect(r.agent.currentStep ?? null).toBeNull();
+      expect(r.agent.finishedAt).toBeTruthy();
+      expect(row(reviewDone.id)).toEqual(beforeDone);
+      expect(row(reviewError.id)).toEqual(beforeError);
+      // doing: today's behaviour.
+      expect((await getTask(doing.id))!).toMatchObject({ status: "todo", agent: { status: "error", error: "server_restart" } });
+
+      // Idempotent: nothing left to recover.
+      expect((await recoverAndBroadcastOrphans()).resolvingTaskIds).toEqual([]);
+    } finally {
+      for (const id of ids) db.prepare(`DELETE FROM tasks WHERE id = ?`).run(id);
+    }
+  });
+
   it("writes the server_restart code, errors stuck node runs and broadcasts every changed row (A8a)", async () => {
     await updateTask(taskId, { status: "doing", agent: { status: "running", error: null } });
     const run = createTeamRun(taskId, resolveTeamForTask((await getTask(taskId))!, (await getProject(projectId))!));
@@ -105,7 +145,7 @@ describe("recoverOrphanedTasks", () => {
     await new Promise<void>((r) => ws.once("open", () => r()));
     try {
       const result = await recoverAndBroadcastOrphans();
-      expect(result).toEqual({ taskIds: [taskId], runIds: [run.id], nodeRunIds: [nodeRun.id] });
+      expect(result).toEqual({ taskIds: [taskId], runIds: [run.id], nodeRunIds: [nodeRun.id], resolvingTaskIds: [] });
       for (let i = 0; i < 50 && messages.length < 4; i++) await new Promise((r) => setTimeout(r, 20));
 
       const task = (await getTask(taskId))!;

@@ -40,7 +40,7 @@ import {
 import { broadcastTeamArtifact, broadcastTeamRunUpdated } from "../services/wsService.js";
 import { mergeTaskBranch } from "../services/mergeService.js";
 import { runTaskBreakdown } from "../agents/taskBreakdownRunner.js";
-import { getTaskDiff } from "../services/taskDiff.js";
+import { branchExists, getTaskDiff } from "../services/taskDiff.js";
 import { uiLangSchema } from "../agents/uiText.js";
 import { baseBranchExists, baseBranchHint } from "../services/baseBranch.js";
 import {
@@ -51,7 +51,14 @@ import {
   unmetDependencies,
 } from "../services/dependencyService.js";
 import { abortWaiting, gateDoing, tryStartWaiting } from "../services/chainService.js";
-import { abortResolution, isConflictResolving, resolverPhase } from "../agents/conflictResolver.js";
+import {
+  abortResolution,
+  baseDrift,
+  isConflictResolving,
+  onMergeConflict,
+  requestResolution,
+  resolverPhase,
+} from "../agents/conflictResolver.js";
 import { existsSync } from "node:fs";
 import type { Project } from "../types/index.js";
 
@@ -340,13 +347,26 @@ router.patch("/:id", async (req: Request, res: Response) => {
       }
       if (!merge.ok) {
         console.warn(`[merge] task ${existing.displayId ?? existing.id}: ${merge.code}`, merge.detail ?? merge.files ?? "");
-        if (merge.code !== "repo_busy") {
+        // zincir F4.6 (§3/32, C1): a conflict starts one automatic resolver
+        // run (unless the previous one failed); the 409 says which.
+        if (merge.code === "merge_conflict") {
+          const files = merge.files ?? [];
           await logLine(
             existing.id,
-            merge.files?.length
-              ? `✖ Merge conflict (${merge.files.join(", ")}); merge aborted, task stays in review`
-              : `✖ Merge failed (${merge.code})${merge.detail ? `: ${merge.detail}` : ""}`,
+            files.length
+              ? `✖ Merge conflict (${files.join(", ")}); merge aborted, task stays in review`
+              : `✖ Merge conflict (PR #${existing.prNumber ?? "?"}); task stays in review`,
           );
+          const { resolving } = await onMergeConflict(existing, project, files, uiLang);
+          return res.status(409).json({
+            error: "merge_conflict",
+            files,
+            resolving,
+            ...(merge.detail ? { detail: merge.detail } : {}),
+          });
+        }
+        if (merge.code !== "repo_busy") {
+          await logLine(existing.id, `✖ Merge failed (${merge.code})${merge.detail ? `: ${merge.detail}` : ""}`);
           const errTask = await updateTask(existing.id, {
             agent: { status: "error", error: merge.code, finishedAt: new Date().toISOString() },
           });
@@ -383,6 +403,53 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const msg = errorMessage(err);
     if (msg.startsWith("Task not found")) return res.status(404).json({ error: "not_found" });
     res.status(400).json({ error: msg });
+  }
+});
+
+// zincir F4.6 (§3/46, §5.10): the drawer's "Resolve with AI" (`conflict`) and
+// "Update branch" (`update`). Same resolver flow as the automatic trigger.
+const resolveSchema = z.object({
+  mode: z.enum(["conflict", "update"]).default("conflict"),
+  uiLang: uiLangSchema.optional(),
+});
+
+router.post("/:id/resolve", async (req: Request, res: Response) => {
+  const parsed = resolveSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+  }
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    if (task.status !== "review") return res.status(409).json({ error: "task_not_in_review" });
+    if (isConflictResolving(task)) return res.status(409).json({ error: "conflict_resolving" });
+    const project = await getProject(task.projectId);
+    if (!project) return res.status(404).json({ error: "project_not_found" });
+    if (!task.branch || !(await branchExists(project.repoPath, task.branch))) {
+      return res.status(409).json({ error: "no_branch" });
+    }
+    // §3/39: nothing new on the base → nothing to update; git untouched.
+    if (parsed.data.mode === "update" && (await baseDrift(task, project)).behind === 0) {
+      return res.status(409).json({ error: "branch_up_to_date" });
+    }
+    const queued = await requestResolution(task, parsed.data);
+    res.status(202).json({ task: queued });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+// zincir F4.6 (§3/46): how far the base moved since the branch left it.
+// Read-only, no fetch, no lock.
+router.get("/:id/base-drift", async (req: Request, res: Response) => {
+  try {
+    const task = await getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: "not_found" });
+    const project = await getProject(task.projectId);
+    if (!project) return res.status(404).json({ error: "project_not_found" });
+    res.json(await baseDrift(task, project));
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 

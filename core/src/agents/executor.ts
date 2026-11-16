@@ -147,7 +147,8 @@ function taskRef(task: Task): string {
   return task.displayId ?? task.id;
 }
 
-function postComment(taskId: string, body: string, label: string): void {
+/** Posts an automatic comment (status `done`) on the task; also the conflict resolver's summary (F4.6). */
+export function postComment(taskId: string, body: string, label: string): void {
   try {
     const comment = createComment(taskId, body);
     const done = updateComment(comment.id, { status: "done" });

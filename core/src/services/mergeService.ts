@@ -39,6 +39,22 @@ function out(r: { stdout: string; stderr: string }): string {
   return (r.stderr.trim() || r.stdout.trim()).slice(0, 2000);
 }
 
+/**
+ * `gh pr view <n> --json mergeable,mergeStateStatus` (§3/34): CONFLICTING or
+ * DIRTY → true. UNKNOWN (GitHub computes mergeability lazily) or any error →
+ * false, so the failure stays `pr_merge_failed`.
+ */
+async function prConflicts(repo: string, prNumber: number): Promise<boolean> {
+  try {
+    const view = await run("gh", ["pr", "view", String(prNumber), "--json", "mergeable,mergeStateStatus"], repo);
+    if (view.code !== 0) return false;
+    const parsed = JSON.parse(view.stdout.trim()) as { mergeable?: unknown; mergeStateStatus?: unknown };
+    return parsed.mergeable === "CONFLICTING" || parsed.mergeStateStatus === "DIRTY";
+  } catch {
+    return false;
+  }
+}
+
 /** Merges PR `prNumber` on GitHub and returns the local repo to base. */
 export async function mergePullRequest(
   project: Project,
@@ -49,7 +65,14 @@ export async function mergePullRequest(
   if (!lease) return { ok: false, code: "repo_busy" };
   try {
     const merged = await mergePr(project.repoPath, prNumber);
-    if (merged.code !== 0) return { ok: false, code: "pr_merge_failed", detail: out(merged) };
+    if (merged.code !== 0) {
+      // zincir F4.6 (§3/34, Z35): still under the lock, ask GitHub whether
+      // the PR conflicts. The files only show once the resolver merges locally.
+      if (await prConflicts(project.repoPath, prNumber)) {
+        return { ok: false, code: "merge_conflict", files: [], detail: out(merged) };
+      }
+      return { ok: false, code: "pr_merge_failed", detail: out(merged) };
+    }
     const co = await checkoutBase(project.repoPath, project.defaultBranch);
     return {
       ok: true,

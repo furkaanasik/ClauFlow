@@ -6,6 +6,10 @@ import type { SkillCatalogRoots } from "../services/skillCatalogService.js";
 import { defaultRole } from "../services/teamTemplates.js";
 import { ARG_BYTES_LIMIT, buildClaudeArgs } from "../services/claudeService.js";
 import {
+  buildConflictPrompt,
+  buildConflictResolutionBlock,
+  buildConflictSystemMarker,
+  CONFLICT_FILE_CHAR_CAP,
   buildCommentPrompt,
   buildCommentSystemMarker,
   buildRolePrompt,
@@ -246,5 +250,47 @@ describe("comment round prompt (E7b, plan §3/30)", () => {
     expect(text).not.toContain(roleMarker("developer", 3));
     expect(text).toContain(dev.instructions);
     expect(buildRoleSystemPrompt(dev, 2).text.startsWith(roleMarker("developer", 2))).toBe(true);
+  });
+});
+
+describe("conflict resolver prompt (zincir F4.6, §3/35–36)", () => {
+  const block = (n: number) => `<<<<<<< HEAD\n${"o".repeat(n)}\n=======\ntheirs\n>>>>>>> main`;
+  it("task, merged work, conflicted hunks, rules and language; oversized files by name only", () => {
+    const prompt = buildConflictPrompt({
+      task: { title: "Greet from B", description: "B greets.", analysis: "" },
+      project: { aiPrompt: "" },
+      spec: "## Şartname\nAC-1",
+      target: "origin/main",
+      branch: "feature/clf-2-b",
+      mergedTasks: [{ displayId: "CLF-1", title: "Greet from A", description: "A greets." }],
+      conflicts: [
+        { path: "shared.txt", text: block(5) },
+        { path: "huge.txt", text: block(CONFLICT_FILE_CHAR_CAP + 10) },
+      ],
+      uiLang: "tr",
+    });
+    expect(prompt).toContain("Title: Greet from B");
+    expect(prompt).toContain("<specification>");
+    expect(prompt).toContain("<merged_into_base>\nCLF-1 · Greet from A\nA greets.\n</merged_into_base>");
+    expect(prompt).toContain("File: shared.txt\n@@ lines 1-5 @@\n<<<<<<< HEAD");
+    expect(prompt).toContain("File: huge.txt\n(conflict too large to include here; open the file)");
+    expect(prompt).toContain("Keep BOTH intents");
+    expect(prompt).toContain("Do NOT run git commit, merge, rebase, reset, checkout, stash or push");
+    expect(prompt).toContain("Write the note in Türkçe.");
+    expect(buildConflictPrompt({
+      task: { title: "t", description: "", analysis: "" },
+      project: {},
+      target: "main",
+      branch: "b",
+      mergedTasks: [],
+      conflicts: [{ path: "a.txt", text: block(1) }],
+    })).not.toContain("<merged_into_base>");
+  });
+
+  it("marker and the QA block", () => {
+    expect(buildConflictSystemMarker(3)).toBe("<!-- clauflow-role: conflict_resolver round: 3 -->");
+    const qa = buildConflictResolutionBlock("main", ["shared.txt"], "- shared.txt: kept both");
+    expect(qa).toContain("<conflict_resolution>\nConflicted files:\n- shared.txt");
+    expect(qa).toContain("- shared.txt: kept both\n</conflict_resolution>");
   });
 });

@@ -14,6 +14,7 @@ import insightsRouter from "./routes/insights.js";
 import fsRouter from "./routes/fs.js";
 import { attachWebSocket, closeWebSocket } from "./services/wsService.js";
 import { recoverAndBroadcastOrphans } from "./services/orphanRecovery.js";
+import { recoverConflictRuns } from "./agents/conflictResolver.js";
 import { auditProjectBaseBranches } from "./services/baseBranch.js";
 import { installChainHooks, sweepWaitingTasks } from "./services/chainService.js";
 
@@ -60,13 +61,29 @@ server.listen(PORT, HOST, async () => {
   console.log(`[core] websocket on ws://localhost:${PORT}/ws`);
   try {
     const recovered = await recoverAndBroadcastOrphans();
-    if (recovered.taskIds.length + recovered.runIds.length + recovered.nodeRunIds.length > 0) {
+    if (
+      recovered.taskIds.length + recovered.runIds.length + recovered.nodeRunIds.length + recovered.resolvingTaskIds.length >
+      0
+    ) {
       console.log(
-        `[core] recovered orphans: ${recovered.taskIds.length} task(s), ${recovered.runIds.length} team run(s), ${recovered.nodeRunIds.length} node run(s)`,
+        `[core] recovered orphans: ${recovered.taskIds.length} task(s), ${recovered.runIds.length} team run(s), ${recovered.nodeRunIds.length} node run(s), ${recovered.resolvingTaskIds.length} resolver run(s)`,
       );
     }
   } catch (err) {
     console.error("[core] orphan recovery failed:", err);
+  }
+  // zincir F4.6 (§3/41): put branches of resolver runs killed by the restart
+  // back on their backup SHA. Only repos holding a refs/clauflow/pre-resolve/*
+  // ref are touched.
+  try {
+    const conflicts = await recoverConflictRuns();
+    if (conflicts.restored.length + conflicts.kept.length > 0) {
+      console.log(
+        `[core] conflict resolver recovery: ${conflicts.restored.length} branch(es) restored, ${conflicts.kept.length} backup ref(s) kept`,
+      );
+    }
+  } catch (err) {
+    console.error("[core] conflict resolver recovery failed:", err);
   }
   // zincir (plan §3/25, E5): report waiting tasks whose dependencies were met
   // while core was down. Starts nothing; the user presses "Start".

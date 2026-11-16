@@ -9,6 +9,8 @@ import {
 } from "../services/taskService.js";
 import { broadcastTaskUpdated } from "../services/wsService.js";
 import { mergePullRequest, mergeTaskBranch } from "../services/mergeService.js";
+import { isConflictResolving, onMergeConflict } from "../agents/conflictResolver.js";
+import { uiLangSchema } from "../agents/uiText.js";
 import type { Project } from "../types/index.js";
 
 const execFileAsync = promisify(execFile);
@@ -164,6 +166,11 @@ router.post("/prs/:number/merge", async (req: Request, res: Response) => {
     // The one merge path (plan §3/7): same function as Review → Done.
     const n = Number.parseInt(prNumber, 10);
     const matched = (await listTasks(project.id)).find((t) => t.prNumber === n);
+    // zincir F4.6 (§3/42): no merge attempt while the resolver works on the branch.
+    if (matched && isConflictResolving(matched)) {
+      res.status(409).json({ error: "conflict_resolving" });
+      return;
+    }
     const result = matched
       ? await mergeTaskBranch(matched, project)
       : await mergePullRequest(project, n, `merge:pr-${n}`);
@@ -171,6 +178,18 @@ router.post("/prs/:number/merge", async (req: Request, res: Response) => {
     if (!result.ok) {
       if (result.code === "repo_busy") {
         res.status(409).json({ error: "repo_busy" });
+        return;
+      }
+      // zincir F4.6 (§3/32, §3/34, Z35): a conflicting PR is a 409, not a 500;
+      // a matching task gets the resolver's automatic attempt.
+      if (result.code === "merge_conflict") {
+        const files = result.files ?? [];
+        let resolving = false;
+        if (matched) {
+          const lang = uiLangSchema.safeParse((req.body as { uiLang?: unknown } | undefined)?.uiLang);
+          ({ resolving } = await onMergeConflict(matched, project, files, lang.success ? lang.data : undefined));
+        }
+        res.status(409).json({ error: "merge_conflict", files, resolving });
         return;
       }
       const detail = result.detail ?? "";
