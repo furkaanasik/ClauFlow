@@ -56,6 +56,23 @@ export interface Task {
   costUsd?: number;
   /** zincir: ids of same-project tasks this one waits for (in board order). */
   dependsOn?: string[];
+  /** bakim #8: image attachments (task's own + comments'; drafts never appear). */
+  attachments?: TaskAttachment[];
+}
+
+/** bakim #8: one image attachment (core `TaskAttachmentMeta`; the file is served by `GET /api/attachments/:id`). */
+export interface TaskAttachment {
+  id: string;
+  /** null = attached to the task itself; else the comment it belongs to. */
+  commentId: string | null;
+  mime: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  name: string | null;
+  createdAt: string;
+  /** Only on an upload response: `true` for a comment draft (`?pending=1`). */
+  pending?: boolean;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";

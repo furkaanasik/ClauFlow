@@ -64,7 +64,14 @@ export type ErrorCode =
   | "conflict_unresolved"
   | "conflict_resolving"
   | "task_not_in_review"
-  | "branch_up_to_date";
+  | "branch_up_to_date"
+  /** bakim #8: image attachments (upload, link to a comment, serve). */
+  | "attachment_type"
+  | "attachment_too_large"
+  | "attachment_limit"
+  | "attachment_not_pending"
+  | "attachment_not_found"
+  | "attachment_body";
 
 /** zincir F4.6 (§3/33): why the AI conflict resolver failed (`conflict_unresolved:<reason>`). */
 export type ConflictReason =
@@ -876,6 +883,37 @@ export interface Translations {
     confirmMergeTitle: string;
     confirmMergeDescription: string;
     cancel: string;
+  };
+  /** bakim #8: image attachments (add-task modal, drawer, comments, card badge, lightbox). */
+  attachments: {
+    label: string;
+    sectionLabel: (count: number, max: number) => string;
+    add: string;
+    hint: string;
+    costHint: string;
+    dropHere: string;
+    fileInputLabel: string;
+    unnamed: (n: number) => string;
+    open: (name: string) => string;
+    remove: (name: string) => string;
+    empty: string;
+    readOnly: string;
+    badgeTitle: (count: number) => string;
+    commentImages: string;
+    lightboxLabel: string;
+    prev: string;
+    next: string;
+    position: (index: number, total: number) => string;
+    delete: string;
+    deleteTitle: string;
+    deleteBody: (name: string) => string;
+    deleteConfirm: string;
+    cancel: string;
+    deleted: string;
+    added: (count: number) => string;
+    uploading: string;
+    partialFailed: (count: number) => string;
+    fileError: (name: string, message: string) => string;
   };
   /** zincir E6 (plan §5.9): ClauFlow's stashes (project drawer, board pill, toast). */
   stashes: {

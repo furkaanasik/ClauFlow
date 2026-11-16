@@ -123,3 +123,5 @@ export const IconTeam = (p: IconProps) => <Svg {...p}><circle cx="6" cy="5.5" r=
 // Team editor: "make default" and "save as template"
 export const IconStar = (p: IconProps) => <Svg {...p}><path d="M8 2.25l1.7 3.6 3.9.5-2.85 2.7.7 3.9L8 11.1l-3.45 1.85.7-3.9L2.4 6.35l3.9-.5z" /></Svg>;
 export const IconUpload = (p: IconProps) => <Svg {...p}><path d="M8 10.5V3M4.75 6.25L8 3l3.25 3.25M2.75 13.25h10.5" /></Svg>;
+/** bakim #8: image attachment (frame, sun, hill); card badge, drawer section, "Add image". */
+export const IconImage = (p: IconProps) => <Svg {...p}><rect x="2" y="2.75" width="12" height="10.5" rx="1.75" /><circle cx="10.5" cy="6" r="1.1" /><path d="M2.5 11.5l3.5-3.5 3 3 1.5-1.5 3 3" /></Svg>;

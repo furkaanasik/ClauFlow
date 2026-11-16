@@ -1457,6 +1457,70 @@ body::before {
   /* bakim F3: in the narrow project drawer (stash panel) long lines wrap instead of
      each cell scrolling on its own (axe scrollable-region-focusable). */
   .stash-diff .diff-code { overflow-x: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  /* ════ bakim #8: image attachments (AttachmentInput / AttachmentGrid / Lightbox) ════ */
+  .att-thumb {
+    display: block;
+    overflow: hidden;
+    padding: 0;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    background: var(--sunken);
+    box-shadow: 2px 2px 0 var(--shadow-ink);
+    cursor: zoom-in;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .att-thumb:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow); }
+  .att-thumb:active { transform: translate(1px, 1px); box-shadow: var(--shadow-press); transition-duration: 40ms; }
+  .att-thumb__remove {
+    position: absolute;
+    top: -0.4rem;
+    right: -0.4rem;
+    display: grid;
+    place-items: center;
+    width: 1.375rem;
+    height: 1.375rem;
+    border: 2px solid var(--line);
+    border-radius: 999px;
+    background: var(--panel);
+    color: var(--ink);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .att-thumb__remove:hover { background: var(--red); color: var(--on-red); }
+  /* Drop state: dashed rule + hatch over the field while files are dragged in. */
+  .att-drop__frame {
+    position: absolute;
+    inset: -0.375rem;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    border: 2px dashed var(--line);
+    border-radius: 12px;
+    background-color: color-mix(in srgb, var(--panel) 82%, transparent);
+    pointer-events: none;
+  }
+  .att-drop__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border: 2px solid var(--line);
+    border-radius: 999px;
+    background: var(--mustard);
+    color: var(--on-mustard);
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 2px 2px 0 var(--shadow-ink);
+  }
+  .att-lightbox { display: grid; place-items: center; margin: 0; }
+  .att-lightbox__img {
+    max-width: 100%;
+    max-height: calc(85vh - 10rem);
+    object-fit: contain;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    background: var(--sunken);
+  }
   .diff-filerow {
     display: flex;
     align-items: center;

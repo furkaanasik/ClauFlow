@@ -1,9 +1,12 @@
 "use client";
 
 import clsx from "clsx";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DndContext } from "@dnd-kit/core";
 import { TaskCardView } from "@/components/Card/TaskCard";
+import { AttachmentInput, useStagedImages } from "@/components/Attachments/AttachmentInput";
+import { AttachmentGrid, type GridImage } from "@/components/Attachments/AttachmentGrid";
+import { ATTACHMENT_MAX_PER_TASK } from "@/lib/attachments";
 import { useBoardStore } from "@/store/boardStore";
 import type { Task } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -580,6 +583,7 @@ function Gallery({ theme, wide }: { theme: ThemeName; wide: boolean }) {
           <Button variant="ghost" onClick={() => toast.error("Push rejected by remote")}>Toast err</Button>
           <Button variant="ghost" onClick={() => toast.info("Agent queued behind CLF-4")}>Toast info</Button>
         </Row>
+        <AttachmentDemo theme={theme} />
       </Section>
 
       {/* board cards — every live state the sandbox can't safely produce */}
@@ -765,5 +769,66 @@ function CardStates({ wide }: { wide: boolean }) {
         <TaskCardView task={CARD_STATES[3]} overlay />
       </div>
     </DndContext>
+  );
+}
+
+/* bakim #8: attachment input + grid + lightbox. Samples are drawn on a canvas
+   from the theme tokens (no image files, no raw colours). */
+function sampleImages(el: Element): GridImage[] {
+  const css = getComputedStyle(el);
+  const tok = (name: string) => css.getPropertyValue(name).trim() || "gray";
+  const draw = (w: number, h: number, bg: string, fg: string, label: string) => {
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const g = c.getContext("2d");
+    if (!g) return "";
+    g.fillStyle = tok("--paper");
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = tok("--shadow-ink");
+    g.fillRect(w * 0.3 + 6, h * 0.38 + 6, w * 0.4, h * 0.24);
+    g.fillStyle = tok(bg);
+    g.strokeStyle = tok("--line");
+    g.lineWidth = 4;
+    g.fillRect(w * 0.3, h * 0.38, w * 0.4, h * 0.24);
+    g.strokeRect(w * 0.3, h * 0.38, w * 0.4, h * 0.24);
+    g.fillStyle = tok(fg);
+    g.font = `bold ${Math.round(h * 0.09)}px sans-serif`;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(label, w / 2, h / 2);
+    return c.toDataURL("image/png");
+  };
+  return [
+    { key: "sg-1", src: draw(640, 360, "--mustard", "--on-mustard", "Kaydet"), name: "buton.png", meta: "640×360 · 18 KB" },
+    { key: "sg-2", src: draw(480, 320, "--cobalt", "--on-cobalt", "Save"), name: "button-blue.png", meta: "480×320 · 12 KB" },
+    { key: "sg-3", src: draw(320, 320, "--red", "--on-red", "Delete"), name: "danger.png", meta: "320×320 · 9 KB" },
+  ];
+}
+
+function AttachmentDemo({ theme }: { theme: ThemeName }) {
+  const staged = useStagedImages();
+  const ref = useRef<HTMLDivElement>(null);
+  const [samples, setSamples] = useState<GridImage[]>([]);
+  useEffect(() => {
+    // tokens of this gallery's theme scope (the page shows cream and night side by side)
+    if (ref.current) setSamples(sampleImages(ref.current));
+  }, [theme]);
+  return (
+    <div ref={ref}>
+      <Row label="Images">
+        <AttachmentGrid images={samples} onDelete={() => undefined} />
+      </Row>
+      <Row label="Attach">
+        <AttachmentInput
+          remaining={ATTACHMENT_MAX_PER_TASK - samples.length - staged.items.length}
+          onAdd={staged.add}
+          staged={staged.items}
+          onRemoveStaged={staged.remove}
+          showCostHint
+          className="w-full max-w-xl"
+        />
+      </Row>
+    </div>
   );
 }
