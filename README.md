@@ -88,6 +88,7 @@ TODO ──▶ DOING ──▶ REVIEW ──▶ DONE
 |---|---|
 | **Board, List, Factory views** | Trello-style columns with drag and drop, a Jira-style table, and a live 3D factory. |
 | **Task drawer** | Tabs for Details, Agent Log, Team and Comments (plus **Changes**, the local diff, when the task has a branch but no PR), a budget gauge for the latest run, a "Who does this task?" team picker and AI "Break down task" into subtasks (both locked once the task is done). The Team tab reads like a conversation: brief, spec, delivery note and QA verdict per round, with a spec-approval gate when the project asks for one. |
+| **Image attachments** | Paste a screenshot (Ctrl+V), drag it in or pick a file when you add a task, in the task drawer's **Images** section and in a comment. PNG, JPEG, WebP or GIF, up to 10 MB each and 8 per task. Cards show an image count; the drawer has thumbnails and a lightbox (arrow keys, Esc). Images stay outside your repo (ClauFlow's data folder) and every agent role is told to open them with `Read` first. See [Image cost](#image-cost). |
 | **Live agent logs** | Tool-call traces, the agent's Markdown messages, run time, tokens and the real cost of each run. |
 | **Built-in PR viewer** | Opens from a card with a PR: full-screen drawer with a side-by-side diff, file tree, per-file collapse, Mark viewed and Merge. |
 | **Insights** | Per-project token spend, real cost (tasks plus planner runs) by role, completion and average run time, exportable as JSON or CSV. |
@@ -102,7 +103,9 @@ TODO ──▶ DOING ──▶ REVIEW ──▶ DONE
 | **Chain start** | Dragging a task with unmet dependencies to **DOING** parks it as waiting. When its last dependency is merged to **DONE**, it starts by itself and branches from a base that already has that code. Nothing is merged automatically: every step still needs your Review → Done. After a restart, waiting tasks are never started silently; a board strip offers "Start". |
 | **Merge confirmation** | Review → Done asks first: which branch or PR is merged, whether a dirty tree is stashed, and which waiting tasks will start. |
 | **Conflict resolver** | When a merge conflicts, ClauFlow merges the base into the task branch, the team's Developer role resolves the conflict markers, one QA round checks it and the branch is pushed if there is a remote. The task stays in **REVIEW** ("Conflict resolved — approve again"). If it fails, the branch goes back exactly as it was and the drawer offers "Resolve with AI". The drawer also says when the base branch moved ahead and offers "Update branch". |
-| **Stashes** | Dirty trees ClauFlow stashes (before a run, merge, comment or resolution) are listed in the project drawer, where you can restore or drop them; a toast tells you when one is taken. |
+| **Stashes** | Dirty trees ClauFlow stashes (before a run, merge, comment or resolution) are listed in the project drawer, where you can restore or drop them; a toast tells you when one is taken. Open a stash to see what is inside: files are sorted into your code, dependencies, build output and lock/OS files, with a verdict ("Nothing you wrote — safe to drop" or the names of your code files), a lazy per-file diff and **restore one file** (the stash stays). Thousands of `node_modules` files fold into one row. |
+| **Stash hygiene** | ClauFlow never stashes or commits untracked dependency and build folders (`node_modules/`, `.venv/`, `.next/`, `dist/`, `coverage/`, …): before it stashes or runs `git add -A` it adds them to a ClauFlow block in your repo's `.git/info/exclude` (local, never committed). If that was all the dirt, no stash is taken. Ambiguous folders like `build/` or `vendor/` are left to git as before. |
+| **Base branch lost mid-run** | If the base branch is renamed or deleted while a run is going, the task goes back to To do with an error; its branch and commits are kept. |
 | **Role timeout** | Each role call has a time limit (`CLAUFLOW_ROLE_TIMEOUT_MS`, 20 min by default). A hung CLI and every process it started are killed, and the half-done work is kept as a `wip:` commit. |
 
 ### Fabrika: the factory view
@@ -132,7 +135,7 @@ The **Atölye** look is a printed workshop: cream paper, 2px ink rules, hard off
 | Step | What you get |
 |---|---|
 | **Browse** | A folder picker with breadcrumbs, keyboard navigation (`↑↓` move, `Enter` open, `⌫` up), a "git" badge on repositories, hidden-folder toggle and New folder. Choosing a folder fills Repo Path, Name and Slug. |
-| **Non-git folder** | ClauFlow creates the folder if needed, runs `git init` on the default branch, adds a `README.md` if missing and makes an initial commit. |
+| **Non-git folder** | ClauFlow creates the folder if needed, runs `git init` on the default branch, writes a default `.gitignore` (`node_modules/`, `dist/`, `build/`, `.next/`, `out/`, `coverage/`, `.env*` except `.env.example`, `.DS_Store`, `*.log`, `__pycache__/`, `.venv/`) and a `README.md` if missing, and makes an initial commit. An existing git repo without a `.gitignore` is not changed: the same patterns go into its local `.git/info/exclude`. |
 | **Create GitHub repository** | Optionally creates the remote with `gh repo create` (private or public). |
 | **AI Prompt** | Describe the project and the planner agent splits it into tasks. A banner on the board shows progress and elapsed time. If planning fails, edit the AI Prompt in project details and save to retry. |
 | **Clone from GitHub** | The New Project modal's second tab lists your repos via `gh repo list` (searchable, already-added repos hidden). Pick one and a target folder to clone it as a new project. Connect GitHub from the prerequisites indicator in the top bar if you haven't yet. |
@@ -251,6 +254,15 @@ Endpoints behind task chains, the conflict resolver and stashes (all under `/api
 | `GET` | `/projects/:id/stashes` | List the stashes ClauFlow took in the project's repo. |
 | `POST` | `/projects/:id/stashes/:ref/restore` | Restore a stash (`:ref` is its SHA). |
 | `DELETE` | `/projects/:id/stashes/:ref` | Drop a stash. |
+| `GET` | `/projects/:id/stashes/:ref/files` | What a stash holds: code and lock/OS files, folded noise groups, class counts and `safeToDrop`. |
+| `GET` | `/projects/:id/stashes/:ref/diff?path=` | Diff of one file in the stash (only paths the stash holds). |
+| `POST` | `/projects/:id/stashes/:ref/restore-file` | Restore one file (`{ path }`); the stash stays. `409 worktree_dirty` when that path has local changes. |
+| `POST` | `/tasks/:id/attachments` | Upload an image (raw body, `Content-Type: image/png` …; `?pending=1` for a comment draft, `?name=`). 10 MB, 8 per task, not while running. |
+| `GET` / `DELETE` | `/attachments/:id` | Serve or delete one image. |
+
+### Image cost
+
+Images are tokens. One image costs about `width × height / 750` input tokens; the API scales anything larger than about 1.15 megapixels down first, so one image tops out near **1 600 tokens** whatever its file size. Every role call is a separate session, so **every role reads every image again**: a Software Team run with two QA rounds is 6 calls (CEO, Analyst, Developer ×2, QA ×2). Eight full-size images there come to about 77k input tokens, roughly **$0.48** at the default team's models (Claude Code bills the image context as a cache write; at the plain input price it is $0.38). One full-size image is about $0.006 per Sonnet call and $0.03 per Opus call. A comment run is one call, the conflict resolver two. Crop a screenshot to the part that matters.
 
 For the deeper tour (data flow, WS event shapes, conventions) see [`CLAUDE.md`](CLAUDE.md).
 
