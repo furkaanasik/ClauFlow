@@ -164,10 +164,14 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       const existing = state.tasks[task.id];
       const incomingLog = task.agent?.log ?? [];
       const existingLog = existing?.agent?.log ?? [];
-      const merged: Task =
+      let merged: Task =
         existing && incomingLog.length === 0 && existingLog.length > 0
           ? { ...task, agent: { ...task.agent, log: existingLog } }
           : task;
+      // Core's task payload never carries `comments` (they load via getComments /
+      // comment_updated); keep the drawer's list instead of wiping it (bakim #8: the
+      // comment POST now broadcasts task_updated when it links images).
+      if (existing?.comments && task.comments === undefined) merged = { ...merged, comments: existing.comments };
       return {
         tasks: { ...state.tasks, [task.id]: merged },
         order,

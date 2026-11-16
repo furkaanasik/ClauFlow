@@ -7,7 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { AgentBadge } from "@/components/Card/AgentBadge";
 import { ChainBadge } from "@/components/Card/ChainBadge";
 import { PriorityMark, StatusPill, type PriorityLevel } from "@/components/ui/Pills";
-import { IconArrowUpRight, IconBranch, IconClose, IconCoin, IconPR, IconSubtask } from "@/components/ui/icons";
+import { IconArrowUpRight, IconBranch, IconClose, IconCoin, IconImage, IconPR, IconSubtask } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { api } from "@/lib/api";
@@ -162,7 +162,11 @@ export function TaskCardView({
   // zincir F4.6 (§3/33): "Conflict resolved — approve again" until the next run or merge.
   const conflictResolved = isConflictResolved(task);
 
+  // bakim #8 (§3/27): image count (drafts never reach the task).
+  const imageCount = task.attachments?.length ?? 0;
+
   const hasFooter =
+    imageCount > 0 ||
     hasSubtasks ||
     cost !== null ||
     queued ||
@@ -292,6 +296,13 @@ export function TaskCardView({
               <span className="task-card__meta" title={t.taskCard.subtasks.replace("{done}", String(subtasks.done)).replace("{total}", String(subtasks.total))}>
                 <IconSubtask size={12} />
                 {subtasks.done}/{subtasks.total}
+              </span>
+            )}
+            {imageCount > 0 && (
+              <span className="task-card__meta" data-attachments={imageCount} title={t.attachments.badgeTitle(imageCount)}>
+                <IconImage size={12} />
+                <span aria-hidden>{imageCount}</span>
+                <span className="sr-only">{t.attachments.badgeTitle(imageCount)}</span>
               </span>
             )}
             {cost !== null && (

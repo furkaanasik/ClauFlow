@@ -730,6 +730,11 @@ const CARD_STATES: Task[] = [
     tags: ["backend", "api", "perf", "db"],
     prNumber: 38,
     usage: USAGE,
+    // bakim #8: the image badge (IconImage + count)
+    attachments: [
+      { id: "sg-att-1", commentId: null, mime: "image/png", bytes: 214_000, width: 1280, height: 720, name: "list.png", createdAt: NOW },
+      { id: "sg-att-2", commentId: null, mime: "image/png", bytes: 98_000, width: 640, height: 360, name: "empty.png", createdAt: NOW },
+    ],
   }),
   mockTask({
     id: "sg-done",
