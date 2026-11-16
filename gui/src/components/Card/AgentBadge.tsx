@@ -23,6 +23,7 @@ const STEP_KIND: Record<AgentStatus, StatusKind> = {
   pr_opening: "doing",
   awaiting_approval: "review",
   waiting_deps: "todo",
+  resolving_conflict: "doing",
   done: "done",
   error: "error",
 };

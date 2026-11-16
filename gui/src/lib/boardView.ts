@@ -34,6 +34,33 @@ export function isQueued(task: Task): boolean {
   return task.status === "doing" && task.agent.status === "idle";
 }
 
+/* ─── zincir F4.6: conflict resolver (plan §3/33, §5.10) ──────────────────── */
+
+/**
+ * The AI conflict resolver works on this Review task's branch (queued for the
+ * repo lock or running). `isAgentWorking` covers it too (Z44: the card stays
+ * locked, a drag to Done would be refused with `conflict_resolving` anyway).
+ */
+export function isResolvingConflict(task: Task): boolean {
+  return task.status === "review" && task.agent?.status === "resolving_conflict";
+}
+
+/** The resolver finished: the branch now contains the base, ready to approve again. */
+export function isConflictResolved(task: Task): boolean {
+  return task.status === "review" && task.agent?.currentStep === "conflict_resolved";
+}
+
+/**
+ * The merge conflicted and nothing resolves it now: either the automatic
+ * resolver was skipped (`merge_conflict`, a previous run failed) or the run
+ * failed (`conflict_unresolved:<reason>`). The drawer offers "Resolve with AI".
+ */
+export function conflictFailed(task: Task): boolean {
+  if (task.status !== "review" || task.agent?.status !== "error") return false;
+  const code = task.agent.error ?? "";
+  return code === "merge_conflict" || code === "conflict_unresolved" || code.startsWith("conflict_unresolved:");
+}
+
 /* ─── zincir: dependency chain (plan §5.6, §3/11) ─────────────────────────── */
 
 type TaskMap = Record<string, Task>;

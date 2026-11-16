@@ -56,10 +56,35 @@ export type ErrorCode =
   | "stash_not_found"
   | "stash_conflict"
   | "worktree_dirty"
-  | "role_timeout";
+  | "role_timeout"
+  /** zincir F4.6 (§3/33, §3/42): stored as `conflict_unresolved:<reason>`, see `ConflictReason`. */
+  | "conflict_unresolved"
+  | "conflict_resolving"
+  | "task_not_in_review"
+  | "branch_up_to_date";
+
+/** zincir F4.6 (§3/33): why the AI conflict resolver failed (`conflict_unresolved:<reason>`). */
+export type ConflictReason =
+  | "markers_left"
+  | "qa_fail"
+  | "role_timeout"
+  | "budget"
+  | "aborted"
+  | "server_restart"
+  | "unsupported"
+  | "claude_exit"
+  | "push_failed"
+  | "git";
+
+/** zincir F4.6 (§3/33): `agent.currentStep` while `agent.status === "resolving_conflict"`. */
+export type ConflictStep = "queued" | "merging" | "resolving" | "verifying" | "qa" | "pushing";
 
 export interface Translations {
   errors: Record<ErrorCode, string>;
+  /** zincir F4.6: the `{detail}` of `errors.conflict_unresolved` (§5.10). */
+  conflict: {
+    reason: Record<ConflictReason, string>;
+  };
   landing: {
     tagline: string;
     subtitle: string;
@@ -189,6 +214,10 @@ export interface Translations {
     cancelWaitingTitle: string;
     /** zincir E5: pill on a waiting card whose dependencies are all done. */
     readyToStart: string;
+    /** zincir F4.6: live pill while the AI conflict resolver works on a Review card. */
+    conflictResolving: string;
+    /** zincir F4.6: info pill on a Review card whose conflict the resolver fixed. */
+    conflictResolved: string;
     agentSteps: {
       idle: string;
       branching: string;
@@ -197,6 +226,7 @@ export interface Translations {
       pr_opening: string;
       awaiting_approval: string;
       waiting_deps: string;
+      resolving_conflict: string;
       done: string;
       error: string;
     };
@@ -367,6 +397,8 @@ export interface Translations {
     waitingToast: (key: string, deps: string[]) => string;
     /** zincir: `chain_advanced` toast ("CLF-2 merged → CLF-3 started"). */
     chainAdvanced: (from: string, started: string[], merged: boolean) => string;
+    /** zincir F4.6: Review → Done hit a conflict and the AI resolver started (§3/43). */
+    conflictResolving: (key: string) => string;
     /** zincir E4: Review → Done confirmation. */
     mergeConfirm: {
       title: string;
@@ -376,6 +408,8 @@ export interface Translations {
       noMerge: string;
       dirty: string;
       starts: (n: number, keys: string[]) => string;
+      /** zincir F4.6 (§3/44): the task's conflict was resolved by the AI and passed QA. */
+      resolved: string;
       confirm: string;
       cancel: string;
     };
@@ -531,6 +565,20 @@ export interface Translations {
     /** Agent panel button of a waiting task whose dependencies are met (E5). */
     startWaiting: string;
     analysisOpenTeam: string;
+    /** zincir F4.6: the drawer's "Conflict" section (§5.10, §3/46). */
+    conflict: {
+      title: string;
+      resolving: string;
+      step: Record<ConflictStep, string>;
+      resolveWithAi: string;
+      resolvedNote: string;
+      failedHint: string;
+      baseAhead: (n: number, base: string) => string;
+      updateBranch: string;
+      updateConfirmTitle: string;
+      updateConfirmBody: string;
+      abort: string;
+    };
   };
   cloneModal: {
     targetDirLabel: string;
@@ -792,6 +840,9 @@ export interface Translations {
     runFailedToast: (ref: string, reason: string) => string;
     /** zincir D6: a dependency of a waiting task got into trouble (once per failure). */
     chainBlocked: (blocker: string, waiting: string[]) => string;
+    /** zincir F4.6 (§3/43): resolver run ended (once per run). */
+    conflictUnresolved: (key: string) => string;
+    conflictResolved: (key: string) => string;
   };
   prs: {
     state: {

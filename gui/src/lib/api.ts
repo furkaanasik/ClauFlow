@@ -1,4 +1,4 @@
-import type { AgentText, Comment, GithubRepo, GitStatus, StashEntry, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
+import type { AgentText, BaseDrift, Comment, ConflictResolveMode, GithubRepo, GitStatus, StashEntry, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
 
 const BASE =
@@ -135,7 +135,11 @@ export const api = {
     fetch(`${BASE}/tasks/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch.status === "doing" ? { ...patch, uiLang: uiLang() } : patch),
+      // `done` too (zincir F4.6, Z45): a merge conflict there starts the AI
+      // resolver, whose note and summary comment follow the UI language.
+      body: JSON.stringify(
+        patch.status === "doing" || patch.status === "done" ? { ...patch, uiLang: uiLang() } : patch,
+      ),
     })
       .then((r) => handle<{ task: Task }>(r))
       .then((d) => d.task),
@@ -172,6 +176,25 @@ export const api = {
     fetch(`${BASE}/tasks/${id}/start-waiting`, { method: "POST" })
       .then((r) => handle<{ task: Task }>(r))
       .then((d) => d.task),
+
+  /**
+   * zincir F4.6 (§3/46): run the AI conflict resolver on a Review task.
+   * `conflict` = "Resolve with AI", `update` = "Update branch" (merge the moved
+   * base in). 202 → the queued task (`resolving_conflict`); 409
+   * `task_not_in_review | no_branch | conflict_resolving | branch_up_to_date`.
+   */
+  resolveConflicts: (id: string, mode: ConflictResolveMode = "conflict"): Promise<Task> =>
+    fetch(`${BASE}/tasks/${id}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, uiLang: uiLang() }),
+    })
+      .then((r) => handle<{ task: Task }>(r))
+      .then((d) => d.task),
+
+  /** zincir F4.6 (§3/46): how many commits the base gained since the branch left it (read-only, no fetch). */
+  baseDrift: (id: string): Promise<BaseDrift> =>
+    fetch(`${BASE}/tasks/${id}/base-drift`).then((r) => handle<BaseDrift>(r)),
 
   abortTask: (id: string): Promise<{ aborted: boolean; source: string }> =>
     fetch(`${BASE}/tasks/${id}/abort`, { method: "POST" }).then((r) =>

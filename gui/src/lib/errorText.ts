@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api";
-import type { ErrorCode, Translations } from "@/lib/i18n/types";
+import type { ConflictReason, ErrorCode, Translations } from "@/lib/i18n/types";
 
 /** The `{ error: "<code>" }` string of an API error body, if any. */
 export function apiErrorCode(err: unknown): string | null {
@@ -39,10 +39,17 @@ function withDetail(text: string, detail: string | null): string {
   return detail ? `${text} (${detail})` : text;
 }
 
-/** `role_timeout:developer` → the drawer's role label ("Yazılımcı"); other details as they are. */
+/**
+ * `role_timeout:developer` → the drawer's role label ("Yazılımcı");
+ * `conflict_unresolved:qa_fail` → `conflict.reason.qa_fail` (zincir F4.6);
+ * other (and unknown) details as they are.
+ */
 function codeDetail(t: Translations, code: string, detail: string): string {
   if (code === "role_timeout" && Object.prototype.hasOwnProperty.call(t.team.roles, detail)) {
     return t.team.roles[detail as keyof Translations["team"]["roles"]];
+  }
+  if (code === "conflict_unresolved" && Object.prototype.hasOwnProperty.call(t.conflict.reason, detail)) {
+    return t.conflict.reason[detail as ConflictReason];
   }
   return detail;
 }

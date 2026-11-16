@@ -11,6 +11,13 @@ export type AgentStatus =
   | "awaiting_approval"
   /** zincir: dragged to Doing but a dependency is not done yet; holds no repo lock. */
   | "waiting_deps"
+  /**
+   * zincir F4.6 (§3/33): in Review, the AI conflict resolver works on the
+   * branch. `currentStep`: queued | merging | resolving | verifying | qa | pushing.
+   * Success → `done` + currentStep `conflict_resolved`; failure → `error` +
+   * `conflict_unresolved:<reason>`.
+   */
+  | "resolving_conflict"
   | "done"
   | "error";
 
@@ -172,6 +179,19 @@ export interface SkillCatalogEntry {
 export interface SystemCapabilities {
   advisor: boolean;
   models: string[];
+}
+
+/** zincir F4.6 (§3/46): `POST /tasks/:id/resolve` mode. */
+export type ConflictResolveMode = "conflict" | "update";
+
+/** zincir F4.6 (§3/46): `GET /tasks/:id/base-drift` (read-only, no fetch). */
+export interface BaseDrift {
+  base: string;
+  /** `origin/<base>` when the remote-tracking ref exists, else `<base>`. */
+  target: string;
+  /** Commits on `target` the task branch does not have (0 when there is no branch). */
+  behind: number;
+  mergeBase: string | null;
 }
 
 export interface GitStatus {
