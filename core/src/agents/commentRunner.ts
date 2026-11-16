@@ -16,7 +16,7 @@ import {
   getComment,
   updateComment,
 } from "../services/commentService.js";
-import { broadcastCommentUpdated } from "../services/wsService.js";
+import { broadcastCommentUpdated, broadcastStashCreated } from "../services/wsService.js";
 import type { Comment } from "../services/commentService.js";
 import type { Project, TeamArtifactKind } from "../types/index.js";
 import type { UiLang } from "./uiText.js";
@@ -55,7 +55,7 @@ export async function runComment(
 
 async function returnToBase(
   comment: Comment,
-  project: Pick<Project, "repoPath" | "defaultBranch">,
+  project: Pick<Project, "id" | "repoPath" | "defaultBranch">,
 ): Promise<void> {
   const repo = project.repoPath;
   try {
@@ -63,7 +63,16 @@ async function returnToBase(
     if (dirty.code === 0 && dirty.stdout.trim()) {
       const label = `clauflow-comment-${comment.id}`;
       const stash = await gitRun("git", ["stash", "push", "-u", "-m", label], repo);
-      if (stash.code === 0) appendCommentLog(comment.id, `↺ Uncommitted changes stashed as ${label}`);
+      if (stash.code === 0) {
+        appendCommentLog(comment.id, `↺ Uncommitted changes stashed as ${label}`);
+        const task = await getTask(comment.taskId).catch(() => null);
+        broadcastStashCreated(comment.taskId, {
+          projectId: project.id,
+          label,
+          reason: "comment",
+          displayId: task?.displayId ?? null,
+        });
+      }
     }
     const co = await gitRun("git", ["checkout", project.defaultBranch], repo);
     if (co.code !== 0) {

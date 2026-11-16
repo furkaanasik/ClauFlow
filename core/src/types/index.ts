@@ -291,7 +291,21 @@ export type WsMessage =
       type: "chain_advanced";
       taskId: string;
       payload: ChainAdvancedPayload;
+    }
+  | {
+      type: "stash_created";
+      taskId: string | null;
+      payload: StashCreatedPayload;
     };
+
+/** zincir E6 (plan §3/28, §5.7): ClauFlow took a stash of a dirty tree. */
+export interface StashCreatedPayload {
+  projectId: string;
+  label: string;
+  /** `resolve` is the F4.6 conflict resolver's `clauflow-resolve-<taskId>` stash. */
+  reason: "run" | "merge" | "comment" | "resolve";
+  displayId: string | null;
+}
 
 export interface ChainAdvancedPayload {
   projectId: string;

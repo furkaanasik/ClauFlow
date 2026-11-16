@@ -39,6 +39,14 @@ function withDetail(text: string, detail: string | null): string {
   return detail ? `${text} (${detail})` : text;
 }
 
+/** `role_timeout:developer` → the drawer's role label ("Yazılımcı"); other details as they are. */
+function codeDetail(t: Translations, code: string, detail: string): string {
+  if (code === "role_timeout" && Object.prototype.hasOwnProperty.call(t.team.roles, detail)) {
+    return t.team.roles[detail as keyof Translations["team"]["roles"]];
+  }
+  return detail;
+}
+
 function knownCode(t: Translations, code: string): code is ErrorCode {
   return Object.prototype.hasOwnProperty.call(t.errors, code);
 }
@@ -54,7 +62,7 @@ export function errorText(t: Translations, raw: unknown, fallback?: string): str
   if (code && knownCode(t, code)) return withDetail(t.errors[code], bodyDetail(raw));
   if (code) {
     const m = /^([a-z_]+):([\s\S]+)$/.exec(code);
-    if (m && knownCode(t, m[1]!)) return withDetail(t.errors[m[1] as ErrorCode], m[2]!.trim());
+    if (m && knownCode(t, m[1]!)) return withDetail(t.errors[m[1] as ErrorCode], codeDetail(t, m[1]!, m[2]!.trim()));
   }
   if (typeof raw === "string") return raw;
   if (code) return code;

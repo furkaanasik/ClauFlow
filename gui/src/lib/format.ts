@@ -39,3 +39,17 @@ export function formatDuration(
   const total = Math.round(ms / 1000);
   return `${Math.floor(total / 60)}m ${total % 60}s`;
 }
+
+/** "5 minutes ago" / "5 dakika önce" (`Intl.RelativeTimeFormat`); older than 30 days → a date. */
+export function formatRelativeTime(iso: string, lang: string): string {
+  const d = new Date(iso).getTime();
+  if (Number.isNaN(d)) return "";
+  const diff = (d - Date.now()) / 1000;
+  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
+  const abs = Math.abs(diff);
+  if (abs < 60) return rtf.format(Math.round(diff), "second");
+  if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");
+  if (abs < 86400) return rtf.format(Math.round(diff / 3600), "hour");
+  if (abs < 86400 * 30) return rtf.format(Math.round(diff / 86400), "day");
+  return new Date(iso).toLocaleDateString(lang);
+}

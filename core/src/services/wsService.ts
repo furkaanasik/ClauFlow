@@ -10,6 +10,7 @@ import type {
   BudgetExceededPayload,
   AgentText,
   ChainAdvancedPayload,
+  StashCreatedPayload,
   Comment,
   NodeRun,
   Project,
@@ -187,6 +188,11 @@ export function broadcastBudgetExceeded(taskId: string, payload: BudgetExceededP
 /** zincir (plan §3/12): "CLF-2 merged → CLF-3 started" toast. */
 export function broadcastChainAdvanced(taskId: string, payload: ChainAdvancedPayload): void {
   broadcast({ type: "chain_advanced", taskId, payload });
+}
+
+/** zincir E6 (plan §3/28): toast + stash counter refresh in the GUI. */
+export function broadcastStashCreated(taskId: string | null, payload: StashCreatedPayload): void {
+  broadcast({ type: "stash_created", taskId, payload });
 }
 
 export function closeWebSocket(): Promise<void> {

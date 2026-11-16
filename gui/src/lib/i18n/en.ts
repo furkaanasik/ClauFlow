@@ -52,6 +52,10 @@ export const en: Translations = {
     aborted_while_waiting: "Stopped by the user while waiting for its dependencies.",
     not_waiting: "The task is no longer waiting for dependencies.",
     dependencies_unmet: "Its dependencies are not done yet: {detail}.",
+    stash_not_found: "The stash was not found; it may have been restored or dropped by hand.",
+    stash_conflict: "The stashed changes conflict with the current code; nothing changed, the stash is still there.",
+    worktree_dirty: "The working tree has uncommitted changes; commit or stash them first.",
+    role_timeout: "The {detail} role timed out; the partial work was kept on the branch as a wip commit.",
   },
   landing: {
     tagline: "ClauFlow wires Claude Code into a kanban board.",
@@ -824,6 +828,26 @@ export const en: Translations = {
     confirmMergeDescription: "PR #{n} will be merged into the base branch.",
     cancel: "Cancel",
   },
+  stashes: {
+    title: (n) => `Stashed changes (${n})`,
+    reason: {
+      run: "Before a task run",
+      merge: "Before a merge",
+      comment: "Left over from a comment run",
+      resolve: "Before conflict resolution",
+    },
+    restore: "Restore",
+    drop: "Drop",
+    dropConfirmTitle: "Drop the stashed changes?",
+    dropConfirmBody: (label) => `The stash ${label} will be deleted for good; its changes cannot be brought back.`,
+    restored: "The stashed changes are back in the working tree.",
+    dropped: "The stashed changes were dropped.",
+    files: (n) => (n === 1 ? "1 file" : `${n} files`),
+    boardPill: (n) => `Stashed: ${n}`,
+    boardPillTitle: "Open the stashed changes in the project settings",
+    createdToast: (key) =>
+      `Your uncommitted changes were stashed${key ? ` (${key})` : ""} · Project settings → Stashed changes`,
+  },
   team: {
     roles: { ceo: "CEO", analyst: "Analyst", developer: "Developer", qa: "QA" },
     activity: {
@@ -866,6 +890,7 @@ export const en: Translations = {
       aborted: "Stopped by the user",
       superseded: "A new run started",
       server_restart: "The server restarted",
+      timeout: "A role timed out",
     },
     verdict: { pass: "Pass", fail: "Fail" },
     picker: {

@@ -106,8 +106,23 @@ export async function ensureGhCredentials(repoPath: string): Promise<"skipped" |
   return "ok";
 }
 
-export async function checkoutBase(repoPath: string, base: string): Promise<RunResult> {
-  let co = await run("git", ["checkout", base], repoPath);
+/** `checkoutBase` result: `stashed` is the label of the stash it took, if any (zincir E6). */
+export interface CheckoutResult extends RunResult {
+  stashed?: string;
+}
+
+/** `kanban-auto-<taskId>-<iso>` (zincir E6, §3/26); without a task the old `kanban-auto-<iso>`. */
+function runStashLabel(prefix: "kanban-auto" | "kanban-pull-auto", taskId?: string): string {
+  const iso = new Date().toISOString();
+  return taskId ? `${prefix}-${taskId}-${iso}` : `${prefix}-${iso}`;
+}
+
+export async function checkoutBase(
+  repoPath: string,
+  base: string,
+  opts: { taskId?: string } = {},
+): Promise<CheckoutResult> {
+  let co: CheckoutResult = await run("git", ["checkout", base], repoPath);
 
   // Defensive recovery: if checkout failed because the working tree has
   // local changes that would be overwritten (typically auto-generated SQLite
@@ -118,7 +133,7 @@ export async function checkoutBase(repoPath: string, base: string): Promise<RunR
     co.code !== 0 &&
     /would be overwritten by checkout/i.test(co.stderr + co.stdout)
   ) {
-    const label = `kanban-auto-${new Date().toISOString()}`;
+    const label = runStashLabel("kanban-auto", opts.taskId);
     const stash = await run(
       "git",
       ["stash", "push", "--include-untracked", "--message", label],
@@ -128,9 +143,9 @@ export async function checkoutBase(repoPath: string, base: string): Promise<RunR
       const retry = await run("git", ["checkout", base], repoPath);
       if (retry.code === 0) {
         retry.stdout = `${retry.stdout}\n[kanban] working tree had dirty files; auto-stashed as "${label}". Recover with: git stash list`;
-        co = retry;
+        co = { ...retry, stashed: label };
       } else {
-        return retry;
+        return { ...retry, stashed: label };
       }
     } else {
       return co;
@@ -171,7 +186,7 @@ export async function checkoutBase(repoPath: string, base: string): Promise<RunR
   const dirty = await run("git", ["status", "--porcelain"], repoPath);
   let stashLabel: string | null = null;
   if (dirty.stdout.trim() !== "") {
-    stashLabel = `${hasRemote ? "kanban-pull-auto" : "kanban-auto"}-${new Date().toISOString()}`;
+    stashLabel = runStashLabel(hasRemote ? "kanban-pull-auto" : "kanban-auto", opts.taskId);
     const stash = await run(
       "git",
       ["stash", "push", "--include-untracked", "--message", stashLabel],
@@ -183,14 +198,18 @@ export async function checkoutBase(repoPath: string, base: string): Promise<RunR
     ? `\n[kanban] working tree had dirty files; auto-stashed as "${stashLabel}". Recover with: git stash list`
     : "";
 
-  if (!hasRemote) return { ...co, stdout: `${co.stdout}${stashNote}` };
+  // Either stash point may have fired; report the latest label.
+  const stashed = stashLabel ?? co.stashed;
+  const withStash = stashed ? { stashed } : {};
+  if (!hasRemote) return { ...co, stdout: `${co.stdout}${stashNote}`, ...withStash };
 
   const pullResult = await run("git", ["pull", "origin", base], repoPath);
-  if (pullResult.code !== 0) return pullResult;
+  if (pullResult.code !== 0) return { ...pullResult, ...withStash };
   return {
     code: 0,
     stdout: `${co.stdout}\n${pullResult.stdout}${stashNote}`,
     stderr: pullResult.stderr,
+    ...withStash,
   };
 }
 

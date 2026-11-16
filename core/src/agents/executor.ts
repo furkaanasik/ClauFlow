@@ -23,6 +23,7 @@ import { slugify } from "../services/slug.js";
 import {
   broadcastCommentUpdated,
   broadcastLog,
+  broadcastStashCreated,
   broadcastStatus,
   broadcastTaskUpdated,
 } from "../services/wsService.js";
@@ -314,12 +315,22 @@ export async function run(task: Task, project: Project, opts: RunOptions = {}): 
 
     // ── Step 1: checkout base + pull ──────────────────────────────────────
     await setAgentStep(task.id, "branching", "checkout_base");
-    const coResult = await checkoutBase(project.repoPath, project.defaultBranch);
+    const coResult = await checkoutBase(project.repoPath, project.defaultBranch, {
+      taskId: task.id,
+    });
     if (coResult.code !== 0) {
       throw new Error(`git checkout/pull failed:\n${coResult.stderr}`);
     }
     if (/\[kanban\] working tree had dirty files/.test(coResult.stdout)) {
       await pushCmdResult(task.id, coResult);
+    }
+    if (coResult.stashed) {
+      broadcastStashCreated(task.id, {
+        projectId: project.id,
+        label: coResult.stashed,
+        reason: "run",
+        displayId: task.displayId ?? null,
+      });
     }
 
     // ── Step 2: create feature branch ────────────────────────────────────

@@ -10,6 +10,7 @@ import { en } from "@/lib/i18n/en";
 import { formatUsd } from "@/lib/format";
 import { errorText } from "@/lib/errorText";
 import { blockerProblem, isWaitingDeps } from "@/lib/boardView";
+import { refreshStashes } from "@/hooks/useStashes";
 import type { Task, WsMessage } from "@/types";
 
 const RECONNECT_DELAY_MS = 3000;
@@ -273,6 +274,17 @@ export function useAgentSocket(url?: string) {
               if (started.length > 0) {
                 plannerToast(p.projectId, "success", uiStrings().board.chainAdvanced(from, started, p.merged));
               }
+              break;
+            }
+            case "stash_created": {
+              // zincir E6 (plan §3/28): info toast (6 s) + the project's stash counter.
+              const m = msg as Extract<WsMessage, { type: "stash_created" }>;
+              const p = m.payload;
+              const { projects, selectedProjectId } = useBoardStore.getState();
+              const text = uiStrings().stashes.createdToast(p.displayId);
+              const name = p.projectId === selectedProjectId ? null : projects.find((x) => x.id === p.projectId)?.name;
+              useToastStore.getState().push("info", name ? `${name}: ${text}` : text, 6000);
+              void refreshStashes(p.projectId);
               break;
             }
             case "hello":

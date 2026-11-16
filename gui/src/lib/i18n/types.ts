@@ -52,7 +52,11 @@ export type ErrorCode =
   | "too_many_dependencies"
   | "aborted_while_waiting"
   | "not_waiting"
-  | "dependencies_unmet";
+  | "dependencies_unmet"
+  | "stash_not_found"
+  | "stash_conflict"
+  | "worktree_dirty"
+  | "role_timeout";
 
 export interface Translations {
   errors: Record<ErrorCode, string>;
@@ -815,6 +819,22 @@ export interface Translations {
     confirmMergeDescription: string;
     cancel: string;
   };
+  /** zincir E6 (plan §5.9): ClauFlow's stashes (project drawer, board pill, toast). */
+  stashes: {
+    title: (n: number) => string;
+    reason: Record<"run" | "merge" | "comment" | "resolve", string>;
+    restore: string;
+    drop: string;
+    dropConfirmTitle: string;
+    dropConfirmBody: (label: string) => string;
+    restored: string;
+    dropped: string;
+    files: (n: number) => string;
+    boardPill: (n: number) => string;
+    boardPillTitle: string;
+    /** `key` = the task's display id, or null when the stash has no task. */
+    createdToast: (key: string | null) => string;
+  };
   team: {
     roles: Record<"ceo" | "analyst" | "developer" | "qa", string>;
     /** Card / badge activity while a role runs. */
@@ -827,7 +847,7 @@ export interface Translations {
     builtinDescriptions: Record<"solo" | "yazilim_ekibi" | "hata_avi" | "kesif", string>;
     artifactKinds: Record<"brief" | "spec" | "delivery" | "qa_report" | "stuck" | "summary", string>;
     runStatus: Record<"running" | "awaiting_approval" | "delivered" | "explored" | "stuck" | "error" | "aborted", string>;
-    stopReasons: Record<"stalled" | "round_limit" | "budget" | "aborted" | "superseded" | "server_restart", string>;
+    stopReasons: Record<"stalled" | "round_limit" | "budget" | "aborted" | "superseded" | "server_restart" | "timeout", string>;
     verdict: Record<"pass" | "fail", string>;
     picker: {
       label: string;

@@ -51,6 +51,7 @@ import {
   projectHasActiveTasks,
   updateProject,
 } from "../services/taskService.js";
+import { dropStash, listClauflowStashes, restoreStash, StashError } from "../services/stashService.js";
 import {
   initRepo,
   createGithubRepo,
@@ -141,6 +142,55 @@ router.get("/:id/git-status", async (req: Request, res: Response) => {
     }
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+// zincir E6 (plan §3/26–27, §5.9): ClauFlow's stashes in the project repo.
+// Addressed by stash commit SHA; restore/drop never wait for the repo lock.
+const stashRefSchema = z.string().regex(/^[0-9a-f]{40}$/i);
+
+function sendStashError(res: Response, err: unknown): Response {
+  if (err instanceof StashError) {
+    const status = err.code === "stash_not_found" ? 404 : 409;
+    return res
+      .status(status)
+      .json({ error: err.code, ...(err.code === "stash_conflict" ? { files: err.extra.files ?? [] } : {}) });
+  }
+  return res.status(500).json({ error: errorMessage(err) });
+}
+
+router.get("/:id/stashes", async (req: Request, res: Response) => {
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    res.json({ stashes: await listClauflowStashes(project.repoPath) });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.post("/:id/stashes/:ref/restore", async (req: Request, res: Response) => {
+  const ref = stashRefSchema.safeParse(req.params.ref);
+  if (!ref.success) return res.status(400).json({ error: "invalid_body", issues: ref.error.issues });
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    res.json(await restoreStash(project.repoPath, ref.data.toLowerCase()));
+  } catch (err) {
+    sendStashError(res, err);
+  }
+});
+
+router.delete("/:id/stashes/:ref", async (req: Request, res: Response) => {
+  const ref = stashRefSchema.safeParse(req.params.ref);
+  if (!ref.success) return res.status(400).json({ error: "invalid_body", issues: ref.error.issues });
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    await dropStash(project.repoPath, ref.data.toLowerCase());
+    res.status(204).end();
+  } catch (err) {
+    sendStashError(res, err);
   }
 });
 

@@ -179,6 +179,23 @@ export interface GitStatus {
   isDirty: boolean;
 }
 
+/** zincir E6: why ClauFlow stashed a dirty tree (`resolve` = F4.6 conflict resolver). */
+export type StashReason = "run" | "merge" | "comment" | "resolve";
+
+/** zincir E6 (plan §5.9): one of ClauFlow's stashes, `GET /projects/:id/stashes`. */
+export interface StashEntry {
+  /** Stash commit SHA; restore/drop address the stash by it. */
+  ref: string;
+  label: string;
+  reason: StashReason;
+  taskId: string | null;
+  displayId: string | null;
+  /** ISO time the stash was taken. */
+  createdAt: string;
+  /** Files in the stash (tracked + untracked), at most 20. */
+  files: string[];
+}
+
 /** `GET /tasks/:id/diff`: the task branch against base (`<base>...<branch>`). */
 export interface TaskDiff {
   base: string;
@@ -356,7 +373,16 @@ export type WsMessage =
   | { type: "task_breakdown_started"; taskId: string }
   | { type: "task_breakdown_done"; taskId: string; taskCount: number }
   | { type: "task_breakdown_error"; taskId: string; error: string }
-  | { type: "chain_advanced"; taskId: string; payload: ChainAdvancedPayload };
+  | { type: "chain_advanced"; taskId: string; payload: ChainAdvancedPayload }
+  | { type: "stash_created"; taskId: string | null; payload: StashCreatedPayload };
+
+/** zincir E6 (plan §3/28, §5.7): ClauFlow stashed a dirty tree (core `broadcastStashCreated`). */
+export interface StashCreatedPayload {
+  projectId: string;
+  label: string;
+  reason: StashReason;
+  displayId: string | null;
+}
 
 /** zincir: a done task started its waiting dependents (core `broadcastChainAdvanced`). */
 export interface ChainAdvancedPayload {

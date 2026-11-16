@@ -1,4 +1,4 @@
-import type { AgentText, Comment, GithubRepo, GitStatus, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
+import type { AgentText, Comment, GithubRepo, GitStatus, StashEntry, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
 
 const BASE =
@@ -193,6 +193,22 @@ export const api = {
   getProjectGitStatus: (id: string): Promise<GitStatus> =>
     fetch(`${BASE}/projects/${id}/git-status`, { cache: "no-store" })
       .then((r) => handle<GitStatus>(r)),
+
+  /** zincir E6: ClauFlow's stashes in the project repo, newest first. */
+  listStashes: (projectId: string): Promise<StashEntry[]> =>
+    fetch(`${BASE}/projects/${projectId}/stashes`, { cache: "no-store" })
+      .then((r) => handle<{ stashes: StashEntry[] }>(r))
+      .then((d) => d.stashes ?? []),
+
+  /** 409 `stash_conflict` (+`files`) / `worktree_dirty` / `repo_busy`, 404 `stash_not_found`. */
+  restoreStash: (projectId: string, ref: string): Promise<{ restored: string; branch: string | null }> =>
+    fetch(`${BASE}/projects/${projectId}/stashes/${ref}/restore`, { method: "POST" })
+      .then((r) => handle<{ restored: string; branch: string | null }>(r)),
+
+  dropStash: (projectId: string, ref: string): Promise<void> =>
+    fetch(`${BASE}/projects/${projectId}/stashes/${ref}`, { method: "DELETE" }).then(async (r) => {
+      if (!r.ok) await handle<never>(r);
+    }),
 
   getComments: (taskId: string): Promise<Comment[]> =>
     fetch(`${BASE}/tasks/${taskId}/comments`, { cache: "no-store" })

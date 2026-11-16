@@ -53,6 +53,10 @@ export const tr: Translations = {
     aborted_while_waiting: "Bağımlılıklarını beklerken kullanıcı tarafından durduruldu.",
     not_waiting: "Görev artık bağımlılık beklemiyor.",
     dependencies_unmet: "Bağımlılıkları henüz bitmedi: {detail}.",
+    stash_not_found: "Saklanan değişiklik bulunamadı; elle geri yüklenmiş ya da düşürülmüş olabilir.",
+    stash_conflict: "Saklanan değişiklikler şimdiki kodla çakışıyor; hiçbir şey değişmedi, stash yerinde duruyor.",
+    worktree_dirty: "Çalışma ağacında commit'lenmemiş değişiklik var; önce commit'le ya da sakla.",
+    role_timeout: "{detail} rolü zaman aşımına uğradı; yarım iş dalda wip commit'i olarak saklandı.",
   },
   landing: {
     tagline: "ClauFlow, Claude Code'u bir kanban panosuna bağlar.",
@@ -825,6 +829,26 @@ export const tr: Translations = {
     confirmMergeDescription: "PR #{n} temel dala merge edilecek.",
     cancel: "\u0130ptal",
   },
+  stashes: {
+    title: (n) => `Saklanan değişiklikler (${n})`,
+    reason: {
+      run: "Görev başlamadan önce",
+      merge: "Birleştirmeden önce",
+      comment: "Yorum koşusundan kalan",
+      resolve: "Çakışma çözümünden önce",
+    },
+    restore: "Geri yükle",
+    drop: "Düşür",
+    dropConfirmTitle: "Saklanan değişiklikler düşürülsün mü?",
+    dropConfirmBody: (label) => `${label} stash'i kalıcı olarak silinecek; içindeki değişiklikler geri getirilemez.`,
+    restored: "Saklanan değişiklikler çalışma ağacına geri yüklendi.",
+    dropped: "Saklanan değişiklikler düşürüldü.",
+    files: (n) => `${n} dosya`,
+    boardPill: (n) => `Saklanan: ${n}`,
+    boardPillTitle: "Saklanan değişiklikleri proje ayarlarında aç",
+    createdToast: (key) =>
+      `Commit'lenmemiş değişikliklerin saklandı${key ? ` (${key})` : ""} · Proje ayarları → Saklanan değişiklikler`,
+  },
   team: {
     roles: { ceo: "CEO", analyst: "Analist", developer: "Yazılımcı", qa: "QA" },
     activity: {
@@ -867,6 +891,7 @@ export const tr: Translations = {
       aborted: "Kullanıcı durdurdu",
       superseded: "Yeni bir koşu başladı",
       server_restart: "Sunucu yeniden başladı",
+      timeout: "Bir rol zaman aşımına uğradı",
     },
     verdict: { pass: "Geçti", fail: "Kaldı" },
     picker: {

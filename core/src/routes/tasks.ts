@@ -16,6 +16,7 @@ import { errorMessage } from "../utils/error.js";
 import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import {
   broadcastLog,
+  broadcastStashCreated,
   broadcastTaskCreated,
   broadcastTaskDeleted,
   broadcastTaskUpdated,
@@ -315,6 +316,15 @@ router.patch("/:id", async (req: Request, res: Response) => {
       const project = await getProject(existing.projectId);
       if (!project) return res.status(404).json({ error: "project_not_found" });
       const merge = await mergeTaskBranch(existing, project);
+      // zincir E6 (§3/28): the stash outlives a failed merge too.
+      if (merge.stash) {
+        broadcastStashCreated(existing.id, {
+          projectId: project.id,
+          label: merge.stash,
+          reason: "merge",
+          displayId: existing.displayId ?? null,
+        });
+      }
       if (!merge.ok) {
         console.warn(`[merge] task ${existing.displayId ?? existing.id}: ${merge.code}`, merge.detail ?? merge.files ?? "");
         if (merge.code !== "repo_busy") {

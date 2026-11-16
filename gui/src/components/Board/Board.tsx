@@ -112,6 +112,10 @@ export function Board() {
   const gitStatus         = useBoardStore((s) =>
     s.selectedProjectId ? s.gitStatusByProject[s.selectedProjectId] : undefined,
   );
+  const stashCount        = useBoardStore((s) =>
+    s.selectedProjectId ? (s.stashCountByProject[s.selectedProjectId] ?? 0) : 0,
+  );
+  const openProjectDetail = useBoardStore((s) => s.openProjectDetail);
 
   const view       = useViewStore((s) => s.view);
   const setView    = useViewStore((s) => s.setView);
@@ -383,6 +387,18 @@ export function Board() {
                   title={gitStatus.isDirty ? t.shell.dirty : t.shell.clean}
                 />
               </span>
+            )}
+            {stashCount > 0 && (
+              // zincir E6 (plan §5.9): ClauFlow's stashes; opens the project drawer.
+              <button
+                type="button"
+                data-testid="stash-pill"
+                className="ui-pill ui-pill--sm ui-focus cursor-pointer bg-panel font-mono !text-[11px] text-[var(--orange-text)] transition-transform hover:-translate-x-px hover:-translate-y-px"
+                title={t.stashes.boardPillTitle}
+                onClick={() => openProjectDetail(selectedProjectId)}
+              >
+                {t.stashes.boardPill(stashCount)}
+              </button>
             )}
           </div>
           <h1 className="t-display mt-2 truncate text-[32px] text-ink">{selectedProject?.name ?? t.board.title}</h1>
