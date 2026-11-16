@@ -7,7 +7,7 @@ vi.hoisted(() => {
   process.env.GH_CONFIG_DIR = `${tmp}/clauflow-teamrun-b-gh-${stamp}`;
 });
 
-import { rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { WebSocket } from "ws";
@@ -199,6 +199,25 @@ describe("team run B: stop paths", () => {
       expect(r.branchFiles(task.branch!)).toEqual(["fake-1.txt"]);
     } finally {
       delete process.env.FAKE_CLAUDE_DIRTY_ROLES;
+    }
+  });
+
+  it("a QA npm install (untracked node_modules/) is shielded: kept on disk, not stashed, not committed (bakim #7)", async () => {
+    process.env.FAKE_CLAUDE_NODE_MODULES_ROLES = "qa";
+    try {
+      const c = await makeTeamCase({ scenario: "pass" });
+      const task = await runTeamCase(c);
+      const r = inspect(c);
+      expect(r.runs[0]!.status).toBe("delivered");
+      expect(task.status).toBe("review");
+      expect(existsSync(join(c.repo, "node_modules", "pkg", "index.js"))).toBe(true);
+      expect(git(c.repo, "stash", "list")).toBe("");
+      expect(task.agent.log.join("\n")).not.toContain("clauflow-discard-");
+      expect(task.agent.log.join("\n")).toContain("[kanban] ignored locally: node_modules/");
+      expect(r.branchFiles(task.branch!)).toEqual(["fake-1.txt"]);
+      expect(readFileSync(join(c.repo, ".git", "info", "exclude"), "utf8")).toContain("\n/node_modules/\n");
+    } finally {
+      delete process.env.FAKE_CLAUDE_NODE_MODULES_ROLES;
     }
   });
 

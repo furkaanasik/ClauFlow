@@ -129,7 +129,7 @@ Tokenlar `:root` (krem, varsayılan) ve `html.night` (gece) üzerinde CSS custom
 | `--mustard-text` | `#f2c33d` | Gecede baz renkle aynı |
 | `--orange-text` | `#f08a42` | Baz renkle aynı |
 | `--green-text` | `#5bb877` | Baz renkle aynı |
-| `--red-text` | `#e2574c` | Baz renkle aynı |
+| `--red-text` | `#ee766b` | Bazdan **farklı** (daha açık); hata banner'ında 5,1:1 (bkz. §2.5) |
 | `--cobalt-text` | `#7b9af3` | Bazdan **farklı** (daha açık) |
 | `--on-ink` | `#17140f` | |
 | `--on-mustard` | `#1b1712` | |
@@ -192,7 +192,9 @@ Tokenlar `:root` (krem, varsayılan) ve `html.night` (gece) üzerinde CSS custom
 - `--ink-3` gece: koddaki değer `#9d937f`. Plan §11'e göre çalışan kartın turuncu zemininde 4.88:1, panelde 5.46:1. Plandaki ara değer `#968C78` eskidi, kod esas.
 - Birincil buton: hardal üstünde mürekkep metin, **10.7:1** (`Button.tsx` yorumu).
 - Styleguide metni: kâğıt üstünde mürekkep **15:1**.
-- `--*-text` varyantları kremde kâğıt ve sunken üzerinde ≥4.5:1. Gecede baz renklerle aynı (`--cobalt-text` hariç).
+- `--*-text` varyantları kremde kâğıt ve sunken üzerinde ≥4.5:1. Gecede baz renklerle aynı (`--cobalt-text` ve `--red-text` hariç).
+- `--red-text` gece: `#e2574c` → `#ee766b` (bakım F1). Baz kırmızıyla aynıyken hata banner'ının zemininde (`color-mix(red 12%, panel)`) 3,91:1, çalışan kartta 4,02, diff'te silinen satır numarasında (`red 22%, sunken`) 4,06 ve silinen satırın `-` işaretinde 3,88 kalıyordu. Yeni değerle sırasıyla 5,11 / 5,25 / 5,30 / 5,06; panelde 4,50 → 5,88. `--red` (dolgu, kenar, `inset` şerit) değişmedi. Matris: `atolye-lab/ekran-goruntuleri/scripts/kontrast-bakim.mjs`.
+- Diff numara hücreleri (bakım F1): kremde `--red-text` `red 22% sunken` üstünde 3,51:1, `--green-text` `green 24% sunken` üstünde 3,78:1 kalıyordu (axe tek haneli sayıları `shortTextContent` diye "incomplete" bırakır, yalnız matris yakaladı). Numara metni iki temada `--ink-2`: krem 5,56 / 6,02, gece 8,66 / 7,41. Zemin tonları değişmedi.
 - Gecede `--on-cobalt` ve `--on-red` koyu. Plan §11: gece kobaltı üstünde krem metin 3.0:1 kalıyordu.
 - Gecede gölge `--line` değil `--shadow-ink` (`#b9ae97`). Tam krem gölge parlıyordu.
 - Landing fosforlu kalemi (`.landing-mark`) gecede x-yüksekliğinin altına iner (`82%`–`97%` bandı). Krem yazı hardal üstünde fazla soluk kalıyordu.
@@ -805,7 +807,7 @@ Ekranlara özel diğer sınıflar da `globals.css` içinde tanımlı. Aynı dili
 | `.team-bubble`, `.team-chip` | Ekip zaman çizelgesi balonu (`4px 14px 14px 14px` köşe, solda `--role` renk şeridi; `data-tone` = `stuck` kırmızı taralı, `live` kesik çizgili, `summary` sunken) ve mono meta çipi |
 | `.ui-banner--approval` | Şartname onay kapısı: hardal zeminli banner ("sıra sende") |
 | Ekip editörü (`components/Team/TeamEditor.tsx`) | Yeni sınıf yok: ekip kartları `.ui-option` (seçili `data-checked`), rol satırları solda `inset 4px 0 0` rol rengi şeridi (seçiliyken `+ 3px 3px 0` gölge), salt okunur rol `dl` satırları `1.5px` `--hair` ayraçlı, proje ayarları `Segmented` + `Switch`. |
-| `.diff-*` | Split diff: PR çekmecesi ve görev çekmecesinin "Değişiklikler" sekmesi aynı parçaları kullanır (`components/Github/DiffView.tsx`) |
+| `.diff-*` | Split diff: PR çekmecesi ve görev çekmecesinin "Değişiklikler" sekmesi aynı parçaları kullanır (`components/Github/DiffView.tsx`). Silinen/eklenen satırın numara hücresi kırmızı/yeşil tonlu zeminde `--ink-2` metin (bkz. §2.5); renk tondan ve `-`/`+` işaretinden (`--red-text`/`--green-text`) gelir. Proje çekmecesinin stash panelinde (`.stash-diff` sarmalayıcı) uzun satırlar hücre içinde kaymak yerine kırılır (dar çekmece, axe `scrollable-region-focusable`); `FileBlock` orada `hideViewed` ile "görüldü" kutusu olmadan basılır |
 | `.kpi-tile` | Üstünde 6px renk şeridi (`--kpi`) olan KPI kartı |
 | `.factory-*` | 3D fabrika sahnesinin DOM katmanı (nokta ızgaralı sahne, lejant, tooltip) |
 | `.prose-claude`, `.comment-markdown` | Markdown önizleme. `ReactMarkdown` her yerde `remark-gfm` ile çalışır: tablolar `1px solid var(--border)` hücreli, `.comment-markdown` tablosu taşınca yatay kayar. |
@@ -853,7 +855,7 @@ Elle ayarlanmış küçük stroke ikon seti: *"16px grid, 2px stroke, round caps
   strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false" />
 ```
 
-Varsayılan `size` 16. Mevcut ikonlar: `IconPlus`, `IconClose`, `IconCheck`, `IconChevronDown/Right/Left/Up`, `IconSearch`, `IconBolt`, `IconPlay`, `IconStop`, `IconRetry`, `IconTrash`, `IconGear`, `IconBranch`, `IconPR`, `IconEye`, `IconSun`, `IconMoon`, `IconAlert`, `IconInfo`, `IconCoin`, `IconClock`, `IconBoard`, `IconList`, `IconFactory`, `IconChart`, `IconBell`, `IconRobot`, `IconSpinner`, `IconRail`, `IconFolder`, `IconSubtask`, `IconTag`, `IconFilter`, `IconDownload`, `IconArrowUpRight`, `IconSort`, `IconChain` (iki halka; bağımlılık zinciri), `IconMerge` (base'in görev dalına alınması; çekmecenin Çakışma bölümü), `IconLock`, `IconGithub`, `IconTerminal`, `IconChat`, `IconCopy`, `IconFile`, `IconPencil`. Ekip rolleri: `IconBriefcase` (CEO), `IconClipboard` (Analist), `IconCode` (Yazılımcı), `IconShieldCheck` (QA), `IconTeam` (ekip). Ekip editörü: `IconStar` (varsayılan yap), `IconUpload` (şablon olarak kaydet).
+Varsayılan `size` 16. Mevcut ikonlar: `IconPlus`, `IconClose`, `IconCheck`, `IconChevronDown/Right/Left/Up`, `IconSearch`, `IconBolt`, `IconPlay`, `IconStop`, `IconRetry`, `IconTrash`, `IconGear`, `IconBranch`, `IconPR`, `IconEye`, `IconSun`, `IconMoon`, `IconAlert`, `IconInfo`, `IconCoin`, `IconClock`, `IconBoard`, `IconList`, `IconFactory`, `IconChart`, `IconBell`, `IconRobot`, `IconSpinner`, `IconRail`, `IconFolder`, `IconSubtask`, `IconTag`, `IconFilter`, `IconDownload`, `IconArrowUpRight`, `IconSort`, `IconChain` (iki halka; bağımlılık zinciri), `IconMerge` (base'in görev dalına alınması; çekmecenin Çakışma bölümü), `IconLock`, `IconGithub`, `IconTerminal`, `IconChat`, `IconCopy`, `IconFile`, `IconPencil`. Ekip rolleri: `IconBriefcase` (CEO), `IconClipboard` (Analist), `IconCode` (Yazılımcı), `IconShieldCheck` (QA), `IconTeam` (ekip). Ekip editörü: `IconStar` (varsayılan yap), `IconUpload` (şablon olarak kaydet). Görsel ekleri: `IconImage` (çerçeve + güneş + tepe; kart rozeti, çekmecenin Görseller bölümü, "Görsel ekle" düğmesi; "🖼" emojisi yerine).
 
 `IconSpinner`: `r=6` daire, `strokeOpacity 0.25`, `strokeWidth 2.5`, üstünde `M8 2a6 6 0 0 1 6 6` yayı. `ui-spin` sınıfıyla döner (`0.8s linear infinite`).
 
@@ -903,18 +905,21 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
 
 ### 5.22 Görev kartı (`Card/TaskCard.tsx`)
 
-`TaskCard` sürüklenebilir sarmalayıcı (dnd-kit `useSortable`, listener'lar tüm kartta). `TaskCardView` sunum katmanı: sürüklenen kart, drag overlay ve styleguide aynı görünümü paylaşır.
+`TaskCard` sürüklenebilir sarmalayıcı (dnd-kit `useSortable`, işaretçi listener'ları tüm kartta). `TaskCardView` sunum katmanı: sürüklenen kart, drag overlay ve styleguide aynı görünümü paylaşır.
+
+**Yapı: "gerilmiş açma düğmesi"** (erişilebilirlik, `nested-interactive` yok). Kart kökü etkileşimsiz bir `div`'dir: `role`, `tabIndex`, `aria-label`, `onKeyDown` yok; dnd-kit `attributes` yayılmaz (kökü `role="button"` yapıyordu; `KeyboardSensor` yok, sürükleme yalnızca işaretçiyle). Kartı açan, başlığın içindeki `<button class="task-card__open">`dur: erişilebilir adı `CLF-87 Başlık`, kilitliyken `title` = "Ajan çalışırken taşınamaz", Enter/Space doğal olarak açar. `::after`'ı tüm kartı kaplar, yani karta fareyle tıklamak bu düğmeye tıklamaktır. Eylem düğmeleri, bağlantılar ve `title` ipuçlu meta öğeler bu düğmenin **kardeşidir** ve `position: relative; z-index: 1` ile üstünde durur: ipuçları hover'da çalışır, meta haplarına tık köke kabarcıklanıp kartı açar. Odak halkası tüm kartta (`.task-card:has(.task-card__open:focus-visible)`). Tab sırası: başlık düğmesi → kartın iç düğmeleri → sonraki kart. Drag overlay ve `onOpen`'sız görünüm (styleguide) düz başlık basar (çift odak noktası olmasın).
 
 ```
-┌─ .task-card ─────────────────────────────── 12px köşe, 2px line, --shadow ─┐
+┌─ .task-card (div, etkileşimsiz) ──────────── 12px köşe, 2px line, --shadow ─┐
 ▌ .task-card__prio (4px öncelik şeridi)  ya da  .task-card__edge (çalışırken) │
-│ CLF-87  ⤷CLF-80                                              ▲▲▲          │  anahtar · üst görev · PriorityMark
-│ Başlık (15px semibold, 2 satır)                                            │
+│ CLF-87  ⤷CLF-80                                              ▲▲▲          │  anahtar · üst görev · PriorityMark (data-card-action)
+│ <h3><button.task-card__open> Başlık (15px semibold, 2 satır)               │  ::after → tüm kart
+│ Açıklama (13px ink-3, 2 satır)                                             │
 │ Açıklama (13px ink-3, 2 satır)                                             │
 │ (●backend) (●api) +2                                                       │  en fazla 3 etiket
 │ [◉ running ▪▪▪▫]                    (yalnızca ajan çalışırken, tam satır)  │
 │ ─────────────────────────── 1.5px hair ──────────────────────────────────  │
-│ [⤷ 0/2] [¤ $0.42] [⑂ Yerel dal]               [queued ×] [#42] [#42 merged↗]│  alt bilgi
+│ [⤷ 0/2] [▣ 2] [¤ $0.42] [⑂ Yerel dal]         [queued ×] [#42] [#42 merged↗]│  alt bilgi
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -922,9 +927,11 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
 - Anahtar: `.task-card__key`. Üst görev: `font-mono text-[11px] text-ink-3` ve `IconSubtask size={12}`.
 - Etiket: `inline-flex h-5 items-center gap-1.5 rounded-pill border-[1.5px] border-line bg-paper px-2 text-[11px] font-medium text-ink-2`, nokta `h-1.5 w-1.5 rounded-full` (`tagDot`). Fazlası `+n` olarak `font-mono text-[11px] text-ink-3`.
 - Alt bilgi: `mt-3 flex flex-wrap items-center gap-1.5 border-t-[1.5px] border-hair pt-2.5`. Alt görev sayacı, maliyet (görevin gerçek ömür boyu harcaması `task.costUsd`, `formatUsd`) ve Review'daki PR'sız dallı görev için "Yerel dal" (`IconBranch`, `title` dal adı) `.task-card__meta` olarak basılır (bütçe aşıldıysa maliyet zemini `var(--red)`, metni `var(--on-red)`). Açık PR butonu kobalt dolgulu, merged PR butonu yeşil dolgulu `.task-card__btn`. Kuyrukta bekleyen için `StatusPill status="todo"` ve kare iptal butonu (`!w-6`, hover'da kırmızı).
+- **Görsel rozeti** (bakım #8): zincir rozeti ve alt görev sayacından sonra, maliyetten önce `.task-card__meta` + `IconImage size={12}` + sayı (`aria-hidden`) + `sr-only` "N görsel"; `title` "N görsel", `data-attachments=N`. Etkileşimsiz `span` (F4 yapısı: z-index 1, tık köke kabarcıklanır ve kartı açar; `nested-interactive` getirmez). Sayı görevin bütün görsellerini (görev + yorum) içerir, yorum taslaklarını içermez. Emoji ("🖼") kullanılmaz.
 - **Zincir rozeti** (`Card/ChainBadge.tsx`): alt bilginin ilk öğesi, `.task-card__meta` + `IconChain size={12}`. Yalnızca `todo` ya da bağımlılık bekleyen (`waiting_deps`) kartta, karşılanmamış bağımlılık varsa çıkar. Metin "CLF-2'yi bekliyor" / "2 görev bekliyor"; engelleyicilerden biri sorunluysa (`review`/`todo` + `error`) "CLF-2 sorunlu" ve zemin `var(--red)`, metin `var(--on-red)` (`data-chain="problem"`, aksi `"waiting"`). Etkileşimsiz `span`; tam liste `title`'da (`CLF-2 · İncelemede` ya da `CLF-2 · <errorText>`). Liste görünümü (`TaskList`) `compact` sürümü kullanır: yalnızca sayı ya da `CLF-2 !`, metin `sr-only`. Bekleyen kartta kuyruk hapının yerinde `StatusPill status="todo"` "Bağımlılık bekliyor" (hepsi bitmişse "Başlatılmayı bekliyor") ve aynı kare iptal butonu; kart sürüklenemez ama kilit/kenar animasyonu almaz. Board'da hazır bekleyenler için `ui-banner--info` şeridi (`IconChain` + "Başlat"), çekmecede "Bekliyor" / "Bunu bekleyenler" bölümleri (bağımlı satırlarında `IconChain size={13}` `text-ink-3`).
 - **Çakışma durumları:** çözücü koşarken (`agent.status: "resolving_conflict"`) kart çalışan kart görünümünü alır (`data-running`, kenar animasyonu, kilit) ve tam satırda canlı `AgentBadge` "Çakışma çözülüyor" (executor'ın dört çentiği olmadan). Çözülmüş görevde (`currentStep === "conflict_resolved"`) alt bilgide `StatusPill status="review"` "Çakışma çözüldü — tekrar onayla" (`data-conflict-resolved`); başarısızlıkta mevcut hata hapı (`title` = `errorText`, `conflict_unresolved:<neden>`). Çekmecenin Detay sekmesinde yalnızca gerektiğinde "Çakışma" bölümü (`data-conflict-section`): çözülürken canlı dolu `StatusPill status="doing"` aşama metni + tehlike "Durdur"; başarısızlıkta `ui-banner--error` + birincil "AI ile çöz" (`IconRobot`); çözülmüşken aynı `review` hapı (`IconCheck`) ve not; ana dal ilerlemişse `ui-banner--info` + `IconMerge size={15}` "Ana dal (main) dallanmadan bu yana N commit ilerledi" ve ikincil "Dalı güncelle" (`IconMerge size={14}`, `ConfirmDialog` ile). Emoji kullanılmaz.
-- İç butonlar `pointerdown` ve `click` olaylarında `stopPropagation` yapar, böylece sürükleme ve kart açma tetiklenmez.
+- İç butonlar (iptal, `AgentBadge`, PR, GitHub bağlantısı) başlık düğmesinin kardeşidir, asla içinde değil. `pointerdown` ve `click` olaylarında `stopPropagation` yapar, böylece sürükleme ve kart açma tetiklenmez. Kendi sınıfı olmayan sarmalayıcılar (`AgentBadge` kabı, iptal kapları, "Çakışma çözüldü" hapı, üst görev anahtarı, öncelik işareti) `data-card-action` alır; `.task-card__btn` ve `.task-card__meta` zaten yükseltilmiştir. Yeni bir etkileşimli ya da `title`'lı öğe eklerken aynısını yap, yoksa `::after` onu örter.
+- Erişilebilirlik: axe `nested-interactive` 0 (bakım F4, iki tema; board, liste, çekmeceler, 390, EN).
 - Durum öznitelikleri: `data-running`, `data-locked` (ajan çalışırken sürükleme kapalı), `data-dragging`, `data-burst`.
 - Yeni gelen kart `opacity: 0; translate: 0 -8px` durumundan `500ms ease-out` ile girer.
 
@@ -933,7 +940,12 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
   color: var(--ink); box-shadow: var(--shadow); cursor: grab; touch-action: manipulation;
   transition: transform 170ms var(--ease-press), box-shadow 170ms var(--ease-press), opacity 160ms ease; }
 .task-card:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--shadow-ink); }
-.task-card:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; }
+/* gerilmiş açma düğmesi: kök etkileşimsiz, halka tüm kartta */
+.task-card__open { all: unset; cursor: inherit; }
+.task-card__open::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+.task-card__open:focus-visible { outline: none; }
+.task-card:has(.task-card__open:focus-visible) { outline: 2.5px solid var(--focus); outline-offset: 3px; }
+.task-card .task-card__btn, .task-card .task-card__meta, .task-card [data-card-action] { position: relative; z-index: 1; }
 .task-card[data-locked="true"] { cursor: default; }
 .task-card[data-dragging="true"] { transform: none; box-shadow: none; border-style: dashed; background: transparent;
   background-image: repeating-linear-gradient(135deg, var(--hair) 0 2px, transparent 2px 9px); }
@@ -979,6 +991,26 @@ Görev çekmecesinin "Değişiklikler" sekmesi. Görevin dalı varsa ve PR'ı yo
 
 - **Klon sekmesi** (`Modals/CloneRepoForm.tsx`): arama `Input`, `GET /github/repos` listesi `flex max-h-[15rem] flex-col gap-1.5 overflow-y-auto` içinde `ui-option` radyo satırları (mürekkep zeminli `IconGithub` plakası, ad, sahip/ad, açıklama, gizliyse kilit). Projeye zaten eklenmiş repolar listede yok. Altında hedef dizin alanı.
 - GitHub bağlı değilse liste yerine `ui-hatch` kesik kenarlı boş durum ve birincil "GitHub'a bağlan" (`GithubConnectModal`). Yüklenirken `h-[3.25rem]` taralı iskelet satırları.
+
+### 5.26 Stash paneli (`Modals/StashSection.tsx`)
+
+Proje çekmecesindeki ClauFlow stash'leri (bakım #6). Her satırın başlığı bir genişlet düğmesidir (`aria-expanded`, `aria-controls`, dönen `IconChevronRight`, `sr-only` "İçeriği göster/gizle"); altında meta: zaman · toplam dosya · `safeToDrop` ise `IconShieldCheck` "Güvenli" rozeti (`title`'lı). Başlık `flex-wrap`; CLF anahtarı `shrink-0`, 390 px'te satır ikiye bölünür (kırpma yok).
+
+- Açık panel `GET …/stashes/:ref/files` ile bir kez dolar. (1) Karar banner'ı: kod yoksa `ui-banner--info` + `IconCheck` "Senin yazdığın bir şey yok — silmek güvenli"; varsa `ui-banner--warn` "Bu stash'te senin yazmış olabileceğin N dosya var: a.ts, b.ts (+k)". (2) Sınıf sayı hapları `ui-pill--sm` + token renkli `ui-dot` (Kod, Bağımlılık, Derleme çıktısı, Kilit/sistem, izlenmeyen).
+- Kod ve Kilit/sistem listeleri: satırda durum harfi (+ `sr-only` adı), soluk dizin + kalın dosya adı, "Farkı göster" (tembel `GET …/diff?path=`, açılışta istek yok) ve "Bu dosyayı geri yükle" (`D` dosyada yok). Fark `FileBlock hideViewed` ile `.stash-diff` sarmalayıcıda (uzun satır kırılır). Geri yüklemede toast + satırda "Geri yüklendi" işareti; `worktree_dirty` o dosyanın adıyla `ui-banner--error`.
+- Gürültü grupları katlı satırlar: "`node_modules/` · Bağımlılık · 12.431 dosya"; açılınca en çok 200 yolun düz listesi (`max-h-60` kaydırmalı) ve örnek notu; fark yok.
+- Erişilebilirlik: axe iki temada 0 ihlal (bakım F3).
+
+### 5.27 Görsel ekleri (`Attachments/AttachmentInput.tsx`, `AttachmentGrid.tsx`, `Lightbox.tsx`, `TaskAttachments.tsx`)
+
+Görev ve yorumlara ekran görüntüsü (bakım #8). Üç yerde: Görev Ekle modalında Açıklama alanı, görev çekmecesinin Detay sekmesinde "§n Görseller (N/8)" bölümü (Açıklama'dan sonra), Yorumlar sekmesinin bestecisi. Sınırlar istemcide de denetlenir, kodlar çekirdekle aynıdır (`errorText`).
+
+- **Giriş** (`AttachmentInput`): bağlı alanı (textarea) saran kap. `onPaste` yalnızca `image/*` dosya öğelerini alır, metin yapıştırma bozulmaz; dosya sürüklenirken kap üzerinde kesik çerçeve + taralı zemin + hardal etiket "Görselleri buraya bırak" (`.att-drop__frame` `border: 2px dashed var(--line)`, `ui-hatch`, `pointer-events: none`; `.att-drop__label` hardal hap, sert gölge). Altında ikincil `Button size="sm"` `IconImage` "Görsel ekle" (gizli `input type=file accept="image/png,image/jpeg,image/webp,image/gif" multiple`, `aria-label`) ve `text-[12px] text-ink-3` ipucu; çekmecede ek satır: "Ekran görüntüsünü ilgili bölgeye kırp; her görsel her rolde yeniden okunur." Hak bitince düğme kapalı. Hatalar `ui-banner--error` `role="alert"`, dosya adıyla ("notlar.txt: Yalnızca PNG…").
+- **Izgara** (`AttachmentGrid`): `ul` içinde 72 px kare `button.att-thumb` (`object-cover`, 2px `--line`, 10px köşe, `2px 2px 0` gölge, hover `--shadow`, basınca `--shadow-press`, `cursor: zoom-in`); `aria-label` "Büyüt: ad". Hazırlanan (yüklenmemiş) önizlemelerde sağ üstte yuvarlak kaldır düğmesi `.att-thumb__remove` (küçük resmin **kardeşi**, iç içe denetim yok; hover'da `--red`/`--on-red`). Yorum kartında 56 px (`size="sm"`), silme yok.
+- **Lightbox**: `Modal size="xl"` + `IconImage` plakası; başlık dosya adı, açıklama "1280×720 · 214 KB". Görsel `max-h: calc(85vh - 10rem)`, `object-fit: contain`, 2px çizgi, `--sunken` zemin. Altbilgi: konum "1 / 3" (`aria-live`), "Sil" (`danger`, yalnızca düzenlenebilirken, `ConfirmDialog`), "Önceki/Sonraki görsel". `←`/`→` gezer, Esc kapatır (`useEscapeLayer`), odak açan küçük resme döner.
+- **Çekmece bölümü**: görevin bütün görselleri (görev + yorumlar; her rol hepsini okur, sınır toplam). `doing`'de salt okunur: ızgara + kesik kenarlı kilit satırı (`IconLock`), silme yok. Boşken taralı "Görsel yok." satırı.
+- Görsel `<img>`'dir (`next/image` değil): kaynak çekirdek (`GET /api/attachments/:id`, değişmez, önbellekli) ya da yerel object URL; `@next/next/no-img-element` gerekçeli `eslint-disable-next-line` ile kapatılır (`Avatar.tsx` emsali).
+- Erişilebilirlik: axe iki temada modal, board, çekmece, lightbox ve yorumlarda 0 ihlal; küçük resimler Tab + Enter ile açılır (bakım F6).
 
 ---
 

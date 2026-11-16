@@ -1,8 +1,13 @@
-import type { AgentText, BaseDrift, Comment, ConflictResolveMode, GithubRepo, GitStatus, StashEntry, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
+import type { AgentText, BaseDrift, Comment, ConflictResolveMode, GithubRepo, GitStatus, StashDetail, StashEntry, StashFileDiff, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskAttachment, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001/api";
+
+/** bakim #8: URL of an attachment's bytes (`<img src>`; immutable, cached). */
+export function attachmentUrl(id: string): string {
+  return `${BASE}/attachments/${encodeURIComponent(id)}`;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -233,6 +238,27 @@ export const api = {
       if (!r.ok) await handle<never>(r);
     }),
 
+  /** bakim #6: file list, class counts and folded noise groups of one stash (404 `stash_not_found`). */
+  getStashFiles: (projectId: string, ref: string): Promise<StashDetail> =>
+    fetch(`${BASE}/projects/${projectId}/stashes/${ref}/files`, { cache: "no-store" })
+      .then((r) => handle<StashDetail>(r)),
+
+  /** Lazy diff of one stash file; 404 `stash_file_not_found` for a path outside the stash. */
+  getStashFileDiff: (projectId: string, ref: string, path: string): Promise<StashFileDiff> =>
+    fetch(`${BASE}/projects/${projectId}/stashes/${ref}/diff?path=${encodeURIComponent(path)}`, { cache: "no-store" })
+      .then((r) => handle<StashFileDiff>(r)),
+
+  /**
+   * Restores one file; the stash stays. 409 `repo_busy` / `worktree_dirty` (+`files`) /
+   * `stash_conflict` (+`files`), 404 `stash_not_found` / `stash_file_not_found`, 422 `stash_file_deleted`.
+   */
+  restoreStashFile: (projectId: string, ref: string, path: string): Promise<{ restored: string; branch: string | null }> =>
+    fetch(`${BASE}/projects/${projectId}/stashes/${ref}/restore-file`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    }).then((r) => handle<{ restored: string; branch: string | null }>(r)),
+
   getComments: (taskId: string): Promise<Comment[]> =>
     fetch(`${BASE}/tasks/${taskId}/comments`, { cache: "no-store" })
       .then((r) => handle<{ comments: Comment[] }>(r))
@@ -248,14 +274,44 @@ export const api = {
       .then((r) => handle<{ agentTexts: AgentText[] }>(r))
       .then((d) => d.agentTexts ?? []),
 
-  addComment: (taskId: string, body: string): Promise<Comment> =>
+  /** bakim #8: `attachmentIds` are drafts uploaded with `pending: true`; core links them before the runner starts. */
+  addComment: (taskId: string, body: string, attachmentIds?: string[]): Promise<Comment> =>
     fetch(`${BASE}/tasks/${taskId}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body, uiLang: uiLang() }),
+      body: JSON.stringify(
+        attachmentIds && attachmentIds.length > 0
+          ? { body, uiLang: uiLang(), attachmentIds }
+          : { body, uiLang: uiLang() },
+      ),
     })
       .then((r) => handle<{ comment: Comment }>(r))
       .then((d) => d.comment),
+
+  /**
+   * bakim #8: raw-body image upload (no multipart). `pending` = a comment draft.
+   * 415 `attachment_type`, 413 `attachment_too_large`, 409 `attachment_limit` / `task_running`.
+   */
+  uploadAttachment: (taskId: string, file: Blob, opts: { pending?: boolean; name?: string | null } = {}): Promise<TaskAttachment> => {
+    const qs = new URLSearchParams();
+    if (opts.pending) qs.set("pending", "1");
+    const name = opts.name ?? (file instanceof File ? file.name : null);
+    if (name) qs.set("name", name);
+    const q = qs.toString();
+    return fetch(`${BASE}/tasks/${taskId}/attachments${q ? `?${q}` : ""}`, {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    })
+      .then((r) => handle<{ attachment: TaskAttachment }>(r))
+      .then((d) => d.attachment);
+  },
+
+  /** 204; 409 `task_running`, 404 `attachment_not_found`. */
+  deleteAttachment: (id: string): Promise<void> =>
+    fetch(`${BASE}/attachments/${encodeURIComponent(id)}`, { method: "DELETE" }).then(async (r) => {
+      if (!r.ok) await handle<unknown>(r);
+    }),
 
   createProject: (
     input: CreateProjectInput,

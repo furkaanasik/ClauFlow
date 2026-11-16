@@ -5,7 +5,6 @@ import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "@/lib/api";
-import { errorText } from "@/lib/errorText";
 import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Button } from "@/components/ui/Button";
@@ -15,7 +14,12 @@ import { StatusPill, type StatusKind } from "@/components/ui/Pills";
 import { Avatar } from "@/components/ui/Avatar";
 import { IconChat, IconChevronRight, IconLock } from "@/components/ui/icons";
 import { LogViewer } from "@/components/Card/LogViewer";
-import type { Comment, CommentStatus, Task } from "@/types";
+import { AttachmentInput, useStagedImages } from "@/components/Attachments/AttachmentInput";
+import { AttachmentGrid } from "@/components/Attachments/AttachmentGrid";
+import { toGridImages } from "@/components/Attachments/TaskAttachments";
+import { apiErrorCode, errorText } from "@/lib/errorText";
+import { ATTACHMENT_MAX_PER_TASK } from "@/lib/attachments";
+import type { Comment, CommentStatus, Task, TaskAttachment } from "@/types";
 
 function looksLikeMarkdown(text: string): boolean {
   return /^#{1,6} |^\*\*|^- |^```|\*\*|\[.+\]\(|^>/m.test(text);
@@ -41,7 +45,7 @@ const STATUS_KIND: Record<CommentStatus, StatusKind> = {
   error: "error",
 };
 
-function CommentCard({ comment }: { comment: Comment }) {
+function CommentCard({ comment, images }: { comment: Comment; images: TaskAttachment[] }) {
   const t = useTranslation();
   const c = t.comments;
   const autoOpen = comment.status === "running" || comment.status === "error";
@@ -67,6 +71,14 @@ function CommentCard({ comment }: { comment: Comment }) {
             </div>
           ) : (
             <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink">{comment.body}</p>
+          )}
+          {images.length > 0 && (
+            <AttachmentGrid
+              images={toGridImages(images, t.attachments.unnamed)}
+              label={t.attachments.commentImages}
+              size="sm"
+              className="mt-2.5"
+            />
           )}
         </div>
         <footer className="flex items-center justify-between gap-2 border-t-2 border-dashed border-hair px-4 py-2">
@@ -121,6 +133,8 @@ export function CommentsTab({ task }: CommentsTabProps) {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const images = useStagedImages();
+  const taskImages = task.attachments ?? [];
 
   // §3/12: review always; done only for an unmerged local branch; never while running.
   const canComment =
@@ -132,10 +146,37 @@ export function CommentsTab({ task }: CommentsTabProps) {
     setSending(true);
     setError(null);
     try {
-      const comment = await api.addComment(task.id, trimmed);
-      upsertComment(comment);
+      // bakim #8 (plan §3/26): images go up as drafts first, then the comment links
+      // them before its runner starts. Drafts that went up survive a failed send
+      // and are reused on retry.
+      const ids: string[] = [];
+      for (const [i, img] of images.items.entries()) {
+        if (img.uploadedId) {
+          ids.push(img.uploadedId);
+          continue;
+        }
+        try {
+          const att = await api.uploadAttachment(task.id, img.file, { pending: true });
+          images.markUploaded(img.key, att.id);
+          ids.push(att.id);
+        } catch (err) {
+          setError(t.attachments.fileError(img.file.name || t.attachments.unnamed(i + 1), errorText(t, err)));
+          return;
+        }
+      }
+      const comment = await api.addComment(task.id, trimmed, ids);
+      // The runner starts right after the response; its comment_updated can beat this
+      // response here. A comment never goes back to pending, so keep the newer copy.
+      const seen = useBoardStore.getState().tasks[task.id]?.comments?.find((x) => x.id === comment.id);
+      if (!seen || seen.status === "pending") upsertComment(comment);
       setBody("");
+      images.clear();
+      if (ids.length > 0) {
+        try { useBoardStore.getState().upsertTask(await api.getTask(task.id)); } catch { /* task_updated arrives anyway */ }
+      }
     } catch (err) {
+      // a draft that is no longer linkable (swept, other task): upload it again next time
+      if (apiErrorCode(err) === "attachment_not_pending") images.forgetUploads();
       setError(errorText(t, err, c.sendFailed));
     } finally {
       setSending(false);
@@ -166,7 +207,7 @@ export function CommentsTab({ task }: CommentsTabProps) {
         ) : (
           <ol className="flex flex-col gap-4">
             {comments.map((cm) => (
-              <CommentCard key={cm.id} comment={cm} />
+              <CommentCard key={cm.id} comment={cm} images={taskImages.filter((a) => a.commentId === cm.id)} />
             ))}
           </ol>
         )}
@@ -182,16 +223,24 @@ export function CommentsTab({ task }: CommentsTabProps) {
           <label htmlFor={inputId} className="t-label mb-1.5 block">
             {c.composerLabel}
           </label>
-          <Textarea
-            id={inputId}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            onKeyDown={handleKeyDown}
+          <AttachmentInput
+            remaining={ATTACHMENT_MAX_PER_TASK - taskImages.length - images.items.length}
+            onAdd={images.add}
+            staged={images.items}
+            onRemoveStaged={images.remove}
             disabled={sending}
-            rows={3}
-            placeholder={c.placeholder}
-            className="resize-none"
-          />
+          >
+            <Textarea
+              id={inputId}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={sending}
+              rows={3}
+              placeholder={c.placeholder}
+              className="resize-none"
+            />
+          </AttachmentInput>
           <div className="mt-2.5 flex items-center justify-between gap-3">
             <span className="flex items-center gap-1.5 text-[12px] text-ink-3">
               <Kbd>Ctrl</Kbd>

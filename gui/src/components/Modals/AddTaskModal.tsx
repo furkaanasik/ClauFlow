@@ -8,6 +8,9 @@ import { PriorityMark } from "@/components/ui/Pills";
 import { IconAlert, IconArrowUpRight, IconPlus } from "@/components/ui/icons";
 import { api } from "@/lib/api";
 import { TeamPicker } from "@/components/Team/TeamPicker";
+import { AttachmentInput, useStagedImages } from "@/components/Attachments/AttachmentInput";
+import { ATTACHMENT_MAX_PER_TASK } from "@/lib/attachments";
+import type { Task } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
 import { useToast } from "@/hooks/useToast";
 import { errorText } from "@/lib/errorText";
@@ -40,10 +43,14 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const [teamId, setTeamId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const images = useStagedImages();
+  /** bakim #8: set when the task exists but some images failed; a resubmit only retries those. */
+  const [created, setCreated] = useState<Task | null>(null);
 
   const reset = () => {
     setTitle(""); setDescription(""); setAnalysis(""); setPriority("medium");
     setBudgetUsd(""); setTeamId(null); setError(null);
+    images.clear(); setCreated(null);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -56,16 +63,38 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
     setError(null);
     try {
       const parsedBudget = budgetUsd.trim() ? parseFloat(budgetUsd) : undefined;
-      const task = await api.createTask({
-        projectId: selectedProjectId,
-        title:       title.trim(),
-        description: description.trim() || undefined,
-        analysis:    analysis.trim()    || undefined,
-        priority,
-        budgetUsd:     parsedBudget && !isNaN(parsedBudget) ? parsedBudget : null,
-        teamId,
-      });
-      upsertTask(task);
+      let task = created;
+      if (!task) {
+        task = await api.createTask({
+          projectId: selectedProjectId,
+          title:       title.trim(),
+          description: description.trim() || undefined,
+          analysis:    analysis.trim()    || undefined,
+          priority,
+          budgetUsd:     parsedBudget && !isNaN(parsedBudget) ? parsedBudget : null,
+          teamId,
+        });
+        upsertTask(task);
+      }
+      // bakim #8 (plan §5.7): images upload one by one after the task exists.
+      const failures: string[] = [];
+      for (const [i, img] of images.items.entries()) {
+        if (img.uploadedId) continue;
+        try {
+          const att = await api.uploadAttachment(task.id, img.file);
+          images.markUploaded(img.key, att.id);
+        } catch (err) {
+          failures.push(t.attachments.fileError(img.file.name || t.attachments.unnamed(i + 1), errorText(t, err)));
+        }
+      }
+      if (images.items.length > 0) {
+        try { upsertTask(await api.getTask(task.id)); } catch { /* task_updated arrives anyway */ }
+      }
+      if (failures.length > 0) {
+        setCreated(task);
+        setError(`${t.attachments.partialFailed(failures.length)} ${failures.join(" ")}`);
+        return;
+      }
       toast.success(t.addTask.successToast);
       handleClose();
     } catch (err) {
@@ -119,18 +148,27 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
             )}
           </Field>
 
-          <Field label={t.addTask.descriptionLabel}>
-            {({ id }) => (
-              <Textarea
-                id={id}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t.addTask.descriptionPlaceholder}
-                rows={3}
-                className="resize-none"
-              />
-            )}
-          </Field>
+          <AttachmentInput
+            remaining={ATTACHMENT_MAX_PER_TASK - images.items.length}
+            onAdd={images.add}
+            staged={images.items.filter((i) => !i.uploadedId)}
+            onRemoveStaged={images.remove}
+            disabled={loading}
+          >
+            <Field label={t.addTask.descriptionLabel}>
+              {({ id }) => (
+                <Textarea
+                  id={id}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t.addTask.descriptionPlaceholder}
+                  rows={3}
+                  className="resize-none"
+                  readOnly={!!created}
+                />
+              )}
+            </Field>
+          </AttachmentInput>
 
           <Field label={t.addTask.analysisLabel} hint={t.addTask.analysisHint}>
             {({ id, describedBy }) => (

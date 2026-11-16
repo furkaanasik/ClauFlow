@@ -56,6 +56,23 @@ export interface Task {
   costUsd?: number;
   /** zincir: ids of same-project tasks this one waits for (in board order). */
   dependsOn?: string[];
+  /** bakim #8: image attachments (task's own + comments'; drafts never appear). */
+  attachments?: TaskAttachment[];
+}
+
+/** bakim #8: one image attachment (core `TaskAttachmentMeta`; the file is served by `GET /api/attachments/:id`). */
+export interface TaskAttachment {
+  id: string;
+  /** null = attached to the task itself; else the comment it belongs to. */
+  commentId: string | null;
+  mime: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  name: string | null;
+  createdAt: string;
+  /** Only on an upload response: `true` for a comment draft (`?pending=1`). */
+  pending?: boolean;
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -214,6 +231,59 @@ export interface StashEntry {
   createdAt: string;
   /** Files in the stash (tracked + untracked), at most 20. */
   files: string[];
+  /** bakim #6: class counts of the whole stash. */
+  summary?: StashSummary;
+  /** No `code` file in the stash (only dependencies, build output, lock/OS files). */
+  safeToDrop?: boolean;
+}
+
+/** bakim #6 (plan §3/14): core `noisePaths.classifyPath`. */
+export type StashFileClass = "deps" | "build" | "lock_os" | "code";
+
+/** `U` = untracked (the stash's third parent). */
+export type StashFileStatus = "M" | "A" | "D" | "T" | "U";
+
+export interface StashSummary {
+  total: number;
+  deps: number;
+  build: number;
+  lockOs: number;
+  code: number;
+  untracked: number;
+}
+
+export interface StashFile {
+  path: string;
+  status: StashFileStatus;
+  class: StashFileClass;
+}
+
+/** Noise files folded under their root (`node_modules/`), at most 200 sample paths. */
+export interface StashGroup {
+  root: string;
+  class: StashFileClass;
+  count: number;
+  sample: string[];
+}
+
+/** `GET /projects/:id/stashes/:ref/files`. */
+export interface StashDetail {
+  ref: string;
+  label: string;
+  summary: StashSummary;
+  safeToDrop: boolean;
+  codeFiles: StashFile[];
+  lockOsFiles: StashFile[];
+  groups: StashGroup[];
+  truncated: boolean;
+}
+
+/** `GET /projects/:id/stashes/:ref/diff?path=`. */
+export interface StashFileDiff {
+  path: string;
+  status: StashFileStatus;
+  diff: string;
+  truncated: boolean;
 }
 
 /** `GET /tasks/:id/diff`: the task branch against base (`<base>...<branch>`). */

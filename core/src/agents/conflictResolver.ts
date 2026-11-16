@@ -23,6 +23,7 @@ import {
   GhMissingError,
   pushBranch,
   run as gitRun,
+  shieldNoiseDirs,
   type RunResult,
 } from "../services/gitService.js";
 import { acquireRepoLock, type RepoLease } from "../services/repoLock.js";
@@ -57,6 +58,7 @@ import {
   buildRoleSystemPrompt,
   loadRoleSkills,
 } from "./teamPrompts.js";
+import { READ_ADDED_LOG, roleImages, toolsWithRead } from "./roleImages.js";
 import { formatUsd, uiText, type ConflictReason, type UiLang } from "./uiText.js";
 import type { Project, Task } from "../types/index.js";
 
@@ -588,6 +590,7 @@ async function resolveUnderLock(
   rec.pre = pre;
 
   // ── a dirty tree goes aside first (E6 family) ──────────────────────────
+  await shieldNoiseDirs(repo); // §3/10: node_modules/ & co. stay, excluded locally
   const dirty = await git(repo, ["status", "--porcelain"]);
   if (dirty.code === 0 && dirty.stdout.trim()) {
     const label = resolveStashLabel(taskId);
@@ -679,9 +682,12 @@ async function resolveUnderLock(
   const spec = [...artifacts].reverse().find((a) => a.kind === "spec")?.body ?? null;
   const conflicts = [];
   for (const path of files) conflicts.push({ path, text: await readText(repo, path) });
+  // bakim #8: the task's images for the resolver and its QA round.
+  const images = roleImages(taskId);
   const prompt = buildConflictPrompt({
     task,
     project,
+    attachments: images.attachments,
     spec,
     target,
     branch,
@@ -696,6 +702,8 @@ async function resolveUnderLock(
     projectId: project.id,
     projectName: project.name,
   };
+  const resolverTools = toolsWithRead(role.tools, images);
+  if (resolverTools.added) await log(READ_ADDED_LOG);
   const resolved = await runRole({
     taskId,
     cwd: repo,
@@ -706,8 +714,9 @@ async function resolveUnderLock(
     appendSystemPrompt: system.text,
     model: role.model,
     advisorModel: role.advisorModel,
-    tools: role.tools,
+    tools: resolverTools.tools,
     isolate: true,
+    addDirs: images.addDirs,
     budgetUsd,
     spentBeforeUsd: 0,
     budgetContext,
@@ -731,6 +740,7 @@ async function resolveUnderLock(
   const check = await git(repo, ["diff", "--check"]);
   const leftover = parseDiffCheck(check.stdout);
   if (leftover.length > 0) throw new ResolveFailure("markers_left", `git diff --check: ${leftover[0]}`);
+  await shieldNoiseDirs(repo); // §3/10: the resolver's npm install is not committed
   const add = await git(repo, ["add", "-A"]);
   if (add.code !== 0) throw new ResolveFailure("git", `git add failed: ${firstLine(add)}`);
   const stillU = await git(repo, ["diff", "--cached", "--name-only", "--diff-filter=U"]);
@@ -765,6 +775,7 @@ async function resolveUnderLock(
     buildRolePrompt(qaRole, {
       task,
       project,
+      attachments: images.attachments,
       round: n,
       solo: false,
       spec,
@@ -774,6 +785,8 @@ async function resolveUnderLock(
     }),
     buildConflictResolutionBlock(target, files, rec.note ?? ""),
   ].join("\n\n");
+  const qaTools = toolsWithRead(qaRole.tools, images);
+  if (qaTools.added) await log(READ_ADDED_LOG);
   const qa = await runRole({
     taskId,
     cwd: repo,
@@ -784,8 +797,9 @@ async function resolveUnderLock(
     appendSystemPrompt: qaSystem.text,
     model: qaRole.model,
     advisorModel: qaRole.advisorModel,
-    tools: qaRole.tools,
+    tools: qaTools.tools,
     isolate: true,
+    addDirs: images.addDirs,
     budgetUsd,
     spentBeforeUsd: resolved.costUsd,
     budgetContext,
@@ -798,6 +812,8 @@ async function resolveUnderLock(
   if (qa.budgetExceeded) throw new ResolveFailure("budget");
   checkAbort();
   // QA must not change anything; drop what it left (the tree was clean).
+  // Shielded folders are excluded first, so `clean -fd` keeps QA's node_modules/.
+  await shieldNoiseDirs(repo);
   const qaDirty = await git(repo, ["status", "--porcelain"]);
   if (qaDirty.code === 0 && qaDirty.stdout.trim()) {
     await git(repo, ["reset", "--hard", "HEAD"]);

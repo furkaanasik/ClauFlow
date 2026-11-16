@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync, spawn } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Current git branch of `cwd`, or "unknown" outside a repo / on a detached HEAD. */
@@ -90,6 +90,20 @@ function resolveConflicts(cwd) {
   return `## Çözüm notu\n\n${notes.join("\n")}`;
 }
 
+/**
+ * bakim F1 (#1): FAKE_CLAUDE_RENAME_BASE=<from>:<to> renames the base branch
+ * (`git branch -m <from> <to>`); an empty <to> (`main:`) deletes it
+ * (`git branch -D <from>`, allowed while the task branch is checked out).
+ */
+function renameBase(cwd, spec) {
+  const i = spec.indexOf(":");
+  const from = i === -1 ? spec : spec.slice(0, i);
+  const to = i === -1 ? "" : spec.slice(i + 1);
+  if (!from) return;
+  const args = to ? ["branch", "-m", from, to] : ["branch", "-D", from];
+  execFileSync("git", args, { cwd, stdio: ["ignore", "ignore", "pipe"] });
+}
+
 /** zincir F4.6: FAKE_CLAUDE_CONFLICT_FILE's first line becomes `line from <branch>`. */
 function writeConflictLine(cwd, rel) {
   const file = join(cwd, rel);
@@ -116,6 +130,8 @@ const VALUE_FLAGS = new Set([
   "--setting-sources",
   "--settings",
 ]);
+// bakim #8: value flags that may repeat; collected into an array.
+const REPEAT_FLAGS = new Set(["--add-dir"]);
 
 const MODEL_IDS = {
   haiku: "claude-haiku-5-5",
@@ -143,7 +159,10 @@ function parseArgs(argv) {
   const positionals = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (VALUE_FLAGS.has(a)) {
+    if (REPEAT_FLAGS.has(a)) {
+      (flags[a] ??= []).push(argv[i + 1] ?? "");
+      i++;
+    } else if (VALUE_FLAGS.has(a)) {
       flags[a] = argv[i + 1] ?? "";
       i++;
     } else if (a.startsWith("-")) {
@@ -223,6 +242,8 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
         const conflictFile = process.env.FAKE_CLAUDE_CONFLICT_FILE;
         if (conflictFile) writeConflictLine(cwd, conflictFile);
       }
+      // bakim F1 (#1): the base branch disappears mid-run, after the developer wrote its file.
+      if (process.env.FAKE_CLAUDE_RENAME_BASE) renameBase(cwd, process.env.FAKE_CLAUDE_RENAME_BASE);
       return `## Teslim notu\n\n- ${name} yazıldı\n- AC-1 → ${name}\n- Tests: 1 passed`;
     }
     case "qa":
@@ -260,6 +281,33 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * bakim #8: the absolute paths listed in the prompt's <attachments> /
+ * <feedback_attachments> blocks, each checked from this CLI process (proof the
+ * role could read the file): `{ block, path, exists, bytes }`.
+ */
+function attachmentsSeen(prompt) {
+  const out = [];
+  for (const block of ["attachments", "feedback_attachments"]) {
+    const re = new RegExp(`<${block}>([\\s\\S]*?)</${block}>`, "g");
+    let m;
+    while ((m = re.exec(prompt ?? ""))) {
+      for (const line of m[1].split("\n")) {
+        const p = /^\s*-\s+(\/\S+)/.exec(line);
+        if (!p) continue;
+        let bytes = null;
+        try {
+          bytes = statSync(p[1]).size;
+        } catch {
+          /* missing */
+        }
+        out.push({ block, path: p[1], exists: bytes !== null, bytes });
+      }
+    }
+  }
+  return out;
+}
+
 async function main() {
   const { flags, booleans, positionals } = parseArgs(process.argv.slice(2));
   const promptSource = positionals.length > 0 ? "argv" : "stdin";
@@ -279,6 +327,11 @@ async function main() {
   if (role && (process.env.FAKE_CLAUDE_DIRTY_ROLES ?? "").split(",").includes(role)) {
     writeFileSync(join(cwd, `scratch-${role}-${round}.txt`), `${role} scribbled in round ${round}\n`);
   }
+  // bakim #7: a role "runs npm install" — an untracked node_modules/ appears (shield test).
+  if (role && (process.env.FAKE_CLAUDE_NODE_MODULES_ROLES ?? "").split(",").includes(role)) {
+    mkdirSync(join(cwd, "node_modules", "pkg"), { recursive: true });
+    writeFileSync(join(cwd, "node_modules", "pkg", "index.js"), `module.exports = "${role}-${round}";\n`);
+  }
 
   if (stateDir) {
     mkdirSync(stateDir, { recursive: true });
@@ -297,6 +350,8 @@ async function main() {
         allowedTools: flags["--allowedTools"] ?? null,
         advisor: advisorArg,
         settingSources: flags["--setting-sources"] ?? null,
+        addDirs: flags["--add-dir"] ?? null,
+        attachmentsSeen: attachmentsSeen(prompt),
         strictMcpConfig: booleans.includes("--strict-mcp-config"),
         appendSystemPrompt: systemPrompt,
         permissionMode: flags["--permission-mode"] ?? null,

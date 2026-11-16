@@ -16,26 +16,6 @@ function isGitRepo(repoPath: string): boolean {
   return fs.existsSync(path.join(path.resolve(expandHome(repoPath)), ".git"));
 }
 
-async function ensureLocalRepo(repoPath: string, branch: string, name: string): Promise<void> {
-  fs.mkdirSync(repoPath, { recursive: true });
-  if (fs.existsSync(path.join(repoPath, ".git"))) return;
-
-  const init = await initRepo(repoPath, branch);
-  if (init.code !== 0) {
-    throw new Error(`git init failed: ${init.stderr || init.stdout}`);
-  }
-
-  const readmePath = path.join(repoPath, "README.md");
-  if (!fs.existsSync(readmePath)) {
-    fs.writeFileSync(readmePath, `# ${name}\n`);
-  }
-
-  const commit = await commitAll(repoPath, "chore: initial commit");
-  if (commit.code !== 0) {
-    throw new Error(`initial commit failed: ${commit.stderr || commit.stdout}`);
-  }
-}
-
 function normalizeClonePath(raw: string): string {
   const expanded = expandHome(raw.trim());
   if (!path.isAbsolute(expanded)) return expanded;
@@ -43,22 +23,27 @@ function normalizeClonePath(raw: string): string {
   return resolved.length > 1 ? resolved.replace(/\/+$/, "") : resolved;
 }
 
+import { removeTaskAttachmentDir } from "../services/attachmentService.js";
 import {
   createProject,
   deleteProject,
   getProject,
   listProjects,
+  listTasks,
   projectHasActiveTasks,
   updateProject,
 } from "../services/taskService.js";
-import { dropStash, listClauflowStashes, restoreStash, StashError } from "../services/stashService.js";
 import {
-  initRepo,
-  createGithubRepo,
-  getRemoteUrl,
-  commitAll,
-  run,
-} from "../services/gitService.js";
+  dropStash,
+  getStashDetail,
+  getStashFileDiff,
+  listClauflowStashes,
+  restoreStash,
+  restoreStashFile,
+  StashError,
+} from "../services/stashService.js";
+import { createGithubRepo, getRemoteUrl, run } from "../services/gitService.js";
+import { ensureLocalRepo, prepareRepoForGithub } from "../services/repoSetup.js";
 import { runProjectPlanner } from "../agents/projectPlanner.js";
 import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import { runCloneRepo } from "../agents/cloneRunner.js";
@@ -151,13 +136,20 @@ const stashRefSchema = z.string().regex(/^[0-9a-f]{40}$/i);
 
 function sendStashError(res: Response, err: unknown): Response {
   if (err instanceof StashError) {
-    const status = err.code === "stash_not_found" ? 404 : 409;
-    return res
-      .status(status)
-      .json({ error: err.code, ...(err.code === "stash_conflict" ? { files: err.extra.files ?? [] } : {}) });
+    const status =
+      err.code === "stash_not_found" || err.code === "stash_file_not_found"
+        ? 404
+        : err.code === "stash_file_deleted"
+          ? 422
+          : 409;
+    const withFiles = err.code === "stash_conflict" || (err.code === "worktree_dirty" && err.extra.files);
+    return res.status(status).json({ error: err.code, ...(withFiles ? { files: err.extra.files ?? [] } : {}) });
   }
   return res.status(500).json({ error: errorMessage(err) });
 }
+
+/** A path inside a stash (bakim #6): checked against the stash's own file list. */
+const stashPathSchema = z.string().min(1).max(4096);
 
 router.get("/:id/stashes", async (req: Request, res: Response) => {
   try {
@@ -166,6 +158,47 @@ router.get("/:id/stashes", async (req: Request, res: Response) => {
     res.json({ stashes: await listClauflowStashes(project.repoPath) });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+// bakim #6 (plan §5.4): stash detail, per-file diff and per-file restore.
+router.get("/:id/stashes/:ref/files", async (req: Request, res: Response) => {
+  const ref = stashRefSchema.safeParse(req.params.ref);
+  if (!ref.success) return res.status(400).json({ error: "invalid_body", issues: ref.error.issues });
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    res.json(await getStashDetail(project.repoPath, ref.data.toLowerCase()));
+  } catch (err) {
+    sendStashError(res, err);
+  }
+});
+
+router.get("/:id/stashes/:ref/diff", async (req: Request, res: Response) => {
+  const ref = stashRefSchema.safeParse(req.params.ref);
+  if (!ref.success) return res.status(400).json({ error: "invalid_body", issues: ref.error.issues });
+  const filePath = stashPathSchema.safeParse(req.query.path);
+  if (!filePath.success) return res.status(400).json({ error: "invalid_body", issues: filePath.error.issues });
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    res.json(await getStashFileDiff(project.repoPath, ref.data.toLowerCase(), filePath.data));
+  } catch (err) {
+    sendStashError(res, err);
+  }
+});
+
+router.post("/:id/stashes/:ref/restore-file", async (req: Request, res: Response) => {
+  const ref = stashRefSchema.safeParse(req.params.ref);
+  if (!ref.success) return res.status(400).json({ error: "invalid_body", issues: ref.error.issues });
+  const body = z.object({ path: stashPathSchema }).safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_body", issues: body.error.issues });
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    res.json(await restoreStashFile(project.repoPath, ref.data.toLowerCase(), body.data.path));
+  } catch (err) {
+    sendStashError(res, err);
   }
 });
 
@@ -242,26 +275,7 @@ router.post("/", async (req: Request, res: Response) => {
       const repoName = data.repoName ?? data.name;
       const isPrivate = data.isPrivate ?? true;
       try {
-        if (!fs.existsSync(data.repoPath)) {
-          fs.mkdirSync(data.repoPath, { recursive: true });
-        }
-
-        if (!fs.existsSync(path.join(data.repoPath, ".git"))) {
-          const init = await initRepo(data.repoPath);
-          if (init.code !== 0) {
-            throw new Error(`git init failed: ${init.stderr || init.stdout}`);
-          }
-        }
-
-        const readmePath = path.join(data.repoPath, "README.md");
-        if (!fs.existsSync(readmePath)) {
-          fs.writeFileSync(readmePath, `# ${data.name}\n`);
-        }
-
-        const commit = await commitAll(data.repoPath, "chore: initial commit");
-        if (commit.code !== 0 && !/nothing to commit/i.test(commit.stdout + commit.stderr)) {
-          throw new Error(`initial commit failed: ${commit.stderr || commit.stdout}`);
-        }
+        await prepareRepoForGithub(data.repoPath, data.name);
 
         const created = await createGithubRepo(data.repoPath, repoName, isPrivate);
         if (created.code !== 0) {
@@ -452,7 +466,10 @@ router.delete("/:id", async (req: Request, res: Response) => {
     const existing = await getProject(id);
     if (!existing) return res.status(404).json({ error: "not_found" });
 
+    // bakim #8 (§3/33): collect the task ids first; their attachment files go after the rows.
+    const taskIds = (await listTasks(id)).map((t) => t.id);
     await deleteProject(id);
+    for (const taskId of taskIds) removeTaskAttachmentDir(taskId);
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });

@@ -14,6 +14,8 @@ import {
 } from "../services/taskService.js";
 import { errorMessage } from "../utils/error.js";
 import { LONG_TEXT_MAX_CHARS } from "../utils/http.js";
+import { removeTaskAttachmentDir } from "../services/attachmentService.js";
+import { uploadAttachmentHandlers } from "./attachments.js";
 import { SECTION_CHAR_CAP } from "../agents/teamPrompts.js";
 import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import {
@@ -661,6 +663,9 @@ router.post("/:id/breakdown", async (req: Request, res: Response) => {
   res.json({ status: "started" });
 });
 
+// bakim #8 (§5.6): raw image upload; drafts for a comment with ?pending=1.
+router.post("/:id/attachments", ...uploadAttachmentHandlers);
+
 router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id!;
@@ -670,9 +675,16 @@ router.delete("/:id", async (req: Request, res: Response) => {
       return res.status(409).json({ error: "conflict_resolving" });
     }
     const dependents = listDependents(id);
-    await deleteTask(id);
+    const { orphaned } = await deleteTask(id);
+    // bakim #8 (§3/33): rows went with the task (CASCADE); the files go here.
+    removeTaskAttachmentDir(id);
     broadcastTaskDeleted(id);
     res.status(204).end();
+    // bakim #11: the children of a deleted parent live on with parentTaskId = NULL.
+    for (const childId of orphaned) {
+      const child = await getTask(childId);
+      if (child) broadcastTaskUpdated(child);
+    }
     // zincir (plan §5.3): a dependent waiting only on the deleted task starts.
     // Its edge is gone (CASCADE), so the deps payload changed for all of them.
     for (const depId of dependents) {

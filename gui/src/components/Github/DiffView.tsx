@@ -211,6 +211,8 @@ interface FileBlockProps {
   onToggleViewed: () => void;
   onToggleExpanded: () => void;
   registerRef: (el: HTMLDivElement | null) => void;
+  /** No "viewed" checkbox (bakim #6: a stash file is not reviewed). */
+  hideViewed?: boolean;
 }
 
 export function FileBlock({
@@ -221,6 +223,7 @@ export function FileBlock({
   onToggleViewed,
   onToggleExpanded,
   registerRef,
+  hideViewed = false,
 }: FileBlockProps) {
   const tp = useTranslation().prs;
   const { dir, base } = splitPath(file.filename);
@@ -248,10 +251,12 @@ export function FileBlock({
           <span className="text-[var(--red-text)]">−{file.deletions}</span>
           <ChangeBar add={file.additions} del={file.deletions} />
         </span>
-        <label className="diff-viewed">
-          <input type="checkbox" className="ui-check" checked={isViewed} onChange={onToggleViewed} />
-          {isViewed ? tp.viewed : tp.markViewed}
-        </label>
+        {!hideViewed && (
+          <label className="diff-viewed">
+            <input type="checkbox" className="ui-check" checked={isViewed} onChange={onToggleViewed} />
+            {isViewed ? tp.viewed : tp.markViewed}
+          </label>
+        )}
       </header>
 
       {isExpanded && (

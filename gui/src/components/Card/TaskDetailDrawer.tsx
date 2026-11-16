@@ -38,6 +38,8 @@ import {
 } from "@/components/ui/icons";
 import { AgentBadge } from "@/components/Card/AgentBadge";
 import { CommentsTab } from "@/components/Card/CommentsTab";
+import { TaskAttachments } from "@/components/Attachments/TaskAttachments";
+import { ATTACHMENT_MAX_PER_TASK } from "@/lib/attachments";
 import { LocalChangesTab } from "@/components/Card/LocalChangesTab";
 import { LogViewer } from "@/components/Card/LogViewer";
 import { TeamTimeline } from "@/components/Card/TeamTimeline";
@@ -833,6 +835,10 @@ export function TaskDetailDrawer() {
                 ) : (
                   <EmptyLine>{td.descriptionEmpty}</EmptyLine>
                 )}
+              </Section>
+
+              <Section n={next()} label={tt.attachments.sectionLabel(task.attachments?.length ?? 0, ATTACHMENT_MAX_PER_TASK)}>
+                <TaskAttachments task={task} />
               </Section>
 
               <Section n={next()} label={td.analysisLabel}>

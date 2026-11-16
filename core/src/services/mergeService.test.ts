@@ -49,6 +49,19 @@ async function setup(opts: { file?: string; body?: string; remote?: boolean } = 
 const branches = (repo: string) => git(repo, "branch", "--list", BRANCH);
 
 describe("mergeTaskBranch: local (no remote)", () => {
+  it("an untracked node_modules/ alone makes no clauflow-merge stash (bakim shield)", async () => {
+    const { repo, project, task } = await setup();
+    writeRepoFile(repo, "node_modules/pkg/index.js", "module.exports = 1;\n");
+
+    const r = await mergeTaskBranch(task, project);
+
+    expect(r).toMatchObject({ ok: true, mode: "local" });
+    expect(r.ok && r.stash).toBeUndefined();
+    expect(git(repo, "stash", "list")).toBe("");
+    expect(existsSync(join(repo, "node_modules", "pkg", "index.js"))).toBe(true);
+    expect(git(repo, "show", "--name-only", "--format=", "HEAD^2")).toBe("feature.txt");
+  });
+
   it("merges --no-ff into base, deletes the branch, leaves HEAD on a clean base", async () => {
     const { repo, project, task } = await setup();
     const before = git(repo, "rev-parse", "main");

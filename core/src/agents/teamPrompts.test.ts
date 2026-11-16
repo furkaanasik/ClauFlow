@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SkillCatalogRoots } from "../services/skillCatalogService.js";
 import { defaultRole } from "../services/teamTemplates.js";
 import { buildClaudeArgs } from "../services/claudeService.js";
+import { attachmentsSection, type PromptAttachment } from "./teamPrompts.js";
+import { COMMENT_CASES, CONFLICT_CASES, ROLE_CASES } from "./__fixtures__/promptCases.js";
 import {
   buildConflictPrompt,
   buildConflictResolutionBlock,
@@ -272,5 +274,82 @@ describe("conflict resolver prompt (zincir F4.6, §3/35–36)", () => {
     const qa = buildConflictResolutionBlock("main", ["shared.txt"], "- shared.txt: kept both");
     expect(qa).toContain("<conflict_resolution>\nConflicted files:\n- shared.txt");
     expect(qa).toContain("- shared.txt: kept both\n</conflict_resolution>");
+  });
+});
+
+// ─── bakim #8: image attachments in prompts (§5.6, §3/30–31) ──────────────
+
+const BEFORE = JSON.parse(
+  readFileSync(new URL("./__fixtures__/prompts-before-attachments.json", import.meta.url), "utf8"),
+) as Record<string, string>;
+
+const IMG: PromptAttachment[] = [
+  { path: "/data/attachments/task_1/att_ab12.png", mime: "image/png", bytes: 214 * 1024, width: 1280, height: 720, name: "buton.png" },
+  { path: "/data/attachments/task_1/att_cd34.jpg", mime: "image/jpeg", bytes: 3 * 1024 * 1024 + 300_000, width: null, height: null, name: null },
+];
+const FEEDBACK: PromptAttachment[] = [
+  { path: "/data/attachments/task_1/att_ef56.webp", mime: "image/webp", bytes: 900, width: 64, height: 64, name: "kenar.webp" },
+];
+
+describe("attachments in prompts (bakim #8)", () => {
+  it("without attachments every builder is byte-for-byte the pre-change output (undefined, null and [])", () => {
+    expect(Object.keys(BEFORE)).toHaveLength(12);
+    for (const empty of [undefined, null, []] as const) {
+      for (const [k, f] of Object.entries(ROLE_CASES)) {
+        const { role, ctx } = f();
+        expect(buildRolePrompt(role, { ...ctx, attachments: empty } as never), k).toBe(BEFORE[`role.${k}`]);
+      }
+      expect(buildSoloPrompt({ ...ROLE_CASES.soloBg().ctx, attachments: empty } as never)).toBe(BEFORE["solo.direct"]);
+      for (const [k, f] of Object.entries(COMMENT_CASES)) {
+        const { role, ctx } = f();
+        expect(buildCommentPrompt(role, { ...ctx, attachments: empty, feedbackAttachments: empty } as never), k).toBe(BEFORE[`comment.${k}`]);
+      }
+      expect(buildConflictPrompt({ ...CONFLICT_CASES.full(), attachments: empty } as never)).toBe(BEFORE["conflict.full"]);
+    }
+  });
+
+  it("the section lists absolute paths with type, size, bytes and name, and asks for the Read tool first", () => {
+    const s = attachmentsSection(IMG)!;
+    expect(s).toBe(
+      "Attached images (the user attached these to explain the task). Before anything else, open each one with the Read tool and look at it:\n" +
+        "<attachments>\n" +
+        '- /data/attachments/task_1/att_ab12.png (image/png, 1280×720, 214 KB, "buton.png")\n' +
+        "- /data/attachments/task_1/att_cd34.jpg (image/jpeg, 3.3 MB)\n" +
+        "</attachments>",
+    );
+    expect(attachmentsSection(FEEDBACK, "feedback")).toContain("<feedback_attachments>\n- /data/attachments/task_1/att_ef56.webp (image/webp, 64×64, 1 KB, \"kenar.webp\")\n</feedback_attachments>");
+    expect(attachmentsSection([])).toBeNull();
+  });
+
+  it("every team role (CEO, Analyst, Developer rounds, QA) and Solo carry the paths and the Read instruction, right after the task", () => {
+    for (const [k, f] of Object.entries(ROLE_CASES)) {
+      const { role, ctx } = f();
+      const p = buildRolePrompt(role, { ...ctx, attachments: IMG } as never);
+      expect(p, k).toContain("<attachments>\n- /data/attachments/task_1/att_ab12.png");
+      expect(p, k).toContain("/data/attachments/task_1/att_cd34.jpg");
+      expect(p, k).toContain("open each one with the Read tool");
+      expect(p.indexOf("<attachments>"), k).toBeGreaterThan(p.indexOf("</task>"));
+      // the rest of the prompt is the pre-change one plus exactly this section
+      expect(p.replace(`${attachmentsSection(IMG)}\n\n`, ""), k).toBe(BEFORE[`role.${k}`]);
+    }
+  });
+
+  it("comment round: task images in <attachments>, this comment's in <feedback_attachments> after the feedback", () => {
+    const { role, ctx } = COMMENT_CASES.full();
+    const p = buildCommentPrompt(role, { ...ctx, attachments: IMG, feedbackAttachments: FEEDBACK });
+    expect(p.indexOf("<attachments>")).toBeGreaterThan(p.indexOf("</task>"));
+    expect(p.indexOf("<feedback_attachments>")).toBeGreaterThan(p.indexOf("</user_feedback>"));
+    expect(p).toContain("att_ef56.webp");
+    const onlyFeedback = buildCommentPrompt(role, { ...ctx, feedbackAttachments: FEEDBACK });
+    expect(onlyFeedback).not.toContain("<attachments>");
+    expect(onlyFeedback).toContain("<feedback_attachments>");
+  });
+
+  it("conflict resolver prompt and its QA round carry the task images", () => {
+    const p = buildConflictPrompt({ ...CONFLICT_CASES.full(), attachments: IMG });
+    expect(p).toContain("<attachments>");
+    expect(p.replace(`${attachmentsSection(IMG)}\n\n`, "")).toBe(BEFORE["conflict.full"]);
+    const qa = buildRolePrompt(defaultRole("qa"), { ...ROLE_CASES.qaDiff().ctx, attachments: IMG } as never);
+    expect(qa).toContain("<attachments>");
   });
 });

@@ -113,7 +113,7 @@ html.night,
   --mustard-text: #f2c33d;
   --orange-text: #f08a42;
   --green-text: #5bb877;
-  --red-text: #e2574c;
+  --red-text: #ee766b;         /* base #e2574c → lifted: error banner 3.91 → 5.11:1, diff number 4.06 → 5.30:1 (bakim F1) */
   --cobalt-text: #7b9af3;
 
   --on-ink: #17140f;
@@ -800,7 +800,16 @@ body::before {
     transition: transform 170ms var(--ease-press), box-shadow 170ms var(--ease-press), opacity 160ms ease;
   }
   .task-card:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--shadow-ink); }
-  .task-card:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; }
+  /* bakim F4: the root is a plain container; the title's stretched button opens
+     the card and carries focus, the ring is drawn on the whole card. */
+  .task-card__open { all: unset; cursor: inherit; }
+  .task-card__open::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+  .task-card__open:focus-visible { outline: none; }
+  .task-card:has(.task-card__open:focus-visible) { outline: 2.5px solid var(--focus); outline-offset: 3px; }
+  /* Inner buttons, links and hinted meta sit above the stretched button. */
+  .task-card .task-card__btn,
+  .task-card .task-card__meta,
+  .task-card [data-card-action] { position: relative; z-index: 1; }
   .task-card[data-locked="true"] { cursor: default; }
   .task-card[data-dragging="true"] {
     transform: none;
@@ -1437,13 +1446,81 @@ body::before {
   }
   .diff-pre { display: inline-block; width: 1rem; user-select: none; color: var(--ink-3); }
   .diff-side[data-type="removed"] .diff-code { background: color-mix(in srgb, var(--red) 13%, var(--panel)); color: var(--ink); }
-  .diff-side[data-type="removed"] .diff-num { background: color-mix(in srgb, var(--red) 22%, var(--sunken)); color: var(--red-text); }
+  /* bakim F1: number text is --ink-2 (cream --red-text/--green-text on these tints was 3.51/3.78:1); the tint and the -/+ mark carry the colour. */
+  .diff-side[data-type="removed"] .diff-num { background: color-mix(in srgb, var(--red) 22%, var(--sunken)); color: var(--ink-2); }
   .diff-side[data-type="removed"] .diff-pre { color: var(--red-text); font-weight: 700; }
   .diff-side[data-type="added"] .diff-code { background: color-mix(in srgb, var(--green) 15%, var(--panel)); color: var(--ink); }
-  .diff-side[data-type="added"] .diff-num { background: color-mix(in srgb, var(--green) 24%, var(--sunken)); color: var(--green-text); }
+  .diff-side[data-type="added"] .diff-num { background: color-mix(in srgb, var(--green) 24%, var(--sunken)); color: var(--ink-2); }
   .diff-side[data-type="added"] .diff-pre { color: var(--green-text); font-weight: 700; }
   .diff-side[data-type="empty"] .diff-code,
   .diff-side[data-type="empty"] .diff-num { background-color: var(--sunken); background-image: repeating-linear-gradient(135deg, var(--hair) 0 1.5px, transparent 1.5px 7px); }
+  /* bakim F3: in the narrow project drawer (stash panel) long lines wrap instead of
+     each cell scrolling on its own (axe scrollable-region-focusable). */
+  .stash-diff .diff-code { overflow-x: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  /* ════ bakim #8: image attachments (AttachmentInput / AttachmentGrid / Lightbox) ════ */
+  .att-thumb {
+    display: block;
+    overflow: hidden;
+    padding: 0;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    background: var(--sunken);
+    box-shadow: 2px 2px 0 var(--shadow-ink);
+    cursor: zoom-in;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .att-thumb:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow); }
+  .att-thumb:active { transform: translate(1px, 1px); box-shadow: var(--shadow-press); transition-duration: 40ms; }
+  .att-thumb__remove {
+    position: absolute;
+    top: -0.4rem;
+    right: -0.4rem;
+    display: grid;
+    place-items: center;
+    width: 1.375rem;
+    height: 1.375rem;
+    border: 2px solid var(--line);
+    border-radius: 999px;
+    background: var(--panel);
+    color: var(--ink);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .att-thumb__remove:hover { background: var(--red); color: var(--on-red); }
+  /* Drop state: dashed rule + hatch over the field while files are dragged in. */
+  .att-drop__frame {
+    position: absolute;
+    inset: -0.375rem;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    border: 2px dashed var(--line);
+    border-radius: 12px;
+    background-color: color-mix(in srgb, var(--panel) 82%, transparent);
+    pointer-events: none;
+  }
+  .att-drop__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border: 2px solid var(--line);
+    border-radius: 999px;
+    background: var(--mustard);
+    color: var(--on-mustard);
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 2px 2px 0 var(--shadow-ink);
+  }
+  .att-lightbox { display: grid; place-items: center; margin: 0; }
+  .att-lightbox__img {
+    max-width: 100%;
+    max-height: calc(85vh - 10rem);
+    object-fit: contain;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    background: var(--sunken);
+  }
   .diff-filerow {
     display: flex;
     align-items: center;
