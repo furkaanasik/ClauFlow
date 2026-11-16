@@ -53,14 +53,20 @@ interface TaskCardProps {
   parentKey?: string;
 }
 
-/** Sortable board card. Listeners sit on the whole card (spec §7). */
+/**
+ * Sortable board card. Pointer listeners sit on the whole card (spec §7); the
+ * card root is a plain container (bakim F4, no `role="button"`): opening is the
+ * title's stretched button, so inner buttons are siblings, never nested.
+ * dnd-kit `attributes` are not spread: they made the root a button, and there
+ * is no KeyboardSensor (pointer-only drag, `Board.tsx`).
+ */
 export function TaskCard({ task, subtasks, parentKey }: TaskCardProps) {
   const selectTask = useBoardStore((s) => s.selectTask);
   // A run paused at the spec gate still owns the card: no drag until approve/cancel.
   // zincir: a waiting card does not drag either (leaving Doing is its cancel button).
   const locked = isAgentWorking(task) || isAwaitingApproval(task) || isWaitingDeps(task);
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { status: task.status },
     disabled: locked,
@@ -73,7 +79,7 @@ export function TaskCard({ task, subtasks, parentKey }: TaskCardProps) {
       parentKey={parentKey}
       nodeRef={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      dndProps={{ ...attributes, ...listeners }}
+      dndProps={listeners}
       dragging={isDragging}
       onOpen={() => {
         if (!isDragging) selectTask(task.id);
@@ -181,15 +187,9 @@ export function TaskCardView({
         ...(isNew ? { transition: `${style?.transition ? `${style.transition}, ` : ""}opacity 500ms ease-out, translate 500ms ease-out` } : null),
       }}
       {...dndProps}
+      // Clicks on meta pills (raised above the stretched button for their
+      // `title` hints) bubble here and open the card like the rest of it.
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
-          e.preventDefault();
-          onOpen?.();
-        }
-      }}
-      aria-label={`${cardKey} ${task.title}`}
-      title={working || awaiting ? t.taskCard.dragLocked : undefined}
       data-running={working || undefined}
       data-locked={working || awaiting || waiting || undefined}
       data-waiting={waiting || undefined}
@@ -217,6 +217,7 @@ export function TaskCardView({
           <span className="task-card__key">{cardKey}</span>
           {parentKey && (
             <span
+              data-card-action
               className="inline-flex min-w-0 items-center gap-1 font-mono text-[11px] text-ink-3"
               title={t.taskCard.subtaskOf.replace("{key}", parentKey)}
             >
@@ -225,11 +226,31 @@ export function TaskCardView({
             </span>
           )}
           <span className="flex-1" />
-          {prio && <PriorityMark level={prio} label={prioLabel} />}
+          {prio && (
+            <span data-card-action className="inline-flex">
+              <PriorityMark level={prio} label={prioLabel} />
+            </span>
+          )}
         </div>
 
         <h3 className="mt-1.5 line-clamp-2 text-[15px] font-semibold leading-[1.3] tracking-[-0.01em] text-ink">
-          {task.title}
+          {overlay || !onOpen ? (
+            task.title
+          ) : (
+            // Stretched open button: its ::after covers the whole card (globals.css).
+            <button
+              type="button"
+              className="task-card__open"
+              aria-label={`${cardKey} ${task.title}`}
+              title={working || awaiting ? t.taskCard.dragLocked : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpen();
+              }}
+            >
+              {task.title}
+            </button>
+          )}
         </h3>
 
         {task.description && (
@@ -257,8 +278,10 @@ export function TaskCardView({
 
         {/* live agent step — full row while the executor runs */}
         {working && agentPill && (
-          <div className="mt-3 flex items-center" {...stop}>
-            <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />
+          <div className="mt-3 flex items-center">
+            <span data-card-action className="inline-flex" {...stop}>
+              <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />
+            </span>
           </div>
         )}
 
@@ -285,7 +308,7 @@ export function TaskCardView({
             <span className="flex-1" />
 
             {queued && (
-              <span className="inline-flex items-center gap-1" {...stop}>
+              <span data-card-action className="inline-flex items-center gap-1" {...stop}>
                 <StatusPill status="todo">{t.taskCard.queued}</StatusPill>
                 <button
                   type="button"
@@ -310,7 +333,7 @@ export function TaskCardView({
             )}
 
             {waiting && (
-              <span className="inline-flex items-center gap-1" {...stop}>
+              <span data-card-action className="inline-flex items-center gap-1" {...stop}>
                 <StatusPill status="todo">{ready ? t.taskCard.readyToStart : t.taskCard.waitingDeps}</StatusPill>
                 <button
                   type="button"
@@ -335,13 +358,13 @@ export function TaskCardView({
             )}
 
             {agentPill && !working && (
-              <span {...stop}>
+              <span data-card-action className="inline-flex" {...stop}>
                 <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />
               </span>
             )}
 
             {conflictResolved && (
-              <span data-conflict-resolved {...stop}>
+              <span data-conflict-resolved data-card-action className="inline-flex" {...stop}>
                 <StatusPill status="review">{t.taskCard.conflictResolved}</StatusPill>
               </span>
             )}
@@ -370,7 +393,7 @@ export function TaskCardView({
             )}
 
             {mergedPR && (
-              <span className="inline-flex items-center gap-1" {...stop}>
+              <span data-card-action className="inline-flex items-center gap-1" {...stop}>
                 <button
                   type="button"
                   onClick={(e) => {

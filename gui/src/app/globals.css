@@ -800,7 +800,16 @@ body::before {
     transition: transform 170ms var(--ease-press), box-shadow 170ms var(--ease-press), opacity 160ms ease;
   }
   .task-card:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--shadow-ink); }
-  .task-card:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; }
+  /* bakim F4: the root is a plain container; the title's stretched button opens
+     the card and carries focus, the ring is drawn on the whole card. */
+  .task-card__open { all: unset; cursor: inherit; }
+  .task-card__open::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+  .task-card__open:focus-visible { outline: none; }
+  .task-card:has(.task-card__open:focus-visible) { outline: 2.5px solid var(--focus); outline-offset: 3px; }
+  /* Inner buttons, links and hinted meta sit above the stretched button. */
+  .task-card .task-card__btn,
+  .task-card .task-card__meta,
+  .task-card [data-card-action] { position: relative; z-index: 1; }
   .task-card[data-locked="true"] { cursor: default; }
   .task-card[data-dragging="true"] {
     transform: none;
