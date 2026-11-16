@@ -236,6 +236,11 @@ export interface ClaudeRunOptions {
   strictMcpConfig?: boolean;
   /** Passed as `--setting-sources`, e.g. ["project", "local"] to skip user settings and their hooks/plugins. */
   settingSources?: string[];
+  /**
+   * bakim #8: extra directories the CLI's tools may access (`--add-dir <dir>`,
+   * one flag per directory), e.g. a task's image attachments outside the repo.
+   */
+  addDirs?: string[];
 }
 
 export interface ClaudeRunResult {
@@ -305,6 +310,9 @@ function emitText(
 export function buildClaudeArgs(options: ClaudeRunOptions): string[] {
   // `-p` (print mode) with no positional prompt: the CLI reads it from stdin.
   const args = ["-p", "--permission-mode", "bypassPermissions"];
+  for (const dir of options.addDirs ?? []) {
+    if (dir) args.push("--add-dir", dir);
+  }
   if (options.bare) args.push("--bare");
   if (options.model) args.push("--model", options.model);
   // An explicit empty list disables every built-in tool (`--tools ""`).

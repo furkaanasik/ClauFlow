@@ -24,6 +24,7 @@ import { DEFAULT_TASK_BUDGET_USD } from "./pricingService.js";
 import { applyEkiplerMigration } from "./ekiplerMigration.js";
 import { applyTemizlikMigration } from "./temizlikMigration.js";
 import { applyZincirMigration } from "./zincirMigration.js";
+import { applyBakimMigration } from "./bakimMigration.js";
 import { DependencyError, MAX_DEPENDENCIES } from "./dependencyError.js";
 import { DEFAULT_NEW_PROJECT_TEAM_ID, upsertBuiltinTeams } from "./teamTemplates.js";
 
@@ -31,7 +32,8 @@ const DEFAULT_QA_MAX_ROUNDS = 3;
 
 // ─── DB Setup ─────────────────────────────────────────────────────────────
 
-const DATA_DIR = process.env.CLAUFLOW_DATA_DIR
+/** Absolute data directory (`CLAUFLOW_DATA_DIR`, else `<cwd>/data`); attachments live under it. */
+export const DATA_DIR = process.env.CLAUFLOW_DATA_DIR
   ? path.resolve(process.env.CLAUFLOW_DATA_DIR)
   : path.resolve(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "tasks.db");
@@ -375,6 +377,7 @@ db.exec(`
 applyEkiplerMigration(db);
 applyTemizlikMigration(db);
 applyZincirMigration(db);
+applyBakimMigration(db);
 upsertBuiltinTeams(db);
 
 // Unique indexes (idempotent — also created above for fresh installs).

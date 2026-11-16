@@ -128,6 +128,55 @@ describe("runClaude role options", () => {
     expect(args).toEqual(["-p", "--permission-mode", "bypassPermissions"]);
   });
 
+  it("--add-dir: one flag per directory, right after --permission-mode; -p first, prompt not in argv (bakim #8)", () => {
+    const args = buildClaudeArgs({
+      prompt: "SECRET PROMPT",
+      cwd: dir,
+      addDirs: ["/data/attachments/task_1", "/data/attachments/extra"],
+      model: "haiku",
+      tools: ["Read"],
+      strictMcpConfig: true,
+      settingSources: ["project", "local"],
+      outputFormat: "stream-json",
+    });
+    expect(args).toEqual([
+      "-p",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "/data/attachments/task_1",
+      "--add-dir",
+      "/data/attachments/extra",
+      "--model",
+      "haiku",
+      "--tools",
+      "Read",
+      "--strict-mcp-config",
+      "--setting-sources",
+      "project,local",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+    ]);
+    expect(args.join(" ")).not.toContain("SECRET PROMPT");
+    expect(buildClaudeArgs({ prompt: "x", cwd: dir, addDirs: [] })).toEqual(["-p", "--permission-mode", "bypassPermissions"]);
+  });
+
+  it("runClaude passes addDirs to the CLI; the prompt still arrives on stdin", async () => {
+    const result = await runClaude({
+      prompt: "look at the image",
+      cwd: dir,
+      addDirs: [join(dir, "att")],
+      outputFormat: "stream-json",
+      maxRetries: 0,
+    });
+    expect(result.code).toBe(0);
+    const [call] = readCalls(dir);
+    expect(call!.addDirs).toEqual([join(dir, "att")]);
+    expect(call!.promptSource).toBe("stdin");
+    expect(call!.prompt).toBe("look at the image");
+  });
+
   it("an explicit empty tool list disables every tool (--tools \"\")", () => {
     const args = buildClaudeArgs({ prompt: "x", cwd: dir, tools: [] });
     expect(args).toEqual(["-p", "--permission-mode", "bypassPermissions", "--tools", ""]);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync, spawn } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Current git branch of `cwd`, or "unknown" outside a repo / on a detached HEAD. */
@@ -130,6 +130,8 @@ const VALUE_FLAGS = new Set([
   "--setting-sources",
   "--settings",
 ]);
+// bakim #8: value flags that may repeat; collected into an array.
+const REPEAT_FLAGS = new Set(["--add-dir"]);
 
 const MODEL_IDS = {
   haiku: "claude-haiku-5-5",
@@ -157,7 +159,10 @@ function parseArgs(argv) {
   const positionals = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (VALUE_FLAGS.has(a)) {
+    if (REPEAT_FLAGS.has(a)) {
+      (flags[a] ??= []).push(argv[i + 1] ?? "");
+      i++;
+    } else if (VALUE_FLAGS.has(a)) {
       flags[a] = argv[i + 1] ?? "";
       i++;
     } else if (a.startsWith("-")) {
@@ -276,6 +281,33 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * bakim #8: the absolute paths listed in the prompt's <attachments> /
+ * <feedback_attachments> blocks, each checked from this CLI process (proof the
+ * role could read the file): `{ block, path, exists, bytes }`.
+ */
+function attachmentsSeen(prompt) {
+  const out = [];
+  for (const block of ["attachments", "feedback_attachments"]) {
+    const re = new RegExp(`<${block}>([\\s\\S]*?)</${block}>`, "g");
+    let m;
+    while ((m = re.exec(prompt ?? ""))) {
+      for (const line of m[1].split("\n")) {
+        const p = /^\s*-\s+(\/\S+)/.exec(line);
+        if (!p) continue;
+        let bytes = null;
+        try {
+          bytes = statSync(p[1]).size;
+        } catch {
+          /* missing */
+        }
+        out.push({ block, path: p[1], exists: bytes !== null, bytes });
+      }
+    }
+  }
+  return out;
+}
+
 async function main() {
   const { flags, booleans, positionals } = parseArgs(process.argv.slice(2));
   const promptSource = positionals.length > 0 ? "argv" : "stdin";
@@ -318,6 +350,8 @@ async function main() {
         allowedTools: flags["--allowedTools"] ?? null,
         advisor: advisorArg,
         settingSources: flags["--setting-sources"] ?? null,
+        addDirs: flags["--add-dir"] ?? null,
+        attachmentsSeen: attachmentsSeen(prompt),
         strictMcpConfig: booleans.includes("--strict-mcp-config"),
         appendSystemPrompt: systemPrompt,
         permissionMode: flags["--permission-mode"] ?? null,

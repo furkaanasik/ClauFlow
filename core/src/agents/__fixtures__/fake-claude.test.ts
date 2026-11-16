@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -277,6 +277,59 @@ describe("fake-claude FAKE_CLAUDE_RENAME_BASE (bakim F1, #1)", () => {
   it("other roles leave the base alone", () => {
     run(dir, "pass", "qa", 1, [], { env: { FAKE_CLAUDE_RENAME_BASE: "main:trunk" } });
     expect(branches()).toEqual(["feature/clf-1-a", "main"]);
+  });
+});
+
+describe("fake-claude --add-dir and attachmentsSeen (bakim #8, §5.6)", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "fake-claude-adddir-"));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  const calls = () =>
+    readFileSync(join(dir, "state", "calls.jsonl"), "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+
+  it("--add-dir is a repeatable value flag: the prompt still comes from stdin (I2 regression)", () => {
+    const attDir = join(dir, "att");
+    mkdirSync(attDir);
+    const img = join(attDir, "att_1.png");
+    writeFileSync(img, Buffer.alloc(42));
+    const prompt = [
+      "Do it.",
+      "<attachments>",
+      `- ${img} (image/png, 64×64, 1 KB, "red.png")`,
+      `- ${join(attDir, "missing.png")} (image/png, 1×1, 1 KB)`,
+      "</attachments>",
+      "<feedback_attachments>",
+      `- ${img} (image/png, 64×64, 1 KB)`,
+      "</feedback_attachments>",
+    ].join("\n");
+    const res = spawnSync(
+      FAKE_CLAUDE,
+      ["-p", "--permission-mode", "bypassPermissions", "--add-dir", attDir, "--add-dir", "/tmp/other", "--output-format", "stream-json", "--verbose"],
+      { cwd: dir, encoding: "utf8", input: prompt, env: { ...process.env, FAKE_CLAUDE_SCENARIO: "pass", FAKE_CLAUDE_STATE: join(dir, "state") } },
+    );
+    expect(res.status).toBe(0);
+    const [call] = calls();
+    expect(call!.promptSource).toBe("stdin");
+    expect(call!.prompt).toBe(prompt);
+    expect(call!.addDirs).toEqual([attDir, "/tmp/other"]);
+    expect(call!.attachmentsSeen).toEqual([
+      { block: "attachments", path: img, exists: true, bytes: 42 },
+      { block: "attachments", path: join(attDir, "missing.png"), exists: false, bytes: null },
+      { block: "feedback_attachments", path: img, exists: true, bytes: 42 },
+    ]);
+  });
+
+  it("without --add-dir: addDirs null, attachmentsSeen empty", () => {
+    run(dir, "pass", "ceo", 0);
+    const [call] = calls();
+    expect(call!.addDirs).toBeNull();
+    expect(call!.attachmentsSeen).toEqual([]);
   });
 });
 

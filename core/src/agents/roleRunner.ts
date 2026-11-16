@@ -51,6 +51,8 @@ interface RunRoleOptions {
   /** Names for the `budget_exceeded` toast (A8d). */
   budgetContext?: { taskTitle: string; displayId: string | null; projectId: string; projectName: string };
   inputArtifact?: Record<string, unknown> | null;
+  /** bakim #8: passed to the CLI as `--add-dir` (task attachments live outside the repo). */
+  addDirs?: string[];
   /**
    * Redirects the CLI's log lines (`[stderr] ` prefixed for stderr). Comment
    * rounds write them to the comment's log (E7b). Default: the task's agent log.
@@ -340,6 +342,7 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
     appendSystemPrompt: opts.appendSystemPrompt,
     advisorModel: opts.advisorModel ?? null,
     ...(opts.isolate ? { strictMcpConfig: true, settingSources: ROLE_SETTING_SOURCES } : {}),
+    ...(opts.addDirs && opts.addDirs.length > 0 ? { addDirs: opts.addDirs } : {}),
     signal: roleController.signal,
     onLine: onLogLine,
   };
