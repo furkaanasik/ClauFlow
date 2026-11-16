@@ -1,4 +1,4 @@
-import type { AgentText, BaseDrift, Comment, ConflictResolveMode, GithubRepo, GitStatus, StashEntry, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
+import type { AgentText, BaseDrift, Comment, ConflictResolveMode, GithubRepo, GitStatus, StashDetail, StashEntry, StashFileDiff, TaskDiff, NodeRun, Project, ProjectPatch, Task, TaskPatch, TaskPriority, SkillCatalogEntry, SystemCapabilities, TaskTeamState, Team, TeamArtifact, TeamRole, ToolCall } from "@/types";
 import { useBoardStore } from "@/store/boardStore";
 
 const BASE =
@@ -232,6 +232,27 @@ export const api = {
     fetch(`${BASE}/projects/${projectId}/stashes/${ref}`, { method: "DELETE" }).then(async (r) => {
       if (!r.ok) await handle<never>(r);
     }),
+
+  /** bakim #6: file list, class counts and folded noise groups of one stash (404 `stash_not_found`). */
+  getStashFiles: (projectId: string, ref: string): Promise<StashDetail> =>
+    fetch(`${BASE}/projects/${projectId}/stashes/${ref}/files`, { cache: "no-store" })
+      .then((r) => handle<StashDetail>(r)),
+
+  /** Lazy diff of one stash file; 404 `stash_file_not_found` for a path outside the stash. */
+  getStashFileDiff: (projectId: string, ref: string, path: string): Promise<StashFileDiff> =>
+    fetch(`${BASE}/projects/${projectId}/stashes/${ref}/diff?path=${encodeURIComponent(path)}`, { cache: "no-store" })
+      .then((r) => handle<StashFileDiff>(r)),
+
+  /**
+   * Restores one file; the stash stays. 409 `repo_busy` / `worktree_dirty` (+`files`) /
+   * `stash_conflict` (+`files`), 404 `stash_not_found` / `stash_file_not_found`, 422 `stash_file_deleted`.
+   */
+  restoreStashFile: (projectId: string, ref: string, path: string): Promise<{ restored: string; branch: string | null }> =>
+    fetch(`${BASE}/projects/${projectId}/stashes/${ref}/restore-file`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    }).then((r) => handle<{ restored: string; branch: string | null }>(r)),
 
   getComments: (taskId: string): Promise<Comment[]> =>
     fetch(`${BASE}/tasks/${taskId}/comments`, { cache: "no-store" })

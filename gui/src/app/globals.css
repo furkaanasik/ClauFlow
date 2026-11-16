@@ -1445,6 +1445,9 @@ body::before {
   .diff-side[data-type="added"] .diff-pre { color: var(--green-text); font-weight: 700; }
   .diff-side[data-type="empty"] .diff-code,
   .diff-side[data-type="empty"] .diff-num { background-color: var(--sunken); background-image: repeating-linear-gradient(135deg, var(--hair) 0 1.5px, transparent 1.5px 7px); }
+  /* bakim F3: in the narrow project drawer (stash panel) long lines wrap instead of
+     each cell scrolling on its own (axe scrollable-region-focusable). */
+  .stash-diff .diff-code { overflow-x: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
   .diff-filerow {
     display: flex;
     align-items: center;
