@@ -1330,9 +1330,24 @@ export async function projectHasActiveTasks(id: string): Promise<boolean> {
   return row.count > 0;
 }
 
-export async function deleteTask(id: string): Promise<void> {
-  const result = stmtDeleteTask.run(id);
-  if (result.changes === 0) throw new Error(`Task not found: ${id}`);
+const stmtChildIds = db.prepare(`SELECT id FROM tasks WHERE parentTaskId = ?`);
+const stmtOrphanChildren = db.prepare(`UPDATE tasks SET parentTaskId = NULL, updatedAt = ? WHERE parentTaskId = ?`);
+
+/**
+ * Deletes a task. bakim #11 (plan §3/5): `tasks.parentTaskId` references
+ * tasks(id) with no ON DELETE rule and foreign_keys is ON, so a broken-down
+ * parent could not be deleted (`FOREIGN KEY constraint failed`). Its children
+ * are detached first (`parentTaskId = NULL`) in the same transaction; no
+ * migration, the table is not rebuilt. Returns the detached child ids.
+ */
+export async function deleteTask(id: string): Promise<{ orphaned: string[] }> {
+  return db.transaction((): { orphaned: string[] } => {
+    const orphaned = (stmtChildIds.all(id) as Array<{ id: string }>).map((r) => r.id);
+    if (orphaned.length > 0) stmtOrphanChildren.run(new Date().toISOString(), id);
+    const result = stmtDeleteTask.run(id);
+    if (result.changes === 0) throw new Error(`Task not found: ${id}`);
+    return { orphaned };
+  })();
 }
 
 // ─── Tool Calls ───────────────────────────────────────────────────────────

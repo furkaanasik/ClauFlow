@@ -129,7 +129,7 @@ Tokenlar `:root` (krem, varsayılan) ve `html.night` (gece) üzerinde CSS custom
 | `--mustard-text` | `#f2c33d` | Gecede baz renkle aynı |
 | `--orange-text` | `#f08a42` | Baz renkle aynı |
 | `--green-text` | `#5bb877` | Baz renkle aynı |
-| `--red-text` | `#e2574c` | Baz renkle aynı |
+| `--red-text` | `#ee766b` | Bazdan **farklı** (daha açık); hata banner'ında 5,1:1 (bkz. §2.5) |
 | `--cobalt-text` | `#7b9af3` | Bazdan **farklı** (daha açık) |
 | `--on-ink` | `#17140f` | |
 | `--on-mustard` | `#1b1712` | |
@@ -192,7 +192,9 @@ Tokenlar `:root` (krem, varsayılan) ve `html.night` (gece) üzerinde CSS custom
 - `--ink-3` gece: koddaki değer `#9d937f`. Plan §11'e göre çalışan kartın turuncu zemininde 4.88:1, panelde 5.46:1. Plandaki ara değer `#968C78` eskidi, kod esas.
 - Birincil buton: hardal üstünde mürekkep metin, **10.7:1** (`Button.tsx` yorumu).
 - Styleguide metni: kâğıt üstünde mürekkep **15:1**.
-- `--*-text` varyantları kremde kâğıt ve sunken üzerinde ≥4.5:1. Gecede baz renklerle aynı (`--cobalt-text` hariç).
+- `--*-text` varyantları kremde kâğıt ve sunken üzerinde ≥4.5:1. Gecede baz renklerle aynı (`--cobalt-text` ve `--red-text` hariç).
+- `--red-text` gece: `#e2574c` → `#ee766b` (bakım F1). Baz kırmızıyla aynıyken hata banner'ının zemininde (`color-mix(red 12%, panel)`) 3,91:1, çalışan kartta 4,02, diff'te silinen satır numarasında (`red 22%, sunken`) 4,06 ve silinen satırın `-` işaretinde 3,88 kalıyordu. Yeni değerle sırasıyla 5,11 / 5,25 / 5,30 / 5,06; panelde 4,50 → 5,88. `--red` (dolgu, kenar, `inset` şerit) değişmedi. Matris: `atolye-lab/ekran-goruntuleri/scripts/kontrast-bakim.mjs`.
+- Diff numara hücreleri (bakım F1): kremde `--red-text` `red 22% sunken` üstünde 3,51:1, `--green-text` `green 24% sunken` üstünde 3,78:1 kalıyordu (axe tek haneli sayıları `shortTextContent` diye "incomplete" bırakır, yalnız matris yakaladı). Numara metni iki temada `--ink-2`: krem 5,56 / 6,02, gece 8,66 / 7,41. Zemin tonları değişmedi.
 - Gecede `--on-cobalt` ve `--on-red` koyu. Plan §11: gece kobaltı üstünde krem metin 3.0:1 kalıyordu.
 - Gecede gölge `--line` değil `--shadow-ink` (`#b9ae97`). Tam krem gölge parlıyordu.
 - Landing fosforlu kalemi (`.landing-mark`) gecede x-yüksekliğinin altına iner (`82%`–`97%` bandı). Krem yazı hardal üstünde fazla soluk kalıyordu.
@@ -805,7 +807,7 @@ Ekranlara özel diğer sınıflar da `globals.css` içinde tanımlı. Aynı dili
 | `.team-bubble`, `.team-chip` | Ekip zaman çizelgesi balonu (`4px 14px 14px 14px` köşe, solda `--role` renk şeridi; `data-tone` = `stuck` kırmızı taralı, `live` kesik çizgili, `summary` sunken) ve mono meta çipi |
 | `.ui-banner--approval` | Şartname onay kapısı: hardal zeminli banner ("sıra sende") |
 | Ekip editörü (`components/Team/TeamEditor.tsx`) | Yeni sınıf yok: ekip kartları `.ui-option` (seçili `data-checked`), rol satırları solda `inset 4px 0 0` rol rengi şeridi (seçiliyken `+ 3px 3px 0` gölge), salt okunur rol `dl` satırları `1.5px` `--hair` ayraçlı, proje ayarları `Segmented` + `Switch`. |
-| `.diff-*` | Split diff: PR çekmecesi ve görev çekmecesinin "Değişiklikler" sekmesi aynı parçaları kullanır (`components/Github/DiffView.tsx`) |
+| `.diff-*` | Split diff: PR çekmecesi ve görev çekmecesinin "Değişiklikler" sekmesi aynı parçaları kullanır (`components/Github/DiffView.tsx`). Silinen/eklenen satırın numara hücresi kırmızı/yeşil tonlu zeminde `--ink-2` metin (bkz. §2.5); renk tondan ve `-`/`+` işaretinden (`--red-text`/`--green-text`) gelir |
 | `.kpi-tile` | Üstünde 6px renk şeridi (`--kpi`) olan KPI kartı |
 | `.factory-*` | 3D fabrika sahnesinin DOM katmanı (nokta ızgaralı sahne, lejant, tooltip) |
 | `.prose-claude`, `.comment-markdown` | Markdown önizleme. `ReactMarkdown` her yerde `remark-gfm` ile çalışır: tablolar `1px solid var(--border)` hücreli, `.comment-markdown` tablosu taşınca yatay kayar. |

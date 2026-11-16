@@ -670,9 +670,14 @@ router.delete("/:id", async (req: Request, res: Response) => {
       return res.status(409).json({ error: "conflict_resolving" });
     }
     const dependents = listDependents(id);
-    await deleteTask(id);
+    const { orphaned } = await deleteTask(id);
     broadcastTaskDeleted(id);
     res.status(204).end();
+    // bakim #11: the children of a deleted parent live on with parentTaskId = NULL.
+    for (const childId of orphaned) {
+      const child = await getTask(childId);
+      if (child) broadcastTaskUpdated(child);
+    }
     // zincir (plan §5.3): a dependent waiting only on the deleted task starts.
     // Its edge is gone (CASCADE), so the deps payload changed for all of them.
     for (const depId of dependents) {
