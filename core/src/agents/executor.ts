@@ -354,7 +354,7 @@ export async function run(task: Task, project: Project, opts: RunOptions = {}): 
     if (coResult.code !== 0) {
       throw new Error(`git checkout/pull failed:\n${coResult.stderr}`);
     }
-    if (/\[kanban\] working tree had dirty files/.test(coResult.stdout)) {
+    if (/\[kanban\] (working tree had dirty files|ignored locally)/.test(coResult.stdout)) {
       await pushCmdResult(task.id, coResult);
     }
     if (coResult.stashed) {
