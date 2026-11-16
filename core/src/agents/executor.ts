@@ -212,6 +212,38 @@ async function stopStuck(
 }
 
 /**
+ * bakim #1 (plan §3/1–3, §5.1): the run cannot be closed safely (the base
+ * branch vanished mid-run, or `rev-list` failed). Keep everything: a dirty tree
+ * becomes a `wip:` commit, there is no checkout (the base may be gone) and no
+ * `branch -D`; the repo stays on the task branch and the task goes back to todo
+ * with `code`. `done` is never written, so no chain trigger fires (B4).
+ */
+async function stopKeep(
+  task: Task,
+  project: Project,
+  opts: { code: string; log: string; comments: Array<string | null | undefined>; wipMessage: string },
+): Promise<void> {
+  const dirty = await gitRun("git", ["status", "--porcelain"], project.repoPath);
+  if (dirty.code === 0 && dirty.stdout.trim()) {
+    const wip = await commitAll(project.repoPath, opts.wipMessage);
+    await pushCmdResult(task.id, wip);
+  }
+  await pushLog(task.id, opts.log);
+  for (const body of opts.comments) if (body) postComment(task.id, body, "kept");
+  const errTask = await updateTask(task.id, {
+    status: "todo",
+    agent: {
+      status: "error",
+      currentStep: undefined,
+      error: opts.code,
+      finishedAt: new Date().toISOString(),
+    },
+  });
+  broadcastStatus(task.id, "error");
+  broadcastTaskUpdated(errTask);
+}
+
+/**
  * A3/A4: never delete a branch that carries work. A previous run's branch that
  * is ahead of base (e.g. a `wip:` commit from a stuck run) is renamed to
  * `<branch>-wip-N` (first free N); an empty one is dropped.
@@ -355,6 +387,22 @@ export async function run(task: Task, project: Project, opts: RunOptions = {}): 
     await setAgentStep(task.id, "running", "team");
     const outcome = await runTeam({ task, project, controller, uiLang: opts.uiLang });
 
+    // bakim #1 (§3/1): the base branch can be deleted or renamed while the team
+    // runs. Check it for every outcome before anything returns to base: keep the
+    // work on the task branch and stop as todo + base_branch_missing:<branch>.
+    const stopIfBaseLost = async (summary: string | null): Promise<boolean> => {
+      if (await baseBranchExists(project.repoPath, project.defaultBranch)) return false;
+      const here = await baseBranchHint(project.repoPath);
+      await stopKeep(task, project, {
+        code: `base_branch_missing:${here}`,
+        log: `✖ Ana dal "${project.defaultBranch}" koşu sırasında kayboldu (silindi ya da yeniden adlandırıldı); iş ${branch} dalında korundu, repo bu dalda bırakıldı.`,
+        comments: [summary, tx.baseBranchLost(project.defaultBranch, branch)],
+        wipMessage: `wip: ${ref} ana dal kayboldu`,
+      });
+      return true;
+    };
+    if (await stopIfBaseLost("summary" in outcome ? outcome.summary : null)) return;
+
     if (outcome.kind === "awaiting_approval") {
       await returnToBase(task.id, project, branch, { deleteBranch: true });
       const paused = await updateTask(task.id, {
@@ -411,6 +459,19 @@ export async function run(task: Task, project: Project, opts: RunOptions = {}): 
       ["rev-list", "--count", `${project.defaultBranch}..HEAD`],
       project.repoPath,
     );
+    // bakim #1 (§3/3): a failed rev-list is not "0 commits ahead". The team
+    // summary is already posted, so only the base-lost note is added.
+    if (aheadResult.code !== 0) {
+      if (await stopIfBaseLost(null)) return;
+      const detail = aheadResult.stderr.trim().split("\n")[0] ?? "";
+      await stopKeep(task, project, {
+        code: "run_failed:rev-list",
+        log: `✖ git rev-list ${project.defaultBranch}..HEAD başarısız (${detail}); iş ${branch} dalında korundu.`,
+        comments: [],
+        wipMessage: `wip: ${ref} rev-list başarısız`,
+      });
+      return;
+    }
     const commitsAhead = Number.parseInt(aheadResult.stdout.trim(), 10) || 0;
 
     if (nothingToCommit && commitsAhead === 0) {

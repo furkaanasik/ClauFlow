@@ -90,6 +90,20 @@ function resolveConflicts(cwd) {
   return `## Çözüm notu\n\n${notes.join("\n")}`;
 }
 
+/**
+ * bakim F1 (#1): FAKE_CLAUDE_RENAME_BASE=<from>:<to> renames the base branch
+ * (`git branch -m <from> <to>`); an empty <to> (`main:`) deletes it
+ * (`git branch -D <from>`, allowed while the task branch is checked out).
+ */
+function renameBase(cwd, spec) {
+  const i = spec.indexOf(":");
+  const from = i === -1 ? spec : spec.slice(0, i);
+  const to = i === -1 ? "" : spec.slice(i + 1);
+  if (!from) return;
+  const args = to ? ["branch", "-m", from, to] : ["branch", "-D", from];
+  execFileSync("git", args, { cwd, stdio: ["ignore", "ignore", "pipe"] });
+}
+
 /** zincir F4.6: FAKE_CLAUDE_CONFLICT_FILE's first line becomes `line from <branch>`. */
 function writeConflictLine(cwd, rel) {
   const file = join(cwd, rel);
@@ -223,6 +237,8 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
         const conflictFile = process.env.FAKE_CLAUDE_CONFLICT_FILE;
         if (conflictFile) writeConflictLine(cwd, conflictFile);
       }
+      // bakim F1 (#1): the base branch disappears mid-run, after the developer wrote its file.
+      if (process.env.FAKE_CLAUDE_RENAME_BASE) renameBase(cwd, process.env.FAKE_CLAUDE_RENAME_BASE);
       return `## Teslim notu\n\n- ${name} yazıldı\n- AC-1 → ${name}\n- Tests: 1 passed`;
     }
     case "qa":

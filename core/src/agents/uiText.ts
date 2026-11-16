@@ -93,6 +93,8 @@ export interface UiText {
   prTryManual: string;
   prAgentLog: string;
   noChanges: string;
+  /** bakim #1: the base branch vanished mid-run; the work is kept on `branch`. */
+  baseBranchLost: (base: string, branch: string) => string;
   brokenDown: (count: number) => string;
   resolver: ResolverText;
 }
@@ -135,6 +137,8 @@ const TR: UiText = {
   prAgentLog: "## Agent Logu (son 30 satır)",
   noChanges:
     "Değişiklik gerekmedi: ekip çalıştı ama repoda değiştirilecek bir şey bulmadı. Görev kapatıldı, dal silindi.",
+  baseBranchLost: (base, branch) =>
+    `Ana dal \`${base}\` koşu sırasında silindi ya da yeniden adlandırıldı. İş \`${branch}\` dalında commit'li duruyor; proje ayarlarında ana dalı düzeltip görevi yeniden başlat.`,
   brokenDown: (count) => `${count} alt göreve bölündü.`,
   resolver: {
     title: "## Çakışma çözücü",
@@ -210,6 +214,8 @@ const EN: UiText = {
   prAgentLog: "## Agent log (last 30 lines)",
   noChanges:
     "No changes needed: the team ran but found nothing to change in the repo. Task closed, branch deleted.",
+  baseBranchLost: (base, branch) =>
+    `The base branch \`${base}\` was deleted or renamed during the run. The work is committed on \`${branch}\`; fix the base branch in the project settings and start the task again.`,
   brokenDown: (count) => `Split into ${count} subtask${count === 1 ? "" : "s"}.`,
   resolver: {
     title: "## Conflict resolver",

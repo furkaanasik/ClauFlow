@@ -237,6 +237,49 @@ describe("fake-claude conflict scenarios (zincir F4.6, Z42)", () => {
   });
 });
 
+describe("fake-claude FAKE_CLAUDE_RENAME_BASE (bakim F1, #1)", () => {
+  let dir: string;
+  const git = (...args: string[]) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+    return { code: r.status, out: (r.stdout ?? "").trim() };
+  };
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "fake-claude-base-"));
+    git("init", "-q", "-b", "main");
+    git("config", "user.email", "fake@clauflow.test");
+    git("config", "user.name", "ClauFlow Test");
+    git("config", "commit.gpgsign", "false");
+    writeFileSync(join(dir, "README.md"), "# base\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "init");
+    git("checkout", "-q", "-b", "feature/clf-1-a");
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  const branches = () => git("branch", "--format=%(refname:short)").out.split("\n").sort();
+
+  it("main:trunk renames the base after the developer wrote its file", () => {
+    const r = run(dir, "pass", "developer", 1, [], { env: { FAKE_CLAUDE_RENAME_BASE: "main:trunk" } });
+    expect(r.status).toBe(0);
+    expect(existsSync(join(dir, "fake-1.txt"))).toBe(true);
+    expect(branches()).toEqual(["feature/clf-1-a", "trunk"]);
+    expect(git("rev-parse", "--verify", "-q", "refs/heads/main").code).not.toBe(0);
+    expect(git("symbolic-ref", "--short", "HEAD").out).toBe("feature/clf-1-a");
+  });
+
+  it("main: (empty target) deletes the base while the task branch is checked out", () => {
+    const r = run(dir, "pass", "developer", 1, [], { env: { FAKE_CLAUDE_RENAME_BASE: "main:" } });
+    expect(r.status).toBe(0);
+    expect(existsSync(join(dir, "fake-1.txt"))).toBe(true);
+    expect(branches()).toEqual(["feature/clf-1-a"]);
+  });
+
+  it("other roles leave the base alone", () => {
+    run(dir, "pass", "qa", 1, [], { env: { FAKE_CLAUDE_RENAME_BASE: "main:trunk" } });
+    expect(branches()).toEqual(["feature/clf-1-a", "main"]);
+  });
+});
+
 describe("fake gh pr view / merge conflict (zincir F4.6, §3/34)", () => {
   function gh(args: string[], env: Record<string, string> = {}) {
     const r = spawnSync("gh", args, { encoding: "utf8", env: { ...process.env, ...env } });
