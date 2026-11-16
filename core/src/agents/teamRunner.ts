@@ -35,6 +35,7 @@ import type {
 import { RoleRunError, RoleTimeoutError, roleTimeoutMs, runRole } from "./roleRunner.js";
 import { extractSpecAcceptanceCriteria, isStalled, parseQaVerdict } from "./teamArtifacts.js";
 import { buildRolePrompt, buildRoleSystemPrompt, loadRoleSkills } from "./teamPrompts.js";
+import { READ_ADDED_LOG, roleImages, toolsWithRead } from "./roleImages.js";
 import { formatUsd, uiText, type UiLang, type UiText } from "./uiText.js";
 
 export type TeamStopReason = "stalled" | "round_limit" | "budget" | "timeout";
@@ -303,9 +304,12 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
         const d = await gitRun("git", ["diff", `${base}...HEAD`], repo);
         diff = d.code === 0 ? d.stdout : null;
       }
+      // bakim #8: the task's images (absolute paths + --add-dir); none → prompt unchanged.
+      const images = roleImages(task.id);
       const prompt = buildRolePrompt(role, {
         task,
         project,
+        attachments: images.attachments,
         round,
         solo,
         brief,
@@ -315,6 +319,8 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
         diff,
         baseBranch: base,
       });
+      const roleTools = toolsWithRead(role.tools, images);
+      if (roleTools.added) await pushLog(task.id, READ_ADDED_LOG);
 
       const headBefore = role.kind === "developer" ? await headSha(repo) : null;
       const out = await runRole({
@@ -327,8 +333,9 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
         appendSystemPrompt: system.text,
         model: role.model,
         advisorModel: role.advisorModel,
-        tools: role.tools,
+        tools: roleTools.tools,
         isolate: true,
+        addDirs: images.addDirs,
         budgetUsd: budget,
         spentBeforeUsd: current().costUsd,
         budgetContext: {

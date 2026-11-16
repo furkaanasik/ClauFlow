@@ -163,9 +163,48 @@ export function buildRoleSystemPrompt(
   return { text: parts.filter(Boolean).join("\n\n"), skills: skillSections };
 }
 
+/** bakim #8 (§5.6): one image the role must open with the Read tool (absolute path). */
+export interface PromptAttachment {
+  path: string;
+  mime: string;
+  bytes: number;
+  width?: number | null;
+  height?: number | null;
+  name?: string | null;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function attachmentLine(a: PromptAttachment): string {
+  const parts = [a.mime];
+  if (a.width && a.height) parts.push(`${a.width}×${a.height}`);
+  parts.push(formatBytes(a.bytes));
+  if (a.name) parts.push(`"${a.name.replace(/"/g, "")}"`);
+  return `- ${a.path} (${parts.join(", ")})`;
+}
+
+/**
+ * bakim #8 (§5.6, §3/31): the images section. `task` = the task's images
+ * (`<attachments>`), `feedback` = the images of the comment being applied
+ * (`<feedback_attachments>`). Null for an empty list, so a prompt without
+ * images stays byte-for-byte what it was.
+ */
+export function attachmentsSection(list: PromptAttachment[] | null | undefined, kind: "task" | "feedback" = "task"): string | null {
+  if (!list || list.length === 0) return null;
+  const lines = list.map(attachmentLine).join("\n");
+  return kind === "task"
+    ? `Attached images (the user attached these to explain the task). Before anything else, open each one with the Read tool and look at it:\n<attachments>\n${lines}\n</attachments>`
+    : `Images attached to this feedback. Open each one with the Read tool and look at it before you change anything:\n<feedback_attachments>\n${lines}\n</feedback_attachments>`;
+}
+
 interface RolePromptContext {
   task: Pick<Task, "title" | "description" | "analysis">;
   project: Pick<Project, "aiPrompt">;
+  /** bakim #8: the task's images; empty or absent → no section. */
+  attachments?: PromptAttachment[] | null;
   round: number;
   /** True when the team is a lone developer (Solo): keeps today's single-CLI prompt. */
   solo: boolean;
@@ -178,19 +217,24 @@ interface RolePromptContext {
 }
 
 /** Today's single-CLI prompt, byte-for-byte. */
-export function buildSoloPrompt(ctx: Pick<RolePromptContext, "task" | "project">): string {
+export function buildSoloPrompt(ctx: Pick<RolePromptContext, "task" | "project" | "attachments">): string {
   const taskBrief = capSection(ctx.task.analysis || ctx.task.description || ctx.task.title, "task");
   const rawBackground = ctx.project.aiPrompt?.trim();
   const background = rawBackground ? capSection(rawBackground, "project_background") : rawBackground;
+  // bakim #8: images right after the task; nothing at all without images.
+  const images = attachmentsSection(ctx.attachments);
+  const afterTask = images ? `${images}\n\n` : "";
   return background
     ? `Project background (reference only — do NOT implement features beyond the current task's scope):\n` +
         `<project_background>\n${background}\n</project_background>\n\n` +
         `Current task — implement exactly what this describes, nothing more:\n` +
         `<task>\n${taskBrief}\n</task>\n\n` +
+        afterTask +
         `${TESTING_INSTRUCTIONS}\n\n` +
         `When done, exit the terminal.`
     : `Implement the following task and exit the terminal when done:\n\n` +
         `<task>\n${taskBrief}\n</task>\n\n` +
+        afterTask +
         TESTING_INSTRUCTIONS;
 }
 
@@ -218,6 +262,7 @@ export function buildRolePrompt(role: TeamRole, ctx: RolePromptContext): string 
   const sections: Array<string | null> = [
     background ? `Project background (reference only — do NOT go beyond the task's scope):\n${background}` : null,
     `Task:\n${taskBlock(ctx.task)}`,
+    attachmentsSection(ctx.attachments),
   ];
 
   switch (role.kind) {
@@ -268,6 +313,10 @@ interface CommentPromptContext {
   comment: string;
   /** GUI language; English when the request did not send one (§3/10). */
   uiLang?: UiLang;
+  /** bakim #8: the task's images (task + earlier comments), not this comment's. */
+  attachments?: PromptAttachment[] | null;
+  /** bakim #8: the images attached to this comment. */
+  feedbackAttachments?: PromptAttachment[] | null;
 }
 
 const UI_LANG_NAME: Record<UiLang, string> = { tr: "Türkçe", en: "English" };
@@ -284,11 +333,13 @@ export function buildCommentPrompt(role: TeamRole, ctx: CommentPromptContext): s
   const sections: Array<string | null> = [
     background ? `Project background (reference only — do NOT go beyond the task's scope):\n${background}` : null,
     `Task:\n${taskBlock(ctx.task)}`,
+    attachmentsSection(ctx.attachments),
     block("specification", ctx.spec),
     qa,
     `You are the ${role.name} role, back for another round on this task's branch. ` +
       `The user reviewed the work and left the feedback below. Apply exactly what it asks, nothing more.`,
     `<user_feedback>\n${capSection(ctx.comment.trim(), "user_feedback")}\n</user_feedback>`,
+    attachmentsSection(ctx.feedbackAttachments, "feedback"),
     TESTING_INSTRUCTIONS,
     `Write any reply in ${UI_LANG_NAME[ctx.uiLang ?? "en"]}.`,
     "When done, write the delivery note and exit the terminal.",
@@ -315,6 +366,8 @@ interface ConflictPromptContext {
   conflicts: Array<{ path: string; text: string | null }>;
   /** GUI language of the resolution note; English when absent. */
   uiLang?: UiLang;
+  /** bakim #8: the task's images. */
+  attachments?: PromptAttachment[] | null;
 }
 
 function conflictsSection(conflicts: ConflictPromptContext["conflicts"]): string {
@@ -356,6 +409,7 @@ export function buildConflictPrompt(ctx: ConflictPromptContext): string {
   const sections: Array<string | null> = [
     background ? `Project background (reference only — do NOT go beyond the task's scope):\n${background}` : null,
     `Task:\n${taskBlock(ctx.task)}`,
+    attachmentsSection(ctx.attachments),
     block("specification", ctx.spec),
     merged.length > 0
       ? `Work merged into the base branch (${ctx.target}) since this task's branch was created:\n` +

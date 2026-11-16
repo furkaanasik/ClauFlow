@@ -58,6 +58,7 @@ import {
   buildRoleSystemPrompt,
   loadRoleSkills,
 } from "./teamPrompts.js";
+import { READ_ADDED_LOG, roleImages, toolsWithRead } from "./roleImages.js";
 import { formatUsd, uiText, type ConflictReason, type UiLang } from "./uiText.js";
 import type { Project, Task } from "../types/index.js";
 
@@ -681,9 +682,12 @@ async function resolveUnderLock(
   const spec = [...artifacts].reverse().find((a) => a.kind === "spec")?.body ?? null;
   const conflicts = [];
   for (const path of files) conflicts.push({ path, text: await readText(repo, path) });
+  // bakim #8: the task's images for the resolver and its QA round.
+  const images = roleImages(taskId);
   const prompt = buildConflictPrompt({
     task,
     project,
+    attachments: images.attachments,
     spec,
     target,
     branch,
@@ -698,6 +702,8 @@ async function resolveUnderLock(
     projectId: project.id,
     projectName: project.name,
   };
+  const resolverTools = toolsWithRead(role.tools, images);
+  if (resolverTools.added) await log(READ_ADDED_LOG);
   const resolved = await runRole({
     taskId,
     cwd: repo,
@@ -708,8 +714,9 @@ async function resolveUnderLock(
     appendSystemPrompt: system.text,
     model: role.model,
     advisorModel: role.advisorModel,
-    tools: role.tools,
+    tools: resolverTools.tools,
     isolate: true,
+    addDirs: images.addDirs,
     budgetUsd,
     spentBeforeUsd: 0,
     budgetContext,
@@ -768,6 +775,7 @@ async function resolveUnderLock(
     buildRolePrompt(qaRole, {
       task,
       project,
+      attachments: images.attachments,
       round: n,
       solo: false,
       spec,
@@ -777,6 +785,8 @@ async function resolveUnderLock(
     }),
     buildConflictResolutionBlock(target, files, rec.note ?? ""),
   ].join("\n\n");
+  const qaTools = toolsWithRead(qaRole.tools, images);
+  if (qaTools.added) await log(READ_ADDED_LOG);
   const qa = await runRole({
     taskId,
     cwd: repo,
@@ -787,8 +797,9 @@ async function resolveUnderLock(
     appendSystemPrompt: qaSystem.text,
     model: qaRole.model,
     advisorModel: qaRole.advisorModel,
-    tools: qaRole.tools,
+    tools: qaTools.tools,
     isolate: true,
+    addDirs: images.addDirs,
     budgetUsd,
     spentBeforeUsd: resolved.costUsd,
     budgetContext,

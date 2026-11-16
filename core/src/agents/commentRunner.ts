@@ -13,6 +13,7 @@ import {
   buildRoleSystemPrompt,
   loadRoleSkills,
 } from "./teamPrompts.js";
+import { READ_ADDED_LOG, roleImages, toolsWithRead } from "./roleImages.js";
 import { getTask, getTaskEffectiveBudget, listNodeRunsByTask } from "../services/taskService.js";
 import { resolveTeamForTask } from "../services/teamService.js";
 import { listTeamArtifactsByTask } from "../services/teamRunService.js";
@@ -162,6 +163,8 @@ async function runCommentInner(
     const artifacts = listTeamArtifactsByTask(task.id);
     const lastOf = (kind: TeamArtifactKind) => [...artifacts].reverse().find((a) => a.kind === kind);
     const qa = lastOf("qa_report");
+    // bakim #8: the task's images + this comment's own images (separate block).
+    const images = roleImages(task.id, { commentId: comment.id });
     const prompt = buildCommentPrompt(role, {
       task,
       project,
@@ -169,7 +172,11 @@ async function runCommentInner(
       qaReport: qa ? { verdict: qa.verdict, body: qa.body } : null,
       comment: comment.body,
       uiLang: opts.uiLang,
+      attachments: images.attachments,
+      feedbackAttachments: images.feedback,
     });
+    const roleTools = toolsWithRead(role.tools, images);
+    if (roleTools.added) log(READ_ADDED_LOG);
 
     const out = await runRole({
       taskId: task.id,
@@ -181,8 +188,9 @@ async function runCommentInner(
       appendSystemPrompt: system.text,
       model: role.model,
       advisorModel: role.advisorModel,
-      tools: role.tools,
+      tools: roleTools.tools,
       isolate: true,
+      addDirs: images.addDirs,
       budgetUsd: getTaskEffectiveBudget(task.id),
       // A comment is its own round: only its own spend counts against the budget.
       spentBeforeUsd: 0,
