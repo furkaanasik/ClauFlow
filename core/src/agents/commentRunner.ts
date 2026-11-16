@@ -1,30 +1,39 @@
 import { run as gitRun, commitAll, ensureGhCredentials, pushBranch } from "../services/gitService.js";
-import { parseUsageFromResult, runClaude } from "../services/claudeService.js";
 import { acquireRepoLock } from "../services/repoLock.js";
-import { costFromResult } from "./roleRunner.js";
+import { runRole } from "./roleRunner.js";
 import {
-  addTaskCost,
-  getTask,
-  insertAgentText,
-  insertToolCall,
-  updateTaskUsage,
-  updateToolCall,
-} from "../services/taskService.js";
+  buildCommentPrompt,
+  buildCommentSystemMarker,
+  buildRoleSystemPrompt,
+  loadRoleSkills,
+} from "./teamPrompts.js";
+import { getTask, getTaskEffectiveBudget, listNodeRunsByTask } from "../services/taskService.js";
+import { resolveTeamForTask } from "../services/teamService.js";
+import { listTeamArtifactsByTask } from "../services/teamRunService.js";
+import { defaultRole } from "../services/teamTemplates.js";
 import {
   appendCommentLog,
   getComment,
   updateComment,
 } from "../services/commentService.js";
-import {
-  broadcastAgentText,
-  broadcastCommentUpdated,
-  broadcastTaskUpdated,
-  broadcastToolCall,
-} from "../services/wsService.js";
+import { broadcastCommentUpdated } from "../services/wsService.js";
 import type { Comment } from "../services/commentService.js";
-import type { Project } from "../types/index.js";
+import type { Project, TeamArtifactKind } from "../types/index.js";
+import type { UiLang } from "./uiText.js";
 
 class CommentRunError extends Error {}
+
+type CommentProject = Pick<Project, "id" | "name" | "repoPath" | "defaultBranch" | "defaultTeamId" | "aiPrompt">;
+
+interface RunCommentOptions {
+  /** GUI language for the role's reply (`POST /comments` body; default en). */
+  uiLang?: UiLang;
+}
+
+/** 1-based comment round of the task: earlier `role:comment:<n>` node runs + 1. */
+function commentRound(taskId: string): number {
+  return listNodeRunsByTask(taskId).filter((r) => r.nodeId.startsWith("role:comment:")).length + 1;
+}
 
 /**
  * Applies a comment on the task's branch. Waits (FIFO) for the repo lock so
@@ -33,11 +42,12 @@ class CommentRunError extends Error {}
  */
 export async function runComment(
   comment: Comment,
-  project: Pick<Project, "repoPath" | "defaultBranch">,
+  project: CommentProject,
+  opts: RunCommentOptions = {},
 ): Promise<void> {
   const lease = await acquireRepoLock(project.repoPath, { owner: `comment:${comment.id}` });
   try {
-    await runCommentInner(comment, project);
+    await runCommentInner(comment, project, opts);
   } finally {
     lease.release();
   }
@@ -66,7 +76,8 @@ async function returnToBase(
 
 async function runCommentInner(
   comment: Comment,
-  project: Pick<Project, "repoPath" | "defaultBranch">,
+  project: CommentProject,
+  opts: RunCommentOptions,
 ): Promise<void> {
   const projectRepoPath = project.repoPath;
   let checkedOut = false;
@@ -110,142 +121,64 @@ async function runCommentInner(
     }
     checkedOut = true;
 
-    // ── Step 5: run claude CLI with the comment as feedback ───────────────
-    const prompt =
-      `Kullanıcı şu geri bildirimi verdi:\n<user_feedback>\n${comment.body}\n</user_feedback>\n\n` +
-      `Gerekli düzeltmeleri yap.`;
-
-    const onLogLine = async (
-      line: string,
-      stream: "stdout" | "stderr",
-    ): Promise<void> => {
-      const entry = stream === "stderr" ? `[stderr] ${line}` : line;
-      appendCommentLog(comment.id, entry);
+    // ── Step 5: the developer role's next round (E7b, plan §3/30) ────────
+    // Same isolation, tools, model, skills and budget as a team developer
+    // round; runRole records the node run, tool calls, text, usage and cost.
+    const team = resolveTeamForTask(task, project);
+    const role = team.roles.find((r) => r.kind === "developer") ?? defaultRole("developer");
+    const n = commentRound(task.id);
+    const log = (line: string): void => {
+      appendCommentLog(comment.id, line);
       const fresh = getComment(comment.id);
       if (fresh) broadcastCommentUpdated(fresh);
     };
+    log(`▸ Rol: ${role.name} (${team.name}, yorum turu ${n}, model ${role.model})`);
 
-    const onToolCallStart = (tc: {
-      id: string;
-      toolName: string;
-      args: unknown;
-      startedAt: string;
-    }): void => {
-      try {
-        const stored = insertToolCall({
-          id: tc.id,
-          taskId: comment.taskId,
-          toolName: tc.toolName,
-          args: tc.args,
-          status: "running",
-          startedAt: tc.startedAt,
-        });
-        broadcastToolCall(stored);
-      } catch (e) {
-        console.error(
-          `[commentRunner] insertToolCall failed for ${tc.id}:`,
-          e,
-        );
-      }
-    };
+    const { skills, missing } = await loadRoleSkills(role.skills, projectRepoPath);
+    const system = buildRoleSystemPrompt(role, n, skills, { marker: buildCommentSystemMarker(n) });
+    if (system.skills.injected.length > 0) log(`⚡ Skills injected: ${system.skills.injected.join(", ")}`);
+    if (missing.length > 0) log(`[warn] Skill bulunamadı: ${missing.join(", ")}`);
+    if (system.skills.skipped.length > 0) {
+      log(`[warn] Skill tavanı (60k) doldu, atlandı: ${system.skills.skipped.join(", ")}`);
+    }
 
-    const onToolCallEnd = (tc: {
-      id: string;
-      result: string | null;
-      status: "running" | "done" | "error";
-      finishedAt: string | null;
-      durationMs: number | null;
-    }): void => {
-      try {
-        const updated = updateToolCall(tc.id, {
-          status: tc.status,
-          result: tc.result,
-          finishedAt: tc.finishedAt,
-          durationMs: tc.durationMs,
-        });
-        if (updated) broadcastToolCall(updated);
-      } catch (e) {
-        console.error(
-          `[commentRunner] updateToolCall failed for ${tc.id}:`,
-          e,
-        );
-      }
-    };
-
-    // Comments live "underneath" their task — narrative text and usage are
-    // attributed to the task itself so the timeline stays unified across
-    // executor + comment runs.
-    const onAgentText = (text: string): void => {
-      if (!text || !text.trim()) return;
-      try {
-        const stored = insertAgentText({ taskId: comment.taskId, text });
-        broadcastAgentText(stored);
-      } catch (e) {
-        console.error(`[commentRunner] insertAgentText failed:`, e);
-      }
-    };
-
-    const onClaudeResult = (raw: unknown): void => {
-      // F3: the comment's real spend goes to the task's lifetime cost.
-      const cost = costFromResult(raw, null);
-      if (cost !== null && cost > 0) {
-        try {
-          const t = addTaskCost(comment.taskId, cost);
-          if (t) broadcastTaskUpdated(t);
-        } catch (e) {
-          console.error(`[commentRunner] addTaskCost failed:`, e);
-        }
-      }
-      const usage = parseUsageFromResult(raw);
-      if (!usage) return;
-      updateTaskUsage(comment.taskId, usage)
-        .then((t) => {
-          if (t) broadcastTaskUpdated(t);
-        })
-        .catch((e) => {
-          console.error(`[commentRunner] updateTaskUsage failed:`, e);
-        });
-    };
-
-    let claudeResult = await runClaude({
-      prompt,
-      cwd: projectRepoPath,
-      allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-      outputFormat: "stream-json",
-      onLine: onLogLine,
-      onText: onAgentText,
-      onToolCallStart,
-      onToolCallEnd,
-      onResult: onClaudeResult,
+    const artifacts = listTeamArtifactsByTask(task.id);
+    const lastOf = (kind: TeamArtifactKind) => [...artifacts].reverse().find((a) => a.kind === kind);
+    const qa = lastOf("qa_report");
+    const prompt = buildCommentPrompt(role, {
+      task,
+      project,
+      spec: lastOf("spec")?.body ?? null,
+      qaReport: qa ? { verdict: qa.verdict, body: qa.body } : null,
+      comment: comment.body,
+      uiLang: opts.uiLang,
     });
 
-    if (claudeResult.code !== 0) {
-      const errSnippet = (claudeResult.stderr || claudeResult.stdout).slice(0, 200);
-      const looksLikeFormatError = /unknown.*output[- ]format|stream-json|--verbose/i.test(
-        errSnippet,
-      );
-      if (looksLikeFormatError) {
-        appendCommentLog(
-          comment.id,
-          "[fallback] stream-json mode failed; retrying with text output",
-        );
-        const fresh = getComment(comment.id);
-        if (fresh) broadcastCommentUpdated(fresh);
-        claudeResult = await runClaude({
-          prompt,
-          cwd: projectRepoPath,
-          allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-          onLine: onLogLine,
-        });
-      }
-    }
-
-    if (claudeResult.code !== 0) {
-      throw new Error(
-        `claude CLI exited ${claudeResult.code}:\n` +
-          claudeResult.stderr.slice(0, 500),
-      );
-    }
+    const out = await runRole({
+      taskId: task.id,
+      cwd: projectRepoPath,
+      signal: new AbortController().signal,
+      nodeId: `role:comment:${n}`,
+      nodeType: "developer",
+      prompt,
+      appendSystemPrompt: system.text,
+      model: role.model,
+      advisorModel: role.advisorModel,
+      tools: role.tools,
+      isolate: true,
+      budgetUsd: getTaskEffectiveBudget(task.id),
+      // A comment is its own round: only its own spend counts against the budget.
+      spentBeforeUsd: 0,
+      budgetContext: {
+        taskTitle: task.title,
+        displayId: task.displayId ?? null,
+        projectId: project.id,
+        projectName: project.name,
+      },
+      inputArtifact: { roleId: role.id, round: n, team: team.name, commentId: comment.id },
+      onLogLine: log,
+    });
+    if (out.budgetExceeded) throw new CommentRunError("stuck_budget");
 
     // ── Step 6: commit ────────────────────────────────────────────────────
     const commitMsg = task.displayId

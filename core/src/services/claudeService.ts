@@ -380,6 +380,68 @@ function buildClaudeArgsRaw(options: ClaudeRunOptions): string[] {
   return args;
 }
 
+// ── Process tree kill (zincir E7a, plan §3/29) ─────────────────────────────
+// Each CLI call runs in its own process group (`detached: true`), so an abort
+// reaches the whole tree (tool subprocesses, dev servers) and not only the
+// direct child. Live groups are tracked so a core shutdown does not orphan them.
+
+const DEFAULT_KILL_GRACE_MS = 5000;
+const liveGroups = new Set<number>();
+let shutdownHooked = false;
+
+function killGraceMs(): number {
+  const raw = process.env.CLAUFLOW_KILL_GRACE_MS;
+  const n = raw === undefined || raw.trim() === "" ? Number.NaN : Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_KILL_GRACE_MS;
+}
+
+function signalGroup(pgid: number, sig: NodeJS.Signals | 0): boolean {
+  try {
+    process.kill(-pgid, sig);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Process groups of CLI calls that have not closed yet (test hook). */
+export function liveProcessGroups(): number[] {
+  return [...liveGroups];
+}
+
+/** Signals every live CLI process group (core shutdown). */
+export function killLiveGroups(sig: NodeJS.Signals = "SIGTERM"): void {
+  for (const pgid of liveGroups) signalGroup(pgid, sig);
+}
+
+function hookShutdown(): void {
+  if (shutdownHooked) return;
+  shutdownHooked = true;
+  // `exit` runs synchronously: no grace period is possible, so SIGKILL.
+  process.once("exit", () => killLiveGroups("SIGKILL"));
+  for (const sig of ["SIGINT", "SIGTERM"] as const) {
+    process.once(sig, () => {
+      killLiveGroups("SIGTERM");
+      // Alone, this listener would swallow the signal; re-raise the default.
+      if (process.listenerCount(sig) === 0) process.kill(process.pid, sig);
+    });
+  }
+}
+
+/**
+ * SIGTERM to the child's process group, then SIGKILL after `graceMs` if any
+ * member is still alive (a CLI that ignores SIGTERM, or a grandchild).
+ */
+export function killTree(child: { pid?: number }, graceMs = killGraceMs()): void {
+  const pgid = child.pid;
+  if (!pgid) return;
+  if (!signalGroup(pgid, "SIGTERM")) return;
+  const timer = setTimeout(() => {
+    if (signalGroup(pgid, 0)) signalGroup(pgid, "SIGKILL");
+  }, graceMs);
+  timer.unref();
+}
+
 function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
   const args = buildClaudeArgs(options);
   const isStreamJson = options.outputFormat === "stream-json";
@@ -394,7 +456,14 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
       env,
       // stdin'i kapat — "no stdin data received" uyarısını önler
       stdio: ["ignore", "pipe", "pipe"],
+      // Own process group: abort kills the whole tree (killTree).
+      detached: true,
     });
+    const pgid = child.pid;
+    if (pgid) {
+      hookShutdown();
+      liveGroups.add(pgid);
+    }
 
     let stdout = "";
     let stderr = "";
@@ -412,7 +481,7 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
       : null;
 
     const onAbort = () => {
-      child.kill("SIGTERM");
+      killTree(child);
     };
     if (options.signal) {
       if (options.signal.aborted) onAbort();
@@ -450,10 +519,12 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
     });
 
     child.on("error", (err) => {
+      if (pgid) liveGroups.delete(pgid);
       if (options.signal) options.signal.removeEventListener("abort", onAbort);
       reject(err);
     });
     child.on("close", (code) => {
+      if (pgid) liveGroups.delete(pgid);
       if (options.signal) options.signal.removeEventListener("abort", onAbort);
       if (streamParser) streamParser.flush();
       if (options.onLine) {

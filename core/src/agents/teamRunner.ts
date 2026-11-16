@@ -32,12 +32,12 @@ import type {
   TeamRole,
   TeamRun,
 } from "../types/index.js";
-import { RoleRunError, runRole } from "./roleRunner.js";
+import { RoleRunError, RoleTimeoutError, roleTimeoutMs, runRole } from "./roleRunner.js";
 import { extractSpecAcceptanceCriteria, isStalled, parseQaVerdict } from "./teamArtifacts.js";
 import { buildRolePrompt, buildRoleSystemPrompt, loadRoleSkills } from "./teamPrompts.js";
 import { formatUsd, uiText, type UiLang, type UiText } from "./uiText.js";
 
-export type TeamStopReason = "stalled" | "round_limit" | "budget";
+export type TeamStopReason = "stalled" | "round_limit" | "budget" | "timeout";
 
 interface OutcomeBase {
   run: TeamRun;
@@ -52,7 +52,14 @@ type TeamOutcome =
       qaReport: string | null;
     })
   | (OutcomeBase & { kind: "explored"; summary: string })
-  | (OutcomeBase & { kind: "stuck"; reason: TeamStopReason; reasonText: string; summary: string })
+  | (OutcomeBase & {
+      kind: "stuck";
+      reason: TeamStopReason;
+      reasonText: string;
+      summary: string;
+      /** `agent.error` code when it is not `stuck_<reason>` (E7a: `role_timeout:<kind>`). */
+      code?: string;
+    })
   | (OutcomeBase & { kind: "awaiting_approval" });
 
 interface RunTeamOptions {
@@ -126,7 +133,7 @@ function stashIndex(ref: string): number {
 
 function stopReasonText(
   reason: TeamStopReason,
-  info: { qaMaxRounds: number; spent: number; budget: number | null },
+  info: { qaMaxRounds: number; spent: number; budget: number | null; role?: string; timeoutMs?: number },
   tx: UiText,
 ): string {
   switch (reason) {
@@ -136,6 +143,8 @@ function stopReasonText(
       return tx.stopRoundLimit(info.qaMaxRounds);
     case "budget":
       return tx.stopBudget(info.spent, info.budget ?? 0);
+    case "timeout":
+      return tx.stopTimeout(info.role ?? "?", info.timeoutMs ?? roleTimeoutMs());
   }
 }
 
@@ -257,17 +266,20 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
     return summary;
   };
 
-  const stop = async (reason: TeamStopReason): Promise<TeamOutcome> => {
-    const reasonText = stopReasonText(reason, { qaMaxRounds, spent: current().costUsd, budget }, tx);
+  const stop = async (reason: TeamStopReason, extra: { role?: string; code?: string } = {}): Promise<TeamOutcome> => {
+    const reasonText = stopReasonText(reason, { qaMaxRounds, spent: current().costUsd, budget, role: extra.role }, tx);
     await pushLog(task.id, `✖ Takıldı: ${reasonText}`);
     const summary = finish("stuck", reasonText, reason);
-    return { kind: "stuck", run: current(), reason, reasonText, summary };
+    return { kind: "stuck", run: current(), reason, reasonText, summary, ...(extra.code ? { code: extra.code } : {}) };
   };
+  /** Role being run; names the role in the timeout stop text. */
+  let activeRole: TeamRole | null = null;
 
   try {
     let i = startIndex;
     while (i < roles.length) {
       const role = roles[i]!;
+      activeRole = role;
       if (controller.signal.aborted) throw new RoleRunError("aborted", true);
       if (budget != null && current().costUsd >= budget) return await stop("budget");
 
@@ -427,6 +439,12 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
     await pushLog(task.id, "✓ Ekip teslim etti");
     return { kind: "delivered", run: current(), summary, spec, qaVerdict, qaReport };
   } catch (err) {
+    // E7a: a role that ran out of time ends the run as stuck (wip commit, branch
+    // kept), not as an error (reset --hard would drop the developer's work).
+    // A user abort wins over a timeout.
+    if (err instanceof RoleTimeoutError && !controller.signal.aborted) {
+      return await stop("timeout", { role: activeRole?.name ?? err.roleKind, code: err.message });
+    }
     const aborted = controller.signal.aborted || (err instanceof RoleRunError && err.aborted);
     const message = err instanceof Error ? err.message : String(err);
     try {

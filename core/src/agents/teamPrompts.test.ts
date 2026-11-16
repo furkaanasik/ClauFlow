@@ -6,6 +6,8 @@ import type { SkillCatalogRoots } from "../services/skillCatalogService.js";
 import { defaultRole } from "../services/teamTemplates.js";
 import { ARG_BYTES_LIMIT, buildClaudeArgs } from "../services/claudeService.js";
 import {
+  buildCommentPrompt,
+  buildCommentSystemMarker,
   buildRolePrompt,
   buildRoleSystemPrompt,
   buildSkillSections,
@@ -198,5 +200,51 @@ describe("prompt size guard (A8e)", () => {
 
   it("throws prompt_too_large when there is no block left to shrink", () => {
     expect(() => buildClaudeArgs({ prompt: "y".repeat(200 * 1024), cwd: "/tmp" })).toThrow("prompt_too_large");
+  });
+});
+
+describe("comment round prompt (E7b, plan §3/30)", () => {
+  const dev = defaultRole("developer");
+  const ctx = {
+    task: { title: "Add slugify", description: "slugify helper for titles", analysis: "" },
+    project: { aiPrompt: undefined },
+    spec: "## Şartname\n\n- AC-1: slugify lowercases",
+    qaReport: { verdict: "fail" as const, body: "## QA raporu\n\n- AC-1: ✗\n\nVERDICT: FAIL" },
+    comment: "Please also strip emoji.",
+  };
+
+  it("carries the task, the last spec, the last QA verdict and the feedback tag", () => {
+    const p = buildCommentPrompt(dev, { ...ctx, uiLang: "en" });
+    expect(p).toContain("Title: Add slugify");
+    expect(p).toContain("slugify helper for titles");
+    expect(p).toContain("<specification>\n## Şartname");
+    expect(p).toContain("Last QA verdict: FAIL");
+    expect(p).toContain("VERDICT: FAIL");
+    expect(p).toContain("<user_feedback>\nPlease also strip emoji.\n</user_feedback>");
+    expect(p).toContain(TESTING_INSTRUCTIONS);
+    expect(p).not.toContain("Kullanıcı şu geri bildirimi verdi");
+  });
+
+  it("asks for the reply in the GUI language (English by default)", () => {
+    expect(buildCommentPrompt(dev, { ...ctx, uiLang: "tr" })).toContain("Write any reply in Türkçe.");
+    expect(buildCommentPrompt(dev, { ...ctx, uiLang: "en" })).toContain("Write any reply in English.");
+    expect(buildCommentPrompt(dev, ctx)).toContain("Write any reply in English.");
+  });
+
+  it("leaves out the spec and QA sections when the task has none (Solo)", () => {
+    const p = buildCommentPrompt(dev, { ...ctx, spec: null, qaReport: null });
+    expect(p).not.toContain("<specification>");
+    expect(p).not.toContain("Last QA verdict");
+    expect(p).toContain("<user_feedback>");
+  });
+
+  it("system prompt carries the comment marker instead of the developer role marker", () => {
+    const marker = buildCommentSystemMarker(3);
+    expect(marker).toBe("<!-- clauflow-role: comment round: 3 -->");
+    const { text } = buildRoleSystemPrompt(dev, 3, [], { marker });
+    expect(text.startsWith(marker)).toBe(true);
+    expect(text).not.toContain(roleMarker("developer", 3));
+    expect(text).toContain(dev.instructions);
+    expect(buildRoleSystemPrompt(dev, 2).text.startsWith(roleMarker("developer", 2))).toBe(true);
   });
 });

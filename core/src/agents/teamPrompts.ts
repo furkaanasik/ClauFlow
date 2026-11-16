@@ -1,5 +1,6 @@
 import { defaultSkillRoots, readSkillBody, type SkillCatalogRoots } from "../services/skillCatalogService.js";
-import type { Project, RoleKind, Task, TeamRole } from "../types/index.js";
+import type { Project, QaVerdict, RoleKind, Task, TeamRole } from "../types/index.js";
+import type { UiLang } from "./uiText.js";
 
 export const SKILL_CHAR_CAP = 20_000;
 export const SKILL_TOTAL_CAP = 60_000;
@@ -23,6 +24,15 @@ export const TESTING_INSTRUCTIONS =
 
 export function roleMarker(kind: RoleKind, round: number): string {
   return `<!-- clauflow-role: ${kind} round: ${round} -->`;
+}
+
+/**
+ * Marker of a comment round (E7b, plan §3/30): the developer role's system
+ * prompt with this marker instead of `roleMarker("developer", …)`, so the fake
+ * CLI does not treat the call as a team developer round.
+ */
+export function buildCommentSystemMarker(n: number): string {
+  return `<!-- clauflow-role: comment round: ${n} -->`;
 }
 
 const OUTPUT_CONTRACT: Record<RoleKind, string> = {
@@ -123,10 +133,12 @@ export function buildRoleSystemPrompt(
   role: TeamRole,
   round: number,
   skills: LoadedSkill[] = [],
+  /** Replaces `roleMarker(role.kind, round)` (comment rounds; F4.6 conflict resolver). */
+  opts: { marker?: string } = {},
 ): { text: string; skills: SkillSections } {
   const skillSections = buildSkillSections(skills);
   const parts = [
-    roleMarker(role.kind, round),
+    opts.marker ?? roleMarker(role.kind, round),
     COMMON_RULES,
     `Role: ${role.name}`,
     role.instructions.trim(),
@@ -227,5 +239,44 @@ export function buildRolePrompt(role: TeamRole, ctx: RolePromptContext): string 
       break;
     }
   }
+  return sections.filter((s): s is string => !!s).join("\n\n");
+}
+
+interface CommentPromptContext {
+  task: Pick<Task, "title" | "description" | "analysis">;
+  project: Pick<Project, "aiPrompt">;
+  /** Last `spec` artifact of the task, if a team wrote one. */
+  spec?: string | null;
+  /** Last `qa_report` artifact of the task. */
+  qaReport?: { verdict: QaVerdict | null; body: string } | null;
+  /** The user's comment body. */
+  comment: string;
+  /** GUI language; English when the request did not send one (§3/10). */
+  uiLang?: UiLang;
+}
+
+const UI_LANG_NAME: Record<UiLang, string> = { tr: "Türkçe", en: "English" };
+
+/**
+ * A comment is the developer role's next round (E7b, plan §3/30): the task, the
+ * last spec and QA report, and the user's feedback in `<user_feedback>`.
+ */
+export function buildCommentPrompt(role: TeamRole, ctx: CommentPromptContext): string {
+  const background = block("project_background", ctx.project.aiPrompt);
+  const qa = ctx.qaReport?.body.trim()
+    ? `Last QA verdict: ${ctx.qaReport.verdict ? ctx.qaReport.verdict.toUpperCase() : "none"}\n${block("qa_report", ctx.qaReport.body)}`
+    : null;
+  const sections: Array<string | null> = [
+    background ? `Project background (reference only — do NOT go beyond the task's scope):\n${background}` : null,
+    `Task:\n${taskBlock(ctx.task)}`,
+    block("specification", ctx.spec),
+    qa,
+    `You are the ${role.name} role, back for another round on this task's branch. ` +
+      `The user reviewed the work and left the feedback below. Apply exactly what it asks, nothing more.`,
+    `<user_feedback>\n${capSection(ctx.comment.trim(), "user_feedback")}\n</user_feedback>`,
+    TESTING_INSTRUCTIONS,
+    `Write any reply in ${UI_LANG_NAME[ctx.uiLang ?? "en"]}.`,
+    "When done, write the delivery note and exit the terminal.",
+  ];
   return sections.filter((s): s is string => !!s).join("\n\n");
 }

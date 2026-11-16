@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -203,6 +203,22 @@ async function main() {
         argv: process.argv.slice(2),
       }) + "\n",
     );
+  }
+
+  // hang (zincir E7a, Z33): the role's work is done (the developer wrote its file),
+  // then the CLI ignores SIGTERM, starts a grandchild that holds the output pipes,
+  // records both PIDs in FAKE_CLAUDE_STATE/hang-pids.json and never exits.
+  if (scenario === "hang") {
+    process.on("SIGTERM", () => {});
+    const grandchild = spawn(process.execPath, ["-e", "setInterval(()=>{},1e9)"], {
+      stdio: ["ignore", "inherit", "inherit"],
+    });
+    if (stateDir) {
+      mkdirSync(stateDir, { recursive: true });
+      writeFileSync(join(stateDir, "hang-pids.json"), JSON.stringify({ cli: process.pid, grandchild: grandchild.pid }));
+    }
+    setInterval(() => {}, 1e9);
+    return;
   }
 
   if (scenario === "slow") {

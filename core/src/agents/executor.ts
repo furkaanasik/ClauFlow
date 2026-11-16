@@ -176,7 +176,7 @@ async function returnToBase(
 }
 
 /**
- * Stuck / round limit / budget (plan §3): keep the work as a `wip:` commit on
+ * Stuck / round limit / budget / role timeout (plan §3, §3/29): keep the work as a `wip:` commit on
  * the task branch, return to base without deleting the branch, and hand the
  * task back as todo + error.
  */
@@ -187,6 +187,7 @@ async function stopStuck(
   reason: TeamStopReason,
   reasonText: string,
   summary: string,
+  opts: { code?: string } = {},
 ): Promise<void> {
   const dirty = await gitRun("git", ["status", "--porcelain"], project.repoPath);
   if (dirty.code === 0 && dirty.stdout.trim()) {
@@ -200,7 +201,7 @@ async function stopStuck(
     agent: {
       status: "error",
       currentStep: undefined,
-      error: `stuck_${reason}`,
+      error: opts.code ?? `stuck_${reason}`,
       finishedAt: new Date().toISOString(),
     },
   });
@@ -354,7 +355,9 @@ export async function run(task: Task, project: Project, opts: RunOptions = {}): 
     }
 
     if (outcome.kind === "stuck") {
-      await stopStuck(task, project, branch, outcome.reason, outcome.reasonText, outcome.summary);
+      await stopStuck(task, project, branch, outcome.reason, outcome.reasonText, outcome.summary, {
+        code: outcome.code,
+      });
       return;
     }
 

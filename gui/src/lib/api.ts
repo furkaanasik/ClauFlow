@@ -213,7 +213,7 @@ export const api = {
     fetch(`${BASE}/tasks/${taskId}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body }),
+      body: JSON.stringify({ body, uiLang: uiLang() }),
     })
       .then((r) => handle<{ comment: Comment }>(r))
       .then((d) => d.comment),

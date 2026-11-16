@@ -5,6 +5,7 @@ import { getTask, getProject } from "../services/taskService.js";
 import { runComment } from "../agents/commentRunner.js";
 import { run as gitRun } from "../services/gitService.js";
 import { errorMessage } from "../utils/error.js";
+import { uiLangSchema } from "../agents/uiText.js";
 
 // mergeParams so we can read :id from the parent "/api/tasks/:id/comments" mount.
 const router = Router({ mergeParams: true });
@@ -26,12 +27,12 @@ router.post("/", async (req: Request, res: Response) => {
     if (!taskId) return res.status(400).json({ error: "task_id_required" });
 
     const parsed = z
-      .object({ body: z.string().min(1).max(6000) })
+      .object({ body: z.string().min(1).max(6000), uiLang: uiLangSchema.optional() })
       .safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
     }
-    const { body } = parsed.data;
+    const { body, uiLang } = parsed.data;
 
     const task = await getTask(taskId);
     if (!task) return res.status(404).json({ error: "task_not_found" });
@@ -54,7 +55,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     // Fire-and-forget commentRunner — only when task has a branch + project
     if (project && task.branch) {
-      runComment(comment, project).catch((err) =>
+      runComment(comment, project, { uiLang }).catch((err) =>
         console.error("[commentRunner]", err),
       );
     }

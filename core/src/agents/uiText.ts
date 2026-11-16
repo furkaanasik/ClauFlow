@@ -13,6 +13,16 @@ export function formatUsd(n: number, precision = 2): string {
   return "$" + n.toFixed(precision);
 }
 
+/** Role time limit in stop texts: "20 dk" / "20 min", under a minute in seconds. */
+function formatDuration(ms: number, lang: UiLang): string {
+  if (ms < 60_000) {
+    const s = Math.max(1, Math.round(ms / 1000));
+    return lang === "tr" ? `${s} sn` : `${s} s`;
+  }
+  const m = Math.round(ms / 60_000);
+  return lang === "tr" ? `${m} dk` : `${m} min`;
+}
+
 export interface UiText {
   summaryTitle: string;
   team: string;
@@ -27,6 +37,7 @@ export interface UiText {
   stopStalled: string;
   stopRoundLimit: (max: number) => string;
   stopBudget: (spent: number, budget: number) => string;
+  stopTimeout: (role: string, ms: number) => string;
   roleDidNotRun: string;
   roleBrief: string;
   roleSpec: (acs: number) => string;
@@ -64,6 +75,7 @@ const TR: UiText = {
   stopStalled: "QA arka arkaya iki kez esasen aynı hata listesini döndü",
   stopRoundLimit: (max) => `QA tur sınırına ulaşıldı (${max})`,
   stopBudget: (spent, budget) => `Bütçe aşıldı (${formatUsd(spent)} / ${formatUsd(budget)})`,
+  stopTimeout: (role, ms) => `${role} rolü zaman aşımına uğradı (${formatDuration(ms, "tr")})`,
   roleDidNotRun: "çalışmadı",
   roleBrief: "brief yazdı",
   roleSpec: (acs) => `şartname yazdı${acs ? ` (${acs} kabul kriteri)` : ""}`,
@@ -104,6 +116,7 @@ const EN: UiText = {
   stopStalled: "QA returned essentially the same bug list twice in a row",
   stopRoundLimit: (max) => `QA round limit reached (${max})`,
   stopBudget: (spent, budget) => `Budget exceeded (${formatUsd(spent)} / ${formatUsd(budget)})`,
+  stopTimeout: (role, ms) => `The ${role} role timed out (${formatDuration(ms, "en")})`,
   roleDidNotRun: "did not run",
   roleBrief: "wrote the brief",
   roleSpec: (acs) => `wrote the spec${acs ? ` (${acs} acceptance criteria)` : ""}`,
