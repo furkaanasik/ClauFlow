@@ -244,6 +244,31 @@ describe("conflict resolver service (zincir F4.6, §3/35–40, §5.10)", () => {
     expect(comment.body).toContain("Not resolved (conflict markers left)");
   });
 
+  it("(2b) a recorded rerere resolution is not replayed: the resolver still sees the conflict", async () => {
+    vi.stubEnv("FAKE_CLAUDE_RESOLVE", "leave_markers");
+    const c = await conflictCase();
+    // A user's global rerere with autoupdate, and a resolution already recorded
+    // for exactly this conflict.
+    git(c.repo, "config", "rerere.enabled", "true");
+    git(c.repo, "config", "rerere.autoupdate", "true");
+    git(c.repo, "checkout", "-q", c.branch);
+    try {
+      git(c.repo, "merge", "--no-ff", "--no-commit", "main");
+    } catch {
+      /* the conflict is the point */
+    }
+    writeRepoFile(c.repo, "shared.txt", "line from A\nline from B\n");
+    git(c.repo, "add", "-A");
+    git(c.repo, "commit", "-q", "--no-edit");
+    git(c.repo, "reset", "-q", "--hard", c.pre);
+    git(c.repo, "checkout", "-q", "main");
+
+    await startResolution(c.task.id, { mode: "conflict", trigger: "auto" });
+    // With rerere replayed, the merge would arrive pre-resolved and staged.
+    await expectFailed(c, "markers_left");
+    expect(roleCalls(c, "conflict_resolver")).toHaveLength(1);
+  });
+
   it("(3) qa_fail → conflict_unresolved:qa_fail, the merge commit is undone", async () => {
     vi.stubEnv("FAKE_CLAUDE_RESOLVE", "qa_fail");
     const c = await conflictCase();

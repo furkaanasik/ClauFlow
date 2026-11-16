@@ -619,7 +619,10 @@ async function resolveUnderLock(
   checkAbort();
 
   const ref = task.displayId ?? task.id;
-  const merge = await git(repo, ["merge", "--no-ff", "--no-commit", target]);
+  // rerere off: a user's global `rerere.enabled`/`autoupdate` could replay a
+  // recorded resolution and stage it, hiding the conflict from the resolver
+  // and from the marker checks (§3/38).
+  const merge = await git(repo, ["-c", "rerere.enabled=false", "merge", "--no-ff", "--no-commit", target]);
 
   // ── clean merge: no AI, no QA (§3/39) ─────────────────────────────────
   if (merge.code === 0) {
