@@ -190,6 +190,195 @@ describe("stash endpoints (plan §3/27, §5.9)", () => {
   });
 });
 
+describe("stash files + diff (bakim #6, §3/16–17)", () => {
+  const enc = encodeURIComponent;
+
+  it("GET files: detail of the stash (summary, code files, untracked as U)", async () => {
+    const { project, sha, label } = await stashedProject();
+    const r = await call("GET", `/api/projects/${project.id}/stashes/${sha}/files`);
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({
+      ref: sha,
+      label,
+      summary: { total: 2, code: 2, untracked: 1, deps: 0, build: 0, lockOs: 0 },
+      safeToDrop: false,
+      codeFiles: [
+        { path: "README.md", status: "M", class: "code" },
+        { path: "stray.txt", status: "U", class: "code" },
+      ],
+      lockOsFiles: [],
+      groups: [],
+      truncated: false,
+    });
+    const list = await call("GET", `/api/projects/${project.id}/stashes`);
+    expect(list.json!.stashes[0]).toMatchObject({ summary: { total: 2, code: 2 }, safeToDrop: false });
+  });
+
+  it("GET diff: a tracked file has a diff --git header; an untracked one is a new file", async () => {
+    const { project, sha } = await stashedProject();
+    const tracked = await call("GET", `/api/projects/${project.id}/stashes/${sha}/diff?path=README.md`);
+    expect(tracked.status).toBe(200);
+    expect(tracked.json).toMatchObject({ path: "README.md", status: "M", truncated: false });
+    expect(tracked.json!.diff).toMatch(/^diff --git a\/README\.md b\/README\.md/);
+    expect(tracked.json!.diff).toContain("+# stashed side");
+
+    const untracked = await call("GET", `/api/projects/${project.id}/stashes/${sha}/diff?path=stray.txt`);
+    expect(untracked.status).toBe(200);
+    expect(untracked.json).toMatchObject({ path: "stray.txt", status: "U" });
+    expect(untracked.json!.diff).toContain("new file mode");
+    expect(untracked.json!.diff).toContain("+untracked");
+  });
+
+  it("GET diff: a path not in the stash, .. or an absolute path → 404 stash_file_not_found", async () => {
+    const { project, sha } = await stashedProject();
+    for (const p of ["other.txt", "../README.md", "/etc/passwd", "./README.md", ":(top)README.md"]) {
+      const r = await call("GET", `/api/projects/${project.id}/stashes/${sha}/diff?path=${enc(p)}`);
+      expect(r).toEqual({ status: 404, json: { error: "stash_file_not_found" } });
+    }
+    const missing = await call("GET", `/api/projects/${project.id}/stashes/${sha}/diff`);
+    expect(missing.status).toBe(400);
+  });
+
+  it("a stash without a ClauFlow label is 404 stash_not_found for files and diff", async () => {
+    const { repo, project } = await stashedProject();
+    writeRepoFile(repo, "mine.txt", "user\n");
+    git(repo, "stash", "push", "-u", "-m", "mine");
+    const mine = git(repo, "rev-parse", "stash@{0}");
+    expect(await call("GET", `/api/projects/${project.id}/stashes/${mine}/files`)).toEqual({
+      status: 404,
+      json: { error: "stash_not_found" },
+    });
+    expect(await call("GET", `/api/projects/${project.id}/stashes/${mine}/diff?path=mine.txt`)).toEqual({
+      status: 404,
+      json: { error: "stash_not_found" },
+    });
+  });
+
+  it("GET diff over DIFF_CHAR_CAP is cut and flagged truncated", async () => {
+    const { repo, project } = await stashedProject();
+    writeRepoFile(repo, "big.txt", `${"x".repeat(99)}\n`.repeat(2_500)); // 250 000 chars
+    git(repo, "stash", "push", "-u", "-m", "clauflow-merge-task_big");
+    const big = git(repo, "rev-parse", "stash@{0}");
+    const r = await call("GET", `/api/projects/${project.id}/stashes/${big}/diff?path=big.txt`);
+    expect(r.status).toBe(200);
+    expect(r.json!.truncated).toBe(true);
+    expect(r.json!.diff.length).toBe(200_000);
+  });
+});
+
+describe("POST restore-file (bakim #6, §3/18)", () => {
+  const restoreFile = (projectId: string, sha: string, path: string) =>
+    call("POST", `/api/projects/${projectId}/stashes/${sha}/restore-file`, { path });
+
+  it("a tracked file comes back with the stash's content; the index is untouched and the stash stays", async () => {
+    const { repo, project, sha } = await stashedProject();
+    const r = await restoreFile(project.id, sha, "README.md");
+    expect(r).toEqual({ status: 200, json: { restored: "README.md", branch: "main" } });
+    expect(readFileSync(join(repo, "README.md"), "utf8")).toBe("# stashed side\n");
+    expect(git(repo, "diff", "--cached", "--name-only")).toBe("");
+    expect(git(repo, "status", "--porcelain")).toBe("M README.md");
+    expect(existsSync(join(repo, "stray.txt"))).toBe(false);
+    expect(git(repo, "rev-parse", "stash@{0}")).toBe(sha);
+  });
+
+  it("an untracked file comes back as untracked (??)", async () => {
+    const { repo, project, sha } = await stashedProject();
+    const r = await restoreFile(project.id, sha, "stray.txt");
+    expect(r.status).toBe(200);
+    expect(readFileSync(join(repo, "stray.txt"), "utf8")).toBe("untracked\n");
+    expect(git(repo, "status", "--porcelain")).toBe("?? stray.txt");
+    expect(git(repo, "rev-parse", "stash@{0}")).toBe(sha);
+  });
+
+  it("the same path dirty → 409 worktree_dirty + files; another dirty file does not block it", async () => {
+    const { repo, project, sha } = await stashedProject();
+    writeRepoFile(repo, "README.md", "# my newer edit\n");
+    expect(await restoreFile(project.id, sha, "README.md")).toEqual({
+      status: 409,
+      json: { error: "worktree_dirty", files: ["README.md"] },
+    });
+    expect(readFileSync(join(repo, "README.md"), "utf8")).toBe("# my newer edit\n");
+
+    writeRepoFile(repo, "other.txt", "busy elsewhere\n");
+    const ok = await restoreFile(project.id, sha, "stray.txt");
+    expect(ok.status).toBe(200);
+    expect(readFileSync(join(repo, "stray.txt"), "utf8")).toBe("untracked\n");
+    expect(readFileSync(join(repo, "other.txt"), "utf8")).toBe("busy elsewhere\n");
+  });
+
+  it("a deleted (D) file → 422 stash_file_deleted; an unknown path → 404 stash_file_not_found", async () => {
+    const { repo, project } = await stashedProject();
+    writeRepoFile(repo, "gone.txt", "tracked\n");
+    git(repo, "add", "gone.txt");
+    git(repo, "commit", "-q", "-m", "gone");
+    rmSync(join(repo, "gone.txt"));
+    git(repo, "stash", "push", "-u", "-m", "clauflow-merge-task_del");
+    const del = git(repo, "rev-parse", "stash@{0}");
+    expect(await restoreFile(project.id, del, "gone.txt")).toEqual({
+      status: 422,
+      json: { error: "stash_file_deleted" },
+    });
+    expect(readFileSync(join(repo, "gone.txt"), "utf8")).toBe("tracked\n");
+    expect(await restoreFile(project.id, del, "nope.txt")).toEqual({
+      status: 404,
+      json: { error: "stash_file_not_found" },
+    });
+  });
+
+  it("409 repo_busy while the repo lock is held", async () => {
+    const { repo, project, sha } = await stashedProject();
+    const lease = await acquireRepoLock(repo, { owner: "task:other:tok" });
+    try {
+      expect(await restoreFile(project.id, sha, "README.md")).toEqual({ status: 409, json: { error: "repo_busy" } });
+    } finally {
+      lease.release();
+    }
+    expect(git(repo, "status", "--porcelain")).toBe("");
+  });
+
+  it("a path that collides with a folder (or a file where its folder goes) → 409 stash_conflict, nothing changes", async () => {
+    const { repo, project } = await stashedProject();
+    writeRepoFile(repo, "conf", "file in the stash\n");
+    writeRepoFile(repo, "lib/b.txt", "nested in the stash\n");
+    git(repo, "stash", "push", "-u", "-m", "clauflow-merge-task_df");
+    const df = git(repo, "rev-parse", "stash@{0}");
+    // Base moves on: `conf` becomes a folder, `lib` a file.
+    writeRepoFile(repo, "conf/a.txt", "tracked folder\n");
+    writeRepoFile(repo, "lib", "tracked file\n");
+    git(repo, "add", "-A");
+    git(repo, "commit", "-q", "-m", "d/f");
+    const head = git(repo, "rev-parse", "HEAD");
+
+    expect(await restoreFile(project.id, df, "conf")).toEqual({
+      status: 409,
+      json: { error: "stash_conflict", files: ["conf"] },
+    });
+    expect(await restoreFile(project.id, df, "lib/b.txt")).toEqual({
+      status: 409,
+      json: { error: "stash_conflict", files: ["lib/b.txt"] },
+    });
+    expect(readFileSync(join(repo, "conf", "a.txt"), "utf8")).toBe("tracked folder\n");
+    expect(readFileSync(join(repo, "lib"), "utf8")).toBe("tracked file\n");
+    expect(git(repo, "status", "--porcelain")).toBe("");
+    expect(git(repo, "rev-parse", "HEAD")).toBe(head);
+    expect(git(repo, "rev-parse", "stash@{0}")).toBe(df);
+  });
+
+  it("an ignored copy on disk counts as dirty (it would be overwritten)", async () => {
+    const { repo, project } = await stashedProject();
+    writeRepoFile(repo, "node_modules/x/index.js", "stashed\n");
+    git(repo, "stash", "push", "-u", "-m", "clauflow-merge-task_ign");
+    const ign = git(repo, "rev-parse", "stash@{0}");
+    writeFileSync(join(repo, ".git", "info", "exclude"), "/node_modules/\n");
+    writeRepoFile(repo, "node_modules/x/index.js", "installed later\n");
+    expect(await restoreFile(project.id, ign, "node_modules/x/index.js")).toEqual({
+      status: 409,
+      json: { error: "worktree_dirty", files: ["node_modules/x/index.js"] },
+    });
+    expect(readFileSync(join(repo, "node_modules", "x", "index.js"), "utf8")).toBe("installed later\n");
+  });
+});
+
 describe("stash_created event (plan §3/28, §5.7)", () => {
   it("fires once each for a run, a local merge and a comment in a dirty repo", async () => {
     // Run: a dirty tree is stashed by checkoutBase.

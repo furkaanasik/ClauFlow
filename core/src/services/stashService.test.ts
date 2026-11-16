@@ -13,6 +13,7 @@ import { createComment } from "./commentService.js";
 import { createProject, createTask } from "./taskService.js";
 import {
   dropStash,
+  getStashDetail,
   listClauflowStashes,
   parseStashLabel,
   restoreStash,
@@ -190,5 +191,90 @@ describe("restoreStash / dropStash (§3/27)", () => {
       "clauflow-merge-task_c",
       "clauflow-merge-task_b",
     ]);
+  });
+});
+
+describe("getStashDetail + list summary (bakim #6, §3/14–16)", () => {
+  /** Mixed stash: code, 1 000 untracked node_modules files, a changed lock, a deleted tracked file. */
+  function mixedStash(r: string): string {
+    writeRepoFile(r, "package-lock.json", '{"v":1}\n');
+    writeRepoFile(r, "src/old.ts", "export const old = 1;\n");
+    git(r, "add", "-A");
+    git(r, "commit", "-q", "-m", "base files");
+    writeRepoFile(r, "package-lock.json", '{"v":2}\n');
+    rmSync(join(r, "src", "old.ts"));
+    writeRepoFile(r, "src/app.ts", "export const app = 1;\n");
+    writeRepoFile(r, "README.md", "# edited\n");
+    for (let i = 0; i < 1000; i++) writeRepoFile(r, `node_modules/p${i % 50}/f${i}.js`, `${i}\n`);
+    git(r, "stash", "push", "-u", "-m", "clauflow-merge-task_mixed");
+    return git(r, "rev-parse", "stash@{0}");
+  }
+
+  it("mixed stash: counts, code files incl. the deleted one, one node_modules/ group, not safe", async () => {
+    const r = repo();
+    const sha = mixedStash(r);
+
+    const t0 = Date.now();
+    const d = await getStashDetail(r, sha);
+    const ms = Date.now() - t0;
+    console.log(`[bakim F3/1] 1 000-file stash detail: ${ms} ms`);
+    expect(ms).toBeLessThan(2000);
+
+    expect(d.ref).toBe(sha);
+    expect(d.label).toBe("clauflow-merge-task_mixed");
+    expect(d.summary).toEqual({ total: 1004, deps: 1000, build: 0, lockOs: 1, code: 3, untracked: 1001 });
+    expect(d.safeToDrop).toBe(false);
+    expect(d.codeFiles).toEqual([
+      { path: "README.md", status: "M", class: "code" },
+      { path: "src/app.ts", status: "U", class: "code" },
+      { path: "src/old.ts", status: "D", class: "code" },
+    ]);
+    expect(d.lockOsFiles).toEqual([{ path: "package-lock.json", status: "M", class: "lock_os" }]);
+    expect(d.groups).toHaveLength(1);
+    expect(d.groups[0]).toMatchObject({ root: "node_modules/", class: "deps", count: 1000 });
+    expect(d.groups[0]!.sample.length).toBe(200);
+    expect(d.truncated).toBe(false);
+
+    const [entry] = await listClauflowStashes(r);
+    expect(entry!.summary).toEqual(d.summary);
+    expect(entry!.safeToDrop).toBe(false);
+    expect(entry!.files.length).toBe(20); // kept for compatibility
+  });
+
+  it("only node_modules + .DS_Store → safeToDrop", async () => {
+    const r = repo();
+    for (let i = 0; i < 5; i++) writeRepoFile(r, `node_modules/x/${i}.js`, "x\n");
+    writeRepoFile(r, ".DS_Store", "os\n");
+    git(r, "stash", "push", "-u", "-m", "clauflow-merge-task_safe");
+    const sha = git(r, "rev-parse", "stash@{0}");
+
+    const d = await getStashDetail(r, sha);
+
+    expect(d.summary).toEqual({ total: 6, deps: 5, build: 0, lockOs: 1, code: 0, untracked: 6 });
+    expect(d.safeToDrop).toBe(true);
+    expect(d.codeFiles).toEqual([]);
+    expect((await listClauflowStashes(r))[0]!.safeToDrop).toBe(true);
+  });
+
+  it("a stash without a third parent (tracked changes only) works", async () => {
+    const r = repo();
+    writeRepoFile(r, "README.md", "# tracked only\n");
+    git(r, "stash", "push", "-m", "clauflow-merge-task_tracked");
+    const sha = git(r, "rev-parse", "stash@{0}");
+    expect(() => git(r, "rev-parse", "-q", "--verify", `${sha}^3`)).toThrow();
+
+    const d = await getStashDetail(r, sha);
+
+    expect(d.summary).toEqual({ total: 1, deps: 0, build: 0, lockOs: 0, code: 1, untracked: 0 });
+    expect(d.codeFiles).toEqual([{ path: "README.md", status: "M", class: "code" }]);
+    expect(d.groups).toEqual([]);
+  });
+
+  it("a user's own stash is stash_not_found", async () => {
+    const r = repo();
+    writeRepoFile(r, "mine.txt", "user\n");
+    git(r, "stash", "push", "-u", "-m", "mine");
+    const e = await stashError(getStashDetail(r, git(r, "rev-parse", "stash@{0}")));
+    expect(e.code).toBe("stash_not_found");
   });
 });

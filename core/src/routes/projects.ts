@@ -31,7 +31,15 @@ import {
   projectHasActiveTasks,
   updateProject,
 } from "../services/taskService.js";
-import { dropStash, listClauflowStashes, restoreStash, StashError } from "../services/stashService.js";
+import {
+  dropStash,
+  getStashDetail,
+  getStashFileDiff,
+  listClauflowStashes,
+  restoreStash,
+  restoreStashFile,
+  StashError,
+} from "../services/stashService.js";
 import { createGithubRepo, getRemoteUrl, run } from "../services/gitService.js";
 import { ensureLocalRepo, prepareRepoForGithub } from "../services/repoSetup.js";
 import { runProjectPlanner } from "../agents/projectPlanner.js";
@@ -126,13 +134,20 @@ const stashRefSchema = z.string().regex(/^[0-9a-f]{40}$/i);
 
 function sendStashError(res: Response, err: unknown): Response {
   if (err instanceof StashError) {
-    const status = err.code === "stash_not_found" ? 404 : 409;
-    return res
-      .status(status)
-      .json({ error: err.code, ...(err.code === "stash_conflict" ? { files: err.extra.files ?? [] } : {}) });
+    const status =
+      err.code === "stash_not_found" || err.code === "stash_file_not_found"
+        ? 404
+        : err.code === "stash_file_deleted"
+          ? 422
+          : 409;
+    const withFiles = err.code === "stash_conflict" || (err.code === "worktree_dirty" && err.extra.files);
+    return res.status(status).json({ error: err.code, ...(withFiles ? { files: err.extra.files ?? [] } : {}) });
   }
   return res.status(500).json({ error: errorMessage(err) });
 }
+
+/** A path inside a stash (bakim #6): checked against the stash's own file list. */
+const stashPathSchema = z.string().min(1).max(4096);
 
 router.get("/:id/stashes", async (req: Request, res: Response) => {
   try {
@@ -141,6 +156,47 @@ router.get("/:id/stashes", async (req: Request, res: Response) => {
     res.json({ stashes: await listClauflowStashes(project.repoPath) });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+// bakim #6 (plan §5.4): stash detail, per-file diff and per-file restore.
+router.get("/:id/stashes/:ref/files", async (req: Request, res: Response) => {
+  const ref = stashRefSchema.safeParse(req.params.ref);
+  if (!ref.success) return res.status(400).json({ error: "invalid_body", issues: ref.error.issues });
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    res.json(await getStashDetail(project.repoPath, ref.data.toLowerCase()));
+  } catch (err) {
+    sendStashError(res, err);
+  }
+});
+
+router.get("/:id/stashes/:ref/diff", async (req: Request, res: Response) => {
+  const ref = stashRefSchema.safeParse(req.params.ref);
+  if (!ref.success) return res.status(400).json({ error: "invalid_body", issues: ref.error.issues });
+  const filePath = stashPathSchema.safeParse(req.query.path);
+  if (!filePath.success) return res.status(400).json({ error: "invalid_body", issues: filePath.error.issues });
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    res.json(await getStashFileDiff(project.repoPath, ref.data.toLowerCase(), filePath.data));
+  } catch (err) {
+    sendStashError(res, err);
+  }
+});
+
+router.post("/:id/stashes/:ref/restore-file", async (req: Request, res: Response) => {
+  const ref = stashRefSchema.safeParse(req.params.ref);
+  if (!ref.success) return res.status(400).json({ error: "invalid_body", issues: ref.error.issues });
+  const body = z.object({ path: stashPathSchema }).safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_body", issues: body.error.issues });
+  try {
+    const project = await getProject(req.params.id!);
+    if (!project) return res.status(404).json({ error: "not_found" });
+    res.json(await restoreStashFile(project.repoPath, ref.data.toLowerCase(), body.data.path));
+  } catch (err) {
+    sendStashError(res, err);
   }
 });
 
