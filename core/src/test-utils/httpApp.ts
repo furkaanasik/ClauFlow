@@ -1,6 +1,7 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import express, { type Router } from "express";
+import { JSON_BODY_LIMIT } from "../utils/http.js";
 
 export interface TestServer {
   url: string;
@@ -9,7 +10,7 @@ export interface TestServer {
 
 export async function startTestServer(mounts: Array<[string, Router]>): Promise<TestServer> {
   const app = express();
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
   for (const [path, router] of mounts) app.use(path, router);
   const server = http.createServer(app);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

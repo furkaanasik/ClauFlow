@@ -13,6 +13,8 @@ import {
   updateTask,
 } from "../services/taskService.js";
 import { errorMessage } from "../utils/error.js";
+import { LONG_TEXT_MAX_CHARS } from "../utils/http.js";
+import { SECTION_CHAR_CAP } from "../agents/teamPrompts.js";
 import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import {
   broadcastLog,
@@ -589,7 +591,7 @@ router.get("/:id/team", async (req: Request, res: Response) => {
 });
 
 const approveSchema = z.object({
-  specBody: z.string().trim().min(1).max(100_000).optional(),
+  specBody: z.string().trim().min(1).max(SECTION_CHAR_CAP).optional(),
   uiLang: uiLangSchema.optional(),
 });
 
@@ -633,7 +635,7 @@ router.post("/:id/team/approve", async (req: Request, res: Response) => {
 });
 
 const breakdownSchema = z.object({
-  prompt: z.string().min(1).max(6000),
+  prompt: z.string().min(1).max(LONG_TEXT_MAX_CHARS),
   maxTasks: z.number().int().min(1).max(20).optional(),
   uiLang: uiLangSchema.optional(),
 });

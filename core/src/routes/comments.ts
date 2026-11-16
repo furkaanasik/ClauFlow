@@ -5,6 +5,7 @@ import { getTask, getProject } from "../services/taskService.js";
 import { runComment } from "../agents/commentRunner.js";
 import { run as gitRun } from "../services/gitService.js";
 import { errorMessage } from "../utils/error.js";
+import { LONG_TEXT_MAX_CHARS } from "../utils/http.js";
 import { uiLangSchema } from "../agents/uiText.js";
 import { isConflictResolving } from "../agents/conflictResolver.js";
 
@@ -28,7 +29,7 @@ router.post("/", async (req: Request, res: Response) => {
     if (!taskId) return res.status(400).json({ error: "task_id_required" });
 
     const parsed = z
-      .object({ body: z.string().min(1).max(6000), uiLang: uiLangSchema.optional() })
+      .object({ body: z.string().min(1).max(LONG_TEXT_MAX_CHARS), uiLang: uiLangSchema.optional() })
       .safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });

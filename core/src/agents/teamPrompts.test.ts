@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SkillCatalogRoots } from "../services/skillCatalogService.js";
 import { defaultRole } from "../services/teamTemplates.js";
-import { ARG_BYTES_LIMIT, buildClaudeArgs } from "../services/claudeService.js";
+import { buildClaudeArgs } from "../services/claudeService.js";
 import {
   buildConflictPrompt,
   buildConflictResolutionBlock,
@@ -150,20 +150,19 @@ describe("role -p prompts", () => {
 });
 
 describe("prompt size guard (A8e)", () => {
-  const argvBytes = (args: string[]) => args.reduce((n, a) => n + Buffer.byteLength(a, "utf8") + 1, 0);
-
-  it("a 300 KB specification is capped at 20k characters and the argv stays under 100 KiB", () => {
+  it("a 300 KB specification reaches the prompt intact and stays out of argv", () => {
     const spec = "S".repeat(300_000);
     const role = defaultRole("developer");
     const prompt = buildRolePrompt(role, { task, project: {}, round: 1, solo: false, brief: "B", spec });
-    expect(prompt).toContain(`[specification truncated to ${SECTION_CHAR_CAP} characters]`);
-    expect((prompt.match(/S/g) ?? []).length).toBeLessThan(SECTION_CHAR_CAP + 100);
+    expect(prompt).not.toContain("truncated");
+    expect(prompt).toContain(spec);
     const system = buildRoleSystemPrompt(role, 1, []).text;
     const args = buildClaudeArgs({ prompt, cwd: "/tmp", appendSystemPrompt: system, tools: role.tools });
-    expect(argvBytes(args)).toBeLessThan(ARG_BYTES_LIMIT);
+    expect(args[0]).toBe("-p");
+    expect(args.some((a) => a.includes(spec.slice(0, 1000)))).toBe(false);
   });
 
-  it("caps description, analysis, background, bug list and delivery too", () => {
+  it("still caps description, analysis, background, bug list and delivery past the sanity cap", () => {
     const big = "x".repeat(SECTION_CHAR_CAP + 500);
     const p = buildRolePrompt(defaultRole("developer"), {
       task: { title: "t", description: big, analysis: big },
@@ -181,29 +180,10 @@ describe("prompt size guard (A8e)", () => {
     expect(solo).toContain(`[project_background truncated to ${SECTION_CHAR_CAP} characters]`);
   });
 
-  it("buildClaudeArgs shrinks the largest blocks when capped sections still add up past 100 KiB", () => {
-    const wide = "ç".repeat(SECTION_CHAR_CAP); // 2 bytes per char → 40 KB per section
-    const prompt = buildRolePrompt(defaultRole("developer"), {
-      task: { title: "t", description: wide, analysis: wide },
-      project: { aiPrompt: wide },
-      round: 2,
-      solo: false,
-      brief: wide,
-      spec: wide,
-      bugList: wide,
-      delivery: wide,
-    });
-    expect(Buffer.byteLength(prompt, "utf8")).toBeGreaterThan(200 * 1024);
+  it("buildClaudeArgs never carries the prompt, however large", () => {
+    const prompt = "y".repeat(200 * 1024);
     const args = buildClaudeArgs({ prompt, cwd: "/tmp" });
-    expect(args[0]).toBe("-p");
-    expect(argvBytes(args)).toBeLessThanOrEqual(ARG_BYTES_LIMIT);
-    expect(args[1]).toContain("to fit the CLI argument limit]");
-    expect(args[1]).toContain(TESTING_INSTRUCTIONS);
-    expect(args[1]).toContain("<qa_bug_list>");
-  });
-
-  it("throws prompt_too_large when there is no block left to shrink", () => {
-    expect(() => buildClaudeArgs({ prompt: "y".repeat(200 * 1024), cwd: "/tmp" })).toThrow("prompt_too_large");
+    expect(args).toEqual(["-p", "--permission-mode", "bypassPermissions"]);
   });
 });
 

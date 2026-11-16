@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClaudeArgs, runClaude } from "./claudeService.js";
+import { buildRolePrompt, buildRoleSystemPrompt } from "../agents/teamPrompts.js";
+import { defaultRole } from "./teamTemplates.js";
 
 const FAKE_CLAUDE = fileURLToPath(
   new URL("../agents/__fixtures__/fake-claude.mjs", import.meta.url),
@@ -71,6 +73,35 @@ describe("runClaude role options", () => {
     });
     expect(call!.appendSystemPrompt).toContain("You are QA.");
     expect((call!.argv as string[])[0]).toBe("-p");
+    expect(call!.promptSource).toBe("stdin");
+  });
+
+  it("a 200 KB task description reaches the CLI intact over stdin", async () => {
+    // Multi-byte text, line breaks and argv-hostile characters, well past Linux's 128 KiB MAX_ARG_STRLEN.
+    const line = "## Bölüm — çğıöşü \"quotes\" $HOME `tick` --flag\n";
+    const description = line.repeat(Math.ceil((200 * 1024) / Buffer.byteLength(line, "utf8")));
+    expect(Buffer.byteLength(description, "utf8")).toBeGreaterThan(200 * 1024);
+    const role = defaultRole("developer");
+    const prompt = buildRolePrompt(role, {
+      task: { title: "Design doc", description, analysis: "" },
+      project: {},
+      round: 1,
+      solo: false,
+    });
+    const result = await runClaude({
+      prompt,
+      cwd: dir,
+      appendSystemPrompt: buildRoleSystemPrompt(role, 1, []).text,
+      tools: role.tools,
+      outputFormat: "stream-json",
+      maxRetries: 0,
+    });
+    expect(result.code).toBe(0);
+    const [call] = readCalls(dir);
+    expect(call!.promptSource).toBe("stdin");
+    expect(call!.prompt).toBe(prompt);
+    expect(call!.prompt as string).toContain(description.trim());
+    expect(call!.prompt as string).not.toContain("truncated");
   });
 
   it("leaves legacy callers' arguments unchanged", () => {
@@ -82,7 +113,6 @@ describe("runClaude role options", () => {
     });
     expect(args).toEqual([
       "-p",
-      "legacy",
       "--permission-mode",
       "bypassPermissions",
       "--allowedTools",
@@ -95,11 +125,11 @@ describe("runClaude role options", () => {
 
   it("omits optional role flags when not given", () => {
     const args = buildClaudeArgs({ prompt: "x", cwd: dir, advisorModel: null });
-    expect(args).toEqual(["-p", "x", "--permission-mode", "bypassPermissions"]);
+    expect(args).toEqual(["-p", "--permission-mode", "bypassPermissions"]);
   });
 
   it("an explicit empty tool list disables every tool (--tools \"\")", () => {
     const args = buildClaudeArgs({ prompt: "x", cwd: dir, tools: [] });
-    expect(args).toEqual(["-p", "x", "--permission-mode", "bypassPermissions", "--tools", ""]);
+    expect(args).toEqual(["-p", "--permission-mode", "bypassPermissions", "--tools", ""]);
   });
 });

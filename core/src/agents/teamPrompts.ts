@@ -6,8 +6,13 @@ import { conflictHunks } from "./conflictMarkers.js";
 export const SKILL_CHAR_CAP = 20_000;
 export const SKILL_TOTAL_CAP = 60_000;
 export const DIFF_CHAR_CAP = 30_000;
-/** A8e: every context section (brief, spec, delivery, bug list, analysis, description, project background). */
-export const SECTION_CHAR_CAP = 20_000;
+/**
+ * A8e: every context section (brief, spec, delivery, bug list, analysis,
+ * description, project background, comment feedback). The prompt goes to the
+ * CLI over stdin, so there is no argv limit to fit; this is only a sanity cap
+ * that still lets a whole pasted design doc (100+ KB) through intact.
+ */
+export const SECTION_CHAR_CAP = 400_000;
 
 function capSection(body: string, label: string): string {
   if (body.length <= SECTION_CHAR_CAP) return body;

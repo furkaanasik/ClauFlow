@@ -97,9 +97,9 @@ function writeConflictLine(cwd, rel) {
   writeFileSync(file, [`line from ${currentBranch(cwd)}`, ...rest].join("\n"));
 }
 
+// `-p`/`--print` is a boolean (print mode) like the real CLI; the prompt is the
+// first positional argument, or stdin when there is none (what claudeService sends).
 const VALUE_FLAGS = new Set([
-  "-p",
-  "--print",
   "--permission-mode",
   "--model",
   "--tools",
@@ -140,6 +140,7 @@ const ROTATING_BUGS = [
 function parseArgs(argv) {
   const flags = {};
   const booleans = [];
+  const positionals = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (VALUE_FLAGS.has(a)) {
@@ -147,9 +148,18 @@ function parseArgs(argv) {
       i++;
     } else if (a.startsWith("-")) {
       booleans.push(a);
+    } else {
+      positionals.push(a);
     }
   }
-  return { flags, booleans };
+  return { flags, booleans, positionals };
+}
+
+async function readStdin() {
+  if (process.stdin.isTTY) return "";
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 function readRole(systemPrompt) {
@@ -251,8 +261,9 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
-  const { flags, booleans } = parseArgs(process.argv.slice(2));
-  const prompt = flags["-p"] ?? flags["--print"] ?? "";
+  const { flags, booleans, positionals } = parseArgs(process.argv.slice(2));
+  const promptSource = positionals.length > 0 ? "argv" : "stdin";
+  const prompt = positionals.length > 0 ? positionals[0] : await readStdin();
   const systemPrompt = flags["--append-system-prompt"] ?? null;
   const modelArg = flags["--model"] ?? "sonnet";
   const model = MODEL_IDS[modelArg] ?? modelArg;
@@ -280,6 +291,7 @@ async function main() {
         round,
         scenario,
         prompt,
+        promptSource,
         model: flags["--model"] ?? null,
         tools: flags["--tools"] ?? null,
         allowedTools: flags["--allowedTools"] ?? null,

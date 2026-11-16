@@ -17,6 +17,7 @@ import { recoverAndBroadcastOrphans } from "./services/orphanRecovery.js";
 import { recoverConflictRuns } from "./agents/conflictResolver.js";
 import { auditProjectBaseBranches } from "./services/baseBranch.js";
 import { installChainHooks, sweepWaitingTasks } from "./services/chainService.js";
+import { JSON_BODY_LIMIT } from "./utils/http.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1";
@@ -29,7 +30,7 @@ const ALLOWED_ORIGINS = (
 
 const app = express();
 app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "kanban-core", version: "0.1.0" });

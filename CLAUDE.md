@@ -84,7 +84,7 @@ cd gui && pnpm build
 
 - `core/` uses `npm`, `gui/` uses `pnpm` — never cross them
 - `core/` has vitest tests (`npm test`, fake CLI in `core/src/agents/__fixtures__/fake-claude.mjs`, helpers in `core/src/test-utils/`); add or update tests with core changes. The gui has no test runner
-- **Claude CLI invocation**: `-p <prompt>` must be the first argument; other flags (`--permission-mode`, etc.) come after
+- **Claude CLI invocation**: every call is `claude -p --permission-mode … [flags]` with no positional prompt; the prompt is written to the child's stdin and stdin is closed (`claudeService.runClaude`). Never put the prompt in argv: Linux caps one argument at 128 KiB, and a pasted design doc exceeds that. Context sections are capped at `SECTION_CHAR_CAP` (400 000 chars); comments and breakdown prompts at 500 000; the Express JSON limit is 5 MB (`core/src/utils/http.ts`)
 - `window.confirm` is not used — use `ConfirmDialog` (`gui/src/components/ui/ConfirmDialog.tsx`)
 - Theme: `cream` is the default (`:root` tokens), `night` adds the `html.night` class; the choice is stored in `localStorage.theme` (`gui/src/lib/theme.ts`, `gui/src/hooks/useTheme.ts`)
 - Language preference: `lang` Zustand state → `useTranslation()` hook; new strings go into `tr.ts` + `en.ts` + `types.ts`
