@@ -15,7 +15,9 @@ import { justArrivedDone } from "@/lib/doneBurst";
 import {
   isAgentWorking,
   isAwaitingApproval,
+  isConflictResolved,
   isQueued,
+  isResolvingConflict,
   isWaitingDeps,
   tagDot,
   unmetDeps,
@@ -37,6 +39,9 @@ function showAgentBadge(task: Task): boolean {
   const s = task.agent.status;
   if (s === "idle" || s === "waiting_deps") return false;
   if (task.status === "doing") return true;
+  // zincir F4.6: the resolver runs on a Review card (live pill); its success has its own pill.
+  if (isResolvingConflict(task)) return true;
+  if (isConflictResolved(task)) return false;
   return s === "done" || s === "error";
 }
 
@@ -148,6 +153,8 @@ export function TaskCardView({
   // D1: in review without a PR, the work sits on a local branch (no remote).
   const localBranch = task.status === "review" && Boolean(task.branch) && !task.prNumber;
   const agentPill = showAgentBadge(task);
+  // zincir F4.6 (§3/33): "Conflict resolved — approve again" until the next run or merge.
+  const conflictResolved = isConflictResolved(task);
 
   const hasFooter =
     hasSubtasks ||
@@ -158,6 +165,7 @@ export function TaskCardView({
     openPR ||
     mergedPR ||
     localBranch ||
+    conflictResolved ||
     (agentPill && !working);
 
   const stop = {
@@ -329,6 +337,12 @@ export function TaskCardView({
             {agentPill && !working && (
               <span {...stop}>
                 <AgentBadge agent={task.agent} taskTitle={task.title} taskId={task.id} />
+              </span>
+            )}
+
+            {conflictResolved && (
+              <span data-conflict-resolved {...stop}>
+                <StatusPill status="review">{t.taskCard.conflictResolved}</StatusPill>
               </span>
             )}
 

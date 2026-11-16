@@ -666,6 +666,8 @@ export const en: Translations = {
       updateConfirmTitle: "Update the branch?",
       updateConfirmBody: "The base branch will be merged into this branch. If it conflicts, the AI and one QA round run; the cost is added to the task.",
       abort: "Stop",
+      abortConfirmTitle: "Stop the conflict resolver?",
+      abortConfirmBody: "The AI resolver stops and the branch returns to its state before the resolution. The task stays in Review; restart it with “Resolve with AI”.",
     },
   },
   cloneModal: {
@@ -846,6 +848,7 @@ export const en: Translations = {
     chainBlocked: (blocker, waiting) => `${blocker} has a problem: ${waiting.join(", ")} ${waiting.length === 1 ? "is" : "are"} waiting`,
     conflictUnresolved: (key) => `${key}: conflict not resolved`,
     conflictResolved: (key) => `${key}: conflict resolved, approve again`,
+    branchUpdated: (key) => `${key}: branch cleanly updated with the base (no conflict, QA skipped)`,
   },
   prs: {
     state: {

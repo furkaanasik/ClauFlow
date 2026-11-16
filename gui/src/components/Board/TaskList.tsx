@@ -8,13 +8,16 @@ import { ChainBadge } from "@/components/Card/ChainBadge";
 import { useTranslation } from "@/hooks/useTranslation";
 import {
   COLUMN_STATUSES,
+  conflictFailed,
   isAgentWorking,
+  isConflictResolved,
   isWaitingDeps,
   tagDot,
   taskCost,
   type SubtaskStats,
 } from "@/lib/boardView";
 import { formatRelativeTime, formatUsd } from "@/lib/format";
+import { errorText } from "@/lib/errorText";
 import type { Task } from "@/types";
 
 type SortKey = "key" | "status" | "priority" | "cost" | "updated";
@@ -175,6 +178,15 @@ export function TaskList({ tasks, subtaskStats, keyById }: TaskListProps) {
                       </StatusPill>
                     ) : isWaitingDeps(task) ? (
                       <StatusPill status="todo">{t.taskCard.agentSteps.waiting_deps}</StatusPill>
+                    ) : isConflictResolved(task) ? (
+                      // zincir F4.6: short form of the card's "resolved — approve again" pill.
+                      <span title={t.taskCard.conflictResolved}>
+                        <StatusPill status="review">{t.taskCard.conflictResolved}</StatusPill>
+                      </span>
+                    ) : conflictFailed(task) ? (
+                      <span title={errorText(t, task.agent.error ?? "merge_conflict")}>
+                        <StatusPill status="error">{t.taskCard.agentSteps.error}</StatusPill>
+                      </span>
                     ) : (
                       <StatusPill status={task.status}>{t.board.columns[task.status]}</StatusPill>
                     )}

@@ -101,6 +101,8 @@ export const IconArrowUpRight = (p: IconProps) => <Svg {...p}><path d="M5 11l6-6
 export const IconSort = (p: IconProps) => <Svg {...p}><path d="M5 3v10M2.75 10.75L5 13l2.25-2.25M11 13V3M8.75 5.25L11 3l2.25 2.25" /></Svg>;
 /** zincir: dependency chain (two links); used by the card badge and the drawer's "Waiting on". */
 export const IconChain = (p: IconProps) => <Svg {...p}><path d="M6.5 9.5l3-3" /><path d="M7.25 4.75l1.1-1.1a2.6 2.6 0 0 1 3.7 3.7l-1.1 1.1" /><path d="M8.75 11.25l-1.1 1.1a2.6 2.6 0 0 1-3.7-3.7l1.1-1.1" /></Svg>;
+/** zincir F4.6: merge (base merged into the task branch); the drawer's "Conflict" section. */
+export const IconMerge = (p: IconProps) => <Svg {...p}><circle cx="4.5" cy="3.5" r="1.5" /><circle cx="4.5" cy="12.5" r="1.5" /><circle cx="11.5" cy="10.5" r="1.5" /><path d="M4.5 5v6M4.5 5.5c0 2.75 2.25 5 5.5 5" /></Svg>;
 export const IconLock = (p: IconProps) => <Svg {...p}><rect x="3" y="7" width="10" height="7" rx="1.75" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></Svg>;
 export const IconGithub = ({ size = 16, ...rest }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden focusable="false" {...rest}>

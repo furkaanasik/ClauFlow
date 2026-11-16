@@ -243,7 +243,7 @@ describe("POST /api/tasks/:id/resolve (§3/46, §5.10)", () => {
     expect((await call("PATCH", `/api/tasks/${c.a.id}`, { status: "done" })).status).toBe(200);
     const r = await call("POST", `/api/tasks/${c.task.id}/resolve`, { mode: "update", uiLang: "en" });
     expect(r.status).toBe(202);
-    await untilAgent(c.task.id, "conflict_resolved");
+    await untilAgent(c.task.id, "branch_updated");
     expect(readCalls(c.state)).toEqual([]);
     expect(git(c.repo, "merge-base", "--is-ancestor", "main", c.branchB)).toBe("");
   });

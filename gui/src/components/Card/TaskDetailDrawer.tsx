@@ -24,6 +24,7 @@ import {
   IconCoin,
   IconInfo,
   IconLock,
+  IconMerge,
   IconPencil,
   IconPlay,
   IconPR,
@@ -52,14 +53,27 @@ import { TeamPicker } from "@/components/Team/TeamPicker";
 import { agentStepLabel, teamStepKind } from "@/components/Team/roleMeta";
 import {
   blockerProblem,
+  conflictFailed,
   dependentsOf,
   isAgentWorking,
+  isConflictResolved,
+  isResolvingConflict,
   isWaitingDeps,
   taskCost,
   unmetDeps,
   wouldCycle,
 } from "@/lib/boardView";
-import type { AgentText, Project, Task, TaskPatch, TeamArtifact, ToolCall } from "@/types";
+import type { ConflictStep } from "@/lib/i18n/types";
+import type {
+  AgentText,
+  BaseDrift,
+  ConflictResolveMode,
+  Project,
+  Task,
+  TaskPatch,
+  TeamArtifact,
+  ToolCall,
+} from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
 type DrawerTab = "details" | "changes" | "log" | "team" | "comments";
@@ -153,6 +167,10 @@ export function TaskDetailDrawer() {
   const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
 
   const [teamError, setTeamError] = useState<string | null>(null);
+  // zincir F4.6 (§5.10, §3/46): conflict section — resolver actions and base drift.
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const [resolveBusy, setResolveBusy] = useState<ConflictResolveMode | null>(null);
+  const [drift, setDrift] = useState<BaseDrift | null>(null);
 
   const open = Boolean(selectedTaskId);
 
@@ -190,6 +208,26 @@ export function TaskDetailDrawer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId, wsConnected]);
 
+  // zincir F4.6 (§3/46): "base moved ahead" — read once on open and again on
+  // every task_updated of this task (updatedAt moves); no polling, no fetch.
+  const driftTaskId = liveTask?.id ?? null;
+  const driftable = liveTask?.status === "review" && Boolean(liveTask.branch);
+  const driftStamp = liveTask?.updatedAt ?? "";
+  useEffect(() => {
+    setDrift(null);
+    if (!driftTaskId || !driftable) return;
+    let cancelled = false;
+    api
+      .baseDrift(driftTaskId)
+      .then((d) => {
+        if (!cancelled) setDrift(d);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [driftTaskId, driftable, driftStamp]);
+
   const handleTeamChange = async (teamId: string | null) => {
     if (!task) return;
     setTeamError(null);
@@ -203,7 +241,7 @@ export function TaskDetailDrawer() {
   };
 
   const close = () => {
-    if (confirmDelete || confirmAbort) return; // Esc belongs to the dialog
+    if (confirmDelete || confirmAbort || confirmUpdate) return; // Esc belongs to the dialog
     selectTask(null);
   };
 
@@ -287,6 +325,20 @@ export function TaskDetailDrawer() {
       setError(errorText(tt, err, td.abortFailed));
     } finally {
       setAborting(false);
+    }
+  };
+
+  const doResolve = async (mode: ConflictResolveMode) => {
+    if (!task) return;
+    setConfirmUpdate(false);
+    setResolveBusy(mode);
+    setError(null);
+    try {
+      upsertTask(await api.resolveConflicts(task.id, mode));
+    } catch (err) {
+      setError(errorText(tt, err));
+    } finally {
+      setResolveBusy(null);
     }
   };
 
@@ -378,10 +430,17 @@ export function TaskDetailDrawer() {
   // zincir: waiting for dependencies is neither queued nor a live run.
   const waitingDeps = task.status === "doing" && task.agent.status === "waiting_deps";
   const awaitingApproval = task.status === "doing" && task.agent.status === "awaiting_approval";
+  // zincir F4.6: the conflict resolver works on a Review task (§3/33).
+  const resolvingConflict = isResolvingConflict(task);
+  const failedConflict = conflictFailed(task);
+  const resolvedConflict = isConflictResolved(task);
+  const showDrift = !resolvingConflict && !failedConflict && (drift?.behind ?? 0) > 0;
+  const showConflict = resolvingConflict || failedConflict || resolvedConflict || showDrift;
+  const conflictStep = td.conflict.step[task.agent.currentStep as ConflictStep] ?? td.conflict.resolving;
   const showAgentBadge =
     task.agent.status !== "idle" &&
     !waitingDeps &&
-    (task.status === "doing" || task.agent.status === "error");
+    (task.status === "doing" || task.agent.status === "error" || resolvingConflict);
   const waitingKeys = waitingDeps ? unmetDeps(task, allTasks).map((d) => d.displayId ?? d.title) : [];
   const readyToStart = waitingDeps && waitingKeys.length === 0;
 
@@ -677,6 +736,80 @@ export function TaskDetailDrawer() {
                 </Panel>
               )}
 
+              {showConflict && (
+                <Section n={next()} label={td.conflict.title}>
+                  <div
+                    className="flex flex-col gap-3"
+                    data-conflict-section={
+                      resolvingConflict ? "resolving" : failedConflict ? "failed" : resolvedConflict ? "resolved" : "drift"
+                    }
+                  >
+                    {resolvingConflict && (
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span data-conflict-step>
+                          <StatusPill status="doing" variant="solid" live>
+                            {conflictStep}
+                          </StatusPill>
+                        </span>
+                        <span className="flex-1" />
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          icon={<IconStop size={14} />}
+                          onClick={() => setConfirmAbort(true)}
+                          loading={aborting}
+                        >
+                          {aborting ? td.abortingButton : td.conflict.abort}
+                        </Button>
+                      </div>
+                    )}
+                    {failedConflict && (
+                      <>
+                        <div role="alert" className="ui-banner ui-banner--error">
+                          <IconAlert size={15} className="mt-0.5 shrink-0" />
+                          <span>{errorText(tt, task.agent.error ?? "merge_conflict")}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-ink-2">{td.conflict.failedHint}</p>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<IconRobot size={14} />}
+                            onClick={() => doResolve("conflict")}
+                            loading={resolveBusy === "conflict"}
+                          >
+                            {td.conflict.resolveWithAi}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                    {resolvedConflict && (
+                      <div className="flex flex-col items-start gap-2" data-conflict-resolved-note>
+                        <StatusPill status="review" icon={<IconCheck size={12} />}>
+                          {tt.taskCard.conflictResolved}
+                        </StatusPill>
+                        <p className="text-[13px] leading-relaxed text-ink-2">{td.conflict.resolvedNote}</p>
+                      </div>
+                    )}
+                    {showDrift && drift && (
+                      <div className="ui-banner ui-banner--info items-center" data-base-drift>
+                        <IconMerge size={15} className="shrink-0" />
+                        <span className="min-w-0 flex-1">{td.conflict.baseAhead(drift.behind, drift.base)}</span>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<IconMerge size={14} />}
+                          onClick={() => setConfirmUpdate(true)}
+                          loading={resolveBusy === "update"}
+                        >
+                          {td.conflict.updateBranch}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </Section>
+              )}
+
               {parentTask && (
                 <Section n="↑" label={td.parentLabel}>
                   <TaskLinkRow task={parentTask} t={tt} onOpen={() => selectTask(parentTask.id)} />
@@ -913,13 +1046,24 @@ export function TaskDetailDrawer() {
 
       <ConfirmDialog
         open={confirmAbort}
-        title={td.confirmAbort.title}
-        description={td.confirmAbort.description}
+        title={resolvingConflict ? td.conflict.abortConfirmTitle : td.confirmAbort.title}
+        description={resolvingConflict ? td.conflict.abortConfirmBody : td.confirmAbort.description}
         confirmLabel={td.confirmAbort.confirm}
         cancelLabel={td.confirmDelete.cancel}
         variant="danger"
         onConfirm={doAbort}
         onCancel={() => setConfirmAbort(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmUpdate}
+        title={td.conflict.updateConfirmTitle}
+        description={td.conflict.updateConfirmBody}
+        confirmLabel={td.conflict.updateBranch}
+        cancelLabel={td.confirmDelete.cancel}
+        variant="default"
+        onConfirm={() => doResolve("update")}
+        onCancel={() => setConfirmUpdate(false)}
       />
     </>
   );

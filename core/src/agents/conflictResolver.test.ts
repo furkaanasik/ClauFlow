@@ -312,7 +312,7 @@ describe("conflict resolver service (zincir F4.6, §3/35–40, §5.10)", () => {
 
     const t = (await getTask(c.task.id))!;
     expect(t.status).toBe("review");
-    expect(t.agent).toMatchObject({ status: "done", currentStep: "conflict_resolved", error: null });
+    expect(t.agent).toMatchObject({ status: "done", currentStep: "branch_updated", error: null });
     expect(readCalls(c.state)).toHaveLength(0);
     execFileSync("git", ["merge-base", "--is-ancestor", "main", c.branch], { cwd: c.repo });
     expect(git(c.repo, "rev-list", "--parents", "-n", "1", c.branch).split(" ")).toHaveLength(3);

@@ -667,6 +667,8 @@ export const tr: Translations = {
       updateConfirmTitle: "Dal güncellensin mi?",
       updateConfirmBody: "Ana dal bu dala birleştirilecek. Çakışma çıkarsa AI ve bir QA turu koşar; maliyet göreve eklenir.",
       abort: "Durdur",
+      abortConfirmTitle: "Çakışma çözücü durdurulsun mu?",
+      abortConfirmBody: "AI çözücü durdurulacak ve dal çözümden önceki hâline dönecek. Görev İncelemede kalır; “AI ile çöz” ile yeniden başlatabilirsin.",
     },
   },
   cloneModal: {
@@ -847,6 +849,7 @@ export const tr: Translations = {
     chainBlocked: (blocker, waiting) => `${blocker} sorunlu: ${waiting.join(", ")} bekliyor`,
     conflictUnresolved: (key) => `${key}: çakışma çözülemedi`,
     conflictResolved: (key) => `${key}: çakışma çözüldü, tekrar onayla`,
+    branchUpdated: (key) => `${key}: dal ana dalla temiz güncellendi (çakışma yoktu, QA atlandı)`,
   },
   prs: {
     state: {

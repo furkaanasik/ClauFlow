@@ -54,6 +54,7 @@ import {
   COLUMN_STATUSES,
   applyManualOrder,
   isAgentWorking,
+  isConflictResolved,
   loadManualOrder,
   readyWaiting,
   startsOnMerge,
@@ -288,7 +289,16 @@ export function Board() {
       }
       if (to === "done") toast.success(doneToast(t, before));
     } catch (err) {
-      toast.error(moveErrorText(t, err), apiErrorCode(err) === "merge_conflict" ? 10_000 : 5_000);
+      const code = apiErrorCode(err);
+      // zincir F4.6 (§3/43): the conflict started the AI resolver; the card shows the rest.
+      // `resolving: false` (a previous resolver run failed) falls through: the
+      // merge_conflict text points to "Resolve with AI" in the drawer.
+      const body = err instanceof ApiError ? (err.body as { resolving?: unknown } | null) : null;
+      if (code === "merge_conflict" && body?.resolving === true) {
+        toast.info(t.board.conflictResolving(before?.displayId ?? before?.title ?? taskId), 6_000);
+        return;
+      }
+      toast.error(moveErrorText(t, err), code === "merge_conflict" ? 10_000 : 5_000);
     }
   };
 
@@ -584,6 +594,8 @@ export function Board() {
           if (local && gitStatus?.isDirty) lines.push(mc.dirty);
           const starts = startsOnMerge(mergeTask.id, tasks);
           if (starts.length > 0) lines.push(mc.starts(starts.length, starts.map((x) => x.displayId ?? x.title)));
+          // zincir F4.6 (§3/44): approving again after the AI resolved the conflict.
+          if (isConflictResolved(mergeTask)) lines.push(mc.resolved);
         }
         return (
           <ConfirmDialog

@@ -578,6 +578,9 @@ export interface Translations {
       updateConfirmTitle: string;
       updateConfirmBody: string;
       abort: string;
+      /** Stop confirmation: the resolver's abort keeps the task in Review (not the run's "back to To do"). */
+      abortConfirmTitle: string;
+      abortConfirmBody: string;
     };
   };
   cloneModal: {
@@ -843,6 +846,7 @@ export interface Translations {
     /** zincir F4.6 (§3/43): resolver run ended (once per run). */
     conflictUnresolved: (key: string) => string;
     conflictResolved: (key: string) => string;
+    branchUpdated: (key: string) => string;
   };
   prs: {
     state: {

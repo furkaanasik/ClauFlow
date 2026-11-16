@@ -439,7 +439,7 @@ function classify(err: unknown, signal: AbortSignal): ConflictReason {
  * lock (FIFO, abortable) → backup ref → [dirty → `clauflow-resolve-<id>`
  * stash] → checkout branch → [remote → fetch origin <base>] → `merge --no-ff
  * --no-commit <target>`:
- * - clean: commit, [push], back to base, `done`/`conflict_resolved`, no AI, no QA (§3/39);
+ * - clean: commit, [push], back to base, `done`/`branch_updated`, no AI, no QA (§3/39);
  * - conflict: [binary / delete-modify → `unsupported`] → resolver role →
  *   verification (§3/38) → commit → one QA round → PASS → [push] → back to
  *   base → `done`/`conflict_resolved` + summary comment.
@@ -492,10 +492,13 @@ export async function startResolution(taskId: string, opts: ResolutionOptions): 
     }
     handle.phase = "running";
     await resolveUnderLock(taskId, project, opts, rec, signal, log);
+    // A clean merge ran no AI and no QA (§3/39): it ends as `branch_updated`, so
+    // the GUI does not claim "conflict resolved; QA: PASS" (F4.6 decision, §10).
+    const endStep = rec.clean ? "branch_updated" : "conflict_resolved";
     const final = await updateTask(taskId, {
-      agent: { status: "done", currentStep: "conflict_resolved", error: null, finishedAt: new Date().toISOString() },
+      agent: { status: "done", currentStep: endStep, error: null, finishedAt: new Date().toISOString() },
     });
-    broadcastStatus(taskId, "done", "conflict_resolved");
+    broadcastStatus(taskId, "done", endStep);
     broadcastTaskUpdated(final);
     await log(rec.clean ? "✓ Ana dal temiz birleşti (QA atlandı)" : "✓ Çakışma çözüldü; tekrar onay bekleniyor");
     postComment(

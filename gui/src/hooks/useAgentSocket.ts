@@ -41,6 +41,48 @@ function notifyChainBlocked(prev: Task | undefined, t: Task) {
   );
 }
 
+/** zincir F4.6 (§3/43): one notice per resolver run end (`${taskId}:${finishedAt}`). */
+const conflictNotified = new Set<string>();
+/**
+ * Tasks seen in `resolving_conflict`. `agent_status` arrives before the final
+ * `task_updated` and already flips the stored copy to done/error, so the
+ * previous copy alone would miss the transition.
+ */
+const resolvingSeen = new Set<string>();
+
+/** zincir F4.6 (§3/43): the AI conflict resolver finished (no extra WS event, §3/12 pattern). */
+function notifyConflictEnd(prev: Task | undefined, t: Task) {
+  if (t.agent.status === "resolving_conflict") {
+    resolvingSeen.add(t.id);
+    return;
+  }
+  const wasResolving = prev?.agent.status === "resolving_conflict" || resolvingSeen.has(t.id);
+  if (!wasResolving) return;
+  resolvingSeen.delete(t.id);
+  const failed = t.agent.status === "error";
+  const resolved = t.agent.status === "done" && t.agent.currentStep === "conflict_resolved";
+  // A clean merge (no AI, no QA, §3/39) ends as `branch_updated`.
+  const updated = t.agent.status === "done" && t.agent.currentStep === "branch_updated";
+  if (!failed && !resolved && !updated) return;
+  const once = `${t.id}:${t.agent.finishedAt ?? ""}`;
+  if (conflictNotified.has(once)) return;
+  conflictNotified.add(once);
+  const s = uiStrings();
+  const key = t.displayId ?? t.title;
+  const { projects, selectedProjectId } = useBoardStore.getState();
+  const name = t.projectId === selectedProjectId ? null : (projects.find((p) => p.id === t.projectId)?.name ?? null);
+  const withProject = (message: string) => (name ? `${name}: ${message}` : message);
+  if (failed) {
+    const reason = t.agent.error ? errorText(s, t.agent.error) : s.notifications.taskErrorBody;
+    useNotificationStore.getState().notify(s.notifications.conflictUnresolved(key), reason);
+    useToastStore.getState().push("error", withProject(s.notifications.runFailedToast(key, reason)), 8000);
+  } else if (updated) {
+    useToastStore.getState().push("success", withProject(s.notifications.branchUpdated(key)), 6000);
+  } else {
+    useToastStore.getState().push("success", withProject(s.notifications.conflictResolved(key)), 6000);
+  }
+}
+
 /** Toast for a live planner/budget event. Names the project when it isn't the open one. */
 function plannerToast(projectId: string, type: "success" | "error", message: string, fallbackName?: string) {
   const { projects, selectedProjectId } = useBoardStore.getState();
@@ -127,6 +169,7 @@ export function useAgentSocket(url?: string) {
               const prev: Task | undefined = useBoardStore.getState().tasks[t.id];
               upsertTask(t);
               notifyChainBlocked(prev, t);
+              notifyConflictEnd(prev, t);
               if (t.agent.status === "idle" && t.status === "doing") {
                 useBoardStore.getState().clearBudgetExceeded(t.id);
               }
@@ -166,6 +209,11 @@ export function useAgentSocket(url?: string) {
             }
             case "agent_status": {
               const m = msg as Extract<WsMessage, { type: "agent_status" }>;
+              // zincir F4.6: remember a running resolver before this frame overwrites it.
+              if (m.payload.status === "resolving_conflict" ||
+                  useBoardStore.getState().tasks[m.taskId]?.agent.status === "resolving_conflict") {
+                resolvingSeen.add(m.taskId);
+              }
               setAgentStatus(m.taskId, m.payload);
               break;
             }
