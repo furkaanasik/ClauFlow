@@ -23,11 +23,13 @@ function normalizeClonePath(raw: string): string {
   return resolved.length > 1 ? resolved.replace(/\/+$/, "") : resolved;
 }
 
+import { removeTaskAttachmentDir } from "../services/attachmentService.js";
 import {
   createProject,
   deleteProject,
   getProject,
   listProjects,
+  listTasks,
   projectHasActiveTasks,
   updateProject,
 } from "../services/taskService.js";
@@ -464,7 +466,10 @@ router.delete("/:id", async (req: Request, res: Response) => {
     const existing = await getProject(id);
     if (!existing) return res.status(404).json({ error: "not_found" });
 
+    // bakim #8 (§3/33): collect the task ids first; their attachment files go after the rows.
+    const taskIds = (await listTasks(id)).map((t) => t.id);
     await deleteProject(id);
+    for (const taskId of taskIds) removeTaskAttachmentDir(taskId);
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });

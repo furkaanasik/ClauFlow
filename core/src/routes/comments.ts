@@ -1,7 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { createComment, getComments } from "../services/commentService.js";
-import { getTask, getProject } from "../services/taskService.js";
+import { db, getTask, getProject } from "../services/taskService.js";
+import { linkPendingToComment, MAX_ATTACHMENTS_PER_TASK, toMeta } from "../services/attachmentService.js";
+import { sendAttachmentError } from "./attachments.js";
+import { broadcastTaskUpdated } from "../services/wsService.js";
 import { runComment } from "../agents/commentRunner.js";
 import { run as gitRun } from "../services/gitService.js";
 import { errorMessage } from "../utils/error.js";
@@ -29,12 +32,17 @@ router.post("/", async (req: Request, res: Response) => {
     if (!taskId) return res.status(400).json({ error: "task_id_required" });
 
     const parsed = z
-      .object({ body: z.string().min(1).max(LONG_TEXT_MAX_CHARS), uiLang: uiLangSchema.optional() })
+      .object({
+        body: z.string().min(1).max(LONG_TEXT_MAX_CHARS),
+        uiLang: uiLangSchema.optional(),
+        // bakim #8 (§3/26): drafts uploaded with ?pending=1, linked before the runner starts.
+        attachmentIds: z.array(z.string().min(1).max(64)).max(MAX_ATTACHMENTS_PER_TASK).optional(),
+      })
       .safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.flatten() });
     }
-    const { body, uiLang } = parsed.data;
+    const { body, uiLang, attachmentIds } = parsed.data;
 
     const task = await getTask(taskId);
     if (!task) return res.status(404).json({ error: "task_not_found" });
@@ -54,8 +62,23 @@ router.post("/", async (req: Request, res: Response) => {
       if (!exists) return res.status(409).json({ error: "no_branch" });
     }
 
-    const comment = createComment(task.id, body.trim());
-    res.status(201).json({ comment });
+    // The comment and its images are one step: a bad id creates no comment.
+    let created;
+    try {
+      created = db.transaction(() => {
+        const c = createComment(task.id, body.trim());
+        const linked = attachmentIds?.length ? linkPendingToComment(task.id, attachmentIds, c.id) : [];
+        return { comment: c, linked };
+      })();
+    } catch (err) {
+      return sendAttachmentError(res, err);
+    }
+    const { comment, linked } = created;
+    res.status(201).json({ comment, attachments: linked.map(toMeta) });
+    if (linked.length > 0) {
+      const fresh = await getTask(task.id);
+      if (fresh) broadcastTaskUpdated(fresh);
+    }
 
     // Fire-and-forget commentRunner — only when task has a branch + project
     if (project && task.branch) {

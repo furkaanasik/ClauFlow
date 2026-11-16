@@ -8,6 +8,7 @@ import projectsClaudeRouter from "./routes/projectsClaude.js";
 import authRouter from "./routes/auth.js";
 import githubRouter from "./routes/github.js";
 import commentsRouter from "./routes/comments.js";
+import attachmentsRouter from "./routes/attachments.js";
 import pricingRouter from "./routes/pricing.js";
 import systemRouter from "./routes/system.js";
 import insightsRouter from "./routes/insights.js";
@@ -38,6 +39,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/tasks", tasksRouter);
 app.use("/api/tasks/:id/comments", commentsRouter);
+app.use("/api/attachments", attachmentsRouter);
 app.use("/api/teams", teamsRouter);
 app.use("/api/projects", projectsClaudeRouter);
 app.use("/api/projects", projectsRouter);

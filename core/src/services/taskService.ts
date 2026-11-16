@@ -15,6 +15,7 @@ import {
   type TaskPriority,
   type TaskStatus,
   type TaskUsage,
+  type TaskAttachmentMeta,
   type TasksFile,
   type ToolCall,
   type ToolCallStatus,
@@ -518,7 +519,55 @@ function depsByTask(edges: Array<{ taskId: string; dependsOnId: string }>): Map<
   return map;
 }
 
-function rowToTask(row: TaskRow, dependsOn?: string[]): Task {
+// bakim #8 (§5.6): attachments ride on the task payload like `dependsOn`
+// (comment drafts, `pending = 1`, are never shown). List reads load them once.
+interface AttachmentMetaRow {
+  id: string;
+  taskId: string;
+  commentId: string | null;
+  mime: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  name: string | null;
+  createdAt: string;
+}
+const ATT_COLS = `a.id, a.taskId, a.commentId, a.mime, a.bytes, a.width, a.height, a.name, a.createdAt`;
+const stmtAttsOfTask = db.prepare(
+  `SELECT ${ATT_COLS} FROM task_attachments a WHERE a.taskId = ? AND a.pending = 0 ORDER BY a.createdAt ASC, a.rowid ASC`,
+);
+const stmtAttsOfProject = db.prepare(
+  `SELECT ${ATT_COLS} FROM task_attachments a JOIN tasks t ON t.id = a.taskId
+    WHERE t.projectId = ? AND a.pending = 0 ORDER BY a.createdAt ASC, a.rowid ASC`,
+);
+const stmtAttsAll = db.prepare(
+  `SELECT ${ATT_COLS} FROM task_attachments a WHERE a.pending = 0 ORDER BY a.createdAt ASC, a.rowid ASC`,
+);
+
+function attachmentMeta(r: AttachmentMetaRow): TaskAttachmentMeta {
+  return {
+    id: r.id,
+    commentId: r.commentId ?? null,
+    mime: r.mime,
+    bytes: r.bytes,
+    width: r.width ?? null,
+    height: r.height ?? null,
+    name: r.name ?? null,
+    createdAt: r.createdAt,
+  };
+}
+
+function attsByTask(rows: AttachmentMetaRow[]): Map<string, TaskAttachmentMeta[]> {
+  const map = new Map<string, TaskAttachmentMeta[]>();
+  for (const r of rows) {
+    const list = map.get(r.taskId);
+    if (list) list.push(attachmentMeta(r));
+    else map.set(r.taskId, [attachmentMeta(r)]);
+  }
+  return map;
+}
+
+function rowToTask(row: TaskRow, dependsOn?: string[], attachments?: TaskAttachmentMeta[]): Task {
   const agent: AgentState = {
     status: row.agentStatus as AgentState["status"],
     currentStep: row.agentCurrentStep ?? undefined,
@@ -556,6 +605,7 @@ function rowToTask(row: TaskRow, dependsOn?: string[]): Task {
     costUsd: row.costUsd ?? 0,
     dependsOn:
       dependsOn ?? (stmtDepsOfTask.all(row.id) as { id: string }[]).map((r) => r.id),
+    attachments: attachments ?? (stmtAttsOfTask.all(row.id) as AttachmentMetaRow[]).map(attachmentMeta),
   };
 }
 
@@ -831,11 +881,13 @@ export async function listTasks(projectId?: string): Promise<Task[]> {
   if (projectId) {
     const rows = stmtListTasksByProject.all(projectId) as TaskRow[];
     const deps = depsByTask(stmtDepsOfProject.all(projectId) as { taskId: string; dependsOnId: string }[]);
-    return rows.map((r) => rowToTask(r, deps.get(r.id) ?? []));
+    const atts = attsByTask(stmtAttsOfProject.all(projectId) as AttachmentMetaRow[]);
+    return rows.map((r) => rowToTask(r, deps.get(r.id) ?? [], atts.get(r.id) ?? []));
   }
   const rows = stmtListTasks.all() as TaskRow[];
   const deps = depsByTask(stmtDepsAll.all() as { taskId: string; dependsOnId: string }[]);
-  return rows.map((r) => rowToTask(r, deps.get(r.id) ?? []));
+  const atts = attsByTask(stmtAttsAll.all() as AttachmentMetaRow[]);
+  return rows.map((r) => rowToTask(r, deps.get(r.id) ?? [], atts.get(r.id) ?? []));
 }
 
 export async function getTask(id: string): Promise<Task | null> {
