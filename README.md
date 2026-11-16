@@ -264,6 +264,8 @@ Endpoints behind task chains, the conflict resolver and stashes (all under `/api
 
 Images are tokens. One image costs about `width × height / 750` input tokens; the API scales anything larger than about 1.15 megapixels down first, so one image tops out near **1 600 tokens** whatever its file size. Every role call is a separate session, so **every role reads every image again**: a Software Team run with two QA rounds is 6 calls (CEO, Analyst, Developer ×2, QA ×2). Eight full-size images there come to about 77k input tokens, roughly **$0.48** at the default team's models (Claude Code bills the image context as a cache write; at the plain input price it is $0.38). One full-size image is about $0.006 per Sonnet call and $0.03 per Opus call. A comment run is one call, the conflict resolver two. Crop a screenshot to the part that matters.
 
+Measured on a real run: a Software Team task with one 640×360 screenshot ("make the button look like this", one QA round) took 80 s and $0.47 for the whole run, and all four roles opened the image with `Read`. A follow-up comment with a second screenshot took 10 s and $0.08. At this size an image is about 300 tokens per call, a small share next to the role prompts and repository context.
+
 For the deeper tour (data flow, WS event shapes, conventions) see [`CLAUDE.md`](CLAUDE.md).
 
 ---
