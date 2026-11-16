@@ -1,4 +1,4 @@
-import { commitAll, run as gitRun } from "../services/gitService.js";
+import { commitAll, run as gitRun, shieldNoiseDirs } from "../services/gitService.js";
 import type { SkillCatalogRoots } from "../services/skillCatalogService.js";
 import {
   appendAgentLog,
@@ -376,6 +376,10 @@ export async function runTeam(opts: RunTeamOptions): Promise<TeamOutcome> {
         delivery = artifactBase.body;
         addArtifact({ ...artifactBase, commitSha });
       } else {
+        // Shield (§3/10): a role's `npm install` is excluded locally instead of
+        // going into the discard stash (which `dropRunStashes` deletes).
+        const shielded = await shieldNoiseDirs(repo);
+        if (shielded.length > 0) await pushLog(task.id, `[kanban] ignored locally: ${shielded.join(" ")}`);
         const dirty = await gitRun("git", ["status", "--porcelain"], repo);
         if (dirty.code === 0 && dirty.stdout.trim()) {
           const label = `clauflow-discard-${runId}-${role.kind}-${round}`;

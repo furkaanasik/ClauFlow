@@ -16,26 +16,6 @@ function isGitRepo(repoPath: string): boolean {
   return fs.existsSync(path.join(path.resolve(expandHome(repoPath)), ".git"));
 }
 
-async function ensureLocalRepo(repoPath: string, branch: string, name: string): Promise<void> {
-  fs.mkdirSync(repoPath, { recursive: true });
-  if (fs.existsSync(path.join(repoPath, ".git"))) return;
-
-  const init = await initRepo(repoPath, branch);
-  if (init.code !== 0) {
-    throw new Error(`git init failed: ${init.stderr || init.stdout}`);
-  }
-
-  const readmePath = path.join(repoPath, "README.md");
-  if (!fs.existsSync(readmePath)) {
-    fs.writeFileSync(readmePath, `# ${name}\n`);
-  }
-
-  const commit = await commitAll(repoPath, "chore: initial commit");
-  if (commit.code !== 0) {
-    throw new Error(`initial commit failed: ${commit.stderr || commit.stdout}`);
-  }
-}
-
 function normalizeClonePath(raw: string): string {
   const expanded = expandHome(raw.trim());
   if (!path.isAbsolute(expanded)) return expanded;
@@ -52,13 +32,8 @@ import {
   updateProject,
 } from "../services/taskService.js";
 import { dropStash, listClauflowStashes, restoreStash, StashError } from "../services/stashService.js";
-import {
-  initRepo,
-  createGithubRepo,
-  getRemoteUrl,
-  commitAll,
-  run,
-} from "../services/gitService.js";
+import { createGithubRepo, getRemoteUrl, run } from "../services/gitService.js";
+import { ensureLocalRepo, prepareRepoForGithub } from "../services/repoSetup.js";
 import { runProjectPlanner } from "../agents/projectPlanner.js";
 import { assertTeamUsableByProject, TeamServiceError } from "../services/teamService.js";
 import { runCloneRepo } from "../agents/cloneRunner.js";
@@ -242,26 +217,7 @@ router.post("/", async (req: Request, res: Response) => {
       const repoName = data.repoName ?? data.name;
       const isPrivate = data.isPrivate ?? true;
       try {
-        if (!fs.existsSync(data.repoPath)) {
-          fs.mkdirSync(data.repoPath, { recursive: true });
-        }
-
-        if (!fs.existsSync(path.join(data.repoPath, ".git"))) {
-          const init = await initRepo(data.repoPath);
-          if (init.code !== 0) {
-            throw new Error(`git init failed: ${init.stderr || init.stdout}`);
-          }
-        }
-
-        const readmePath = path.join(data.repoPath, "README.md");
-        if (!fs.existsSync(readmePath)) {
-          fs.writeFileSync(readmePath, `# ${data.name}\n`);
-        }
-
-        const commit = await commitAll(data.repoPath, "chore: initial commit");
-        if (commit.code !== 0 && !/nothing to commit/i.test(commit.stdout + commit.stderr)) {
-          throw new Error(`initial commit failed: ${commit.stderr || commit.stdout}`);
-        }
+        await prepareRepoForGithub(data.repoPath, data.name);
 
         const created = await createGithubRepo(data.repoPath, repoName, isPrivate);
         if (created.code !== 0) {

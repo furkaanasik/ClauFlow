@@ -1,4 +1,10 @@
-import { run as gitRun, commitAll, ensureGhCredentials, pushBranch } from "../services/gitService.js";
+import {
+  run as gitRun,
+  commitAll,
+  ensureGhCredentials,
+  pushBranch,
+  shieldNoiseDirs,
+} from "../services/gitService.js";
 import { acquireRepoLock } from "../services/repoLock.js";
 import { runRole } from "./roleRunner.js";
 import {
@@ -59,6 +65,8 @@ async function returnToBase(
 ): Promise<void> {
   const repo = project.repoPath;
   try {
+    // Shield (§3/10): dependency/build folders are excluded, not stashed.
+    await shieldNoiseDirs(repo);
     const dirty = await gitRun("git", ["status", "--porcelain"], repo);
     if (dirty.code === 0 && dirty.stdout.trim()) {
       const label = `clauflow-comment-${comment.id}`;

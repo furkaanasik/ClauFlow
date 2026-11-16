@@ -23,6 +23,7 @@ import {
   GhMissingError,
   pushBranch,
   run as gitRun,
+  shieldNoiseDirs,
   type RunResult,
 } from "../services/gitService.js";
 import { acquireRepoLock, type RepoLease } from "../services/repoLock.js";
@@ -588,6 +589,7 @@ async function resolveUnderLock(
   rec.pre = pre;
 
   // ── a dirty tree goes aside first (E6 family) ──────────────────────────
+  await shieldNoiseDirs(repo); // §3/10: node_modules/ & co. stay, excluded locally
   const dirty = await git(repo, ["status", "--porcelain"]);
   if (dirty.code === 0 && dirty.stdout.trim()) {
     const label = resolveStashLabel(taskId);
@@ -731,6 +733,7 @@ async function resolveUnderLock(
   const check = await git(repo, ["diff", "--check"]);
   const leftover = parseDiffCheck(check.stdout);
   if (leftover.length > 0) throw new ResolveFailure("markers_left", `git diff --check: ${leftover[0]}`);
+  await shieldNoiseDirs(repo); // §3/10: the resolver's npm install is not committed
   const add = await git(repo, ["add", "-A"]);
   if (add.code !== 0) throw new ResolveFailure("git", `git add failed: ${firstLine(add)}`);
   const stillU = await git(repo, ["diff", "--cached", "--name-only", "--diff-filter=U"]);
@@ -798,6 +801,8 @@ async function resolveUnderLock(
   if (qa.budgetExceeded) throw new ResolveFailure("budget");
   checkAbort();
   // QA must not change anything; drop what it left (the tree was clean).
+  // Shielded folders are excluded first, so `clean -fd` keeps QA's node_modules/.
+  await shieldNoiseDirs(repo);
   const qaDirty = await git(repo, ["status", "--porcelain"]);
   if (qaDirty.code === 0 && qaDirty.stdout.trim()) {
     await git(repo, ["reset", "--hard", "HEAD"]);

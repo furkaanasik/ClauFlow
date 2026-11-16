@@ -1,4 +1,4 @@
-import { checkoutBase, mergePr, run } from "./gitService.js";
+import { checkoutBase, mergePr, run, shieldNoiseDirs } from "./gitService.js";
 import { tryAcquireRepoLock } from "./repoLock.js";
 import { invalidateHasRemote, repoHasRemote } from "./remoteInfo.js";
 import { branchExists } from "./taskDiff.js";
@@ -92,6 +92,8 @@ async function mergeLocally(task: Task, project: Project, branch: string): Promi
   if (!lease) return { ok: false, code: "repo_busy" };
   try {
     let stash: string | undefined;
+    // Shield (§3/10): an untracked node_modules/ alone does not make a merge stash.
+    await shieldNoiseDirs(repo);
     const dirty = await run("git", ["status", "--porcelain"], repo);
     if (dirty.code === 0 && dirty.stdout.trim() !== "") {
       stash = `clauflow-merge-${task.id}`;

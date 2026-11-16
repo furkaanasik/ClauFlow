@@ -295,6 +295,11 @@ async function main() {
   if (role && (process.env.FAKE_CLAUDE_DIRTY_ROLES ?? "").split(",").includes(role)) {
     writeFileSync(join(cwd, `scratch-${role}-${round}.txt`), `${role} scribbled in round ${round}\n`);
   }
+  // bakim #7: a role "runs npm install" — an untracked node_modules/ appears (shield test).
+  if (role && (process.env.FAKE_CLAUDE_NODE_MODULES_ROLES ?? "").split(",").includes(role)) {
+    mkdirSync(join(cwd, "node_modules", "pkg"), { recursive: true });
+    writeFileSync(join(cwd, "node_modules", "pkg", "index.js"), `module.exports = "${role}-${round}";\n`);
+  }
 
   if (stateDir) {
     mkdirSync(stateDir, { recursive: true });
