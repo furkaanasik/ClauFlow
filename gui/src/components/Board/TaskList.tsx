@@ -4,15 +4,20 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { PriorityMark, StatusPill, type PriorityLevel } from "@/components/ui/Pills";
 import { IconChevronDown, IconChevronUp, IconPR, IconSort, IconSubtask } from "@/components/ui/icons";
 import { useBoardStore } from "@/store/boardStore";
+import { ChainBadge } from "@/components/Card/ChainBadge";
 import { useTranslation } from "@/hooks/useTranslation";
 import {
   COLUMN_STATUSES,
+  conflictFailed,
   isAgentWorking,
+  isConflictResolved,
+  isWaitingDeps,
   tagDot,
   taskCost,
   type SubtaskStats,
 } from "@/lib/boardView";
-import { formatUsd } from "@/lib/format";
+import { formatRelativeTime, formatUsd } from "@/lib/format";
+import { errorText } from "@/lib/errorText";
 import type { Task } from "@/types";
 
 type SortKey = "key" | "status" | "priority" | "cost" | "updated";
@@ -23,19 +28,6 @@ const PRIO_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low
 function keyNumber(task: Task): number {
   const m = /(\d+)$/.exec(task.displayId ?? "");
   return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
-}
-
-function relTime(iso: string, lang: string): string {
-  const d = new Date(iso).getTime();
-  if (Number.isNaN(d)) return "";
-  const diff = (d - Date.now()) / 1000;
-  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
-  const abs = Math.abs(diff);
-  if (abs < 60) return rtf.format(Math.round(diff), "second");
-  if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");
-  if (abs < 86400) return rtf.format(Math.round(diff / 3600), "hour");
-  if (abs < 86400 * 30) return rtf.format(Math.round(diff / 86400), "day");
-  return new Date(iso).toLocaleDateString(lang);
 }
 
 interface TaskListProps {
@@ -160,6 +152,9 @@ export function TaskList({ tasks, subtaskStats, keyById }: TaskListProps) {
                         </span>
                       )}
                       <span className="min-w-0 truncate text-[14px] font-semibold text-ink">{task.title}</span>
+                      <span className="flex-none">
+                        <ChainBadge task={task} compact />
+                      </span>
                       {sub && sub.total > 0 && (
                         <span className="task-card__meta flex-none">
                           <IconSubtask size={12} />
@@ -181,6 +176,17 @@ export function TaskList({ tasks, subtaskStats, keyById }: TaskListProps) {
                       <StatusPill status="doing" variant="solid" live>
                         {t.taskCard.agentSteps[task.agent.status]}
                       </StatusPill>
+                    ) : isWaitingDeps(task) ? (
+                      <StatusPill status="todo">{t.taskCard.agentSteps.waiting_deps}</StatusPill>
+                    ) : isConflictResolved(task) ? (
+                      // zincir F4.6: short form of the card's "resolved — approve again" pill.
+                      <span title={t.taskCard.conflictResolved}>
+                        <StatusPill status="review">{t.taskCard.conflictResolved}</StatusPill>
+                      </span>
+                    ) : conflictFailed(task) ? (
+                      <span title={errorText(t, task.agent.error ?? "merge_conflict")}>
+                        <StatusPill status="error">{t.taskCard.agentSteps.error}</StatusPill>
+                      </span>
                     ) : (
                       <StatusPill status={task.status}>{t.board.columns[task.status]}</StatusPill>
                     )}
@@ -216,7 +222,7 @@ export function TaskList({ tasks, subtaskStats, keyById }: TaskListProps) {
                       <span className="text-ink-3">{t.board.list.none}</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap text-[13px] text-ink-3">{relTime(task.updatedAt, lang)}</td>
+                  <td className="whitespace-nowrap text-[13px] text-ink-3">{formatRelativeTime(task.updatedAt, lang)}</td>
                 </tr>
               );
             })}

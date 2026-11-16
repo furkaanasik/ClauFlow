@@ -31,10 +31,12 @@ import {
   IconAlert,
   IconBoard,
   IconBranch,
+  IconChain,
   IconFactory,
   IconFilter,
   IconFolder,
   IconList,
+  IconPlay,
   IconPlus,
 } from "@/components/ui/icons";
 import { PRDetailDrawer, type PullRequest } from "@/components/Github/PRDetailDrawer";
@@ -45,14 +47,18 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useDoneBurstWatcher } from "@/lib/doneBurst";
 import { useToast } from "@/hooks/useToast";
 import { useTranslation } from "@/hooks/useTranslation";
-import { ApiError } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { apiErrorCode, errorText } from "@/lib/errorText";
 import type { Translations } from "@/lib/i18n/types";
 import {
   COLUMN_STATUSES,
   applyManualOrder,
   isAgentWorking,
+  isConflictResolved,
   loadManualOrder,
+  readyWaiting,
+  startsOnMerge,
+  unmetDeps,
   saveManualOrder,
   subtaskStats,
   taskCost,
@@ -107,6 +113,10 @@ export function Board() {
   const gitStatus         = useBoardStore((s) =>
     s.selectedProjectId ? s.gitStatusByProject[s.selectedProjectId] : undefined,
   );
+  const stashCount        = useBoardStore((s) =>
+    s.selectedProjectId ? (s.stashCountByProject[s.selectedProjectId] ?? 0) : 0,
+  );
+  const openProjectDetail = useBoardStore((s) => s.openProjectDetail);
 
   const view       = useViewStore((s) => s.view);
   const setView    = useViewStore((s) => s.setView);
@@ -177,6 +187,8 @@ export function Board() {
   const [addOpen, setAddOpen]       = useState(false);
   const [showHelp, setShowHelp]     = useState(false);
   const [pendingMove, setPendingMove] = useState<{ taskId: string; from: TaskStatus; to: TaskStatus } | null>(null);
+  // zincir E4 (§3/24): every Review → Done drag merges, so it asks first.
+  const [pendingMerge, setPendingMerge] = useState<string | null>(null);
 
   useKeyboardShortcuts({
     onNewTask:     useCallback(() => setAddOpen(true), []),
@@ -229,6 +241,27 @@ export function Board() {
 
   const filtering = activeFilterCount(filters) > 0 || filterText.trim().length > 0;
 
+  // zincir E5 (§3/25): waiting tasks whose dependencies are all done but that
+  // never started (crash window, boot). Nothing starts on its own: the user does.
+  const ready = useMemo(() => readyWaiting(tasks), [tasks]);
+  const [startingReady, setStartingReady] = useState(false);
+  const startReady = async () => {
+    setStartingReady(true);
+    let started = 0;
+    const failures: string[] = [];
+    for (const x of ready) {
+      try {
+        upsertTask(await api.startWaiting(x.id));
+        started += 1;
+      } catch (err) {
+        failures.push(`${x.displayId ?? x.title}: ${errorText(t, err)}`);
+      }
+    }
+    setStartingReady(false);
+    if (started > 0) toast.success(t.board.readyWaitingStarted(started));
+    if (failures.length > 0) toast.error(failures.join(" · "), 6_000);
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -243,11 +276,29 @@ export function Board() {
   const moveTask = async (taskId: string, to: TaskStatus) => {
     const before = useBoardStore.getState().tasks[taskId];
     try {
-      await moveTaskOptimistic(taskId, to);
-      if (to === "doing") toast.info(t.board.agentStarted);
+      const updated = await moveTaskOptimistic(taskId, to);
+      const key = updated?.displayId ?? before?.displayId ?? updated?.title ?? before?.title ?? taskId;
+      if (to === "doing") {
+        // zincir: the gate may have parked the task until its dependencies are done.
+        if (updated?.agent.status === "waiting_deps") {
+          const deps = unmetDeps(updated, useBoardStore.getState().tasks).map((d) => d.displayId ?? d.title);
+          toast.info(t.board.waitingToast(key, deps));
+        } else {
+          toast.info(t.board.taskQueued(key));
+        }
+      }
       if (to === "done") toast.success(doneToast(t, before));
     } catch (err) {
-      toast.error(moveErrorText(t, err), apiErrorCode(err) === "merge_conflict" ? 10_000 : 5_000);
+      const code = apiErrorCode(err);
+      // zincir F4.6 (§3/43): the conflict started the AI resolver; the card shows the rest.
+      // `resolving: false` (a previous resolver run failed) falls through: the
+      // merge_conflict text points to "Resolve with AI" in the drawer.
+      const body = err instanceof ApiError ? (err.body as { resolving?: unknown } | null) : null;
+      if (code === "merge_conflict" && body?.resolving === true) {
+        toast.info(t.board.conflictResolving(before?.displayId ?? before?.title ?? taskId), 6_000);
+        return;
+      }
+      toast.error(moveErrorText(t, err), code === "merge_conflict" ? 10_000 : 5_000);
     }
   };
 
@@ -284,6 +335,17 @@ export function Board() {
       const nextRank = [...rank.filter((id) => !col.includes(id) && tasks[id]), ...nextCol];
       setRank(nextRank);
       saveManualOrder(selectedProjectId, nextRank);
+      return;
+    }
+
+    if (task.status === "review" && target === "done") {
+      setPendingMerge(taskId);
+      // The polled git status can be up to 30 s old; the dialog's stash line needs it fresh.
+      const pid = task.projectId;
+      api
+        .getProjectGitStatus(pid)
+        .then((st) => useBoardStore.getState().setProjectGitStatus(pid, st))
+        .catch(() => {});
       return;
     }
 
@@ -336,6 +398,18 @@ export function Board() {
                 />
               </span>
             )}
+            {stashCount > 0 && (
+              // zincir E6 (plan §5.9): ClauFlow's stashes; opens the project drawer.
+              <button
+                type="button"
+                data-testid="stash-pill"
+                className="ui-pill ui-pill--sm ui-focus cursor-pointer bg-panel font-mono !text-[11px] text-[var(--orange-text)] transition-transform hover:-translate-x-px hover:-translate-y-px"
+                title={t.stashes.boardPillTitle}
+                onClick={() => openProjectDetail(selectedProjectId)}
+              >
+                {t.stashes.boardPill(stashCount)}
+              </button>
+            )}
           </div>
           <h1 className="t-display mt-2 truncate text-[32px] text-ink">{selectedProject?.name ?? t.board.title}</h1>
           <p className="mt-1 text-[13px] text-ink-3">{localFlow ? t.board.hintLocal : t.board.hint}</p>
@@ -366,6 +440,21 @@ export function Board() {
       </div>
 
       <PlannerBanner project={selectedProject} />
+
+      {ready.length > 0 && (
+        <div role="status" className="ui-banner ui-banner--info items-center" data-ready-waiting>
+          <IconChain size={15} className="shrink-0" />
+          <span className="min-w-0 flex-1">
+            {t.board.readyWaiting(ready.length)}{" "}
+            <span className="ml-1 font-mono text-[12px] text-ink-2">
+              {ready.map((x) => x.displayId ?? x.title).join(", ")}
+            </span>
+          </span>
+          <Button size="sm" variant="primary" icon={<IconPlay size={14} />} loading={startingReady} onClick={startReady}>
+            {t.board.readyWaitingStart}
+          </Button>
+        </div>
+      )}
 
       {error && (
         <div
@@ -491,6 +580,50 @@ export function Board() {
           ))}
         </div>
       </Modal>
+
+      {(() => {
+        const mergeTask = pendingMerge ? tasks[pendingMerge] : null;
+        const lines: string[] = [];
+        if (mergeTask) {
+          const mc = t.board.mergeConfirm;
+          const local = !mergeTask.prNumber && Boolean(mergeTask.branch);
+          if (mergeTask.prNumber) lines.push(mc.pr(mergeTask.prNumber));
+          else if (mergeTask.branch) lines.push(mc.local(mergeTask.branch, selectedProject?.defaultBranch ?? "main"));
+          else lines.push(mc.noMerge);
+          // Only the local merge stashes a dirty tree (mergeService).
+          if (local && gitStatus?.isDirty) lines.push(mc.dirty);
+          const starts = startsOnMerge(mergeTask.id, tasks);
+          if (starts.length > 0) lines.push(mc.starts(starts.length, starts.map((x) => x.displayId ?? x.title)));
+          // zincir F4.6 (§3/44): approving again after the AI resolved the conflict.
+          if (isConflictResolved(mergeTask)) lines.push(mc.resolved);
+        }
+        return (
+          <ConfirmDialog
+            open={Boolean(mergeTask)}
+            title={t.board.mergeConfirm.title}
+            description={
+              lines.length > 0 ? (
+                <>
+                  {lines.map((line) => (
+                    <span key={line} className="block [&:not(:first-child)]:mt-1.5" data-merge-line>
+                      {line}
+                    </span>
+                  ))}
+                </>
+              ) : undefined
+            }
+            confirmLabel={t.board.mergeConfirm.confirm}
+            cancelLabel={t.board.mergeConfirm.cancel}
+            variant="default"
+            onConfirm={async () => {
+              const id = pendingMerge;
+              setPendingMerge(null);
+              if (id) await moveTask(id, "done");
+            }}
+            onCancel={() => setPendingMerge(null)}
+          />
+        );
+      })()}
 
       <ConfirmDialog
         open={Boolean(pendingMove)}

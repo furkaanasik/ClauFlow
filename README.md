@@ -56,18 +56,23 @@ TODO ──▶ DOING ──▶ REVIEW ──▶ DONE
            │          │          │
          agent     human +    merge (PR or
          team      comments   local --no-ff)
+           │          │          │
+    waits for its  conflict?   starts waiting
+    dependencies   AI resolver dependents
+                   (stays in REVIEW)
 ```
 
 | Column | Trigger | What happens |
 |---|---|---|
 | **TODO** | You add a card or let the AI planner fill the board | Title, description, analysis and priority become the agent's work order. |
-| **DOING** | You drag the card here | The executor waits for the repo lock (one run per repository at a time; queued cards show as queued), checks out the base branch, creates `feature/<id>-<title-slug>`, runs the task's team (one `claude -p` call per role, committing after the Developer) and, when the repo has a remote, pushes with `--force-with-lease` and opens a PR with `gh pr create`. |
+| **DOING** | You drag the card here | A card whose dependencies are not all **DONE** waits in **DOING** (no git, no repo lock) until they are. Otherwise the executor waits for the repo lock (one run per repository at a time; queued cards show as queued), checks out the base branch, creates `feature/<id>-<title-slug>`, runs the task's team (one `claude -p` call per role, committing after the Developer) and, when the repo has a remote, pushes with `--force-with-lease` and opens a PR with `gh pr create`. |
 | **REVIEW** | Automatic, when the team delivers | You read the diff (the built-in PR viewer, or the task's **Changes** tab when there is no PR) and comment, and each comment re-runs Claude on the **same branch** as new commits. No new PR is opened. |
-| **DONE** | You drag the card here | With a PR: `gh pr merge --merge --delete-branch`. Without a remote: a local `git merge --no-ff` into the base branch, then the branch is deleted. A conflict aborts the merge and the card stays in **REVIEW**. |
+| **DONE** | You drag the card here and confirm | With a PR: `gh pr merge --merge --delete-branch`. Without a remote: a local `git merge --no-ff` into the base branch, then the branch is deleted. Waiting tasks whose dependencies are now all done start on their own. A conflict aborts the merge, the card stays in **REVIEW** and the AI conflict resolver runs once. |
 
 - **No remote:** no push and no PR; the task still lands in **REVIEW** on its local branch, with the diff against base in the task drawer.
 - **No changes:** if the team finds nothing to change, the task goes to **DONE**, the branch is deleted and a comment says why.
-- **Executor failure:** the task returns to **TODO** with the agent error attached. Retrying keeps an earlier branch that carries commits as `<branch>-wip-N`.
+- **Executor failure:** the task returns to **TODO** with an error code the card translates (missing base branch, missing `gh`, checkout or push failure, role timeout, …). Retrying keeps an earlier branch that carries commits as `<branch>-wip-N`.
+- **Base branch check:** a project whose base branch is not in the repo cannot start a task (`422 base_branch_missing`); git stays untouched.
 - **Cost:** every role, comment, breakdown and planner run adds the CLI's reported `total_cost_usd`; cards, the drawer and Insights show that real spend.
 - **Live updates:** every step (checkout, prompt, tool calls, commit, push, PR) streams over WebSocket into the task's Agent Log.
 
@@ -88,6 +93,17 @@ TODO ──▶ DOING ──▶ REVIEW ──▶ DONE
 | **Insights** | Per-project token spend, real cost (tasks plus planner runs) by role, completion and average run time, exportable as JSON or CSV. |
 | **Keyboard** | `N` new task, `/` search, `?` shortcut help, `Esc` closes the top layer. |
 | **Mobile** | Below the `md` breakpoint the rail becomes a slide-in menu and search collapses to an icon. |
+
+### Task chains and the conflict resolver
+
+| Feature | Details |
+|---|---|
+| **Dependencies** | A task can wait for other tasks in the same project. Set them in the drawer's "Waiting on" section (only in To do or while waiting; cycles are refused), or let the AI planner and "Break down task" add them. Cards show a chain badge ("Waiting for CLF-2", or "CLF-2 has a problem" when a dependency failed). |
+| **Chain start** | Dragging a task with unmet dependencies to **DOING** parks it as waiting. When its last dependency is merged to **DONE**, it starts by itself and branches from a base that already has that code. Nothing is merged automatically: every step still needs your Review → Done. After a restart, waiting tasks are never started silently; a board strip offers "Start". |
+| **Merge confirmation** | Review → Done asks first: which branch or PR is merged, whether a dirty tree is stashed, and which waiting tasks will start. |
+| **Conflict resolver** | When a merge conflicts, ClauFlow merges the base into the task branch, the team's Developer role resolves the conflict markers, one QA round checks it and the branch is pushed if there is a remote. The task stays in **REVIEW** ("Conflict resolved — approve again"). If it fails, the branch goes back exactly as it was and the drawer offers "Resolve with AI". The drawer also says when the base branch moved ahead and offers "Update branch". |
+| **Stashes** | Dirty trees ClauFlow stashes (before a run, merge, comment or resolution) are listed in the project drawer, where you can restore or drop them; a toast tells you when one is taken. |
+| **Role timeout** | Each role call has a time limit (`CLAUFLOW_ROLE_TIMEOUT_MS`, 20 min by default). A hung CLI and every process it started are killed, and the half-done work is kept as a `wip:` commit. |
 
 ### Fabrika: the factory view
 
@@ -192,6 +208,7 @@ NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS and WebSocket origins. |
 | `CLAUFLOW_DATA_DIR` | `./data` (relative to where core starts, i.e. `core/data`) | Folder for `tasks.db`. |
 | `CLAUFLOW_CLAUDE_BIN` | `claude` | The Claude Code CLI binary to spawn (the tests point it at a fake CLI). |
+| `CLAUFLOW_ROLE_TIMEOUT_MS` | `1200000` (20 min) | Time limit of one role call; on timeout the CLI's process tree is killed. |
 
 Data lives in `core/data/tasks.db` by default (SQLite, WAL mode). A legacy `tasks.json` is migrated automatically on first start.
 
@@ -221,7 +238,19 @@ Data lives in `core/data/tasks.db` by default (SQLite, WAL mode). A legacy `task
 |---|---|
 | AI | Claude Code CLI (`claude -p … --permission-mode bypassPermissions`) |
 | VCS | Git + GitHub CLI (`gh`, device-flow auth, so there's no OAuth app to register) |
-| Realtime | WebSocket events (`agent_log`, `agent_status`, `task_updated`, `comment_updated`, …) |
+| Realtime | WebSocket events (`agent_log`, `agent_status`, `task_updated`, `comment_updated`, `chain_advanced`, `stash_created`, …) |
+
+Endpoints behind task chains, the conflict resolver and stashes (all under `/api`):
+
+| Method | Path | Does |
+|---|---|---|
+| `PUT` | `/tasks/:id/dependencies` | Replace the task's dependencies (`{ dependsOn: [ids] }`). Only in To do or while waiting; a cycle is `409 dependency_cycle` with its path. |
+| `POST` | `/tasks/:id/start-waiting` | Start a waiting task whose dependencies are all done. |
+| `POST` | `/tasks/:id/resolve` | Run the conflict resolver (`{ mode: "conflict" \| "update" }`); `202` with the queued task. |
+| `GET` | `/tasks/:id/base-drift` | How many commits the base branch moved since the task branch left it. |
+| `GET` | `/projects/:id/stashes` | List the stashes ClauFlow took in the project's repo. |
+| `POST` | `/projects/:id/stashes/:ref/restore` | Restore a stash (`:ref` is its SHA). |
+| `DELETE` | `/projects/:id/stashes/:ref` | Drop a stash. |
 
 For the deeper tour (data flow, WS event shapes, conventions) see [`CLAUDE.md`](CLAUDE.md).
 

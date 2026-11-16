@@ -5,10 +5,13 @@ import {
   commitAll,
   pushBranch,
   createPr,
+  ensureGhCredentials,
+  GhMissingError,
   run as gitRun,
 } from "../services/gitService.js";
 import { buildPrTeamSection, runTeam, type TeamStopReason } from "./teamRunner.js";
 import { uiText, type UiLang } from "./uiText.js";
+import { runErrorCode } from "./runErrorCode.js";
 import {
   appendAgentLog,
   getTask,
@@ -20,11 +23,13 @@ import { slugify } from "../services/slug.js";
 import {
   broadcastCommentUpdated,
   broadcastLog,
+  broadcastStashCreated,
   broadcastStatus,
   broadcastTaskUpdated,
 } from "../services/wsService.js";
 import { createComment, updateComment } from "../services/commentService.js";
 import { acquireRepoLock, type RepoLease } from "../services/repoLock.js";
+import { BaseBranchMissing, baseBranchExists, baseBranchHint } from "../services/baseBranch.js";
 import type { AgentStatus, Project, Task } from "../types/index.js";
 
 interface RunHandle {
@@ -142,7 +147,8 @@ function taskRef(task: Task): string {
   return task.displayId ?? task.id;
 }
 
-function postComment(taskId: string, body: string, label: string): void {
+/** Posts an automatic comment (status `done`) on the task; also the conflict resolver's summary (F4.6). */
+export function postComment(taskId: string, body: string, label: string): void {
   try {
     const comment = createComment(taskId, body);
     const done = updateComment(comment.id, { status: "done" });
@@ -172,7 +178,7 @@ async function returnToBase(
 }
 
 /**
- * Stuck / round limit / budget (plan §3): keep the work as a `wip:` commit on
+ * Stuck / round limit / budget / role timeout (plan §3, §3/29): keep the work as a `wip:` commit on
  * the task branch, return to base without deleting the branch, and hand the
  * task back as todo + error.
  */
@@ -183,6 +189,7 @@ async function stopStuck(
   reason: TeamStopReason,
   reasonText: string,
   summary: string,
+  opts: { code?: string } = {},
 ): Promise<void> {
   const dirty = await gitRun("git", ["status", "--porcelain"], project.repoPath);
   if (dirty.code === 0 && dirty.stdout.trim()) {
@@ -196,7 +203,7 @@ async function stopStuck(
     agent: {
       status: "error",
       currentStep: undefined,
-      error: `stuck_${reason}`,
+      error: opts.code ?? `stuck_${reason}`,
       finishedAt: new Date().toISOString(),
     },
   });
@@ -282,19 +289,49 @@ export async function run(task: Task, project: Project, opts: RunOptions = {}): 
     // Resuming after spec approval keeps the usage of the roles that already ran.
     if (getLatestTeamRun(task.id)?.status !== "awaiting_approval") resetTaskUsage(task.id);
 
+    // ── Step 0a: base branch must exist (zincir F0.5, plan §5.0) ──────────
+    // Read-only; runs before any git write so a misconfigured project leaves
+    // the repo untouched.
+    if (!(await baseBranchExists(project.repoPath, project.defaultBranch))) {
+      const current = await baseBranchHint(project.repoPath);
+      await pushLog(
+        task.id,
+        `✖ Ana dal "${project.defaultBranch}" repoda yok; repo şu an "${current}" dalında. Git'e dokunulmadı.`,
+      );
+      throw new BaseBranchMissing(current);
+    }
+
     // ── Step 0: refresh git credential helper ─────────────────────────────
     // Ensures gh's git credential helper is registered even if auth was
-    // already completed in a previous session.
-    await gitRun("gh", ["auth", "setup-git"], project.repoPath);
+    // already completed in a previous session. E1: only with a remote; a
+    // missing `gh` fails here, before any git write.
+    try {
+      await ensureGhCredentials(project.repoPath);
+    } catch (e) {
+      if (e instanceof GhMissingError) {
+        await pushLog(task.id, "✖ gh bulunamadı; remote'lu repoda PR için gerekli. Git'e dokunulmadı.");
+      }
+      throw e;
+    }
 
     // ── Step 1: checkout base + pull ──────────────────────────────────────
     await setAgentStep(task.id, "branching", "checkout_base");
-    const coResult = await checkoutBase(project.repoPath, project.defaultBranch);
+    const coResult = await checkoutBase(project.repoPath, project.defaultBranch, {
+      taskId: task.id,
+    });
     if (coResult.code !== 0) {
       throw new Error(`git checkout/pull failed:\n${coResult.stderr}`);
     }
     if (/\[kanban\] working tree had dirty files/.test(coResult.stdout)) {
       await pushCmdResult(task.id, coResult);
+    }
+    if (coResult.stashed) {
+      broadcastStashCreated(task.id, {
+        projectId: project.id,
+        label: coResult.stashed,
+        reason: "run",
+        displayId: task.displayId ?? null,
+      });
     }
 
     // ── Step 2: create feature branch ────────────────────────────────────
@@ -330,7 +367,9 @@ export async function run(task: Task, project: Project, opts: RunOptions = {}): 
     }
 
     if (outcome.kind === "stuck") {
-      await stopStuck(task, project, branch, outcome.reason, outcome.reasonText, outcome.summary);
+      await stopStuck(task, project, branch, outcome.reason, outcome.reasonText, outcome.summary, {
+        code: outcome.code,
+      });
       return;
     }
 
@@ -475,7 +514,7 @@ export async function run(task: Task, project: Project, opts: RunOptions = {}): 
     const queued = err instanceof QueuedAbort;
     const aborted = controller.signal.aborted;
     const baseMessage = err instanceof Error ? err.message : String(err);
-    const code = aborted ? "aborted_by_user" : baseMessage;
+    const code = aborted ? "aborted_by_user" : runErrorCode(err);
     console.error(`[executor] task ${ref} (${task.id}) failed:`, aborted ? `aborted (${baseMessage})` : baseMessage);
 
     // A1b: only clean up a branch this run created, while it still holds the

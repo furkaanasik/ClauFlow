@@ -4,8 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SkillCatalogRoots } from "../services/skillCatalogService.js";
 import { defaultRole } from "../services/teamTemplates.js";
-import { ARG_BYTES_LIMIT, buildClaudeArgs } from "../services/claudeService.js";
+import { buildClaudeArgs } from "../services/claudeService.js";
 import {
+  buildConflictPrompt,
+  buildConflictResolutionBlock,
+  buildConflictSystemMarker,
+  CONFLICT_FILE_CHAR_CAP,
+  buildCommentPrompt,
+  buildCommentSystemMarker,
   buildRolePrompt,
   buildRoleSystemPrompt,
   buildSkillSections,
@@ -144,20 +150,19 @@ describe("role -p prompts", () => {
 });
 
 describe("prompt size guard (A8e)", () => {
-  const argvBytes = (args: string[]) => args.reduce((n, a) => n + Buffer.byteLength(a, "utf8") + 1, 0);
-
-  it("a 300 KB specification is capped at 20k characters and the argv stays under 100 KiB", () => {
+  it("a 300 KB specification reaches the prompt intact and stays out of argv", () => {
     const spec = "S".repeat(300_000);
     const role = defaultRole("developer");
     const prompt = buildRolePrompt(role, { task, project: {}, round: 1, solo: false, brief: "B", spec });
-    expect(prompt).toContain(`[specification truncated to ${SECTION_CHAR_CAP} characters]`);
-    expect((prompt.match(/S/g) ?? []).length).toBeLessThan(SECTION_CHAR_CAP + 100);
+    expect(prompt).not.toContain("truncated");
+    expect(prompt).toContain(spec);
     const system = buildRoleSystemPrompt(role, 1, []).text;
     const args = buildClaudeArgs({ prompt, cwd: "/tmp", appendSystemPrompt: system, tools: role.tools });
-    expect(argvBytes(args)).toBeLessThan(ARG_BYTES_LIMIT);
+    expect(args[0]).toBe("-p");
+    expect(args.some((a) => a.includes(spec.slice(0, 1000)))).toBe(false);
   });
 
-  it("caps description, analysis, background, bug list and delivery too", () => {
+  it("still caps description, analysis, background, bug list and delivery past the sanity cap", () => {
     const big = "x".repeat(SECTION_CHAR_CAP + 500);
     const p = buildRolePrompt(defaultRole("developer"), {
       task: { title: "t", description: big, analysis: big },
@@ -175,28 +180,97 @@ describe("prompt size guard (A8e)", () => {
     expect(solo).toContain(`[project_background truncated to ${SECTION_CHAR_CAP} characters]`);
   });
 
-  it("buildClaudeArgs shrinks the largest blocks when capped sections still add up past 100 KiB", () => {
-    const wide = "ç".repeat(SECTION_CHAR_CAP); // 2 bytes per char → 40 KB per section
-    const prompt = buildRolePrompt(defaultRole("developer"), {
-      task: { title: "t", description: wide, analysis: wide },
-      project: { aiPrompt: wide },
-      round: 2,
-      solo: false,
-      brief: wide,
-      spec: wide,
-      bugList: wide,
-      delivery: wide,
-    });
-    expect(Buffer.byteLength(prompt, "utf8")).toBeGreaterThan(200 * 1024);
+  it("buildClaudeArgs never carries the prompt, however large", () => {
+    const prompt = "y".repeat(200 * 1024);
     const args = buildClaudeArgs({ prompt, cwd: "/tmp" });
-    expect(args[0]).toBe("-p");
-    expect(argvBytes(args)).toBeLessThanOrEqual(ARG_BYTES_LIMIT);
-    expect(args[1]).toContain("to fit the CLI argument limit]");
-    expect(args[1]).toContain(TESTING_INSTRUCTIONS);
-    expect(args[1]).toContain("<qa_bug_list>");
+    expect(args).toEqual(["-p", "--permission-mode", "bypassPermissions"]);
+  });
+});
+
+describe("comment round prompt (E7b, plan §3/30)", () => {
+  const dev = defaultRole("developer");
+  const ctx = {
+    task: { title: "Add slugify", description: "slugify helper for titles", analysis: "" },
+    project: { aiPrompt: undefined },
+    spec: "## Şartname\n\n- AC-1: slugify lowercases",
+    qaReport: { verdict: "fail" as const, body: "## QA raporu\n\n- AC-1: ✗\n\nVERDICT: FAIL" },
+    comment: "Please also strip emoji.",
+  };
+
+  it("carries the task, the last spec, the last QA verdict and the feedback tag", () => {
+    const p = buildCommentPrompt(dev, { ...ctx, uiLang: "en" });
+    expect(p).toContain("Title: Add slugify");
+    expect(p).toContain("slugify helper for titles");
+    expect(p).toContain("<specification>\n## Şartname");
+    expect(p).toContain("Last QA verdict: FAIL");
+    expect(p).toContain("VERDICT: FAIL");
+    expect(p).toContain("<user_feedback>\nPlease also strip emoji.\n</user_feedback>");
+    expect(p).toContain(TESTING_INSTRUCTIONS);
+    expect(p).not.toContain("Kullanıcı şu geri bildirimi verdi");
   });
 
-  it("throws prompt_too_large when there is no block left to shrink", () => {
-    expect(() => buildClaudeArgs({ prompt: "y".repeat(200 * 1024), cwd: "/tmp" })).toThrow("prompt_too_large");
+  it("asks for the reply in the GUI language (English by default)", () => {
+    expect(buildCommentPrompt(dev, { ...ctx, uiLang: "tr" })).toContain("Write any reply in Türkçe.");
+    expect(buildCommentPrompt(dev, { ...ctx, uiLang: "en" })).toContain("Write any reply in English.");
+    expect(buildCommentPrompt(dev, ctx)).toContain("Write any reply in English.");
+  });
+
+  it("leaves out the spec and QA sections when the task has none (Solo)", () => {
+    const p = buildCommentPrompt(dev, { ...ctx, spec: null, qaReport: null });
+    expect(p).not.toContain("<specification>");
+    expect(p).not.toContain("Last QA verdict");
+    expect(p).toContain("<user_feedback>");
+  });
+
+  it("system prompt carries the comment marker instead of the developer role marker", () => {
+    const marker = buildCommentSystemMarker(3);
+    expect(marker).toBe("<!-- clauflow-role: comment round: 3 -->");
+    const { text } = buildRoleSystemPrompt(dev, 3, [], { marker });
+    expect(text.startsWith(marker)).toBe(true);
+    expect(text).not.toContain(roleMarker("developer", 3));
+    expect(text).toContain(dev.instructions);
+    expect(buildRoleSystemPrompt(dev, 2).text.startsWith(roleMarker("developer", 2))).toBe(true);
+  });
+});
+
+describe("conflict resolver prompt (zincir F4.6, §3/35–36)", () => {
+  const block = (n: number) => `<<<<<<< HEAD\n${"o".repeat(n)}\n=======\ntheirs\n>>>>>>> main`;
+  it("task, merged work, conflicted hunks, rules and language; oversized files by name only", () => {
+    const prompt = buildConflictPrompt({
+      task: { title: "Greet from B", description: "B greets.", analysis: "" },
+      project: { aiPrompt: "" },
+      spec: "## Şartname\nAC-1",
+      target: "origin/main",
+      branch: "feature/clf-2-b",
+      mergedTasks: [{ displayId: "CLF-1", title: "Greet from A", description: "A greets." }],
+      conflicts: [
+        { path: "shared.txt", text: block(5) },
+        { path: "huge.txt", text: block(CONFLICT_FILE_CHAR_CAP + 10) },
+      ],
+      uiLang: "tr",
+    });
+    expect(prompt).toContain("Title: Greet from B");
+    expect(prompt).toContain("<specification>");
+    expect(prompt).toContain("<merged_into_base>\nCLF-1 · Greet from A\nA greets.\n</merged_into_base>");
+    expect(prompt).toContain("File: shared.txt\n@@ lines 1-5 @@\n<<<<<<< HEAD");
+    expect(prompt).toContain("File: huge.txt\n(conflict too large to include here; open the file)");
+    expect(prompt).toContain("Keep BOTH intents");
+    expect(prompt).toContain("Do NOT run git commit, merge, rebase, reset, checkout, stash or push");
+    expect(prompt).toContain("Write the note in Türkçe.");
+    expect(buildConflictPrompt({
+      task: { title: "t", description: "", analysis: "" },
+      project: {},
+      target: "main",
+      branch: "b",
+      mergedTasks: [],
+      conflicts: [{ path: "a.txt", text: block(1) }],
+    })).not.toContain("<merged_into_base>");
+  });
+
+  it("marker and the QA block", () => {
+    expect(buildConflictSystemMarker(3)).toBe("<!-- clauflow-role: conflict_resolver round: 3 -->");
+    const qa = buildConflictResolutionBlock("main", ["shared.txt"], "- shared.txt: kept both");
+    expect(qa).toContain("<conflict_resolution>\nConflicted files:\n- shared.txt");
+    expect(qa).toContain("- shared.txt: kept both\n</conflict_resolution>");
   });
 });

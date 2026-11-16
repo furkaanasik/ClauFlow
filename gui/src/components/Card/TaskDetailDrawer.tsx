@@ -6,9 +6,9 @@ import remarkGfm from "remark-gfm";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Drawer } from "@/components/ui/Drawer";
 import { Tabs } from "@/components/ui/Tabs";
-import { Button } from "@/components/ui/Button";
+import { Button, IconButton } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Segmented";
-import { Input, Textarea } from "@/components/ui/Input";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 import { DotMeter, RingGauge } from "@/components/ui/Meters";
 import { Panel } from "@/components/ui/Panel";
 import { PriorityMark, StatusPill, STATUS_COLOR, type StatusKind } from "@/components/ui/Pills";
@@ -18,10 +18,15 @@ import {
   IconBranch,
   IconChat,
   IconCheck,
+  IconChain,
   IconClipboard,
+  IconClose,
   IconCoin,
   IconInfo,
+  IconLock,
+  IconMerge,
   IconPencil,
+  IconPlay,
   IconPR,
   IconRetry,
   IconRobot,
@@ -46,8 +51,29 @@ import { useBoardStore } from "@/store/boardStore";
 import { useTranslation } from "@/hooks/useTranslation";
 import { TeamPicker } from "@/components/Team/TeamPicker";
 import { agentStepLabel, teamStepKind } from "@/components/Team/roleMeta";
-import { isAgentWorking, taskCost } from "@/lib/boardView";
-import type { AgentText, Project, Task, TaskPatch, TeamArtifact, ToolCall } from "@/types";
+import {
+  blockerProblem,
+  conflictFailed,
+  dependentsOf,
+  isAgentWorking,
+  isConflictResolved,
+  isResolvingConflict,
+  isWaitingDeps,
+  taskCost,
+  unmetDeps,
+  wouldCycle,
+} from "@/lib/boardView";
+import type { ConflictStep } from "@/lib/i18n/types";
+import type {
+  AgentText,
+  BaseDrift,
+  ConflictResolveMode,
+  Project,
+  Task,
+  TaskPatch,
+  TeamArtifact,
+  ToolCall,
+} from "@/types";
 
 type EditPriority = "low" | "medium" | "high" | "critical";
 type DrawerTab = "details" | "changes" | "log" | "team" | "comments";
@@ -141,6 +167,10 @@ export function TaskDetailDrawer() {
   const [logView, setLogView] = useState<"raw" | "timeline">("timeline");
 
   const [teamError, setTeamError] = useState<string | null>(null);
+  // zincir F4.6 (§5.10, §3/46): conflict section — resolver actions and base drift.
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const [resolveBusy, setResolveBusy] = useState<ConflictResolveMode | null>(null);
+  const [drift, setDrift] = useState<BaseDrift | null>(null);
 
   const open = Boolean(selectedTaskId);
 
@@ -178,6 +208,26 @@ export function TaskDetailDrawer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId, wsConnected]);
 
+  // zincir F4.6 (§3/46): "base moved ahead" — read once on open and again on
+  // every task_updated of this task (updatedAt moves); no polling, no fetch.
+  const driftTaskId = liveTask?.id ?? null;
+  const driftable = liveTask?.status === "review" && Boolean(liveTask.branch);
+  const driftStamp = liveTask?.updatedAt ?? "";
+  useEffect(() => {
+    setDrift(null);
+    if (!driftTaskId || !driftable) return;
+    let cancelled = false;
+    api
+      .baseDrift(driftTaskId)
+      .then((d) => {
+        if (!cancelled) setDrift(d);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [driftTaskId, driftable, driftStamp]);
+
   const handleTeamChange = async (teamId: string | null) => {
     if (!task) return;
     setTeamError(null);
@@ -191,7 +241,7 @@ export function TaskDetailDrawer() {
   };
 
   const close = () => {
-    if (confirmDelete || confirmAbort) return; // Esc belongs to the dialog
+    if (confirmDelete || confirmAbort || confirmUpdate) return; // Esc belongs to the dialog
     selectTask(null);
   };
 
@@ -250,6 +300,20 @@ export function TaskDetailDrawer() {
     }
   };
 
+  const [startingWaiting, setStartingWaiting] = useState(false);
+  const doStartWaiting = async () => {
+    if (!task) return;
+    setStartingWaiting(true);
+    setError(null);
+    try {
+      upsertTask(await api.startWaiting(task.id));
+    } catch (err) {
+      setError(errorText(tt, err));
+    } finally {
+      setStartingWaiting(false);
+    }
+  };
+
   const doAbort = async () => {
     if (!task) return;
     setConfirmAbort(false);
@@ -261,6 +325,20 @@ export function TaskDetailDrawer() {
       setError(errorText(tt, err, td.abortFailed));
     } finally {
       setAborting(false);
+    }
+  };
+
+  const doResolve = async (mode: ConflictResolveMode) => {
+    if (!task) return;
+    setConfirmUpdate(false);
+    setResolveBusy(mode);
+    setError(null);
+    try {
+      upsertTask(await api.resolveConflicts(task.id, mode));
+    } catch (err) {
+      setError(errorText(tt, err));
+    } finally {
+      setResolveBusy(null);
     }
   };
 
@@ -349,8 +427,22 @@ export function TaskDetailDrawer() {
   const priority = normalizePriority(task.priority);
   const agentActive = (ACTIVE_STEPS as readonly string[]).includes(task.agent.status);
   const queued = task.status === "doing" && task.agent.status === "idle";
+  // zincir: waiting for dependencies is neither queued nor a live run.
+  const waitingDeps = task.status === "doing" && task.agent.status === "waiting_deps";
   const awaitingApproval = task.status === "doing" && task.agent.status === "awaiting_approval";
-  const showAgentBadge = task.agent.status !== "idle" && (task.status === "doing" || task.agent.status === "error");
+  // zincir F4.6: the conflict resolver works on a Review task (§3/33).
+  const resolvingConflict = isResolvingConflict(task);
+  const failedConflict = conflictFailed(task);
+  const resolvedConflict = isConflictResolved(task);
+  const showDrift = !resolvingConflict && !failedConflict && (drift?.behind ?? 0) > 0;
+  const showConflict = resolvingConflict || failedConflict || resolvedConflict || showDrift;
+  const conflictStep = td.conflict.step[task.agent.currentStep as ConflictStep] ?? td.conflict.resolving;
+  const showAgentBadge =
+    task.agent.status !== "idle" &&
+    !waitingDeps &&
+    (task.status === "doing" || task.agent.status === "error" || resolvingConflict);
+  const waitingKeys = waitingDeps ? unmetDeps(task, allTasks).map((d) => d.displayId ?? d.title) : [];
+  const readyToStart = waitingDeps && waitingKeys.length === 0;
 
   // D1: no PR → the branch is reviewed here, on its local diff.
   const showChanges = Boolean(task.branch) && !task.prNumber && (task.status === "review" || task.status === "done");
@@ -527,6 +619,8 @@ export function TaskDetailDrawer() {
 
               {queued ? (
                 <QueueWaiting label={td.queueWaiting} />
+              ) : waitingDeps ? (
+                <QueueWaiting label={readyToStart ? tt.taskCard.readyToStart : td.depsWaiting(waitingKeys)} />
               ) : logView === "timeline" ? (
                 <ToolCallTimeline
                   toolCalls={toolCalls}
@@ -578,6 +672,8 @@ export function TaskDetailDrawer() {
                   meter={
                     queued ? (
                       <StatusPill status="todo">{td.queueWaiting}</StatusPill>
+                    ) : waitingDeps ? (
+                      <StatusPill status="todo">{readyToStart ? tt.taskCard.readyToStart : tt.taskCard.waitingDeps}</StatusPill>
                     ) : awaitingApproval ? (
                       <StatusPill status="review" variant="solid">{tt.team.awaitingApproval}</StatusPill>
                     ) : task.agent.status === "error" ? (
@@ -602,7 +698,21 @@ export function TaskDetailDrawer() {
                         {aborting ? td.abortingButton : td.abortButton}
                       </Button>
                     )}
-                    {awaitingApproval ? (
+                    {waitingDeps ? (
+                      // zincir: a waiting task is not retried; it starts when its
+                      // dependencies are done, or here once they are (E5).
+                      readyToStart && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          icon={<IconPlay size={14} />}
+                          onClick={doStartWaiting}
+                          loading={startingWaiting}
+                        >
+                          {td.startWaiting}
+                        </Button>
+                      )
+                    ) : awaitingApproval ? (
                       <Button
                         variant="primary"
                         size="sm"
@@ -626,11 +736,87 @@ export function TaskDetailDrawer() {
                 </Panel>
               )}
 
+              {showConflict && (
+                <Section n={next()} label={td.conflict.title}>
+                  <div
+                    className="flex flex-col gap-3"
+                    data-conflict-section={
+                      resolvingConflict ? "resolving" : failedConflict ? "failed" : resolvedConflict ? "resolved" : "drift"
+                    }
+                  >
+                    {resolvingConflict && (
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span data-conflict-step>
+                          <StatusPill status="doing" variant="solid" live>
+                            {conflictStep}
+                          </StatusPill>
+                        </span>
+                        <span className="flex-1" />
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          icon={<IconStop size={14} />}
+                          onClick={() => setConfirmAbort(true)}
+                          loading={aborting}
+                        >
+                          {aborting ? td.abortingButton : td.conflict.abort}
+                        </Button>
+                      </div>
+                    )}
+                    {failedConflict && (
+                      <>
+                        <div role="alert" className="ui-banner ui-banner--error">
+                          <IconAlert size={15} className="mt-0.5 shrink-0" />
+                          <span>{errorText(tt, task.agent.error ?? "merge_conflict")}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-ink-2">{td.conflict.failedHint}</p>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<IconRobot size={14} />}
+                            onClick={() => doResolve("conflict")}
+                            loading={resolveBusy === "conflict"}
+                          >
+                            {td.conflict.resolveWithAi}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                    {resolvedConflict && (
+                      <div className="flex flex-col items-start gap-2" data-conflict-resolved-note>
+                        <StatusPill status="review" icon={<IconCheck size={12} />}>
+                          {tt.taskCard.conflictResolved}
+                        </StatusPill>
+                        <p className="text-[13px] leading-relaxed text-ink-2">{td.conflict.resolvedNote}</p>
+                      </div>
+                    )}
+                    {showDrift && drift && (
+                      <div className="ui-banner ui-banner--info items-center" data-base-drift>
+                        <IconMerge size={15} className="shrink-0" />
+                        <span className="min-w-0 flex-1">{td.conflict.baseAhead(drift.behind, drift.base)}</span>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<IconMerge size={14} />}
+                          onClick={() => setConfirmUpdate(true)}
+                          loading={resolveBusy === "update"}
+                        >
+                          {td.conflict.updateBranch}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </Section>
+              )}
+
               {parentTask && (
                 <Section n="↑" label={td.parentLabel}>
                   <TaskLinkRow task={parentTask} t={tt} onOpen={() => selectTask(parentTask.id)} />
                 </Section>
               )}
+
+              <DependencySections task={task} t={tt} onOpen={(id) => selectTask(id)} onUpdated={upsertTask} />
 
               <Section n={next()} label={td.descriptionLabel}>
                 {editing && draft ? (
@@ -773,7 +959,8 @@ export function TaskDetailDrawer() {
               {/* Below lg the split aside is hidden, so its sections move inline */}
               <div className="mb-7 rounded-[14px] border-2 border-line bg-panel p-4 lg:hidden">{meta}</div>
 
-              {!editing && task.status !== "done" && task.status !== "doing" && (
+              {/* zincir E3: a task in review is closed by its merge, never by a breakdown. */}
+              {!editing && task.status !== "done" && task.status !== "doing" && task.status !== "review" && (
                 <div className="mb-2">
                   {!showBreakdown ? (
                     <button
@@ -859,13 +1046,24 @@ export function TaskDetailDrawer() {
 
       <ConfirmDialog
         open={confirmAbort}
-        title={td.confirmAbort.title}
-        description={td.confirmAbort.description}
+        title={resolvingConflict ? td.conflict.abortConfirmTitle : td.confirmAbort.title}
+        description={resolvingConflict ? td.conflict.abortConfirmBody : td.confirmAbort.description}
         confirmLabel={td.confirmAbort.confirm}
         cancelLabel={td.confirmDelete.cancel}
         variant="danger"
         onConfirm={doAbort}
         onCancel={() => setConfirmAbort(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmUpdate}
+        title={td.conflict.updateConfirmTitle}
+        description={td.conflict.updateConfirmBody}
+        confirmLabel={td.conflict.updateBranch}
+        cancelLabel={td.confirmDelete.cancel}
+        variant="default"
+        onConfirm={() => doResolve("update")}
+        onCancel={() => setConfirmUpdate(false)}
       />
     </>
   );
@@ -1091,6 +1289,149 @@ function TaskLinkRow({ task, t, onOpen }: { task: Task; t: Translations; onOpen:
         {t.board.columns[task.status]}
       </StatusPill>
     </button>
+  );
+}
+
+/**
+ * zincir (§5.6): "Waiting on" — the task's dependencies, editable in To do or
+ * while waiting (add from a same-project select that hides itself, current
+ * dependencies and cycle makers; remove per row). Read-only otherwise, hidden
+ * when empty and read-only. "Waiting on this" lists the dependents.
+ */
+function DependencySections({
+  task,
+  t,
+  onOpen,
+  onUpdated,
+}: {
+  task: Task;
+  t: Translations;
+  onOpen: (id: string) => void;
+  onUpdated: (task: Task) => void;
+}) {
+  const td = t.taskDetail;
+  const tasks = useBoardStore((s) => s.tasks);
+  const order = useBoardStore((s) => s.order);
+  const [busy, setBusy] = useState(false);
+  const [depError, setDepError] = useState<string | null>(null);
+  const taskId = task.id;
+  useEffect(() => setDepError(null), [taskId]);
+
+  const ids = task.dependsOn ?? [];
+  const deps = ids.map((id) => tasks[id]).filter((x): x is Task => Boolean(x));
+  const dependents = dependentsOf(task.id, tasks);
+  const editable = task.status === "todo" || isWaitingDeps(task);
+  const keyOf = (x: Task) => x.displayId ?? `#${x.id.slice(0, 7)}`;
+  const candidates = editable
+    ? order
+        .map((id) => tasks[id])
+        .filter(
+          (c): c is Task =>
+            Boolean(c) &&
+            c!.projectId === task.projectId &&
+            c!.id !== task.id &&
+            !ids.includes(c!.id) &&
+            !wouldCycle(task.id, c!.id, tasks),
+        )
+    : [];
+
+  const save = async (next: string[]) => {
+    setBusy(true);
+    setDepError(null);
+    try {
+      onUpdated(await api.setDependencies(task.id, next));
+    } catch (err) {
+      setDepError(errorText(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unmetIds = new Set(unmetDeps(task, tasks).map((d) => d.id));
+
+  return (
+    <>
+      {(editable || deps.length > 0) && (
+        <Section n="←" label={td.dependsLabel}>
+          <div className="flex flex-col gap-2" data-deps-section>
+            {deps.length === 0 && editable && <EmptyLine>{td.dependsEmpty}</EmptyLine>}
+            {deps.map((d) => (
+              <div key={d.id} className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1">
+                    <TaskLinkRow task={d} t={t} onOpen={() => onOpen(d.id)} />
+                  </span>
+                  {editable && (
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
+                      label={td.removeDependency(keyOf(d))}
+                      disabled={busy}
+                      onClick={() => void save(ids.filter((x) => x !== d.id))}
+                    >
+                      <IconClose size={12} />
+                    </IconButton>
+                  )}
+                </div>
+                {unmetIds.has(d.id) && blockerProblem(d) && d.agent.error && (
+                  <p className="flex items-center gap-1.5 pl-1 text-xs font-medium text-[var(--red-text)]">
+                    <IconAlert size={12} className="shrink-0" />
+                    {t.taskCard.blockerProblem(keyOf(d))}: {errorText(t, d.agent.error)}
+                  </p>
+                )}
+              </div>
+            ))}
+            {editable ? (
+              candidates.length > 0 && (
+                <Select
+                  size="sm"
+                  value=""
+                  disabled={busy}
+                  aria-label={td.addDependency}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (id) void save([...ids, id]);
+                  }}
+                >
+                  <option value="">{td.addDependency}</option>
+                  {candidates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {keyOf(c)} · {c.title}
+                    </option>
+                  ))}
+                </Select>
+              )
+            ) : (
+              <p className="flex items-center gap-1.5 text-xs text-ink-3">
+                <IconLock size={12} className="shrink-0" />
+                {td.dependsLockedHint}
+              </p>
+            )}
+            {depError && (
+              <div role="alert" className="ui-banner ui-banner--error">
+                <IconAlert size={15} className="mt-0.5 shrink-0" />
+                <span>{depError}</span>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {dependents.length > 0 && (
+        <Section n="→" label={td.dependentsLabel}>
+          <div className="flex flex-col gap-2" data-dependents-section>
+            {dependents.map((d) => (
+              <span key={d.id} className="inline-flex items-center gap-2">
+                <IconChain size={13} className="shrink-0 text-ink-3" />
+                <span className="min-w-0 flex-1">
+                  <TaskLinkRow task={d} t={t} onOpen={() => onOpen(d.id)} />
+                </span>
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
+    </>
   );
 }
 

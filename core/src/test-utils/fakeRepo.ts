@@ -56,3 +56,24 @@ export function readCalls(stateDir: string): FakeCall[] {
     .filter(Boolean)
     .map((l) => JSON.parse(l) as FakeCall);
 }
+
+/** PIDs the fake CLI's `hang` scenario recorded (CLI + grandchild), or null before it ran. */
+export function readHangPids(stateDir: string): { cli: number; grandchild: number } | null {
+  const file = join(stateDir, "hang-pids.json");
+  if (!existsSync(file)) return null;
+  try {
+    return JSON.parse(readFileSync(file, "utf8")) as { cli: number; grandchild: number };
+  } catch {
+    return null;
+  }
+}
+
+/** True when `pid` no longer exists (`kill(pid, 0)` → ESRCH). */
+export function processGone(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "ESRCH";
+  }
+}

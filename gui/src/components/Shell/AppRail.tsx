@@ -24,6 +24,7 @@ import { useBoardStore } from "@/store/boardStore";
 import { useViewStore, type BoardView } from "@/store/viewStore";
 import { useProjects } from "@/hooks/useBoard";
 import { useGitStatus } from "@/hooks/useGitStatus";
+import { useStashes } from "@/hooks/useStashes";
 import { useTranslation } from "@/hooks/useTranslation";
 
 /**
@@ -51,6 +52,7 @@ export function AppRail({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
 
   const selectedProjectId = useBoardStore((s) => s.selectedProjectId);
   useGitStatus(selectedProjectId);
+  useStashes(selectedProjectId);
 
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [detailProjectId, setDetailProjectId] = useState<string | null>(null);

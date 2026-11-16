@@ -9,9 +9,79 @@ import { tr } from "@/lib/i18n/tr";
 import { en } from "@/lib/i18n/en";
 import { formatUsd } from "@/lib/format";
 import { errorText } from "@/lib/errorText";
+import { blockerProblem, isWaitingDeps } from "@/lib/boardView";
+import { refreshStashes } from "@/hooks/useStashes";
 import type { Task, WsMessage } from "@/types";
 
 const RECONNECT_DELAY_MS = 3000;
+
+/** zincir D6: one blocker notification per failure (`${taskId}:${finishedAt}`), §3/12. */
+const chainBlockedNotified = new Set<string>();
+
+/**
+ * zincir D6: a dependency just got into trouble (§3/11) while tasks of the open
+ * project wait for it → one browser notification. Other projects are not in
+ * the store, so they stay silent (known limit; the card badge is permanent).
+ */
+function notifyChainBlocked(prev: Task | undefined, t: Task) {
+  if (!prev || !blockerProblem(t) || blockerProblem(prev)) return;
+  const { tasks } = useBoardStore.getState();
+  const waiting = Object.values(tasks).filter((x) => x && isWaitingDeps(x) && x.dependsOn?.includes(t.id));
+  if (waiting.length === 0) return;
+  const key = `${t.id}:${t.agent.finishedAt ?? ""}`;
+  if (chainBlockedNotified.has(key)) return;
+  chainBlockedNotified.add(key);
+  const s = uiStrings();
+  useNotificationStore.getState().notify(
+    s.notifications.chainBlocked(
+      t.displayId ?? t.title,
+      waiting.map((x) => x.displayId ?? x.title),
+    ),
+    t.agent.error ? errorText(s, t.agent.error) : s.notifications.taskErrorBody,
+  );
+}
+
+/** zincir F4.6 (§3/43): one notice per resolver run end (`${taskId}:${finishedAt}`). */
+const conflictNotified = new Set<string>();
+/**
+ * Tasks seen in `resolving_conflict`. `agent_status` arrives before the final
+ * `task_updated` and already flips the stored copy to done/error, so the
+ * previous copy alone would miss the transition.
+ */
+const resolvingSeen = new Set<string>();
+
+/** zincir F4.6 (§3/43): the AI conflict resolver finished (no extra WS event, §3/12 pattern). */
+function notifyConflictEnd(prev: Task | undefined, t: Task) {
+  if (t.agent.status === "resolving_conflict") {
+    resolvingSeen.add(t.id);
+    return;
+  }
+  const wasResolving = prev?.agent.status === "resolving_conflict" || resolvingSeen.has(t.id);
+  if (!wasResolving) return;
+  resolvingSeen.delete(t.id);
+  const failed = t.agent.status === "error";
+  const resolved = t.agent.status === "done" && t.agent.currentStep === "conflict_resolved";
+  // A clean merge (no AI, no QA, §3/39) ends as `branch_updated`.
+  const updated = t.agent.status === "done" && t.agent.currentStep === "branch_updated";
+  if (!failed && !resolved && !updated) return;
+  const once = `${t.id}:${t.agent.finishedAt ?? ""}`;
+  if (conflictNotified.has(once)) return;
+  conflictNotified.add(once);
+  const s = uiStrings();
+  const key = t.displayId ?? t.title;
+  const { projects, selectedProjectId } = useBoardStore.getState();
+  const name = t.projectId === selectedProjectId ? null : (projects.find((p) => p.id === t.projectId)?.name ?? null);
+  const withProject = (message: string) => (name ? `${name}: ${message}` : message);
+  if (failed) {
+    const reason = t.agent.error ? errorText(s, t.agent.error) : s.notifications.taskErrorBody;
+    useNotificationStore.getState().notify(s.notifications.conflictUnresolved(key), reason);
+    useToastStore.getState().push("error", withProject(s.notifications.runFailedToast(key, reason)), 8000);
+  } else if (updated) {
+    useToastStore.getState().push("success", withProject(s.notifications.branchUpdated(key)), 6000);
+  } else {
+    useToastStore.getState().push("success", withProject(s.notifications.conflictResolved(key)), 6000);
+  }
+}
 
 /** Toast for a live planner/budget event. Names the project when it isn't the open one. */
 function plannerToast(projectId: string, type: "success" | "error", message: string, fallbackName?: string) {
@@ -25,6 +95,10 @@ function plannerToast(projectId: string, type: "success" | "error", message: str
 
 function plannerStrings() {
   return (useBoardStore.getState().lang === "en" ? en : tr).board.planner;
+}
+
+function uiStrings() {
+  return useBoardStore.getState().lang === "en" ? en : tr;
 }
 
 export function useAgentSocket(url?: string) {
@@ -94,20 +168,29 @@ export function useAgentSocket(url?: string) {
               // tasks of other projects (no `prev`) stay silent.
               const prev: Task | undefined = useBoardStore.getState().tasks[t.id];
               upsertTask(t);
+              notifyChainBlocked(prev, t);
+              notifyConflictEnd(prev, t);
               if (t.agent.status === "idle" && t.status === "doing") {
                 useBoardStore.getState().clearBudgetExceeded(t.id);
               }
               const finished = t.agent.status === "done" || t.agent.status === "error";
               if (prev?.status === "doing" && t.status !== "doing" && finished) {
                 const isError = t.agent.status === "error";
+                const s = uiStrings();
+                const reason = t.agent.error ? errorText(s, t.agent.error) : s.notifications.taskErrorBody;
                 useNotificationStore.getState().notify(
-                  isError ? `Error: ${t.title}` : `Done: ${t.title}`,
-                  isError
-                    ? (t.agent.error
-                        ? errorText(useBoardStore.getState().lang === "en" ? en : tr, t.agent.error)
-                        : "Agent encountered an error")
-                    : "Agent finished successfully",
+                  isError ? s.notifications.taskError(t.title) : s.notifications.taskDone(t.title),
+                  isError ? reason : s.notifications.taskDoneBody,
                 );
+                // zincir F0.5: the notification may be off or unseen; a failed run
+                // also gets an in-app toast with the translated reason.
+                if (isError) {
+                  const { projects, selectedProjectId } = useBoardStore.getState();
+                  const name =
+                    t.projectId === selectedProjectId ? null : (projects.find((p) => p.id === t.projectId)?.name ?? null);
+                  const message = s.notifications.runFailedToast(t.displayId ?? t.title, reason);
+                  useToastStore.getState().push("error", name ? `${name}: ${message}` : message, 8000);
+                }
               }
               break;
             }
@@ -126,6 +209,11 @@ export function useAgentSocket(url?: string) {
             }
             case "agent_status": {
               const m = msg as Extract<WsMessage, { type: "agent_status" }>;
+              // zincir F4.6: remember a running resolver before this frame overwrites it.
+              if (m.payload.status === "resolving_conflict" ||
+                  useBoardStore.getState().tasks[m.taskId]?.agent.status === "resolving_conflict") {
+                resolvingSeen.add(m.taskId);
+              }
               setAgentStatus(m.taskId, m.payload);
               break;
             }
@@ -224,6 +312,27 @@ export function useAgentSocket(url?: string) {
                 formatUsd(p.budgetUsd),
               );
               plannerToast(p.projectId, "error", message, p.projectName);
+              break;
+            }
+            case "chain_advanced": {
+              const m = msg as Extract<WsMessage, { type: "chain_advanced" }>;
+              const p = m.payload;
+              const from = p.displayId ?? m.taskId;
+              const started = p.started.map((x) => x.displayId ?? x.id);
+              if (started.length > 0) {
+                plannerToast(p.projectId, "success", uiStrings().board.chainAdvanced(from, started, p.merged));
+              }
+              break;
+            }
+            case "stash_created": {
+              // zincir E6 (plan §3/28): info toast (6 s) + the project's stash counter.
+              const m = msg as Extract<WsMessage, { type: "stash_created" }>;
+              const p = m.payload;
+              const { projects, selectedProjectId } = useBoardStore.getState();
+              const text = uiStrings().stashes.createdToast(p.displayId);
+              const name = p.projectId === selectedProjectId ? null : projects.find((x) => x.id === p.projectId)?.name;
+              useToastStore.getState().push("info", name ? `${name}: ${text}` : text, 6000);
+              void refreshStashes(p.projectId);
               break;
             }
             case "hello":

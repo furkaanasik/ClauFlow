@@ -147,6 +147,43 @@ describe("mergeTaskBranch: remote", () => {
     }
   });
 
+  it("zincir F4.6 (§3/34): a conflicting PR → merge_conflict (files unknown), read via gh pr view under the lock", async () => {
+    const gh = installFakeGh();
+    process.env.FAKE_GH_MERGE_CONFLICT = "1";
+    try {
+      const { project, task } = await setup({ remote: true });
+      const withPr = await updateTask(task.id, { prNumber: 7 });
+      const r = await mergeTaskBranch(withPr, project);
+      expect(r).toMatchObject({ ok: false, code: "merge_conflict", files: [] });
+      expect(gh.calls()).toEqual([
+        "pr merge 7 --merge --delete-branch",
+        "pr view 7 --json mergeable,mergeStateStatus",
+      ]);
+    } finally {
+      delete process.env.FAKE_GH_MERGE_CONFLICT;
+      gh.restore();
+    }
+  });
+
+  it("zincir F4.6: mergeable UNKNOWN keeps pr_merge_failed", async () => {
+    const gh = installFakeGh();
+    process.env.FAKE_GH_MERGE_FAIL = "GraphQL: something went wrong";
+    process.env.FAKE_GH_MERGEABLE = "UNKNOWN";
+    try {
+      const { project, task } = await setup({ remote: true });
+      const withPr = await updateTask(task.id, { prNumber: 8 });
+      expect(await mergeTaskBranch(withPr, project)).toEqual({
+        ok: false,
+        code: "pr_merge_failed",
+        detail: "GraphQL: something went wrong",
+      });
+    } finally {
+      delete process.env.FAKE_GH_MERGE_FAIL;
+      delete process.env.FAKE_GH_MERGEABLE;
+      gh.restore();
+    }
+  });
+
   it("a branch without a PR in a repo with a remote is not merged locally", async () => {
     const { repo, project, task } = await setup({ remote: true });
     const r = await mergeTaskBranch(task, project);

@@ -15,7 +15,7 @@ import {
   runPlannerCli,
 } from "./plannerShared.js";
 import { buildPlannerPrompt, runProjectPlanner } from "./projectPlanner.js";
-import { runTaskBreakdown } from "./taskBreakdownRunner.js";
+import { buildBreakdownPrompt, runTaskBreakdown } from "./taskBreakdownRunner.js";
 import { createProject, createTask, getProject, getTask, listTasks } from "../services/taskService.js";
 import { FAKE_CLAUDE, makeRepo, readCalls } from "../test-utils/fakeRepo.js";
 
@@ -79,8 +79,94 @@ describe("normalizeTasks", () => {
       analysis: "d",
       priority: "high",
       tags: ["a", "b".repeat(32)],
+      key: null,
+      dependsOn: [],
     });
     expect(items[1]).toMatchObject({ title: "second", priority: "medium", analysis: "deep", tags: [] });
+  });
+
+  describe("dependencies (zincir F3)", () => {
+    const deps = (parsed: unknown[], max = 20) => normalizeTasks(parsed, max).map((i) => i.dependsOn);
+
+    it("resolves keys to earlier output indexes", () => {
+      const items = normalizeTasks(
+        [
+          { title: "a", key: "db-schema" },
+          { title: "b", key: "API", dependsOn: ["db-schema"] },
+          { title: "c", dependsOn: ["api", "db-schema"] },
+        ],
+        10,
+      );
+      expect(items.map((i) => i.key)).toEqual(["db-schema", "api", null]);
+      expect(items.map((i) => i.dependsOn)).toEqual([[], [0], [1, 0]]);
+    });
+
+    it("resolves 1-based numbers and \"2\" / \"#2\" strings, and mixes them with keys", () => {
+      expect(deps([{ title: "a" }, { title: "b", dependsOn: [1] }, { title: "c", dependsOn: ["#2", "1"] }])).toEqual([
+        [],
+        [0],
+        [1, 0],
+      ]);
+      expect(deps([{ title: "a", key: "x" }, { title: "b" }, { title: "c", dependsOn: ["x", 2, "#1"] }])).toEqual([
+        [],
+        [],
+        [0, 1],
+      ]);
+    });
+
+    it("is backward compatible: no field → [] (and junk fields → [])", () => {
+      expect(deps([{ title: "a" }, { title: "b" }])).toEqual([[], []]);
+      expect(deps([{ title: "a" }, { title: "b", dependsOn: "a" }, { title: "c", dependsOn: [null, {}, 1.5] }])).toEqual([
+        [],
+        [],
+        [],
+      ]);
+    });
+
+    it("drops forward, self and unknown references", () => {
+      expect(
+        deps([
+          { title: "a", key: "a", dependsOn: ["b", 2, "a", 1] },
+          { title: "b", key: "b", dependsOn: ["b", "nope", 9, 0, -1, "#7"] },
+        ]),
+      ).toEqual([[], []]);
+    });
+
+    it("maps raw positions to output positions when untitled entries are skipped", () => {
+      const items = normalizeTasks(
+        [{ title: "" }, "junk", { title: "a", key: "first" }, { title: "   " }, { title: "b", dependsOn: [3, "first"] }],
+        10,
+      );
+      expect(items.map((i) => i.title)).toEqual(["a", "b"]);
+      expect(items[1]!.dependsOn).toEqual([0]);
+      // A reference to a skipped entry goes nowhere.
+      expect(deps([{ title: "a" }, { title: "" }, { title: "c", dependsOn: [2, 1] }])).toEqual([[], [0]]);
+    });
+
+    it("dedupes and caps at 20", () => {
+      const many = Array.from({ length: 25 }, (_, i) => ({ title: `t${i}` }));
+      const last = { title: "last", dependsOn: [1, 1, "#1", ...Array.from({ length: 25 }, (_, i) => i + 1)] };
+      const items = normalizeTasks([...many, last], 30);
+      expect(items.at(-1)!.dependsOn).toHaveLength(20);
+      expect(new Set(items.at(-1)!.dependsOn).size).toBe(20);
+      expect(items.at(-1)!.dependsOn[0]).toBe(0);
+    });
+
+    it("never references an item cut by maxTasks", () => {
+      const items = normalizeTasks(
+        [{ title: "a" }, { title: "b", dependsOn: [1] }, { title: "c", dependsOn: [1, 2] }],
+        2,
+      );
+      expect(items).toHaveLength(2);
+      expect(items.every((i) => i.dependsOn.every((d) => d < items.length))).toBe(true);
+    });
+
+    it("normalizes keys to [a-z0-9-], at most 40 chars", () => {
+      const [item] = normalizeTasks([{ title: "a", key: `  Auth Flow!!${"x".repeat(60)}` }], 1);
+      expect(item!.key).toMatch(/^[a-z0-9-]{1,40}$/);
+      expect(item!.key!.startsWith("auth-flow-")).toBe(true);
+      expect(normalizeTasks([{ title: "a", key: "!!!" }], 1)[0]!.key).toBeNull();
+    });
   });
 
   it("rejects non-arrays and arrays without a usable task", () => {
@@ -137,6 +223,23 @@ describe("planner prompt (A7b)", () => {
       expect(p).not.toMatch(/src\/agents|src\/services|claudeService|runClaude|6000/);
       expect(p).toContain("at most 5");
     }
+  });
+
+  it("asks for key/dependsOn only where code builds on earlier tasks (zincir F3)", () => {
+    const prompts = [
+      buildPlannerPrompt({ aiPrompt: "A todo app", cap: 5, repoExists: true }),
+      buildPlannerPrompt({ aiPrompt: "A todo app", cap: 5, repoExists: false }),
+      buildBreakdownPrompt({ prompt: "Split it", cap: 4 }),
+    ];
+    for (const p of prompts) {
+      expect(p).toContain('"key"');
+      expect(p).toContain('"dependsOn"');
+      expect(p).toContain("Do NOT make every task depend on the previous one");
+      expect(p).toContain("Never reference a later task");
+      expect(p).toContain("Return ONLY a JSON array");
+      expect(p).not.toContain("If depending on a prior task, name it in one line");
+    }
+    expect(prompts[2]).toContain("at most 4");
   });
 });
 

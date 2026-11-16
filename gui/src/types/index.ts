@@ -9,6 +9,15 @@ export type AgentStatus =
   | "pushing"
   | "pr_opening"
   | "awaiting_approval"
+  /** zincir: dragged to Doing but a dependency is not done yet; holds no repo lock. */
+  | "waiting_deps"
+  /**
+   * zincir F4.6 (§3/33): in Review, the AI conflict resolver works on the
+   * branch. `currentStep`: queued | merging | resolving | verifying | qa | pushing.
+   * Success → `done` + currentStep `conflict_resolved`; failure → `error` +
+   * `conflict_unresolved:<reason>`.
+   */
+  | "resolving_conflict"
   | "done"
   | "error";
 
@@ -45,6 +54,8 @@ export interface Task {
   teamId?: string | null;
   /** Lifetime spend in USD from the CLI's `total_cost_usd` (roles, comments, breakdowns). */
   costUsd?: number;
+  /** zincir: ids of same-project tasks this one waits for (in board order). */
+  dependsOn?: string[];
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -170,9 +181,39 @@ export interface SystemCapabilities {
   models: string[];
 }
 
+/** zincir F4.6 (§3/46): `POST /tasks/:id/resolve` mode. */
+export type ConflictResolveMode = "conflict" | "update";
+
+/** zincir F4.6 (§3/46): `GET /tasks/:id/base-drift` (read-only, no fetch). */
+export interface BaseDrift {
+  base: string;
+  /** `origin/<base>` when the remote-tracking ref exists, else `<base>`. */
+  target: string;
+  /** Commits on `target` the task branch does not have (0 when there is no branch). */
+  behind: number;
+  mergeBase: string | null;
+}
+
 export interface GitStatus {
   branch: string | null;
   isDirty: boolean;
+}
+
+/** zincir E6: why ClauFlow stashed a dirty tree (`resolve` = F4.6 conflict resolver). */
+export type StashReason = "run" | "merge" | "comment" | "resolve";
+
+/** zincir E6 (plan §5.9): one of ClauFlow's stashes, `GET /projects/:id/stashes`. */
+export interface StashEntry {
+  /** Stash commit SHA; restore/drop address the stash by it. */
+  ref: string;
+  label: string;
+  reason: StashReason;
+  taskId: string | null;
+  displayId: string | null;
+  /** ISO time the stash was taken. */
+  createdAt: string;
+  /** Files in the stash (tracked + untracked), at most 20. */
+  files: string[];
 }
 
 /** `GET /tasks/:id/diff`: the task branch against base (`<base>...<branch>`). */
@@ -351,7 +392,26 @@ export type WsMessage =
     }
   | { type: "task_breakdown_started"; taskId: string }
   | { type: "task_breakdown_done"; taskId: string; taskCount: number }
-  | { type: "task_breakdown_error"; taskId: string; error: string };
+  | { type: "task_breakdown_error"; taskId: string; error: string }
+  | { type: "chain_advanced"; taskId: string; payload: ChainAdvancedPayload }
+  | { type: "stash_created"; taskId: string | null; payload: StashCreatedPayload };
+
+/** zincir E6 (plan §3/28, §5.7): ClauFlow stashed a dirty tree (core `broadcastStashCreated`). */
+export interface StashCreatedPayload {
+  projectId: string;
+  label: string;
+  reason: StashReason;
+  displayId: string | null;
+}
+
+/** zincir: a done task started its waiting dependents (core `broadcastChainAdvanced`). */
+export interface ChainAdvancedPayload {
+  projectId: string;
+  displayId: string | null;
+  /** true when the done transition came from review (a merge). */
+  merged: boolean;
+  started: Array<{ id: string; displayId: string | null }>;
+}
 
 interface BudgetExceededPayload {
   spentUsd: number;

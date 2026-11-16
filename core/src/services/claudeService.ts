@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { Writable } from "node:stream";
 import { ADVISOR_SUPPORTED } from "./claudeCapabilities.js";
 
 interface ParsedToolCall {
@@ -295,66 +296,15 @@ function emitText(
 }
 
 /**
- * A8e: total argv bytes we allow. Linux caps a single argument at 128 KiB
- * (MAX_ARG_STRLEN); the prompt is one argument, so stay well below that.
+ * CLI arguments for one call. The prompt is NOT among them: it goes to the
+ * child's stdin (`writePromptToStdin`). Linux caps a single argv entry at
+ * 128 KiB (MAX_ARG_STRLEN), so a long task description (a pasted design doc)
+ * used to be truncated to fit; stdin has no such limit, and the model's own
+ * context window is the only remaining bound. No prompt cap is applied here.
  */
-export const ARG_BYTES_LIMIT = 100 * 1024;
-
-class PromptTooLargeError extends Error {
-  constructor() {
-    super("prompt_too_large");
-    this.name = "PromptTooLargeError";
-  }
-}
-
-const PROMPT_BLOCK_RE = /<([a-z][a-z0-9_]*)>\n([\s\S]*?)\n<\/\1>/g;
-const MIN_BLOCK_CHARS = 1_000;
-
-function argvBytes(args: string[]): number {
-  return args.reduce((n, a) => n + Buffer.byteLength(a, "utf8") + 1, 0);
-}
-
-/**
- * Shrinks the largest `<tag>…</tag>` block of `prompt` (repeatedly) until the
- * whole argv fits in `limit` bytes. Throws `prompt_too_large` when no block
- * is left to shrink.
- */
-function fitPromptToArgLimit(prompt: string, otherBytes: number, limit = ARG_BYTES_LIMIT): string {
-  let p = prompt;
-  const over = () => Buffer.byteLength(p, "utf8") + otherBytes - limit;
-  for (let guard = 0; guard < 64 && over() > 0; guard++) {
-    let best: { start: number; tag: string; body: string } | null = null;
-    for (const m of p.matchAll(PROMPT_BLOCK_RE)) {
-      const body = m[2]!;
-      if (body.length <= MIN_BLOCK_CHARS + 200) continue;
-      if (!best || Buffer.byteLength(body, "utf8") > Buffer.byteLength(best.body, "utf8")) {
-        best = { start: m.index! + m[1]!.length + 3, tag: m[1]!, body };
-      }
-    }
-    if (!best) break;
-    const bodyBytes = Buffer.byteLength(best.body, "utf8");
-    const bytesPerChar = bodyBytes / best.body.length;
-    const keep = Math.max(MIN_BLOCK_CHARS, Math.floor((bodyBytes - over() - 256) / bytesPerChar));
-    const cut = `${best.body.slice(0, keep)}\n[${best.tag} truncated to ${keep} characters to fit the CLI argument limit]`;
-    p = p.slice(0, best.start) + cut + p.slice(best.start + best.body.length);
-  }
-  if (over() > 0) throw new PromptTooLargeError();
-  return p;
-}
-
 export function buildClaudeArgs(options: ClaudeRunOptions): string[] {
-  const args = buildClaudeArgsRaw(options);
-  const total = argvBytes(args);
-  if (total <= ARG_BYTES_LIMIT) return args;
-  const promptBytes = Buffer.byteLength(options.prompt, "utf8") + 1;
-  const prompt = fitPromptToArgLimit(options.prompt, total - promptBytes);
-  return buildClaudeArgsRaw({ ...options, prompt });
-}
-
-function buildClaudeArgsRaw(options: ClaudeRunOptions): string[] {
-  // -p must be immediately followed by the prompt string.
-  // Other flags come after so the CLI parser picks up the prompt correctly.
-  const args = ["-p", options.prompt, "--permission-mode", "bypassPermissions"];
+  // `-p` (print mode) with no positional prompt: the CLI reads it from stdin.
+  const args = ["-p", "--permission-mode", "bypassPermissions"];
   if (options.bare) args.push("--bare");
   if (options.model) args.push("--model", options.model);
   // An explicit empty list disables every built-in tool (`--tools ""`).
@@ -380,6 +330,84 @@ function buildClaudeArgsRaw(options: ClaudeRunOptions): string[] {
   return args;
 }
 
+// ── Process tree kill (zincir E7a, plan §3/29) ─────────────────────────────
+// Each CLI call runs in its own process group (`detached: true`), so an abort
+// reaches the whole tree (tool subprocesses, dev servers) and not only the
+// direct child. Live groups are tracked so a core shutdown does not orphan them.
+
+const DEFAULT_KILL_GRACE_MS = 5000;
+const liveGroups = new Set<number>();
+let shutdownHooked = false;
+
+function killGraceMs(): number {
+  const raw = process.env.CLAUFLOW_KILL_GRACE_MS;
+  const n = raw === undefined || raw.trim() === "" ? Number.NaN : Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_KILL_GRACE_MS;
+}
+
+function signalGroup(pgid: number, sig: NodeJS.Signals | 0): boolean {
+  try {
+    process.kill(-pgid, sig);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Process groups of CLI calls that have not closed yet (test hook). */
+export function liveProcessGroups(): number[] {
+  return [...liveGroups];
+}
+
+/** Signals every live CLI process group (core shutdown). */
+export function killLiveGroups(sig: NodeJS.Signals = "SIGTERM"): void {
+  for (const pgid of liveGroups) signalGroup(pgid, sig);
+}
+
+function hookShutdown(): void {
+  if (shutdownHooked) return;
+  shutdownHooked = true;
+  // `exit` runs synchronously: no grace period is possible, so SIGKILL.
+  process.once("exit", () => killLiveGroups("SIGKILL"));
+  for (const sig of ["SIGINT", "SIGTERM"] as const) {
+    process.once(sig, () => {
+      killLiveGroups("SIGTERM");
+      // Alone, this listener would swallow the signal; re-raise the default.
+      if (process.listenerCount(sig) === 0) process.kill(process.pid, sig);
+    });
+  }
+}
+
+/**
+ * SIGTERM to the child's process group, then SIGKILL after `graceMs` if any
+ * member is still alive (a CLI that ignores SIGTERM, or a grandchild).
+ */
+export function killTree(child: { pid?: number }, graceMs = killGraceMs()): void {
+  const pgid = child.pid;
+  if (!pgid) return;
+  if (!signalGroup(pgid, "SIGTERM")) return;
+  const timer = setTimeout(() => {
+    if (signalGroup(pgid, 0)) signalGroup(pgid, "SIGKILL");
+  }, graceMs);
+  timer.unref();
+}
+
+/**
+ * Writes the prompt to the child's stdin and closes it. A child that exits
+ * (or is killed) before reading everything makes the pipe fail with EPIPE;
+ * that surfaces through the child's exit code, so the stream error is
+ * swallowed instead of crashing core with an unhandled 'error' event.
+ */
+function writePromptToStdin(stdin: Writable | null, prompt: string): void {
+  if (!stdin) return;
+  stdin.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code !== "EPIPE" && err.code !== "ERR_STREAM_DESTROYED") {
+      console.error("[claudeService] stdin write failed:", err.message);
+    }
+  });
+  stdin.end(prompt, "utf8");
+}
+
 function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
   const args = buildClaudeArgs(options);
   const isStreamJson = options.outputFormat === "stream-json";
@@ -392,9 +420,18 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
     const child = spawn(process.env.CLAUFLOW_CLAUDE_BIN || "claude", args, {
       cwd: options.cwd,
       env,
-      // stdin'i kapat — "no stdin data received" uyarısını önler
-      stdio: ["ignore", "pipe", "pipe"],
+      // stdin carries the prompt (see buildClaudeArgs).
+      stdio: ["pipe", "pipe", "pipe"],
+      // Own process group: abort kills the whole tree (killTree).
+      detached: true,
     });
+    const pgid = child.pid;
+    if (pgid) {
+      hookShutdown();
+      liveGroups.add(pgid);
+    }
+
+    writePromptToStdin(child.stdin, options.prompt);
 
     let stdout = "";
     let stderr = "";
@@ -412,7 +449,7 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
       : null;
 
     const onAbort = () => {
-      child.kill("SIGTERM");
+      killTree(child);
     };
     if (options.signal) {
       if (options.signal.aborted) onAbort();
@@ -450,10 +487,12 @@ function runClaudeOnce(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
     });
 
     child.on("error", (err) => {
+      if (pgid) liveGroups.delete(pgid);
       if (options.signal) options.signal.removeEventListener("abort", onAbort);
       reject(err);
     });
     child.on("close", (code) => {
+      if (pgid) liveGroups.delete(pgid);
       if (options.signal) options.signal.removeEventListener("abort", onAbort);
       if (streamParser) streamParser.flush();
       if (options.onLine) {

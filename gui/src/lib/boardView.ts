@@ -10,7 +10,19 @@ export const COLUMN_STATUSES: TaskStatus[] = ["todo", "doing", "review", "done"]
 
 export function isAgentWorking(task: Task): boolean {
   const s = task.agent?.status;
-  return Boolean(s) && s !== "idle" && s !== "done" && s !== "error" && s !== "awaiting_approval";
+  return (
+    Boolean(s) &&
+    s !== "idle" &&
+    s !== "done" &&
+    s !== "error" &&
+    s !== "awaiting_approval" &&
+    s !== "waiting_deps"
+  );
+}
+
+/** zincir: in Doing, waiting for its dependencies (no run, no repo lock). */
+export function isWaitingDeps(task: Task): boolean {
+  return task.status === "doing" && task.agent?.status === "waiting_deps";
 }
 
 /** Team run paused after the Analyst until the user approves the spec. */
@@ -20,6 +32,92 @@ export function isAwaitingApproval(task: Task): boolean {
 
 export function isQueued(task: Task): boolean {
   return task.status === "doing" && task.agent.status === "idle";
+}
+
+/* ─── zincir F4.6: conflict resolver (plan §3/33, §5.10) ──────────────────── */
+
+/**
+ * The AI conflict resolver works on this Review task's branch (queued for the
+ * repo lock or running). `isAgentWorking` covers it too (Z44: the card stays
+ * locked, a drag to Done would be refused with `conflict_resolving` anyway).
+ */
+export function isResolvingConflict(task: Task): boolean {
+  return task.status === "review" && task.agent?.status === "resolving_conflict";
+}
+
+/** The resolver finished: the branch now contains the base, ready to approve again. */
+export function isConflictResolved(task: Task): boolean {
+  return task.status === "review" && task.agent?.currentStep === "conflict_resolved";
+}
+
+/**
+ * The merge conflicted and nothing resolves it now: either the automatic
+ * resolver was skipped (`merge_conflict`, a previous run failed) or the run
+ * failed (`conflict_unresolved:<reason>`). The drawer offers "Resolve with AI".
+ */
+export function conflictFailed(task: Task): boolean {
+  if (task.status !== "review" || task.agent?.status !== "error") return false;
+  const code = task.agent.error ?? "";
+  return code === "merge_conflict" || code === "conflict_unresolved" || code.startsWith("conflict_unresolved:");
+}
+
+/* ─── zincir: dependency chain (plan §5.6, §3/11) ─────────────────────────── */
+
+type TaskMap = Record<string, Task>;
+
+/** Dependencies of `task` that are not done yet, in `dependsOn` order (unknown ids skipped). */
+export function unmetDeps(task: Task, tasks: TaskMap): Task[] {
+  const out: Task[] = [];
+  for (const id of task.dependsOn ?? []) {
+    const dep = tasks[id];
+    if (dep && dep.status !== "done") out.push(dep);
+  }
+  return out;
+}
+
+/**
+ * A dependency that will not get done on its own: its run failed, got stuck
+ * or was aborted (back in To do with an error), or its merge failed in Review
+ * (§3/11). A spec gate (`awaiting_approval`) is not a problem.
+ */
+export function blockerProblem(task: Task): boolean {
+  return (task.status === "todo" || task.status === "review") && task.agent?.status === "error";
+}
+
+/** Tasks that list `id` in their `dependsOn`. */
+export function dependentsOf(id: string, tasks: TaskMap): Task[] {
+  return Object.values(tasks).filter((t) => t?.dependsOn?.includes(id));
+}
+
+/**
+ * Client-side pre-filter (the server decides): would `taskId → candidateId`
+ * close a cycle, i.e. does `candidateId` already reach `taskId`?
+ */
+export function wouldCycle(taskId: string, candidateId: string, tasks: TaskMap): boolean {
+  if (taskId === candidateId) return true;
+  const seen = new Set<string>();
+  const stack = [candidateId];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (id === taskId) return true;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    for (const next of tasks[id]?.dependsOn ?? []) stack.push(next);
+  }
+  return false;
+}
+
+/** Waiting tasks whose dependencies are all done but that did not start (E5, §3/25). */
+export function readyWaiting(tasks: TaskMap): Task[] {
+  return Object.values(tasks).filter((t) => t && isWaitingDeps(t) && unmetDeps(t, tasks).length === 0);
+}
+
+/** Waiting tasks that start once `taskId` is done: it is their only unmet dependency (E4). */
+export function startsOnMerge(taskId: string, tasks: TaskMap): Task[] {
+  return Object.values(tasks).filter((t) => {
+    if (!t || !isWaitingDeps(t) || !t.dependsOn?.includes(taskId)) return false;
+    return unmetDeps(t, tasks).every((d) => d.id === taskId);
+  });
 }
 
 export function hasOpenPR(task: Task): boolean {

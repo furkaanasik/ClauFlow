@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
-import type { TaskStatus } from "@/types";
+import type { Task, TaskStatus } from "@/types";
 
 export function useProjects() {
   const setProjects = useBoardStore((s) => s.setProjects);
@@ -87,16 +87,18 @@ export function useBoardTasks() {
   return { loading, error };
 }
 
+/** Resolves with the server's copy of the task (undefined if it is not on the board). */
 export async function moveTaskOptimistic(
   id: string,
   nextStatus: TaskStatus,
-): Promise<void> {
+): Promise<Task | undefined> {
   const { patchTaskLocal, rollbackTask, upsertTask } = useBoardStore.getState();
   const previous = patchTaskLocal(id, { status: nextStatus });
-  if (!previous) return;
+  if (!previous) return undefined;
   try {
     const updated = await api.updateTask(id, { status: nextStatus });
     upsertTask(updated);
+    return updated;
   } catch (err) {
     rollbackTask(id, previous);
     // The server may have changed the row while refusing the move (a failed

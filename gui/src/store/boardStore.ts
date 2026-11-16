@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, NodeRun, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
+import type { AgentStatus, AgentText, CloneStatus, Comment, GitStatus, NodeRun, StashEntry, ProjectPlanningStatus, Project, ProjectPatch, Task, TaskPatch, TaskTeamState, Team, TeamArtifact, TeamRun, ToolCall } from "@/types";
 import { mergeById, newerAgentText, newerTeamArtifact, newerTeamRun, newerToolCall } from "./mergeById";
 
 type Lang = "tr" | "en";
@@ -32,6 +32,9 @@ interface BoardState {
   nodeRuns: Record<string, Record<string, NodeRun>>;
   budgetExceeded: Record<string, { spentUsd: number; budgetUsd: number }>;
   gitStatusByProject: Record<string, GitStatus>;
+  /** zincir E6: ClauFlow's stashes per project (newest first) and their count. */
+  stashesByProject: Record<string, StashEntry[]>;
+  stashCountByProject: Record<string, number>;
   projectDetailRequest: string | null;
   /** "Edit team" intent from the task drawer: AppRail opens the project drawer on
    *  Claude Config → Ekip, with `teamId` (the task's team) preselected when given. */
@@ -88,6 +91,7 @@ interface BoardState {
   setBudgetExceeded: (taskId: string, payload: { spentUsd: number; budgetUsd: number }) => void;
   clearBudgetExceeded: (taskId: string) => void;
   setProjectGitStatus: (projectId: string, status: GitStatus) => void;
+  setProjectStashes: (projectId: string, stashes: StashEntry[]) => void;
 
   breakdownStatus: Record<string, "breaking" | "done" | "error">;
   setBreakdownStatus: (taskId: string, status: "breaking" | "done" | "error") => void;
@@ -131,6 +135,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   nodeRuns: {},
   budgetExceeded: {},
   gitStatusByProject: {},
+  stashesByProject: {},
+  stashCountByProject: {},
   breakdownStatus: {},
   projectDetailRequest: null,
   teamEditorRequest: null,
@@ -414,6 +420,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setProjectGitStatus: (projectId, status) =>
     set((state) => ({
       gitStatusByProject: { ...state.gitStatusByProject, [projectId]: status },
+    })),
+
+  setProjectStashes: (projectId, stashes) =>
+    set((state) => ({
+      stashesByProject: { ...state.stashesByProject, [projectId]: stashes },
+      stashCountByProject: { ...state.stashCountByProject, [projectId]: stashes.length },
     })),
 
   setBreakdownStatus: (taskId, status) =>

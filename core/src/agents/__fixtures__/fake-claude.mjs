@@ -1,10 +1,105 @@
 #!/usr/bin/env node
+import { execFileSync, spawn } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+/** Current git branch of `cwd`, or "unknown" outside a repo / on a detached HEAD. */
+function currentBranch(cwd) {
+  try {
+    return execFileSync("git", ["symbolic-ref", "--short", "HEAD"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "unknown";
+  }
+}
+
+/** Paths git reports as unmerged (`--diff-filter=U`) in `cwd`; [] outside a merge. */
+function unmergedFiles(cwd) {
+  try {
+    return execFileSync("git", ["diff", "--name-only", "--diff-filter=U"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * zincir F4.6 keep_both: every conflict block becomes "ours lines + theirs
+ * lines" (a diff3 base section is dropped). Returns the new text, or null when
+ * the text has no complete block.
+ */
+function keepBothSides(text) {
+  const lines = text.split("\n");
+  const out = [];
+  let state = "outside"; // outside | ours | base | theirs
+  let ours = [];
+  let theirs = [];
+  let blocks = 0;
+  for (const line of lines) {
+    const bare = line.replace(/\r$/, "");
+    if (state === "outside") {
+      if (/^<{7}( |$)/.test(bare)) {
+        state = "ours";
+        ours = [];
+        theirs = [];
+      } else out.push(line);
+    } else if (state === "ours") {
+      if (/^\|{7}( |$)/.test(bare)) state = "base";
+      else if (/^={7}$/.test(bare)) state = "theirs";
+      else ours.push(line);
+    } else if (state === "base") {
+      if (/^={7}$/.test(bare)) state = "theirs";
+    } else if (/^>{7}( |$)/.test(bare)) {
+      out.push(...ours, ...theirs);
+      blocks++;
+      state = "outside";
+    } else theirs.push(line);
+  }
+  return blocks > 0 && state === "outside" ? out.join("\n") : null;
+}
+
+/** The conflict_resolver role (zincir F4.6, Z42): resolves (or not) and answers with a resolution note. */
+function resolveConflicts(cwd) {
+  const mode = process.env.FAKE_CLAUDE_RESOLVE || "keep_both";
+  const files = unmergedFiles(cwd);
+  if (files.length === 0) return "## Çözüm notu\n\nNo conflicted files found; nothing to resolve.";
+  const notes = [];
+  for (const rel of files) {
+    const file = join(cwd, rel);
+    if (mode === "leave_markers" || !existsSync(file)) {
+      notes.push(`- ${rel}: left as is`);
+      continue;
+    }
+    const resolved = keepBothSides(readFileSync(file, "utf8"));
+    if (resolved === null) {
+      notes.push(`- ${rel}: no conflict block found, left as is`);
+      continue;
+    }
+    writeFileSync(file, resolved);
+    notes.push(`- ${rel}: both sides changed the same lines; kept ours then theirs`);
+  }
+  return `## Çözüm notu\n\n${notes.join("\n")}`;
+}
+
+/** zincir F4.6: FAKE_CLAUDE_CONFLICT_FILE's first line becomes `line from <branch>`. */
+function writeConflictLine(cwd, rel) {
+  const file = join(cwd, rel);
+  const rest = existsSync(file) ? readFileSync(file, "utf8").split("\n").slice(1) : [""];
+  writeFileSync(file, [`line from ${currentBranch(cwd)}`, ...rest].join("\n"));
+}
+
+// `-p`/`--print` is a boolean (print mode) like the real CLI; the prompt is the
+// first positional argument, or stdin when there is none (what claudeService sends).
 const VALUE_FLAGS = new Set([
-  "-p",
-  "--print",
   "--permission-mode",
   "--model",
   "--tools",
@@ -45,6 +140,7 @@ const ROTATING_BUGS = [
 function parseArgs(argv) {
   const flags = {};
   const booleans = [];
+  const positionals = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (VALUE_FLAGS.has(a)) {
@@ -52,9 +148,18 @@ function parseArgs(argv) {
       i++;
     } else if (a.startsWith("-")) {
       booleans.push(a);
+    } else {
+      positionals.push(a);
     }
   }
-  return { flags, booleans };
+  return { flags, booleans, positionals };
+}
+
+async function readStdin() {
+  if (process.stdin.isTTY) return "";
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 function readRole(systemPrompt) {
@@ -106,16 +211,40 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
       return "## Şartname\n\n### Ne yapılacak\nFake work.\n\n### Dosyalar\n- fake.txt\n\n### Kabul kriterleri\n- AC-1: fake file exists\n\n### Test önerisi\n- ls";
     case "developer": {
       const name = `fake-${round}.txt`;
+      const file = join(cwd, name);
       // no_change: the developer finds nothing to change (executor closes the task as done).
-      if (scenario !== "no_change") writeFileSync(join(cwd, name), `fake developer output round ${round}\n`);
+      // zincir Z16: when the file is already there (a chained task branched after its
+      // dependency's merge), append a line naming this branch instead of rewriting the
+      // same content, so the dependent still has a change of its own.
+      if (scenario !== "no_change") {
+        if (existsSync(file)) appendFileSync(file, `fake developer output on ${currentBranch(cwd)} round ${round}\n`);
+        else writeFileSync(file, `fake developer output round ${round}\n`);
+        // zincir F4.6 (Z42): two sibling branches change the same line → a content conflict.
+        const conflictFile = process.env.FAKE_CLAUDE_CONFLICT_FILE;
+        if (conflictFile) writeConflictLine(cwd, conflictFile);
+      }
       return `## Teslim notu\n\n- ${name} yazıldı\n- AC-1 → ${name}\n- Tests: 1 passed`;
     }
     case "qa":
+      // zincir F4.6: the resolver's QA round fails on demand.
+      if (prompt.includes("<conflict_resolution>") && process.env.FAKE_CLAUDE_RESOLVE === "qa_fail") {
+        return "## QA raporu\n\n- AC-1: ✗\n\nVERDICT: FAIL\n\n## Hata listesi\n\n1. The conflict resolution dropped one side's intent.";
+      }
       return qaReport(scenario, priorCalls(stateDir, "qa"));
+    case "conflict_resolver":
+      return resolveConflicts(cwd);
     default:
       // Comment runs (no role marker) apply the feedback by touching a file.
       // Planner / breakdown calls (plannerShared.runPlannerCli) get a two-task plan.
       if (prompt.includes("Return ONLY a JSON array")) {
+        // zincir F3: plan_deps chains the 2nd and 3rd item to the 1st by key.
+        if (scenario === "plan_deps") {
+          return JSON.stringify([
+            { title: "Fake schema", description: "Base.", analysis: "a", key: "fake-schema", dependsOn: [] },
+            { title: "Fake api", description: "Uses the schema.", analysis: "b", key: "fake-api", dependsOn: ["fake-schema"] },
+            { title: "Fake docs", description: "Documents the schema.", analysis: "c", key: "fake-docs", dependsOn: ["fake-schema"] },
+          ]);
+        }
         return JSON.stringify([
           { title: "Fake task one", description: "First.", analysis: "a", priority: "high", tags: ["core"] },
           { title: "Fake task two", description: "Second.", analysis: "b", priority: "low" },
@@ -132,8 +261,9 @@ function replyFor(role, round, scenario, cwd, stateDir, prompt) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
-  const { flags, booleans } = parseArgs(process.argv.slice(2));
-  const prompt = flags["-p"] ?? flags["--print"] ?? "";
+  const { flags, booleans, positionals } = parseArgs(process.argv.slice(2));
+  const promptSource = positionals.length > 0 ? "argv" : "stdin";
+  const prompt = positionals.length > 0 ? positionals[0] : await readStdin();
   const systemPrompt = flags["--append-system-prompt"] ?? null;
   const modelArg = flags["--model"] ?? "sonnet";
   const model = MODEL_IDS[modelArg] ?? modelArg;
@@ -161,6 +291,7 @@ async function main() {
         round,
         scenario,
         prompt,
+        promptSource,
         model: flags["--model"] ?? null,
         tools: flags["--tools"] ?? null,
         allowedTools: flags["--allowedTools"] ?? null,
@@ -174,6 +305,22 @@ async function main() {
         argv: process.argv.slice(2),
       }) + "\n",
     );
+  }
+
+  // hang (zincir E7a, Z33): the role's work is done (the developer wrote its file),
+  // then the CLI ignores SIGTERM, starts a grandchild that holds the output pipes,
+  // records both PIDs in FAKE_CLAUDE_STATE/hang-pids.json and never exits.
+  if (scenario === "hang") {
+    process.on("SIGTERM", () => {});
+    const grandchild = spawn(process.execPath, ["-e", "setInterval(()=>{},1e9)"], {
+      stdio: ["ignore", "inherit", "inherit"],
+    });
+    if (stateDir) {
+      mkdirSync(stateDir, { recursive: true });
+      writeFileSync(join(stateDir, "hang-pids.json"), JSON.stringify({ cli: process.pid, grandchild: grandchild.pid }));
+    }
+    setInterval(() => {}, 1e9);
+    return;
   }
 
   if (scenario === "slow") {

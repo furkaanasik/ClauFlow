@@ -13,6 +13,7 @@ import { slugify } from "@/lib/slug";
 import { errorText } from "@/lib/errorText";
 import { CloneRepoForm } from "./CloneRepoForm";
 import { FolderPicker } from "./FolderPicker";
+import { DetectedBranchNote, detectedBranchOf } from "./DetectedBranchNote";
 
 const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,10}[a-z0-9]$|^[a-z0-9]{2}$/;
 
@@ -48,6 +49,8 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
   const [aiPrompt, setAiPrompt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** zincir F0.5: set by a 422 base_branch_missing; null = core found no branch to suggest. */
+  const [detectedBranch, setDetectedBranch] = useState<string | null | undefined>(undefined);
   const [githubWarning, setGithubWarning] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -64,6 +67,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
     setIsPrivate(true);
     setAiPrompt("");
     setError(null);
+    setDetectedBranch(undefined);
     setGithubWarning(null);
     setMode("new");
     setCloneReady(false);
@@ -137,6 +141,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
       onClose();
     } catch (err) {
       setError(errorText(t, err));
+      setDetectedBranch(detectedBranchOf(err));
     } finally {
       setSubmitting(false);
     }
@@ -298,12 +303,31 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
                 </div>
               )}
             </Field>
-            <Field label={tn.defaultBranchLabel}>
-              {({ id }) => (
+            <Field
+              label={tn.defaultBranchLabel}
+              error={
+                detectedBranch ? (
+                  <DetectedBranchNote
+                    detected={detectedBranch}
+                    onUse={(b) => {
+                      setDefaultBranch(b);
+                      setDetectedBranch(undefined);
+                      setError(null);
+                    }}
+                  />
+                ) : undefined
+              }
+            >
+              {({ id, describedBy }) => (
                 <Input
                   id={id}
+                  aria-describedby={describedBy}
+                  invalid={detectedBranch !== undefined}
                   value={defaultBranch}
-                  onChange={(e) => setDefaultBranch(e.target.value)}
+                  onChange={(e) => {
+                    setDefaultBranch(e.target.value);
+                    setDetectedBranch(undefined);
+                  }}
                   icon={<IconBranch size={14} />}
                   className="font-mono"
                   placeholder="main"

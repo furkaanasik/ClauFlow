@@ -61,3 +61,32 @@ describe("executor end (D1, plan §5.2)", () => {
     }
   });
 });
+
+describe("executor error codes (zincir E2, plan §3/22)", () => {
+  it("the CLI exits non-zero → todo + claude_exit", async () => {
+    const c = await makeTeamCase({ scenario: "exit_error", project: { defaultTeamId: null } });
+    const task = await runTeamCase(c);
+    expect(task.status).toBe("todo");
+    expect(task.agent.status).toBe("error");
+    expect(task.agent.error).toBe("claude_exit");
+  });
+
+  it("gh pr create fails on a repo with a remote → todo + pr_create_failed", async () => {
+    const gh = installFakeGh(9);
+    process.env.FAKE_GH_CREATE_FAIL = "simulated: could not create PR";
+    try {
+      const c = await makeTeamCase({
+        scenario: "pass",
+        project: { defaultTeamId: null },
+        setupRepo: (repo) => origins.push(addBareOrigin(repo)),
+      });
+      const task = await runTeamCase(c);
+      expect(task.status).toBe("todo");
+      expect(task.agent.error).toBe("pr_create_failed");
+      expect(task.agent.log.some((l) => l.includes("simulated: could not create PR"))).toBe(true);
+    } finally {
+      delete process.env.FAKE_GH_CREATE_FAIL;
+      gh.restore();
+    }
+  });
+});

@@ -35,10 +35,56 @@ export type ErrorCode =
   | "task_done"
   | "active_tasks_block_path_change"
   | "not_found"
-  | "invalid_body";
+  | "invalid_body"
+  | "base_branch_missing"
+  | "gh_missing"
+  | "git_checkout_failed"
+  | "git_push_failed"
+  | "pr_create_failed"
+  | "claude_exit"
+  | "run_failed"
+  | "task_in_review"
+  | "dependency_cycle"
+  | "dependency_self"
+  | "dependency_not_found"
+  | "dependency_cross_project"
+  | "dependencies_locked"
+  | "too_many_dependencies"
+  | "aborted_while_waiting"
+  | "not_waiting"
+  | "dependencies_unmet"
+  | "stash_not_found"
+  | "stash_conflict"
+  | "worktree_dirty"
+  | "role_timeout"
+  /** zincir F4.6 (§3/33, §3/42): stored as `conflict_unresolved:<reason>`, see `ConflictReason`. */
+  | "conflict_unresolved"
+  | "conflict_resolving"
+  | "task_not_in_review"
+  | "branch_up_to_date";
+
+/** zincir F4.6 (§3/33): why the AI conflict resolver failed (`conflict_unresolved:<reason>`). */
+export type ConflictReason =
+  | "markers_left"
+  | "qa_fail"
+  | "role_timeout"
+  | "budget"
+  | "aborted"
+  | "server_restart"
+  | "unsupported"
+  | "claude_exit"
+  | "push_failed"
+  | "git";
+
+/** zincir F4.6 (§3/33): `agent.currentStep` while `agent.status === "resolving_conflict"`. */
+export type ConflictStep = "queued" | "merging" | "resolving" | "verifying" | "qa" | "pushing";
 
 export interface Translations {
   errors: Record<ErrorCode, string>;
+  /** zincir F4.6: the `{detail}` of `errors.conflict_unresolved` (§5.10). */
+  conflict: {
+    reason: Record<ConflictReason, string>;
+  };
   landing: {
     tagline: string;
     subtitle: string;
@@ -155,6 +201,23 @@ export interface Translations {
     agentLog: string;
     logEmpty: string;
     openLog: string;
+    /** zincir: chain badge on a card that waits for one task ("Waiting for CLF-2"). */
+    waitingOne: (key: string) => string;
+    /** zincir: chain badge for several unmet dependencies. */
+    waitingMany: (n: number) => string;
+    /** zincir: first line of the badge tooltip (the list of dependencies follows). */
+    waitingTitle: string;
+    /** zincir: badge when a dependency failed, got stuck or was aborted (§3/11). */
+    blockerProblem: (key: string) => string;
+    /** zincir: pill on a waiting card (in Doing, no run yet). */
+    waitingDeps: string;
+    cancelWaitingTitle: string;
+    /** zincir E5: pill on a waiting card whose dependencies are all done. */
+    readyToStart: string;
+    /** zincir F4.6: live pill while the AI conflict resolver works on a Review card. */
+    conflictResolving: string;
+    /** zincir F4.6: info pill on a Review card whose conflict the resolver fixed. */
+    conflictResolved: string;
     agentSteps: {
       idle: string;
       branching: string;
@@ -162,6 +225,8 @@ export interface Translations {
       pushing: string;
       pr_opening: string;
       awaiting_approval: string;
+      waiting_deps: string;
+      resolving_conflict: string;
       done: string;
       error: string;
     };
@@ -226,6 +291,9 @@ export interface Translations {
     modeNew: string;
     modeClone: string;
     cloneHint: string;
+    /** zincir F0.5: a 422 base_branch_missing names the branch the repo is on. */
+    repoIsOn: (branch: string) => string;
+    useDetected: string;
   };
   folderPicker: {
     title: string;
@@ -323,7 +391,32 @@ export interface Translations {
       tooltip: { open: string; openList: string; error: string; budget: string; more: string };
     };
     loadError: string;
-    agentStarted: string;
+    /** A move to Doing was accepted; the run is queued (it may wait for the repo lock). */
+    taskQueued: (key: string) => string;
+    /** zincir: a move to Doing went into waiting; `deps` are the unmet dependency keys. */
+    waitingToast: (key: string, deps: string[]) => string;
+    /** zincir: `chain_advanced` toast ("CLF-2 merged → CLF-3 started"). */
+    chainAdvanced: (from: string, started: string[], merged: boolean) => string;
+    /** zincir F4.6: Review → Done hit a conflict and the AI resolver started (§3/43). */
+    conflictResolving: (key: string) => string;
+    /** zincir E4: Review → Done confirmation. */
+    mergeConfirm: {
+      title: string;
+      local: (branch: string, base: string) => string;
+      pr: (n: number) => string;
+      /** Review task without a branch: nothing to merge. */
+      noMerge: string;
+      dirty: string;
+      starts: (n: number, keys: string[]) => string;
+      /** zincir F4.6 (§3/44): the task's conflict was resolved by the AI and passed QA. */
+      resolved: string;
+      confirm: string;
+      cancel: string;
+    };
+    /** zincir E5: waiting tasks whose dependencies are met but did not start. */
+    readyWaiting: (n: number) => string;
+    readyWaitingStart: string;
+    readyWaitingStarted: (n: number) => string;
     columns: {
       todo:   string;
       doing:  string;
@@ -460,7 +553,35 @@ export interface Translations {
     breakdownError: string;
     breakdownCancel: string;
     analysisFromSpec: string;
+    /** zincir: the "Waiting on" section and its editor (§5.6). */
+    dependsLabel: string;
+    dependentsLabel: string;
+    addDependency: string;
+    removeDependency: (key: string) => string;
+    dependsLockedHint: string;
+    dependsEmpty: string;
+    /** Log tab of a waiting task. */
+    depsWaiting: (keys: string[]) => string;
+    /** Agent panel button of a waiting task whose dependencies are met (E5). */
+    startWaiting: string;
     analysisOpenTeam: string;
+    /** zincir F4.6: the drawer's "Conflict" section (§5.10, §3/46). */
+    conflict: {
+      title: string;
+      resolving: string;
+      step: Record<ConflictStep, string>;
+      resolveWithAi: string;
+      resolvedNote: string;
+      failedHint: string;
+      baseAhead: (n: number, base: string) => string;
+      updateBranch: string;
+      updateConfirmTitle: string;
+      updateConfirmBody: string;
+      abort: string;
+      /** Stop confirmation: the resolver's abort keeps the task in Review (not the run's "back to To do"). */
+      abortConfirmTitle: string;
+      abortConfirmBody: string;
+    };
   };
   cloneModal: {
     targetDirLabel: string;
@@ -714,6 +835,18 @@ export interface Translations {
     notRequested: string;
     enable: string;
     toggle: string;
+    taskError: (title: string) => string;
+    taskErrorBody: string;
+    taskDone: (title: string) => string;
+    taskDoneBody: string;
+    /** In-app toast when a run fails (the browser notification may be off or unseen). */
+    runFailedToast: (ref: string, reason: string) => string;
+    /** zincir D6: a dependency of a waiting task got into trouble (once per failure). */
+    chainBlocked: (blocker: string, waiting: string[]) => string;
+    /** zincir F4.6 (§3/43): resolver run ended (once per run). */
+    conflictUnresolved: (key: string) => string;
+    conflictResolved: (key: string) => string;
+    branchUpdated: (key: string) => string;
   };
   prs: {
     state: {
@@ -741,6 +874,22 @@ export interface Translations {
     confirmMergeDescription: string;
     cancel: string;
   };
+  /** zincir E6 (plan §5.9): ClauFlow's stashes (project drawer, board pill, toast). */
+  stashes: {
+    title: (n: number) => string;
+    reason: Record<"run" | "merge" | "comment" | "resolve", string>;
+    restore: string;
+    drop: string;
+    dropConfirmTitle: string;
+    dropConfirmBody: (label: string) => string;
+    restored: string;
+    dropped: string;
+    files: (n: number) => string;
+    boardPill: (n: number) => string;
+    boardPillTitle: string;
+    /** `key` = the task's display id, or null when the stash has no task. */
+    createdToast: (key: string | null) => string;
+  };
   team: {
     roles: Record<"ceo" | "analyst" | "developer" | "qa", string>;
     /** Card / badge activity while a role runs. */
@@ -753,7 +902,7 @@ export interface Translations {
     builtinDescriptions: Record<"solo" | "yazilim_ekibi" | "hata_avi" | "kesif", string>;
     artifactKinds: Record<"brief" | "spec" | "delivery" | "qa_report" | "stuck" | "summary", string>;
     runStatus: Record<"running" | "awaiting_approval" | "delivered" | "explored" | "stuck" | "error" | "aborted", string>;
-    stopReasons: Record<"stalled" | "round_limit" | "budget" | "aborted" | "superseded" | "server_restart", string>;
+    stopReasons: Record<"stalled" | "round_limit" | "budget" | "aborted" | "superseded" | "server_restart" | "timeout", string>;
     verdict: Record<"pass" | "fail", string>;
     picker: {
       label: string;

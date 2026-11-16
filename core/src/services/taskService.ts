@@ -23,6 +23,8 @@ import { ensureUniqueSlug, slugify } from "./slug.js";
 import { DEFAULT_TASK_BUDGET_USD } from "./pricingService.js";
 import { applyEkiplerMigration } from "./ekiplerMigration.js";
 import { applyTemizlikMigration } from "./temizlikMigration.js";
+import { applyZincirMigration } from "./zincirMigration.js";
+import { DependencyError, MAX_DEPENDENCIES } from "./dependencyError.js";
 import { DEFAULT_NEW_PROJECT_TEAM_ID, upsertBuiltinTeams } from "./teamTemplates.js";
 
 const DEFAULT_QA_MAX_ROUNDS = 3;
@@ -372,6 +374,7 @@ db.exec(`
 
 applyEkiplerMigration(db);
 applyTemizlikMigration(db);
+applyZincirMigration(db);
 upsertBuiltinTeams(db);
 
 // Unique indexes (idempotent — also created above for fresh installs).
@@ -480,7 +483,39 @@ function parseTags(raw: string | null): string[] {
   }
 }
 
-function rowToTask(row: TaskRow): Task {
+// zincir (plan §5.2): a task's dependencies ride on the task payload, ordered
+// by the dependency's creation (board order). One query per task read; list
+// reads load the project's edges once.
+const stmtDepsOfTask = db.prepare(
+  `SELECT d.dependsOnId AS id FROM task_dependencies d
+     JOIN tasks t ON t.id = d.dependsOnId
+    WHERE d.taskId = ?
+    ORDER BY t.createdAt ASC, t.rowid ASC`,
+);
+const stmtDepsOfProject = db.prepare(
+  `SELECT d.taskId AS taskId, d.dependsOnId AS dependsOnId FROM task_dependencies d
+     JOIN tasks src ON src.id = d.taskId
+     JOIN tasks t ON t.id = d.dependsOnId
+    WHERE src.projectId = ?
+    ORDER BY t.createdAt ASC, t.rowid ASC`,
+);
+const stmtDepsAll = db.prepare(
+  `SELECT d.taskId AS taskId, d.dependsOnId AS dependsOnId FROM task_dependencies d
+     JOIN tasks t ON t.id = d.dependsOnId
+    ORDER BY t.createdAt ASC, t.rowid ASC`,
+);
+
+function depsByTask(edges: Array<{ taskId: string; dependsOnId: string }>): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const e of edges) {
+    const list = map.get(e.taskId);
+    if (list) list.push(e.dependsOnId);
+    else map.set(e.taskId, [e.dependsOnId]);
+  }
+  return map;
+}
+
+function rowToTask(row: TaskRow, dependsOn?: string[]): Task {
   const agent: AgentState = {
     status: row.agentStatus as AgentState["status"],
     currentStep: row.agentCurrentStep ?? undefined,
@@ -516,6 +551,8 @@ function rowToTask(row: TaskRow): Task {
     parentTaskId: row.parentTaskId ?? null,
     teamId: row.teamId ?? null,
     costUsd: row.costUsd ?? 0,
+    dependsOn:
+      dependsOn ?? (stmtDepsOfTask.all(row.id) as { id: string }[]).map((r) => r.id),
   };
 }
 
@@ -790,13 +827,21 @@ const stmtListTasksByProject = db.prepare(
 export async function listTasks(projectId?: string): Promise<Task[]> {
   if (projectId) {
     const rows = stmtListTasksByProject.all(projectId) as TaskRow[];
-    return rows.map(rowToTask);
+    const deps = depsByTask(stmtDepsOfProject.all(projectId) as { taskId: string; dependsOnId: string }[]);
+    return rows.map((r) => rowToTask(r, deps.get(r.id) ?? []));
   }
   const rows = stmtListTasks.all() as TaskRow[];
-  return rows.map(rowToTask);
+  const deps = depsByTask(stmtDepsAll.all() as { taskId: string; dependsOnId: string }[]);
+  return rows.map((r) => rowToTask(r, deps.get(r.id) ?? []));
 }
 
 export async function getTask(id: string): Promise<Task | null> {
+  const row = stmtGetTask.get(id) as TaskRow | undefined;
+  return row ? rowToTask(row) : null;
+}
+
+/** Synchronous read, for callers inside a better-sqlite3 transaction (zincir). */
+export function getTaskSync(id: string): Task | null {
   const row = stmtGetTask.get(id) as TaskRow | undefined;
   return row ? rowToTask(row) : null;
 }
@@ -811,6 +856,12 @@ export async function getProject(id: string): Promise<Project | null> {
   return row ? rowToProject(row) : null;
 }
 
+/** Synchronous read, for zincir's start path (no await between claim and enqueue). */
+export function getProjectSync(id: string): Project | null {
+  const row = stmtGetProject.get(id) as ProjectRow | undefined;
+  return row ? rowToProject(row) : null;
+}
+
 interface CreateTaskInput {
   projectId: string;
   title: string;
@@ -821,6 +872,30 @@ interface CreateTaskInput {
   status?: TaskStatus;
   parentTaskId?: string | null;
   teamId?: string | null;
+  /** zincir: ids of tasks in the same project this task waits for (planner, POST /tasks). */
+  dependsOn?: string[];
+}
+
+const stmtInsertDependency = db.prepare(
+  `INSERT OR IGNORE INTO task_dependencies (taskId, dependsOnId, createdAt) VALUES (?, ?, ?)`,
+);
+const stmtTaskProject = db.prepare(`SELECT projectId FROM tasks WHERE id = ?`);
+
+/**
+ * Checks a new task's dependency ids (unique, existing, same project). A new
+ * task has no dependents, so it cannot close a cycle. Throws DependencyError.
+ */
+function validateNewTaskDependencies(projectId: string, ids: string[]): string[] {
+  const unique = [...new Set(ids)];
+  if (unique.length > MAX_DEPENDENCIES) {
+    throw new DependencyError("too_many_dependencies", { max: MAX_DEPENDENCIES });
+  }
+  for (const id of unique) {
+    const row = stmtTaskProject.get(id) as { projectId: string } | undefined;
+    if (!row) throw new DependencyError("dependency_not_found", { id });
+    if (row.projectId !== projectId) throw new DependencyError("dependency_cross_project", { id });
+  }
+  return unique;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -833,6 +908,9 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   const now = new Date().toISOString();
   const emptyAgent = createEmptyAgentState();
   const taskId = `task_${randomUUID().slice(0, 8)}`;
+  const dependsOn = input.dependsOn?.length
+    ? validateNewTaskDependencies(input.projectId, input.dependsOn)
+    : [];
 
   // Atomic counter increment + insert in a single transaction. Two prepared
   // statements (UPDATE then SELECT) instead of UPDATE...RETURNING for broader
@@ -871,6 +949,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       parentTaskId: input.parentTaskId ?? null,
       teamId: input.teamId ?? null,
     });
+    for (const dep of dependsOn) stmtInsertDependency.run(taskId, dep, now);
     return displayId;
   });
 
@@ -899,6 +978,33 @@ export type TaskPatch = Partial<
     | "teamId"
   >
 > & { agent?: Partial<AgentState> };
+
+// zincir (plan §3/3): the one place that sees every "→ done" transition (merge,
+// approval dialog, PR drawer, no-change run, Explore, broken-down parent).
+// Listeners run on setImmediate so the caller's task_updated goes out first.
+type TaskDoneListener = (next: Task, prev: Task) => void;
+const doneListeners: TaskDoneListener[] = [];
+
+/** Registers a listener for "→ done"; returns a function that removes it. */
+export function onTaskBecameDone(cb: TaskDoneListener): () => void {
+  doneListeners.push(cb);
+  return () => {
+    const i = doneListeners.indexOf(cb);
+    if (i >= 0) doneListeners.splice(i, 1);
+  };
+}
+
+function emitTaskBecameDone(next: Task, prev: Task): void {
+  for (const cb of [...doneListeners]) {
+    setImmediate(() => {
+      try {
+        cb(next, prev);
+      } catch (err) {
+        console.error("[taskService] done listener failed:", err);
+      }
+    });
+  }
+}
 
 export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
   const row = stmtGetTask.get(id) as TaskRow | undefined;
@@ -945,6 +1051,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<Task> {
     stmtUpdateTaskWithoutLog.run(params);
   }
 
+  if (current.status !== "done" && next.status === "done") emitTaskBecameDone(next, current);
   return next;
 }
 
@@ -959,21 +1066,29 @@ export interface OrphanRecovery {
   taskIds: string[];
   runIds: string[];
   nodeRunIds: string[];
+  /** zincir F4.6 (§3/41): `review` tasks whose conflict resolver run died with the process. */
+  resolvingTaskIds: string[];
 }
 
 /**
  * Boot-time cleanup of state no live process owns any more (the executor's
  * maps are in memory). Tasks left in "doing" go back to todo + `server_restart`
- * — except tasks paused for spec approval, which wait for the user on
- * purpose — and running team runs / node runs become errors. Returns the ids
- * so the caller can broadcast them.
+ * — except tasks paused for spec approval and tasks waiting for their
+ * dependencies (zincir, `waiting_deps`), which wait on purpose and hold no
+ * process or lock — and running team runs / node runs become errors. A
+ * conflict resolver run (zincir F4.6, §3/41) lives in memory too: `review` +
+ * `resolving_conflict` becomes `error` + `conflict_unresolved:server_restart`
+ * (the task stays in review; its git state is `recoverConflictRuns`'s job).
+ * Returns the ids so the caller can broadcast them.
  */
 export function recoverOrphans(): OrphanRecovery {
   const now = new Date().toISOString();
   return db.transaction((): OrphanRecovery => {
     const taskIds = (
       db
-        .prepare(`SELECT id FROM tasks WHERE status = 'doing' AND agentStatus != 'awaiting_approval'`)
+        .prepare(
+          `SELECT id FROM tasks WHERE status = 'doing' AND agentStatus NOT IN ('awaiting_approval', 'waiting_deps')`,
+        )
         .all() as { id: string }[]
     ).map((r) => r.id);
     db.prepare(
@@ -983,7 +1098,21 @@ export function recoverOrphans(): OrphanRecovery {
              agentError = 'server_restart',
              agentFinishedAt = @now,
              updatedAt = @now
-       WHERE status = 'doing' AND agentStatus != 'awaiting_approval'`,
+       WHERE status = 'doing' AND agentStatus NOT IN ('awaiting_approval', 'waiting_deps')`,
+    ).run({ now });
+    const resolvingTaskIds = (
+      db
+        .prepare(`SELECT id FROM tasks WHERE status = 'review' AND agentStatus = 'resolving_conflict'`)
+        .all() as { id: string }[]
+    ).map((r) => r.id);
+    db.prepare(
+      `UPDATE tasks
+         SET agentStatus = 'error',
+             agentCurrentStep = NULL,
+             agentError = 'conflict_unresolved:server_restart',
+             agentFinishedAt = @now,
+             updatedAt = @now
+       WHERE status = 'review' AND agentStatus = 'resolving_conflict'`,
     ).run({ now });
     const runIds = (
       db.prepare(`SELECT id FROM task_team_runs WHERE status = 'running'`).all() as { id: string }[]
@@ -999,7 +1128,7 @@ export function recoverOrphans(): OrphanRecovery {
       `UPDATE task_node_runs SET status = 'error', errorMessage = 'server_restart', finishedAt = @now
         WHERE status = 'running'`,
     ).run({ now });
-    return { taskIds, runIds, nodeRunIds };
+    return { taskIds, runIds, nodeRunIds, resolvingTaskIds };
   })();
 }
 

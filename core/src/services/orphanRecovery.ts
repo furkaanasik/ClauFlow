@@ -5,7 +5,7 @@ import { broadcastNodeFinished, broadcastTaskUpdated, broadcastTeamRunUpdated } 
 /** A8a: recovers orphans and tells connected GUIs about every row it changed. */
 export async function recoverAndBroadcastOrphans(): Promise<OrphanRecovery> {
   const result = recoverOrphans();
-  for (const id of result.taskIds) {
+  for (const id of [...result.taskIds, ...result.resolvingTaskIds]) {
     const task = await getTask(id);
     if (task) broadcastTaskUpdated(task);
   }

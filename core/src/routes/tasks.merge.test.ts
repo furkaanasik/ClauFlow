@@ -8,6 +8,7 @@ vi.hoisted(() => {
 });
 
 import { rmSync } from "node:fs";
+import { __setResolvingForTest, resolverRuntime } from "../agents/conflictResolver.js";
 import { tryAcquireRepoLock } from "../services/repoLock.js";
 import { createProject, createTask, getTask, updateTask } from "../services/taskService.js";
 import { addBareOrigin, installFakeGh } from "../test-utils/fakeGh.js";
@@ -78,16 +79,30 @@ describe("PATCH /tasks/:id review → done (plan §5.2)", () => {
     expect((await getTask(task.id))!.agent.log.some((l) => l.startsWith(`✓ Merged ${BRANCH} into main`))).toBe(true);
   });
 
-  it("conflict: 409 merge_conflict with files, task stays in review with agent.error, branch kept", async () => {
+  it("conflict: 409 merge_conflict with files, task stays in review (resolver queued, zincir F4.6), branch kept", async () => {
     const { repo, task } = await setup({ conflict: true });
+    // zincir F4.6 (§3/32): the first conflict queues the AI resolver. Stub the
+    // run (no CLI here): it ends the way a failed run would.
+    let open!: () => void;
+    const gate = new Promise<void>((res) => (open = res));
+    const start = vi.spyOn(resolverRuntime, "startResolution").mockImplementation(async (id) => {
+      await gate;
+      __setResolvingForTest(id).release();
+      await updateTask(id, { agent: { status: "error", currentStep: undefined, error: "conflict_unresolved:aborted" } });
+    });
     const r = await call("PATCH", `/api/tasks/${task.id}`, { status: "done" });
     expect(r.status).toBe(409);
-    expect(r.json).toEqual({ error: "merge_conflict", files: ["README.md"] });
+    expect(r.json).toEqual({ error: "merge_conflict", files: ["README.md"], resolving: true });
     const after = (await getTask(task.id))!;
     expect(after.status).toBe("review");
     expect(after.branch).toBe(BRANCH);
-    expect(after.agent).toMatchObject({ status: "error", error: "merge_conflict" });
+    expect(after.agent).toMatchObject({ status: "resolving_conflict", currentStep: "queued", error: null });
     expect(git(repo, "status", "--porcelain")).toBe("");
+    for (let i = 0; i < 50 && start.mock.calls.length === 0; i++) await new Promise((res) => setTimeout(res, 10));
+    expect(start).toHaveBeenCalledTimes(1);
+    open();
+    await vi.waitFor(async () => expect((await getTask(task.id))!.agent.status).toBe("error"));
+    start.mockRestore();
 
     // Resolve on base by hand (take the branch side), then the retry merges.
     writeRepoFile(repo, "README.md", "branch\n");

@@ -179,7 +179,8 @@ export function buildLayout(tasks: Task[], budgetExceeded: Record<string, unknow
         pos,
         onBelt,
         working,
-        queued: t.status === "doing" && t.agent?.status === "idle",
+        // zincir: a task waiting for its dependencies sits in the yard like a queued one.
+        queued: t.status === "doing" && (t.agent?.status === "idle" || t.agent?.status === "waiting_deps"),
         error,
         smoke: Boolean(budgetExceeded[t.id]),
         step: t.agent?.status ?? "idle",

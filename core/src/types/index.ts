@@ -7,6 +7,10 @@ export type AgentStatus =
   | "pushing"
   | "pr_opening"
   | "awaiting_approval"
+  /** zincir: in Doing but not started; waits for its dependencies (holds no repo lock). */
+  | "waiting_deps"
+  /** zincir F4.6: in Review while the AI conflict resolver runs (plan §3/33). */
+  | "resolving_conflict"
   | "done"
   | "error";
 
@@ -50,6 +54,8 @@ export interface Task {
   teamId?: string | null;
   /** Lifetime spend in USD: sum of every CLI call's `total_cost_usd` (roles, comments, breakdowns). */
   costUsd?: number;
+  /** zincir: ids of same-project tasks this task waits for (edges in `task_dependencies`). */
+  dependsOn: string[];
 }
 
 export type ProjectPlanningStatus = "idle" | "planning" | "done" | "error";
@@ -281,7 +287,35 @@ export type WsMessage =
     }
   | { type: "task_breakdown_started"; taskId: string }
   | { type: "task_breakdown_done"; taskId: string; taskCount: number }
-  | { type: "task_breakdown_error"; taskId: string; error: string };
+  | { type: "task_breakdown_error"; taskId: string; error: string }
+  | {
+      /** zincir (plan §3/12, §5.7): `taskId` became done and these waiting tasks started. */
+      type: "chain_advanced";
+      taskId: string;
+      payload: ChainAdvancedPayload;
+    }
+  | {
+      type: "stash_created";
+      taskId: string | null;
+      payload: StashCreatedPayload;
+    };
+
+/** zincir E6 (plan §3/28, §5.7): ClauFlow took a stash of a dirty tree. */
+export interface StashCreatedPayload {
+  projectId: string;
+  label: string;
+  /** `resolve` is the F4.6 conflict resolver's `clauflow-resolve-<taskId>` stash. */
+  reason: "run" | "merge" | "comment" | "resolve";
+  displayId: string | null;
+}
+
+export interface ChainAdvancedPayload {
+  projectId: string;
+  displayId: string | null;
+  /** true when the done transition came from review (a merge). */
+  merged: boolean;
+  started: Array<{ id: string; displayId: string | null }>;
+}
 
 export interface InstalledPlugin {
   id: string;

@@ -30,21 +30,16 @@ describe("runClaude binary override", () => {
     restore("FAKE_CLAUDE_SCENARIO", savedScenario);
   });
 
-  it("spawns the script named by CLAUFLOW_CLAUDE_BIN with -p first", async () => {
+  it("spawns the script named by CLAUFLOW_CLAUDE_BIN with -p first and the prompt on stdin", async () => {
     const script = join(dir, "echo-claude.sh");
-    writeFileSync(script, '#!/bin/sh\nprintf "%s\\n" "$@"\n');
+    writeFileSync(script, '#!/bin/sh\nprintf "%s\\n" "$@"\nprintf "stdin:"\ncat\n');
     chmodSync(script, 0o755);
     process.env.CLAUFLOW_CLAUDE_BIN = script;
 
     const result = await runClaude({ prompt: "hello", cwd: dir, maxRetries: 0 });
 
     expect(result.code).toBe(0);
-    expect(result.stdout.split("\n").slice(0, 4)).toEqual([
-      "-p",
-      "hello",
-      "--permission-mode",
-      "bypassPermissions",
-    ]);
+    expect(result.stdout.split("\n")).toEqual(["-p", "--permission-mode", "bypassPermissions", "stdin:hello"]);
   });
 
   it("parses the fake CLI's stream-json and logs the call", async () => {

@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import { addProjectPlanningCost, createTask, updateProject } from "../services/taskService.js";
-import { extractJsonArray, normalizeTasks, runPlannerCli } from "./plannerShared.js";
+import {
+  extractJsonArray,
+  normalizeTasks,
+  PLANNED_DEPENDENCY_FIELDS,
+  runPlannerCli,
+} from "./plannerShared.js";
 import {
   broadcastProjectPlanningDone,
   broadcastProjectPlanningError,
@@ -42,15 +47,16 @@ export function buildPlannerPrompt(opts: { aiPrompt: string; cap: number; repoEx
     `      1) 1-2 sentences of context (what/why)\n` +
     `      2) **Implementation** bullets: files/modules, key signatures, libraries, edge cases — terse, no prose paragraphs\n` +
     `      3) **Acceptance criteria** — 3-5 testable checkbox bullets ("- [ ] ...")\n` +
-    `      4) If depending on a prior task, name it in one line\n` +
     `      Example (note brevity):\n` +
     `      "Adds POST /api/auth/login with httpOnly JWT cookies.\\n\\n**Implementation**\\n- src/routes/auth.ts; zod body { email, password }\\n- bcrypt compare → JWT signed with JWT_SECRET\\n- Set-Cookie: HttpOnly; Secure; SameSite=Strict; 1h\\n- Reuse rateLimit middleware (5/min/IP)\\n\\n**Acceptance criteria**\\n- [ ] 200 + Set-Cookie on valid creds\\n- [ ] 401 on unknown email or wrong password\\n- [ ] 400 on malformed body\\n- [ ] 429 after 5 attempts/min"\n` +
     `  - "priority": one of "low" | "medium" | "high" | "critical" (default "medium" if unsure)\n` +
-    `  - "tags": optional array of 1-4 short lowercase strings like ["backend","api"] or ["frontend","ui"]; omit if not relevant\n\n` +
+    `  - "tags": optional array of 1-4 short lowercase strings like ["backend","api"] or ["frontend","ui"]; omit if not relevant\n` +
+    PLANNED_DEPENDENCY_FIELDS +
+    `\n` +
     `Order the tasks in strict execution sequence so they can be picked up one by one without rework: ` +
     `shared contracts (schemas, types, DB models) first; backend endpoints before any frontend that consumes them; ` +
     `parent UI/layout before child components; cross-cutting concerns (auth, rate limiting, persistence of prior outputs) last. ` +
-    `If task B depends on task A, A must appear before B in the array.\n\n` +
+    `If task B depends on task A, A must appear before B in the array and B's "dependsOn" must list A's "key".\n\n` +
     `If the project looks greenfield (no existing stack mentioned), include an early task that scaffolds a minimal test runner ` +
     `appropriate for the stack (vitest for TS/JS, pytest for Python, go test for Go). Each behavior task's acceptance criteria ` +
     `should already read as testable assertions so the executor can turn them into real tests.\n\n` +
@@ -90,6 +96,9 @@ export async function runProjectPlanner(
     const parsed = extractJsonArray(result.stdout);
     const items = normalizeTasks(parsed, cap);
 
+    // zincir F3 (Z20): edges are written with the task, so the
+    // `task_created` payload already carries `dependsOn`.
+    const createdIds: string[] = [];
     for (const item of items) {
       const task = await createTask({
         projectId,
@@ -99,7 +108,9 @@ export async function runProjectPlanner(
         status: "todo",
         priority: item.priority,
         tags: item.tags,
+        dependsOn: item.dependsOn.map((i) => createdIds[i]!),
       });
+      createdIds.push(task.id);
       broadcastTaskCreated(task);
       await new Promise((r) => setTimeout(r, 200));
     }

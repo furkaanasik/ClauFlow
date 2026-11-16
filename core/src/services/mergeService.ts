@@ -26,10 +26,33 @@ type MergeResult =
       /** Why a merge was skipped or what went wrong after a successful merge. */
       note?: string;
     }
-  | { ok: false; code: MergeFailCode; files?: string[]; detail?: string };
+  | {
+      ok: false;
+      code: MergeFailCode;
+      files?: string[];
+      detail?: string;
+      /** A dirty tree was stashed before the merge failed (the stash stays). */
+      stash?: string;
+    };
 
 function out(r: { stdout: string; stderr: string }): string {
   return (r.stderr.trim() || r.stdout.trim()).slice(0, 2000);
+}
+
+/**
+ * `gh pr view <n> --json mergeable,mergeStateStatus` (§3/34): CONFLICTING or
+ * DIRTY → true. UNKNOWN (GitHub computes mergeability lazily) or any error →
+ * false, so the failure stays `pr_merge_failed`.
+ */
+async function prConflicts(repo: string, prNumber: number): Promise<boolean> {
+  try {
+    const view = await run("gh", ["pr", "view", String(prNumber), "--json", "mergeable,mergeStateStatus"], repo);
+    if (view.code !== 0) return false;
+    const parsed = JSON.parse(view.stdout.trim()) as { mergeable?: unknown; mergeStateStatus?: unknown };
+    return parsed.mergeable === "CONFLICTING" || parsed.mergeStateStatus === "DIRTY";
+  } catch {
+    return false;
+  }
 }
 
 /** Merges PR `prNumber` on GitHub and returns the local repo to base. */
@@ -42,7 +65,14 @@ export async function mergePullRequest(
   if (!lease) return { ok: false, code: "repo_busy" };
   try {
     const merged = await mergePr(project.repoPath, prNumber);
-    if (merged.code !== 0) return { ok: false, code: "pr_merge_failed", detail: out(merged) };
+    if (merged.code !== 0) {
+      // zincir F4.6 (§3/34, Z35): still under the lock, ask GitHub whether
+      // the PR conflicts. The files only show once the resolver merges locally.
+      if (await prConflicts(project.repoPath, prNumber)) {
+        return { ok: false, code: "merge_conflict", files: [], detail: out(merged) };
+      }
+      return { ok: false, code: "pr_merge_failed", detail: out(merged) };
+    }
     const co = await checkoutBase(project.repoPath, project.defaultBranch);
     return {
       ok: true,
@@ -70,7 +100,7 @@ async function mergeLocally(task: Task, project: Project, branch: string): Promi
     }
 
     const co = await run("git", ["checkout", base], repo);
-    if (co.code !== 0) return { ok: false, code: "merge_failed", detail: out(co) };
+    if (co.code !== 0) return { ok: false, code: "merge_failed", detail: out(co), ...(stash ? { stash } : {}) };
 
     const message = `Merge ${branch} (${task.displayId ?? task.id})`;
     const merge = await run("git", ["merge", "--no-ff", "-m", message, branch], repo);
@@ -80,8 +110,8 @@ async function mergeLocally(task: Task, project: Project, branch: string): Promi
       const inMerge = await run("git", ["rev-parse", "-q", "--verify", "MERGE_HEAD"], repo);
       if (inMerge.code === 0) await run("git", ["merge", "--abort"], repo);
       return files.length > 0
-        ? { ok: false, code: "merge_conflict", files, ...(stash ? { detail: `stash: ${stash}` } : {}) }
-        : { ok: false, code: "merge_failed", detail: out(merge) };
+        ? { ok: false, code: "merge_conflict", files, ...(stash ? { detail: `stash: ${stash}`, stash } : {}) }
+        : { ok: false, code: "merge_failed", detail: out(merge), ...(stash ? { stash } : {}) };
     }
 
     const head = await run("git", ["rev-parse", "HEAD"], repo);

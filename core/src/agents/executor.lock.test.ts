@@ -173,7 +173,8 @@ describe("error cleanup only on the run's own branch (A1b)", () => {
 
     const t = (await getTask(c.task.id))!;
     expect(t.status).toBe("todo");
-    expect(t.agent.error).toMatch(/git checkout\/pull failed/);
+    // zincir F0.5: the base-branch precheck now catches this before any git write.
+    expect(t.agent.error).toBe("base_branch_missing:someone-else");
     expect(git(c.repo, "rev-parse", "--abbrev-ref", "HEAD")).toBe("someone-else");
     expect(git(c.repo, "status", "--porcelain")).toBe("M README.md\n?? untracked.txt");
     expect(readCalls(c.state)).toHaveLength(0);

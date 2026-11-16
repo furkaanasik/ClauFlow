@@ -9,6 +9,7 @@ import { IconTerminal } from "@/components/ui/icons";
 import { LogViewer } from "@/components/Card/LogViewer";
 import { agentStepLabel, roleIcon, teamStepKind } from "@/components/Team/roleMeta";
 import { useBoardStore } from "@/store/boardStore";
+import { errorText } from "@/lib/errorText";
 import type { AgentState, AgentStatus } from "@/types";
 
 /** The four live executor steps, in order (spec §5). */
@@ -21,6 +22,8 @@ const STEP_KIND: Record<AgentStatus, StatusKind> = {
   pushing: "doing",
   pr_opening: "doing",
   awaiting_approval: "review",
+  waiting_deps: "todo",
+  resolving_conflict: "doing",
   done: "done",
   error: "error",
 };
@@ -46,13 +49,17 @@ export function AgentBadge({ agent, taskTitle, taskId }: AgentBadgeProps) {
   });
   const hasLog = (agent.log?.length ?? 0) > 0;
   const stepIdx = AGENT_STEPS.indexOf(agent.status);
-  const live = stepIdx >= 0;
+  // zincir F4.6: the conflict resolver is a live run too, without the executor's notches.
+  const live = stepIdx >= 0 || agent.status === "resolving_conflict";
   // Team runs: "QA kontrol ediyor · tur 2" with the role glyph in place of the dot.
   const roleKind = agent.status === "running" ? teamStepKind(agent.currentStep) : null;
   const awaiting = agent.status === "awaiting_approval";
   const label = agentStepLabel(agent, t, qaRound);
   const variant = live || awaiting ? "solid" : "soft";
   const icon = roleKind ? roleIcon(roleKind, 12) : undefined;
+  // zincir F0.5: an error pill says why, not just "open log".
+  const reason = agent.status === "error" && agent.error ? errorText(t, agent.error) : null;
+  const hint = reason ? (hasLog ? `${reason} · ${t.taskCard.openLog}` : reason) : hasLog ? t.taskCard.openLog : label;
 
   return (
     <>
@@ -64,12 +71,13 @@ export function AgentBadge({ agent, taskTitle, taskId }: AgentBadgeProps) {
           e.stopPropagation();
           if (hasLog) setOpen(true);
         }}
-        title={hasLog ? t.taskCard.openLog : label}
+        title={hint}
+        aria-label={reason ? hint : undefined}
         className="ui-focus inline-flex items-center gap-1.5 rounded-pill disabled:cursor-default"
       >
         <StatusPill status={STEP_KIND[agent.status]} variant={variant} live={live} icon={icon}>
           {label}
-          {live && (
+          {stepIdx >= 0 && (
             <span className="ml-0.5 inline-flex items-center gap-[3px]" aria-hidden>
               {AGENT_STEPS.map((s, i) => (
                 <span

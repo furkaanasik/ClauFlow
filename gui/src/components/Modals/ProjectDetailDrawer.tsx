@@ -23,6 +23,9 @@ import {
 import { api } from "@/lib/api";
 import { useBoardStore } from "@/store/boardStore";
 import { errorText } from "@/lib/errorText";
+import { DetectedBranchNote, detectedBranchOf } from "./DetectedBranchNote";
+import { StashList } from "./StashSection";
+import { refreshStashes } from "@/hooks/useStashes";
 import { formatUsd } from "@/lib/format";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Project, ProjectPatch, Task } from "@/types";
@@ -80,6 +83,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
 
   const liveProject   = useBoardStore((s) => s.projects.find((p) => p.id === projectId) ?? null);
   const gitStatus     = useBoardStore((s) => (projectId ? s.gitStatusByProject[projectId] : undefined));
+  const stashes       = useBoardStore((s) => (projectId ? s.stashesByProject[projectId] : undefined));
   const updateProject = useBoardStore((s) => s.updateProject);
   const deleteProject = useBoardStore((s) => s.deleteProject);
 
@@ -111,6 +115,8 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
   const [draft,         setDraft]         = useState<DraftState | null>(null);
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState<string | null>(null);
+  /** zincir F0.5: set by a 422 base_branch_missing; null = core found no branch to suggest. */
+  const [detectedBranch, setDetectedBranch] = useState<string | null | undefined>(undefined);
   const [confirmKanban, setConfirmKanban] = useState(false);
   const [deleting,      setDeleting]      = useState(false);
 
@@ -125,6 +131,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       setDraft(null);
     }
     setError(null);
+    setDetectedBranch(undefined);
     setSaving(false);
     setDeleting(false);
     setActiveTab(wantsTeam ? "claude" : "overview");
@@ -133,6 +140,11 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
   useEffect(() => {
     if (wantsTeam) setActiveTab("claude");
   }, [wantsTeam]);
+
+  // zincir E6: the stash list may be stale (a restore elsewhere, a manual `git stash drop`).
+  useEffect(() => {
+    if (projectId) void refreshStashes(projectId);
+  }, [projectId]);
 
   useEffect(() => {
     if (!projectId) {
@@ -160,6 +172,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
     if (!draft.name.trim()) { setError(pd.nameRequired); return; }
     setSaving(true);
     setError(null);
+    setDetectedBranch(undefined);
     try {
       const patch: ProjectPatch = {
         name:          draft.name.trim(),
@@ -173,6 +186,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
       updateProject(project.id, updated);
     } catch (err) {
       setError(errorText(t, err, pd.updateFailed));
+      setDetectedBranch(detectedBranchOf(err));
     } finally {
       setSaving(false);
     }
@@ -198,6 +212,9 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
   const planStatus = project.planningStatus && project.planningStatus !== "idle" ? project.planningStatus : null;
   const branch = gitStatus?.branch ?? project.defaultBranch;
   const isClaude = activeTab === "claude";
+  const stashCount = stashes?.length ?? 0;
+  // Section numbers stay consecutive while the stash section comes and goes.
+  const secBudget = stashCount > 0 ? 5 : 4;
 
   const progressBlock = (
     <ProgressBlock stats={stats} total={total} />
@@ -427,14 +444,33 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
                     />
                   )}
                 </Field>
-                <Field label={pd.projectDefaultBranch}>
-                  {({ id }) => (
+                <Field
+                  label={pd.projectDefaultBranch}
+                  error={
+                    detectedBranch ? (
+                      <DetectedBranchNote
+                        detected={detectedBranch}
+                        onUse={(b) => {
+                          setDraft({ ...draft, defaultBranch: b });
+                          setDetectedBranch(undefined);
+                          setError(null);
+                        }}
+                      />
+                    ) : undefined
+                  }
+                >
+                  {({ id, describedBy }) => (
                     <Input
                       id={id}
+                      aria-describedby={describedBy}
+                      invalid={detectedBranch !== undefined}
                       icon={<IconBranch size={14} />}
                       className="font-mono !text-[13px]"
                       value={draft.defaultBranch}
-                      onChange={(e) => setDraft({ ...draft, defaultBranch: e.target.value })}
+                      onChange={(e) => {
+                        setDraft({ ...draft, defaultBranch: e.target.value });
+                        setDetectedBranch(undefined);
+                      }}
                       disabled={projectHasActiveTasks}
                       placeholder="main"
                     />
@@ -443,8 +479,15 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
               </div>
             </section>
 
+            {stashCount > 0 && stashes && (
+              <section data-testid="stash-section">
+                <SecHead n={4} label={t.stashes.title(stashCount)} />
+                <StashList projectId={project.id} stashes={stashes} />
+              </section>
+            )}
+
             <section>
-              <SecHead n={4} label={pd.sectionBudget} />
+              <SecHead n={secBudget} label={pd.sectionBudget} />
               <Field label={pd.budgetLabel} hint={pd.budgetHint}>
                 {({ id, describedBy }) => (
                   <Input
@@ -464,7 +507,7 @@ export function ProjectDetailDrawer({ projectId, onClose }: ProjectDetailDrawerP
             </section>
 
             <section className="lg:hidden">
-              <SecHead n={5} label={pd.dangerZone} tone="var(--red-text)" />
+              <SecHead n={secBudget + 1} label={pd.dangerZone} tone="var(--red-text)" />
               {dangerBlock}
             </section>
           </div>

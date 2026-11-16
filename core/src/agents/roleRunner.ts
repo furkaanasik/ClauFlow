@@ -51,6 +51,11 @@ interface RunRoleOptions {
   /** Names for the `budget_exceeded` toast (A8d). */
   budgetContext?: { taskTitle: string; displayId: string | null; projectId: string; projectName: string };
   inputArtifact?: Record<string, unknown> | null;
+  /**
+   * Redirects the CLI's log lines (`[stderr] ` prefixed for stderr). Comment
+   * rounds write them to the comment's log (E7b). Default: the task's agent log.
+   */
+  onLogLine?: (entry: string) => void | Promise<void>;
 }
 
 interface RoleRunResult {
@@ -72,6 +77,26 @@ export class RoleRunError extends Error {
     super(message);
     this.name = "RoleRunError";
   }
+}
+
+/**
+ * A role call that ran past `CLAUFLOW_ROLE_TIMEOUT_MS` (zincir E7a, plan §3/29).
+ * Not a user abort; the message is the `agent.error` code `role_timeout:<kind>`.
+ */
+export class RoleTimeoutError extends RoleRunError {
+  constructor(readonly roleKind: string) {
+    super(`role_timeout:${roleKind}`, false);
+    this.name = "RoleTimeoutError";
+  }
+}
+
+const DEFAULT_ROLE_TIMEOUT_MS = 20 * 60 * 1000;
+
+/** Per-call time limit of a role (`CLAUFLOW_ROLE_TIMEOUT_MS`; invalid or unset → 20 min). */
+export function roleTimeoutMs(): number {
+  const raw = process.env.CLAUFLOW_ROLE_TIMEOUT_MS;
+  const n = raw === undefined || raw.trim() === "" ? Number.NaN : Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_ROLE_TIMEOUT_MS;
 }
 
 const EMPTY_USAGE: ClaudeUsage = {
@@ -117,6 +142,15 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
   if (opts.signal.aborted) roleController.abort();
   else opts.signal.addEventListener("abort", onParentAbort, { once: true });
 
+  // E7a: same hook as the budget stop; the CLI's process tree is killed.
+  let timedOut = false;
+  const timeoutMs = roleTimeoutMs();
+  const timer = setTimeout(() => {
+    if (roleController.signal.aborted) return;
+    timedOut = true;
+    roleController.abort();
+  }, timeoutMs);
+
   const nodeRunId = `noderun_${randomUUID().slice(0, 8)}`;
   try {
     const nr = insertNodeRun({
@@ -137,8 +171,12 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
   const logBuffer: string[] = [];
   const onLogLine = async (line: string, stream: "stdout" | "stderr"): Promise<void> => {
     const entry = stream === "stderr" ? `[stderr] ${line}` : line;
-    await appendAgentLog(taskId, entry);
-    broadcastLog(taskId, entry);
+    if (opts.onLogLine) {
+      await opts.onLogLine(entry);
+    } else {
+      await appendAgentLog(taskId, entry);
+      broadcastLog(taskId, entry);
+    }
     logBuffer.push(entry);
     if (logBuffer.length > 200) logBuffer.splice(0, logBuffer.length - 200);
   };
@@ -361,6 +399,11 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
       finalize({ status: "aborted", errorMessage: "Aborted by user", outputArtifact: artifactLog });
       throw new RoleRunError("aborted", true);
     }
+    if (timedOut) {
+      await onLogLine(`✖ Zaman aşımı: ${opts.nodeType} rolü ${Math.round(timeoutMs / 1000)} sn içinde bitmedi`, "stdout");
+      finalize({ status: "error", errorMessage: "role_timeout", outputArtifact: artifactLog });
+      throw new RoleTimeoutError(opts.nodeType);
+    }
     if (!budgetExceeded && claudeResult.code !== 0) {
       const msg = `claude CLI exited ${claudeResult.code}:\n${claudeResult.stderr.slice(0, 500)}`;
       finalize({ status: "error", errorMessage: `exit ${claudeResult.code}`, outputArtifact: artifactLog });
@@ -379,6 +422,7 @@ export async function runRole(opts: RunRoleOptions): Promise<RoleRunResult> {
     finalize({ status: "error", errorMessage: err instanceof Error ? err.message : String(err) });
     throw err;
   } finally {
+    clearTimeout(timer);
     opts.signal.removeEventListener("abort", onParentAbort);
   }
 }

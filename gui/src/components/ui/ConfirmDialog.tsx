@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "./Button";
 import { IconAlert, IconInfo } from "./icons";
@@ -9,7 +9,8 @@ import { useEscapeLayer, useFocusTrap, usePresence } from "./overlay";
 interface ConfirmDialogProps {
   open: boolean;
   title: string;
-  description?: string;
+  /** Plain text, or a few block lines (zincir E4's merge summary). */
+  description?: ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "danger" | "warning" | "default";
@@ -84,9 +85,9 @@ export function ConfirmDialog({
               {title}
             </h3>
             {description && (
-              <p id={descId} className="mt-2 text-sm leading-relaxed text-ink-2">
+              <div id={descId} className="mt-2 text-sm leading-relaxed text-ink-2">
                 {description}
-              </p>
+              </div>
             )}
           </div>
         </div>
