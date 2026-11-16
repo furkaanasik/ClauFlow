@@ -905,13 +905,16 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
 
 ### 5.22 Görev kartı (`Card/TaskCard.tsx`)
 
-`TaskCard` sürüklenebilir sarmalayıcı (dnd-kit `useSortable`, listener'lar tüm kartta). `TaskCardView` sunum katmanı: sürüklenen kart, drag overlay ve styleguide aynı görünümü paylaşır.
+`TaskCard` sürüklenebilir sarmalayıcı (dnd-kit `useSortable`, işaretçi listener'ları tüm kartta). `TaskCardView` sunum katmanı: sürüklenen kart, drag overlay ve styleguide aynı görünümü paylaşır.
+
+**Yapı: "gerilmiş açma düğmesi"** (erişilebilirlik, `nested-interactive` yok). Kart kökü etkileşimsiz bir `div`'dir: `role`, `tabIndex`, `aria-label`, `onKeyDown` yok; dnd-kit `attributes` yayılmaz (kökü `role="button"` yapıyordu; `KeyboardSensor` yok, sürükleme yalnızca işaretçiyle). Kartı açan, başlığın içindeki `<button class="task-card__open">`dur: erişilebilir adı `CLF-87 Başlık`, kilitliyken `title` = "Ajan çalışırken taşınamaz", Enter/Space doğal olarak açar. `::after`'ı tüm kartı kaplar, yani karta fareyle tıklamak bu düğmeye tıklamaktır. Eylem düğmeleri, bağlantılar ve `title` ipuçlu meta öğeler bu düğmenin **kardeşidir** ve `position: relative; z-index: 1` ile üstünde durur: ipuçları hover'da çalışır, meta haplarına tık köke kabarcıklanıp kartı açar. Odak halkası tüm kartta (`.task-card:has(.task-card__open:focus-visible)`). Tab sırası: başlık düğmesi → kartın iç düğmeleri → sonraki kart. Drag overlay ve `onOpen`'sız görünüm (styleguide) düz başlık basar (çift odak noktası olmasın).
 
 ```
-┌─ .task-card ─────────────────────────────── 12px köşe, 2px line, --shadow ─┐
+┌─ .task-card (div, etkileşimsiz) ──────────── 12px köşe, 2px line, --shadow ─┐
 ▌ .task-card__prio (4px öncelik şeridi)  ya da  .task-card__edge (çalışırken) │
-│ CLF-87  ⤷CLF-80                                              ▲▲▲          │  anahtar · üst görev · PriorityMark
-│ Başlık (15px semibold, 2 satır)                                            │
+│ CLF-87  ⤷CLF-80                                              ▲▲▲          │  anahtar · üst görev · PriorityMark (data-card-action)
+│ <h3><button.task-card__open> Başlık (15px semibold, 2 satır)               │  ::after → tüm kart
+│ Açıklama (13px ink-3, 2 satır)                                             │
 │ Açıklama (13px ink-3, 2 satır)                                             │
 │ (●backend) (●api) +2                                                       │  en fazla 3 etiket
 │ [◉ running ▪▪▪▫]                    (yalnızca ajan çalışırken, tam satır)  │
@@ -926,7 +929,8 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
 - Alt bilgi: `mt-3 flex flex-wrap items-center gap-1.5 border-t-[1.5px] border-hair pt-2.5`. Alt görev sayacı, maliyet (görevin gerçek ömür boyu harcaması `task.costUsd`, `formatUsd`) ve Review'daki PR'sız dallı görev için "Yerel dal" (`IconBranch`, `title` dal adı) `.task-card__meta` olarak basılır (bütçe aşıldıysa maliyet zemini `var(--red)`, metni `var(--on-red)`). Açık PR butonu kobalt dolgulu, merged PR butonu yeşil dolgulu `.task-card__btn`. Kuyrukta bekleyen için `StatusPill status="todo"` ve kare iptal butonu (`!w-6`, hover'da kırmızı).
 - **Zincir rozeti** (`Card/ChainBadge.tsx`): alt bilginin ilk öğesi, `.task-card__meta` + `IconChain size={12}`. Yalnızca `todo` ya da bağımlılık bekleyen (`waiting_deps`) kartta, karşılanmamış bağımlılık varsa çıkar. Metin "CLF-2'yi bekliyor" / "2 görev bekliyor"; engelleyicilerden biri sorunluysa (`review`/`todo` + `error`) "CLF-2 sorunlu" ve zemin `var(--red)`, metin `var(--on-red)` (`data-chain="problem"`, aksi `"waiting"`). Etkileşimsiz `span`; tam liste `title`'da (`CLF-2 · İncelemede` ya da `CLF-2 · <errorText>`). Liste görünümü (`TaskList`) `compact` sürümü kullanır: yalnızca sayı ya da `CLF-2 !`, metin `sr-only`. Bekleyen kartta kuyruk hapının yerinde `StatusPill status="todo"` "Bağımlılık bekliyor" (hepsi bitmişse "Başlatılmayı bekliyor") ve aynı kare iptal butonu; kart sürüklenemez ama kilit/kenar animasyonu almaz. Board'da hazır bekleyenler için `ui-banner--info` şeridi (`IconChain` + "Başlat"), çekmecede "Bekliyor" / "Bunu bekleyenler" bölümleri (bağımlı satırlarında `IconChain size={13}` `text-ink-3`).
 - **Çakışma durumları:** çözücü koşarken (`agent.status: "resolving_conflict"`) kart çalışan kart görünümünü alır (`data-running`, kenar animasyonu, kilit) ve tam satırda canlı `AgentBadge` "Çakışma çözülüyor" (executor'ın dört çentiği olmadan). Çözülmüş görevde (`currentStep === "conflict_resolved"`) alt bilgide `StatusPill status="review"` "Çakışma çözüldü — tekrar onayla" (`data-conflict-resolved`); başarısızlıkta mevcut hata hapı (`title` = `errorText`, `conflict_unresolved:<neden>`). Çekmecenin Detay sekmesinde yalnızca gerektiğinde "Çakışma" bölümü (`data-conflict-section`): çözülürken canlı dolu `StatusPill status="doing"` aşama metni + tehlike "Durdur"; başarısızlıkta `ui-banner--error` + birincil "AI ile çöz" (`IconRobot`); çözülmüşken aynı `review` hapı (`IconCheck`) ve not; ana dal ilerlemişse `ui-banner--info` + `IconMerge size={15}` "Ana dal (main) dallanmadan bu yana N commit ilerledi" ve ikincil "Dalı güncelle" (`IconMerge size={14}`, `ConfirmDialog` ile). Emoji kullanılmaz.
-- İç butonlar `pointerdown` ve `click` olaylarında `stopPropagation` yapar, böylece sürükleme ve kart açma tetiklenmez.
+- İç butonlar (iptal, `AgentBadge`, PR, GitHub bağlantısı) başlık düğmesinin kardeşidir, asla içinde değil. `pointerdown` ve `click` olaylarında `stopPropagation` yapar, böylece sürükleme ve kart açma tetiklenmez. Kendi sınıfı olmayan sarmalayıcılar (`AgentBadge` kabı, iptal kapları, "Çakışma çözüldü" hapı, üst görev anahtarı, öncelik işareti) `data-card-action` alır; `.task-card__btn` ve `.task-card__meta` zaten yükseltilmiştir. Yeni bir etkileşimli ya da `title`'lı öğe eklerken aynısını yap, yoksa `::after` onu örter.
+- Erişilebilirlik: axe `nested-interactive` 0 (bakım F4, iki tema; board, liste, çekmeceler, 390, EN).
 - Durum öznitelikleri: `data-running`, `data-locked` (ajan çalışırken sürükleme kapalı), `data-dragging`, `data-burst`.
 - Yeni gelen kart `opacity: 0; translate: 0 -8px` durumundan `500ms ease-out` ile girer.
 
@@ -935,7 +939,12 @@ Tipik ikon boyutları: buton içinde 14–16, rail öğesinde 17, kart meta ve �
   color: var(--ink); box-shadow: var(--shadow); cursor: grab; touch-action: manipulation;
   transition: transform 170ms var(--ease-press), box-shadow 170ms var(--ease-press), opacity 160ms ease; }
 .task-card:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--shadow-ink); }
-.task-card:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; }
+/* gerilmiş açma düğmesi: kök etkileşimsiz, halka tüm kartta */
+.task-card__open { all: unset; cursor: inherit; }
+.task-card__open::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+.task-card__open:focus-visible { outline: none; }
+.task-card:has(.task-card__open:focus-visible) { outline: 2.5px solid var(--focus); outline-offset: 3px; }
+.task-card .task-card__btn, .task-card .task-card__meta, .task-card [data-card-action] { position: relative; z-index: 1; }
 .task-card[data-locked="true"] { cursor: default; }
 .task-card[data-dragging="true"] { transform: none; box-shadow: none; border-style: dashed; background: transparent;
   background-image: repeating-linear-gradient(135deg, var(--hair) 0 2px, transparent 2px 9px); }
